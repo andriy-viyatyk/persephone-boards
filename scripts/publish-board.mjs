@@ -225,7 +225,12 @@ function main() {
     run("git", ["-C", repoRoot, "add", "-A"]);
     const summary = published.map((p) => p.tag).join(", ");
     run("git", ["-C", repoRoot, "commit", "-m", `Publish ${summary}`]);
-    run("git", ["-C", repoRoot, "push"]);
+    // Push explicitly to the current branch. actions/checkout can leave HEAD detached
+    // or on a branch without a tracking upstream, so a bare `git push` is unreliable in
+    // CI — resolve the branch (falling back to GITHUB_REF_NAME) and push HEAD to it.
+    let branch = run("git", ["-C", repoRoot, "rev-parse", "--abbrev-ref", "HEAD"]);
+    if (branch === "HEAD") branch = process.env.GITHUB_REF_NAME || "main";
+    run("git", ["-C", repoRoot, "push", "origin", `HEAD:${branch}`]);
 
     console.log(`\nPublished: ${summary}`);
     for (const p of published) console.log(`  ${p.tag}  ${p.size} bytes  sha256=${p.sha256}`);

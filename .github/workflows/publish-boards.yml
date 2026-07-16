@@ -1,0 +1,42 @@
+name: Publish Boards
+
+# Publishing happens only from main: merging develop → main runs this workflow,
+# which releases any board whose manifest version has no release tag yet.
+on:
+  push:
+    branches: [main]
+
+# The script creates releases and commits the updated manifests back to main.
+permissions:
+  contents: write
+
+# One publish at a time; don't cancel an in-flight release.
+concurrency:
+  group: publish-boards
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history + tags so the script can detect already-released versions
+          # and push the manifest commit back.
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Publish boards
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/publish-board.mjs

@@ -1,0 +1,4 @@
+v30.3.8
+source: https://raw.githubusercontent.com/jgraph/drawio/v30.3.8/src/main/webapp/js/viewer-static.min.js
+license: Apache-2.0 (see LICENSE)
+component: GraphViewer (viewer-static.min.js) from jgraph/drawio

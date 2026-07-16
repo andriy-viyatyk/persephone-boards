@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>DrawIO Viewer</title>
+    <!-- Shared base: page background, themed scrollbars, monospace default. -->
+    <link rel="stylesheet" href="./board-base.css" />
+    <style>
+        html, body { height: 100%; margin: 0; }
+        body {
+            display: flex;
+            flex-direction: column;
+            background: var(--p-bg, #1e1e1e);
+            color: var(--p-text, #ddd);
+            overflow: hidden;
+            font-family: system-ui, sans-serif;
+        }
+        #bar {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: var(--p-gap-md, 8px);
+            padding: var(--p-space-sm, 6px) var(--p-space-md, 8px);
+            background: var(--p-panel, #252526);
+            border-bottom: 1px solid var(--p-border, #3c3c3c);
+            font-size: var(--p-font-base, 13px);
+        }
+        #name {
+            flex: 0 1 auto;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--p-text-muted, #9aa0a6);
+        }
+        /* Equal flex spacers on both sides of #tabs center the page tabs in the bar,
+           with #name pinned left and #copy pinned right. */
+        .spacer { flex: 1 1 auto; min-width: 0; }
+        /* Page tabs live on the RIGHT of the top bar (#name takes the left, flex-grows,
+           and pushes these over). They shrink + scroll horizontally when numerous. */
+        #tabs {
+            flex: 0 1 auto;
+            min-width: 0;
+            display: none;
+            gap: 2px;
+            overflow-x: auto;
+        }
+        #tabs.show { display: flex; }
+        .tab {
+            flex: 0 0 auto;
+            font: inherit;
+            font-size: var(--p-font-sm, 12px);
+            cursor: pointer;
+            padding: var(--p-space-xs, 3px) var(--p-space-md, 10px);
+            border: 1px solid var(--p-border, #3c3c3c);
+            border-radius: var(--p-radius-sm, 3px);
+            background: transparent;
+            color: var(--p-text-muted, #9aa0a6);
+            white-space: nowrap;
+        }
+        .tab:hover { color: var(--p-text, #ddd); }
+        .tab.active {
+            background: var(--p-overlay, rgba(255, 255, 255, 0.06));
+            color: var(--p-text, #ddd);
+            border-color: var(--p-accent, #4c8bf5);
+        }
+        /* "Copy" icon action — pinned to the far right of the bar; disabled when no diagram.
+           The SVG inherits `currentColor`, so it themes with the button text color. */
+        #copy {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: var(--p-space-xs, 4px);
+            border: 1px solid var(--p-border, #3c3c3c);
+            border-radius: var(--p-radius-sm, 3px);
+            background: transparent;
+            color: var(--p-text-muted, #9aa0a6);
+        }
+        #copy svg { display: block; width: 16px; height: 16px; }
+        #copy:hover:not(:disabled) {
+            background: var(--p-overlay, rgba(255, 255, 255, 0.06));
+            color: var(--p-text, #ddd);
+        }
+        #copy:active:not(:disabled) { filter: brightness(0.9); }
+        #copy:disabled { opacity: 0.4; cursor: default; }
+        #diagram {
+            flex: 1 1 auto;
+            position: relative;
+            overflow: auto;
+        }
+        #canvas { min-height: 100%; }
+        /* GraphViewer injects a `.mxgraph` div; keep it from forcing horizontal page scroll. */
+        #canvas .mxgraph { max-width: 100%; }
+        #state {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: var(--p-space-xl, 16px);
+            color: var(--p-text-muted, #9aa0a6);
+            pointer-events: none;
+        }
+        #state.show { display: flex; }
+        #state.error { color: var(--p-error, #f48771); }
+    </style>
+    <!-- Keep the offline (static) renderer from probing REMOTE resources — the board CSP
+         forbids remote network (connect-src 'self', script-src 'self'). viewer-static inlines
+         its stencils; these globals repoint every base URL the bundle would otherwise resolve
+         to diagrams.net (math loader, stencils, images, export) at a same-origin (./lib) path,
+         so a missing asset is a harmless local 404 rather than a CSP violation. Set BEFORE the
+         viewer script executes. -->
+    <script>
+        window.mxLoadResources = false;
+        window.mxLoadStylesheets = false;
+        window.mxForceIncludes = false;
+        window.DRAW_MATH_URL = "./lib/math";
+        window.STENCIL_PATH = "./lib/stencils";
+        window.IMAGE_PATH = "./lib/images";
+        window.SHAPES_PATH = "./lib/shapes";
+        window.RESOURCES_PATH = "./lib/resources";
+        window.mxBasePath = "./lib";
+        window.mxImageBasePath = "./lib/images";
+    </script>
+    <script src="./lib/viewer-static.min.js"></script>
+</head>
+<body>
+    <div id="bar">
+        <span id="name">DrawIO Viewer</span>
+        <div class="spacer"></div>
+        <div id="tabs"></div>
+        <div class="spacer"></div>
+        <button id="copy" title="Copy diagram as PNG to clipboard" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+        </button>
+    </div>
+    <div id="diagram">
+        <div id="canvas"></div>
+        <div id="state"></div>
+    </div>
+
+    <script src="./app.js"></script>
+</body>
+</html>

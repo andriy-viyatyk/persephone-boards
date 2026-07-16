@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Todo Board</title>
+  <!-- Persephone injects the --p-* palette, boot context, and the persephone bridge
+       shim into <head> BEFORE these links. board-base.css first, then our own styles. -->
+  <link rel="stylesheet" href="./board-base.css" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <!-- ── Main list view (persephone.view === "main") ─────────────────────── -->
+  <div id="main-root" class="root">
+    <header class="topbar">
+      <span id="file-name" class="file-name">Todo Board</span>
+      <div class="search-wrap">
+        <input id="search" type="text" placeholder="Search…" autocomplete="off" />
+        <button id="search-clear" class="icon-btn" title="Clear search" hidden>✕</button>
+      </div>
+      <span id="count" class="count"></span>
+    </header>
+
+    <div class="quick-add">
+      <input id="quick-add-input" type="text" placeholder="Add an item…" autocomplete="off" />
+      <button id="quick-add-btn" class="icon-btn add" title="Add item">＋</button>
+    </div>
+
+    <div id="todo-list" class="todo-list"></div>
+    <div id="main-empty" class="empty" hidden></div>
+  </div>
+
+  <!-- ── Lists & Tags secondary view (persephone.view === "lists") ───────── -->
+  <div id="lists-root" class="root" hidden>
+    <div class="new-row">
+      <input id="new-list" type="text" placeholder="New list…" autocomplete="off" />
+      <button id="add-list" class="icon-btn add" title="Add list">＋</button>
+    </div>
+    <div class="section-title">Lists</div>
+    <div id="lists-body"></div>
+
+    <div class="section-title">Tags</div>
+    <div id="tags-body"></div>
+
+    <div class="new-row bottom">
+      <input id="new-tag" type="text" placeholder="New tag…" autocomplete="off" />
+      <button id="add-tag" class="icon-btn add" title="Add tag">＋</button>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

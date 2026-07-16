@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Build/publish artifacts (release ZIPs are uploaded to GitHub Releases, never committed)
+*.zip
+
+# Board runtime log (written by the board bridge while a board runs)
+ui.log
+
+# Local dev sample files — never published, kept out of the repo
+_test/
+
+# OS junk
+.DS_Store
+Thumbs.db

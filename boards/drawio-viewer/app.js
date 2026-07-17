@@ -214,8 +214,11 @@ async function load() {
     try {
         const filePath = await P.getFilePath();
         nameEl.textContent = filePath ? basename(filePath) : "DrawIO Viewer";
+        // Tooltip: the full file path (the label itself shows only the basename).
+        nameEl.title = filePath || "";
     } catch {
         nameEl.textContent = "DrawIO Viewer";
+        nameEl.title = "";
     }
 
     // Content comes from Persephone's content host. getContent() resolves to the current content;

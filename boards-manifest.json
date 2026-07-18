@@ -3,7 +3,7 @@
   "boards": [
     {
       "id": "drawio-viewer",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "name": "DrawIO Viewer",
       "description": "Read-only viewer for diagrams.net / draw.io (.drawio) diagrams.",
       "fileMasks": [
@@ -14,9 +14,9 @@
       "standalone": false,
       "minAppVersion": "4.0.14",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/drawio-viewer-v1.0.1/drawio-viewer.zip",
-        "size": 838001,
-        "sha256": "8eb733acaf6f40cd00041aaa6a7a1466d640256931befdd5f88084fe4e1ac2a4"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/drawio-viewer-v1.0.2/drawio-viewer.zip",
+        "size": 846662,
+        "sha256": "45929c65b6c1bb270665fa65b29c960960c65a4a0063a693af2e24e92a26ac4a"
       }
     }
   ]

@@ -1,8 +1,8 @@
 # What's New — DrawIO Viewer
 
-One line per change, newest first. Keep it short. Put pending changes under **Unreleased**;
-when the board is published, rename that heading to the released `version` from
-`board-manifest.json`.
+One line per change, newest first. Keep it short. Record pending changes under a heading for
+the **next version** you'll release (the version `board-manifest.json` will be bumped to) — so
+the number is decided up front and nothing needs renaming at release time.
 
-## Unreleased
+## 1.0.2
 - Added zooming and panning.

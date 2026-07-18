@@ -84,7 +84,7 @@ and on encrypted files too — not just plain local paths.
 | `lib/viewer-static.min.js` | Vendored jgraph/drawio GraphViewer, **v30.3.8**, Apache-2.0 (see `lib/LICENSE`, `lib/VERSION.txt`). ~4 MB, includes inlined stencils. |
 | `board-base.css` | Shared Persephone board theme defaults (don't recreate). |
 | `icon.svg` | Board icon. |
-| `WHATS-NEW.md` | Short human changelog (one line per change). Record changes under **Unreleased**; rename to the version on release. |
+| `WHATS-NEW.md` | Short human changelog (one line per change). Record changes under the next version's heading (e.g. `## 1.0.2`); `board-manifest.json` `version` matches it at release. |
 
 ## Run & test
 

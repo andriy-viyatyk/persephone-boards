@@ -42,9 +42,10 @@ The board's own `board-manifest.json` `version` is the **single source of truth*
 
 Every board must carry a **`WHATS-NEW.md`** — a short, human-readable changelog (one line per
 change). Create it if it's missing, and create one for every **new** board. Record each change
-as you make it, under an **Unreleased** heading; when you publish (bump `version` + merge to
-`main`), rename that heading to the released version. Keep entries terse — e.g.
-`- Added zooming and panning.` See `boards/drawio-viewer/WHATS-NEW.md` for the format.
+as you make it, under a heading for the **next version** you'll release — e.g. `## 1.0.2` (the
+version you'll set in `board-manifest.json`). Deciding the number up front means nothing needs
+renaming at release. Keep entries terse — e.g. `- Added zooming and panning.` See
+`boards/drawio-viewer/WHATS-NEW.md` for the format.
 
 `WHATS-NEW.md` **ships inside the release ZIP** (it is not excluded by the publish script), so
 Persephone can display a board's changelog on its properties screen.

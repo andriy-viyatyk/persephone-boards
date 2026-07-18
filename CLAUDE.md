@@ -39,13 +39,14 @@ string versus the existing release tags.
 To cut a new release:
 
 1. On **`develop`**, make the board changes under `boards/<id>/`.
-2. **Record the change in `boards/<id>/WHATS-NEW.md`** — one terse line under the **Unreleased**
-   heading (create the file if it's missing). See [Rules](#rules).
-3. **Bump `version`** in `boards/<id>/board-manifest.json` (semver). This is what tells the
-   automation there is something new to release. Rename the `WHATS-NEW.md` **Unreleased** heading
-   to this version.
+2. **Record the change in `boards/<id>/WHATS-NEW.md`** — one terse line under a heading for the
+   next version you'll release, e.g. `## 1.0.2` (create the file if it's missing). See [Rules](#rules).
+3. **Bump `version`** in `boards/<id>/board-manifest.json` (semver) to match that `WHATS-NEW.md`
+   heading. This is what tells the automation there is something new to release.
 4. Commit and push `develop`.
-5. **Merge `develop` → `main`** (this is the publish trigger).
+5. **Verify version consistency:** `board-manifest.json` `version` == the top `WHATS-NEW.md`
+   heading, and no `‹id›-v‹version›` release tag exists yet (see [Rules](#rules)).
+6. **Merge `develop` → `main`** (this is the publish trigger).
 
 On push to `main`, the **Publish Boards** GitHub Action (`.github/workflows/publish-boards.yml`)
 runs `scripts/publish-board.mjs`, which for **every** board whose `version` has no matching
@@ -82,10 +83,16 @@ PATH. The GitHub Action is the normal path; this is only a fallback.
   ships.
 - **Every board must have a `WHATS-NEW.md`** — a short human changelog, one line per change
   (e.g. `- Added zooming and panning.`). Create it if missing, and create one for every new
-  board. Add pending changes under an **Unreleased** heading and rename it to the version on
-  release. See `boards/drawio-viewer/WHATS-NEW.md` for the format. It **ships inside the release
+  board. Record pending changes under a heading for the next version you'll release (e.g.
+  `## 1.0.2`), and bump `board-manifest.json` `version` to match at release — no placeholder to
+  rename. See `boards/drawio-viewer/WHATS-NEW.md` for the format. It **ships inside the release
   ZIP** (not in the publish script's exclude list), so the app can show it on a board's
   properties screen — do not exclude it.
+- **Check version consistency before releasing.** Before merging `develop → main`, the top
+  version heading in `boards/<id>/WHATS-NEW.md` MUST match `version` in
+  `boards/<id>/board-manifest.json`, and that version MUST NOT already have a `‹id›-v‹version›`
+  release tag. A mismatch desyncs the shipped changelog from the released version; a stale
+  version silently ships nothing. If they disagree, fix them before publishing.
 - Board content is what lands in the ZIP — keep dev-only junk out (the excludes above cover the
   usual cases).
 - Vendored third-party components carry their own license files inside the board folder

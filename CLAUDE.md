@@ -39,10 +39,13 @@ string versus the existing release tags.
 To cut a new release:
 
 1. On **`develop`**, make the board changes under `boards/<id>/`.
-2. **Bump `version`** in `boards/<id>/board-manifest.json` (semver). This is what tells the
-   automation there is something new to release.
-3. Commit and push `develop`.
-4. **Merge `develop` → `main`** (this is the publish trigger).
+2. **Record the change in `boards/<id>/WHATS-NEW.md`** — one terse line under the **Unreleased**
+   heading (create the file if it's missing). See [Rules](#rules).
+3. **Bump `version`** in `boards/<id>/board-manifest.json` (semver). This is what tells the
+   automation there is something new to release. Rename the `WHATS-NEW.md` **Unreleased** heading
+   to this version.
+4. Commit and push `develop`.
+5. **Merge `develop` → `main`** (this is the publish trigger).
 
 On push to `main`, the **Publish Boards** GitHub Action (`.github/workflows/publish-boards.yml`)
 runs `scripts/publish-board.mjs`, which for **every** board whose `version` has no matching
@@ -77,6 +80,12 @@ PATH. The GitHub Action is the normal path; this is only a fallback.
   publish them.
 - **Always bump `version`** for any change you want users to receive; an unbumped change never
   ships.
+- **Every board must have a `WHATS-NEW.md`** — a short human changelog, one line per change
+  (e.g. `- Added zooming and panning.`). Create it if missing, and create one for every new
+  board. Add pending changes under an **Unreleased** heading and rename it to the version on
+  release. See `boards/drawio-viewer/WHATS-NEW.md` for the format. It **ships inside the release
+  ZIP** (not in the publish script's exclude list), so the app can show it on a board's
+  properties screen — do not exclude it.
 - Board content is what lands in the ZIP — keep dev-only junk out (the excludes above cover the
   usual cases).
 - Vendored third-party components carry their own license files inside the board folder

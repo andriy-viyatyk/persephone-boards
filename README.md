@@ -20,6 +20,7 @@ it lists; each board version is published as a ZIP asset on a per-board GitHub *
 boards/                     one folder per board (folder name = board id)
   drawio-viewer/            e.g. the DrawIO Viewer board
     board-manifest.json     board identity + version (the source of truth for publishing)
+    WHATS-NEW.md            short human changelog — one line per change (tracked per board)
     ...board files...
     versions-manifest.json  full version history (written by the publish script)
 boards-manifest.json        catalog: the LATEST version of every board (machine-written)
@@ -36,6 +37,17 @@ The board's own `board-manifest.json` `version` is the **single source of truth*
 1. Edit the board under `boards/<id>/` on `develop`.
 2. Bump `version` in `boards/<id>/board-manifest.json`.
 3. Merge `develop` → `main`.
+
+### Track changes in each board's `WHATS-NEW.md`
+
+Every board must carry a **`WHATS-NEW.md`** — a short, human-readable changelog (one line per
+change). Create it if it's missing, and create one for every **new** board. Record each change
+as you make it, under an **Unreleased** heading; when you publish (bump `version` + merge to
+`main`), rename that heading to the released version. Keep entries terse — e.g.
+`- Added zooming and panning.` See `boards/drawio-viewer/WHATS-NEW.md` for the format.
+
+`WHATS-NEW.md` **ships inside the release ZIP** (it is not excluded by the publish script), so
+Persephone can display a board's changelog on its properties screen.
 
 The GitHub Action then, for every board whose `version` has no matching `‹id›-v‹version›`
 release tag: zips the board's contents, creates the tagged Release with the ZIP asset,

@@ -34,12 +34,33 @@ and `editorKind: "content-host"` (Persephone backs the board with a content host
    mid-edit XML when the host transfers back).
 3. `renderPage(pageXml)` hands a page to the vendored **GraphViewer** (`lib/viewer-static.min.js`)
    by creating a `.mxgraph` div with a `data-mxgraph` JSON config and calling
-   `GraphViewer.processElements()`. GraphViewer decompresses encoded (`deflate`+base64) diagram
-   bodies itself.
-4. For multi-page files, `renderTabs()` renders a page tab bar (see Gotchas). The top bar is
+   `GraphViewer.processElements()` — but **deferred** until `#canvas` has a non-zero width (see
+   Gotchas). GraphViewer decompresses encoded (`deflate`+base64) diagram bodies itself.
+4. `zoomPan.onRendered()` fits the freshly-rendered diagram to the viewport and centers it, and
+   drives all zoom/pan interaction (see **Zoom & pan** below).
+5. For multi-page files, `renderTabs()` renders a page tab bar (see Gotchas). The top bar is
    `[ file name ][ tabs (centered) ][ Copy icon ]`.
-5. **Copy** (the icon button; `diagramToPngBlob` + `copyPng`) rasterizes the current page's SVG
+6. **Copy** (the icon button; `diagramToPngBlob` + `copyPng`) rasterizes the current page's SVG
    to a PNG (2×, white background) and writes it to the clipboard with `navigator.clipboard.write`.
+
+## Zoom & pan
+
+The `zoomPan` controller in `app.js` is a vanilla-JS port of Persephone's built-in
+`BaseImageView` (the shared zoom/pan behind the app's Image and Mermaid viewers), so the UX
+matches those editors: the diagram opens **centered and zoomed-to-fit**, wheel **zooms toward
+the cursor**, left-drag **pans**, and **double-click** (or clicking the bottom-right **% pill**)
+resets to fit. `+`/`-`/`0` keys zoom in/out/reset. Scale is clamped to 0.1×–10×; it never
+upscales past fit on reset (a small diagram sits at 100%, centered — matching the built-ins).
+
+Layout: `#diagram` is the clipped viewport; `#canvas` fills it and is **GraphViewer's container**
+(it needs a definite width to size the graph against — see Gotchas). The transform target is the
+`.mxgraph` diagram box GraphViewer renders inside `#canvas`: it carries an explicit px size, so
+its `offsetWidth/Height` give the true natural size (immune to the CSS transform), and it is
+absolutely centered (`left/top:50%` + a `translate(-50%,-50%)` baseline) and scaled about its
+center, so `translate(0,0)+scale` keeps its center pinned to the viewport center. The rendered
+diagram is **SVG**, so CSS scaling is vector-crisp — no quality loss, no need for GraphViewer's
+own (CSP-blocked) zoom toolbar. The view resets to fit on every content change / page switch
+(same as BaseImageView resetting on `src` change).
 
 ## Content-host round-trip (the point of this board)
 
@@ -57,12 +78,13 @@ and on encrypted files too — not just plain local paths.
 
 | File | Role |
 |------|------|
-| `index.html` | Page shell: top bar (file name left · page tabs centered · Copy PNG right), diagram canvas, state overlay. Inline `<script>` sets the offline globals **before** loading the viewer (see Gotchas). |
-| `app.js` | All logic: `host.getContent` + `host.onContentChange` → `render` → `parsePages` → `renderTabs`/`renderPage`; `getFilePath` for the name label only; `diagramToPngBlob`/`copyPng` (clipboard); empty/error states. `render(xml)` never throws (degrades to the error overlay). No in-board refresh — a host change / the board toolbar's Reload re-renders. |
+| `index.html` | Page shell: top bar (file name left · page tabs centered · Copy PNG right), diagram viewport (`#diagram` › `#canvas`), state overlay, zoom-% pill. Inline `<script>` sets the offline globals **before** loading the viewer (see Gotchas). |
+| `app.js` | All logic: `host.getContent` + `host.onContentChange` → `render` → `parsePages` → `renderTabs`/`renderPage`; the `zoomPan` controller (fit/center + wheel-zoom/drag-pan/reset, a BaseImageView port); `getFilePath` for the name label only; `diagramToPngBlob`/`copyPng` (clipboard, natural-size). `render(xml)` never throws (degrades to the error overlay). No in-board refresh — a host change / the board toolbar's Reload re-renders. |
 | `board-manifest.json` | Content-host custom-editor association (`fileMasks` / `editorPriority` / `editorName` / `editorKind: "content-host"`). |
 | `lib/viewer-static.min.js` | Vendored jgraph/drawio GraphViewer, **v30.3.8**, Apache-2.0 (see `lib/LICENSE`, `lib/VERSION.txt`). ~4 MB, includes inlined stencils. |
 | `board-base.css` | Shared Persephone board theme defaults (don't recreate). |
 | `icon.svg` | Board icon. |
+| `WHATS-NEW.md` | Short human changelog (one line per change). Record changes under **Unreleased**; rename to the version on release. |
 
 ## Run & test
 
@@ -74,8 +96,10 @@ and on encrypted files too — not just plain local paths.
   URL too — the content host makes those work now.
 - After editing board files, reload with the in-board **Reload** button, or `board_refresh`
   (MCP). Iterate loop: edit → `board_refresh` → `browser_snapshot { pageId }`.
-- Cover: single-page, multi-page (tab bar appears), compressed diagram bodies, an empty file,
-  and a plain open (no content host → empty state). `ui.log` should stay clean (no CSP violations).
+- Cover: single-page, multi-page (tab bar appears), compressed diagram bodies, a **large**
+  diagram (`_test/large.drawio` — starts fit-to-viewport + centered; wheel-zoom, drag-pan,
+  double-click reset all work), an empty file, and a plain open (no content host → empty state).
+  `ui.log` should stay clean (no CSP violations).
 
 ## Gotchas (the non-obvious decisions)
 
@@ -88,8 +112,21 @@ and on encrypted files too — not just plain local paths.
   globals must be set before `viewer-static.min.js` loads.**
 - **GraphViewer's built-in toolbar can't be used.** Its page/zoom toolbar needs remote
   sprite/stylesheet assets (blocked by CSP), so this board builds its **own** always-visible
-  page tab bar in `app.js` (`renderTabs`) instead — offline and clearer than drawio's hover
-  toolbar.
+  page tab bar in `app.js` (`renderTabs`) and its **own** zoom/pan (`zoomPan`, a BaseImageView
+  port) instead — offline, and clearer than drawio's hover toolbar.
+- **`resize:true` is required in the GraphViewer config** — that is what makes GraphViewer stamp
+  an explicit px size on the `.mxgraph` box (the natural size `zoomPan` fits to). `resize:false`
+  is unreliable: it renders large diagrams at natural size but leaves small ones **unprocessed
+  (0×0)**. `nav:false` (own zoom/pan); `center:true` is harmless (the `.mxgraph` box already hugs
+  the graph). GraphViewer fits diagrams *wider than the container* down to the container width;
+  `zoomPan` then does the final fit + centering over that.
+- **Rendering is deferred until `#canvas` has a non-zero width.** GraphViewer processes each
+  `.mxgraph` **exactly once**, and if `processElements()` runs while the container is momentarily
+  0-wide (a reflow right after a board reload), its fit-to-width collapses to nothing and the
+  element is left **permanently blank** — re-calling won't recover it. This only hit *large*
+  diagrams (small ones need no fit), and only *intermittently* (timing). `renderPage` therefore
+  waits (via `requestAnimationFrame`) for `canvas.offsetWidth >= 1` before calling
+  `processElements()`. Do not call it eagerly.
 - **Multi-page rendering** works by re-wrapping each `<diagram>` back into its own `<mxfile>`
   and rendering one at a time; if the XML has no `<diagram>`, the raw file is handed to
   GraphViewer as a last resort.

@@ -85,14 +85,43 @@
         }
         #copy:active:not(:disabled) { filter: brightness(0.9); }
         #copy:disabled { opacity: 0.4; cursor: default; }
+        /* Viewport for zoom/pan. Clips the (possibly scaled-up) diagram; the diagram itself is
+           absolutely centered inside and the pan/zoom transform is applied to it, so it starts
+           centered and zoomed-to-fit — like the built-in Image/Mermaid viewers. */
         #diagram {
             flex: 1 1 auto;
             position: relative;
-            overflow: auto;
+            overflow: hidden;
+            cursor: grab;
         }
-        #canvas { min-height: 100%; }
-        /* GraphViewer injects a `.mxgraph` div; keep it from forcing horizontal page scroll. */
-        #canvas .mxgraph { max-width: 100%; }
+        #diagram[data-dragging] { cursor: grabbing; }
+        /* GraphViewer's container: fills the viewport so it has a definite width to size the graph
+           against (resize:true fits the graph to the container width). NOT the transform target —
+           app.js applies the transform to the `.mxgraph` diagram box it renders inside here. */
+        #canvas {
+            position: absolute;
+            inset: 0;
+        }
+        /* Zoom % pill — bottom-right; click to reset to fit (mirrors the built-in viewers). */
+        #zoom {
+            position: absolute;
+            bottom: var(--p-space-lg, 12px);
+            right: var(--p-space-lg, 12px);
+            padding: var(--p-space-xs, 3px) var(--p-space-md, 8px);
+            background: var(--p-panel, #252526);
+            border: 1px solid var(--p-border, #3c3c3c);
+            border-radius: var(--p-radius-sm, 3px);
+            color: var(--p-text-muted, #9aa0a6);
+            font-size: var(--p-font-sm, 12px);
+            font-family: monospace;
+            cursor: pointer;
+            user-select: none;
+            display: none;
+        }
+        #zoom:hover {
+            color: var(--p-text, #ddd);
+            background: var(--p-overlay, rgba(255, 255, 255, 0.06));
+        }
         #state {
             position: absolute;
             inset: 0;
@@ -144,6 +173,7 @@
     <div id="diagram">
         <div id="canvas"></div>
         <div id="state"></div>
+        <div id="zoom" title="Reset zoom (double-click diagram)">100%</div>
     </div>
 
     <script src="./app.js"></script>

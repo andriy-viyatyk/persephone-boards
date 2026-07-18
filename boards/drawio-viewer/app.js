@@ -27,9 +27,204 @@ const P = window.persephone;
 
 const nameEl = document.getElementById("name");
 const tabsEl = document.getElementById("tabs");
+const diagramEl = document.getElementById("diagram");
 const canvas = document.getElementById("canvas");
 const stateEl = document.getElementById("state");
 const copyBtn = document.getElementById("copy");
+const zoomEl = document.getElementById("zoom");
+
+// ── Zoom & pan ──────────────────────────────────────────────────────────────
+// A vanilla-JS port of Persephone's built-in BaseImageView (the shared zoom/pan behind the
+// Image and Mermaid viewers), applied to GraphViewer's rendered SVG. The diagram starts
+// centered and zoomed-to-fit; wheel zooms toward the cursor, left-drag pans, double-click (or
+// the % pill) resets to fit. #diagram is the clipped viewport; #canvas fills it and is
+// GraphViewer's container (it needs a definite width). The transform target is the `.mxgraph`
+// diagram box GraphViewer renders inside #canvas — it carries an explicit px size, so its
+// offsetWidth/Height give the true natural size (immune to the CSS transform we apply). It is
+// absolutely centered (left/top 50% + a translate(-50%,-50%) baseline) and scaled about its
+// center, so translate(0,0)+scale keeps the center pinned to the viewport center — matching
+// BaseImageView's flex-centered-scaled-box. SVG scales vector-crisp, so there is no quality loss.
+const zoomPan = (() => {
+    const MIN_SCALE = 0.1;
+    const MAX_SCALE = 10;
+    const ZOOM_STEP = 0.1;
+
+    let scale = 1;
+    let translateX = 0;
+    let translateY = 0;
+    let fitScale = 1;
+    let dragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let hasContent = false;
+    // The `.mxgraph` diagram box (transform target). Re-grabbed on each render; null when empty.
+    let contentEl = null;
+
+    // Layout size of the rendered diagram, unaffected by our CSS transform (offset* ignore
+    // transforms). Zero until GraphViewer has laid the diagram out.
+    function naturalSize() {
+        if (!contentEl) return { w: 0, h: 0 };
+        return { w: contentEl.offsetWidth, h: contentEl.offsetHeight };
+    }
+
+    function apply() {
+        if (!contentEl) return;
+        // translate(-50%,-50%) centers the box on its left/top:50% anchor (= viewport center);
+        // transform-origin:center makes scale keep that center pinned. Then our pan translate.
+        contentEl.style.transform =
+            "translate(-50%, -50%) translate(" +
+            translateX +
+            "px, " +
+            translateY +
+            "px) scale(" +
+            scale +
+            ")";
+        contentEl.style.transition = dragging ? "none" : "transform 0.1s ease-out";
+        zoomEl.textContent = Math.round(scale * 100) + "%";
+    }
+
+    // Fit-to-viewport scale; never scales up past 100% (matches BaseImageView).
+    function calcFitScale() {
+        const { w, h } = naturalSize();
+        if (!w || !h) return fitScale;
+        const vw = diagramEl.clientWidth;
+        const vh = diagramEl.clientHeight;
+        if (!vw || !vh) return fitScale;
+        return Math.min(vw / w, vh / h, 1);
+    }
+
+    function reset() {
+        fitScale = calcFitScale();
+        scale = fitScale;
+        translateX = 0;
+        translateY = 0;
+        apply();
+    }
+
+    // Zoom keeping the point under the cursor fixed (BaseImageView.zoomAtPoint).
+    function zoomAtPoint(newScale, clientX, clientY) {
+        const clamped = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
+        const rect = diagramEl.getBoundingClientRect();
+        const pointX = clientX - rect.left - rect.width / 2;
+        const pointY = clientY - rect.top - rect.height / 2;
+        const imagePointX = (pointX - translateX) / scale;
+        const imagePointY = (pointY - translateY) / scale;
+        if (clamped <= fitScale) {
+            // At/under fit — recenter (no point panning a fully-visible diagram).
+            scale = clamped;
+            translateX = 0;
+            translateY = 0;
+        } else {
+            scale = clamped;
+            translateX = pointX - imagePointX * clamped;
+            translateY = pointY - imagePointY * clamped;
+        }
+        apply();
+    }
+
+    diagramEl.addEventListener(
+        "wheel",
+        (e) => {
+            if (!hasContent) return;
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+            zoomAtPoint(scale * (1 + delta), e.clientX, e.clientY);
+        },
+        { passive: false },
+    );
+
+    diagramEl.addEventListener("mousedown", (e) => {
+        if (e.button !== 0 || !hasContent) return;
+        dragging = true;
+        dragStartX = e.clientX - translateX;
+        dragStartY = e.clientY - translateY;
+        diagramEl.setAttribute("data-dragging", "");
+    });
+    // On window so a drag that leaves the viewport still tracks and releases.
+    window.addEventListener("mousemove", (e) => {
+        if (!dragging) return;
+        translateX = e.clientX - dragStartX;
+        translateY = e.clientY - dragStartY;
+        apply();
+    });
+    window.addEventListener("mouseup", () => {
+        if (!dragging) return;
+        dragging = false;
+        diagramEl.removeAttribute("data-dragging");
+        apply();
+    });
+
+    diagramEl.addEventListener("dblclick", () => {
+        if (hasContent) reset();
+    });
+    zoomEl.addEventListener("click", () => {
+        if (hasContent) reset();
+    });
+
+    window.addEventListener("resize", () => {
+        if (!hasContent) return;
+        if (Math.abs(scale - fitScale) < 1e-6) reset();
+        else fitScale = calcFitScale();
+    });
+
+    window.addEventListener("keydown", (e) => {
+        if (!hasContent) return;
+        const rect = diagramEl.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        if (e.key === "+" || e.key === "=") {
+            e.preventDefault();
+            zoomAtPoint(scale * 1.2, cx, cy);
+        } else if (e.key === "-" || e.key === "_") {
+            e.preventDefault();
+            zoomAtPoint(scale / 1.2, cx, cy);
+        } else if (e.key === "0") {
+            e.preventDefault();
+            reset();
+        }
+    });
+
+    return {
+        // Call after a page renders. Grab the freshly-rendered `.mxgraph` box, make it the
+        // absolutely-centered transform target, then poll a few frames until it has a non-zero
+        // box (GraphViewer lays the SVG out asynchronously) and fit-and-center.
+        onRendered() {
+            hasContent = true;
+            zoomEl.style.display = "block";
+            contentEl = canvas.querySelector(".mxgraph");
+            if (contentEl) {
+                // Override GraphViewer's inline position:relative → absolute-centered anchor.
+                contentEl.style.position = "absolute";
+                contentEl.style.left = "50%";
+                contentEl.style.top = "50%";
+                contentEl.style.transformOrigin = "center center";
+                contentEl.style.willChange = "transform";
+            }
+            let tries = 0;
+            const tick = () => {
+                const { w, h } = naturalSize();
+                if (w && h) {
+                    reset();
+                } else if (tries++ < 30) {
+                    requestAnimationFrame(tick);
+                } else {
+                    reset();
+                }
+            };
+            requestAnimationFrame(tick);
+        },
+        // Call for empty/error states (no diagram): forget the target and hide the pill.
+        clear() {
+            hasContent = false;
+            contentEl = null;
+            scale = 1;
+            translateX = 0;
+            translateY = 0;
+            fitScale = 1;
+            zoomEl.style.display = "none";
+        },
+    };
+})();
 
 function showState(message, isError) {
     stateEl.textContent = message;
@@ -81,10 +276,14 @@ function renderPage(pageXml) {
         // lightbox:false — a read-only viewer; without it, clicking the diagram tries to open
         // the drawio lightbox, which (blocked from an inline overlay here) falls back to opening
         // viewer.diagrams.net in the browser — a dead remote page under the board CSP.
+        // resize:true is what makes GraphViewer stamp an explicit px size on `.mxgraph` (= the
+        // diagram bounds) — the natural size our zoom/pan fits to. center:true is harmless (the
+        // `.mxgraph` box already hugs the graph). nav:false — its zoom toolbar needs CSP-blocked
+        // remote sprites and we provide our own zoom/pan.
         JSON.stringify({
             xml: pageXml,
             lightbox: false,
-            nav: true,
+            nav: false,
             resize: true,
             center: true,
             border: 8,
@@ -94,8 +293,33 @@ function renderPage(pageXml) {
     if (!window.GraphViewer || typeof window.GraphViewer.processElements !== "function") {
         throw new Error("The DrawIO renderer failed to load (lib/viewer-static.min.js).");
     }
-    // processElements() only processes .mxgraph divs it hasn't seen — i.e. the one above.
-    window.GraphViewer.processElements();
+    // Defer processing until the container (#canvas) has a real width. GraphViewer fits diagrams
+    // LARGER than the container down to its width; if processElements() runs while the container
+    // is momentarily 0-wide (a reflow right after a board reload), that fit collapses to nothing
+    // and the element is left permanently blank — GraphViewer processes each .mxgraph only once,
+    // so re-calling won't recover it. Waiting for a non-zero width makes large diagrams render
+    // deterministically. Small diagrams (rendered at natural size, no fit) were never affected,
+    // which is why this only bit large ones, and only intermittently.
+    let tries = 0;
+    const process = () => {
+        if (canvas.offsetWidth < 1 && tries++ < 60) {
+            requestAnimationFrame(process);
+            return;
+        }
+        try {
+            // processElements() only processes .mxgraph divs it hasn't seen — i.e. the one above.
+            window.GraphViewer.processElements();
+            // Center + fit the freshly-rendered diagram (GraphViewer lays it out asynchronously).
+            zoomPan.onRendered();
+        } catch (err) {
+            const message = err && err.message ? err.message : String(err);
+            tabsEl.classList.remove("show");
+            canvas.innerHTML = "";
+            zoomPan.clear();
+            showState("Failed to render diagram: " + message, true);
+        }
+    };
+    requestAnimationFrame(process);
 }
 
 function renderTabs(pages, onSelect) {
@@ -124,9 +348,11 @@ function renderTabs(pages, onSelect) {
 async function diagramToPngBlob() {
     const svg = canvas.querySelector("svg");
     if (!svg) throw new Error("No diagram to copy.");
-    const box = svg.getBoundingClientRect();
-    const w = Math.max(1, Math.round(box.width));
-    const h = Math.max(1, Math.round(box.height));
+    // Use the diagram's NATURAL size (the `.mxgraph` layout box), not getBoundingClientRect —
+    // the latter is scaled by the live zoom transform, which would size the PNG to the zoom.
+    const mx = canvas.querySelector(".mxgraph");
+    const w = Math.max(1, Math.round(mx ? mx.offsetWidth : svg.getBoundingClientRect().width));
+    const h = Math.max(1, Math.round(mx ? mx.offsetHeight : svg.getBoundingClientRect().height));
     const clone = svg.cloneNode(true);
     clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
     clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
@@ -181,6 +407,7 @@ function render(xml) {
         if (xml == null || !xml.trim()) {
             tabsEl.classList.remove("show");
             canvas.innerHTML = "";
+            zoomPan.clear();
             showState("The file is empty.", false);
             return;
         }
@@ -199,6 +426,7 @@ function render(xml) {
         const message = err && err.message ? err.message : String(err);
         tabsEl.classList.remove("show");
         canvas.innerHTML = "";
+        zoomPan.clear();
         showState("Failed to render diagram: " + message, true);
     }
 }

@@ -31,6 +31,8 @@ const boardsDir = path.join(repoRoot, "boards");
 const catalogPath = path.join(repoRoot, "boards-manifest.json");
 
 // Names excluded from a published ZIP (dev junk + catalog metadata that is not board content).
+// NOTE: WHATS-NEW.md is intentionally NOT in this set — it ships inside the ZIP so the app can
+// display a board's changelog on its properties screen. Do not add it here.
 const EXCLUDE = new Set(["ui.log", "versions-manifest.json", ".git", "node_modules"]);
 
 function run(cmd, args, opts = {}) {

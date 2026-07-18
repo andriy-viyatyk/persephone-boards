@@ -8,4 +8,5 @@ the **next version** you'll release (the version `board-manifest.json` will be b
 - Slides stack in a scrollable view, scaled to fit the board width, with a slide counter and
   prev/next buttons (and arrow / PageUp-Down keys).
 - Renders slide text, images, and basic shapes; embedded charts via the bundled renderer.
+- Resilient loading — a slide with an unresolvable template picture no longer drops the slide.
 - Fully offline — one self-contained bundled renderer (pptx-preview), no network access.

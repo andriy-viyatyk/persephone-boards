@@ -124,6 +124,15 @@ It's a viewer for *reading* a deck, not a pixel-faithful PowerPoint. Say so if f
   (and the `slideEls` query for `.pptx-preview-slide-wrapper`) needs updating.
 - **`zoom`, not `transform: scale`.** Scaling uses CSS `zoom` (Chromium-only, fine in the Electron
   board) so the scroll height reflects the scaled size and `scrollIntoView` nav stays accurate.
+- **The vendored `pptx-preview.umd.js` is patched — keep the patch on re-vendor.** Its picture
+  (`p:pic`) parser read `r.rels[f].target` with no null-guard (every sibling case null-guards).
+  When a slide's picture actually lives on its **slideLayout/slideMaster** (a template logo), the
+  blip's `r:embed` is resolved against the *slide's* rels context — not found — so the lookup threw
+  and pptx-preview dropped the **whole slide** from the model. A real 12-slide deck loaded as 1
+  slide. Patched to skip an unresolvable-rel picture instead of crashing the slide
+  (`(g=(r.rels[f]||{}).target)&&(...)`). All slides now load; properly-embedded images are
+  unaffected (verified: a deck's 4 embedded images still render); only the unresolvable layout
+  logo is omitted. See `lib/VERSION.txt` for the exact before/after. **Re-apply if you re-vendor.**
 - **Read-only.** No write path. Switch to a built-in editor to edit; this board only reads.
 
 ## Reference

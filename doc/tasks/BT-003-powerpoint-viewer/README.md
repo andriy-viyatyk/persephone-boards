@@ -127,3 +127,13 @@ optional prev/next).
   into a fixed 960×540 (16:9) viewport so non-16:9 decks scale approximately; some fonts/effects
   approximate. Lowest-fidelity of the three viewers, as expected.
 - **Legacy `.ppt`** remains out of scope (no pure-JS renderer).
+- **Real-world fix (post-initial-build):** a real 12-slide deck (`DNC Project Kickoff.pptx`)
+  loaded as only **1 slide**. Root cause: pptx-preview's picture parser reads `r.rels[f].target`
+  with no null-guard (unlike its audio/video/chart cases). When a slide's picture lives on its
+  **slideLayout/slideMaster** (a template logo), the `r:embed` is resolved against the slide's
+  rels context, isn't found, and the throw made pptx-preview **drop the entire slide** from the
+  model. Applied a one-line defensive patch to the vendored `pptx-preview.umd.js` to skip an
+  unresolvable-rel picture instead of crashing the slide. Verified: the deck now renders all 12
+  slides (complex architecture diagrams included), all 4 properly-embedded images still render, 0
+  broken images, `ui.log` clean. Patch documented in `lib/VERSION.txt` + board `CLAUDE.md` (must be
+  re-applied on re-vendor).

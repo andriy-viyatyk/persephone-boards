@@ -31,6 +31,7 @@ const diagramEl = document.getElementById("diagram");
 const canvas = document.getElementById("canvas");
 const stateEl = document.getElementById("state");
 const copyBtn = document.getElementById("copy");
+const editDrawBtn = document.getElementById("editdraw");
 const zoomEl = document.getElementById("zoom");
 
 // ── Zoom & pan ──────────────────────────────────────────────────────────────
@@ -236,9 +237,11 @@ function hideState() {
     stateEl.classList.remove("show", "error");
 }
 
-// The "Copy PNG" action is only meaningful while a diagram is on screen.
-function setCopyEnabled(on) {
+// The diagram actions (Copy PNG, Open in Drawing Editor) are only meaningful while a diagram
+// is on screen — both rasterize the current page.
+function setActionsEnabled(on) {
     copyBtn.disabled = !on;
+    editDrawBtn.disabled = !on;
 }
 
 function basename(p) {
@@ -395,6 +398,30 @@ async function copyPng() {
 
 copyBtn.addEventListener("click", copyPng);
 
+// Open the current page as a NEW editable drawing in Persephone's built-in Drawing (Excalidraw)
+// editor — the same "Open in Drawing Editor" affordance the built-in Mermaid/Image/SVG viewers
+// have. We rasterize the page to a PNG data URL (PNG is safe: drawio's foreignObject HTML labels
+// don't reliably render when an SVG is loaded as an <img>, which is how Excalidraw shows embedded
+// images) and hand it to openRawLink with the draw-view target. Persephone converts an image data
+// URL for draw-view into a fresh untitled drawing (it never binds to / overwrites this .drawio).
+async function openInDrawing() {
+    try {
+        const blob = await diagramToPngBlob();
+        const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error("Failed to read the diagram image."));
+            reader.readAsDataURL(blob);
+        });
+        P.openRawLink(dataUrl, { editor: "draw-view" });
+    } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        if (P.notify) P.notify("Open in Drawing Editor failed: " + message, "error");
+    }
+}
+
+editDrawBtn.addEventListener("click", openInDrawing);
+
 // Render the given content-host XML into the viewer, or an empty/error state. NEVER throws:
 // the content host can hand us transiently-invalid XML mid-edit (e.g. while the user is typing
 // in Monaco before switching back), so a parse/render failure degrades to the inline error
@@ -402,7 +429,7 @@ copyBtn.addEventListener("click", copyPng);
 // every mid-edit keystroke-state would be noise; the inline overlay is enough.
 function render(xml) {
     hideState();
-    setCopyEnabled(false);
+    setActionsEnabled(false);
     try {
         if (xml == null || !xml.trim()) {
             tabsEl.classList.remove("show");
@@ -416,12 +443,12 @@ function render(xml) {
             // Unrecognized shape — hand the raw content to GraphViewer as a last resort.
             tabsEl.classList.remove("show");
             renderPage(xml);
-            setCopyEnabled(true);
+            setActionsEnabled(true);
             return;
         }
         renderTabs(pages, (i) => renderPage(pages[i].xml));
         renderPage(pages[0].xml);
-        setCopyEnabled(true);
+        setActionsEnabled(true);
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
         tabsEl.classList.remove("show");
@@ -435,7 +462,7 @@ let unsubscribe = null;
 
 async function load() {
     hideState();
-    setCopyEnabled(false);
+    setActionsEnabled(false);
 
     // File-name label — still delivered for a content-host board (getFilePath resolves to the
     // edited file's path). Purely cosmetic; the content itself comes from the host, not this path.

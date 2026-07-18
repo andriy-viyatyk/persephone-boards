@@ -6,3 +6,5 @@ the number is decided up front and nothing needs renaming at release time.
 
 ## 1.0.2
 - Added zooming and panning.
+- Diagram canvas is now always white (renders diagrams faithfully, independent of app theme).
+- Added "Open in Drawing Editor" — opens the diagram as an editable Excalidraw drawing.

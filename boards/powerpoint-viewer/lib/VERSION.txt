@@ -1,0 +1,25 @@
+Vendored third-party library for the PowerPoint Viewer board.
+
+pptx-preview — renderer
+  version: 1.0.7
+  license: ISC (bundled deps: see below + LICENSE)
+  file:    pptx-preview.umd.js  (self-contained UMD build)
+  source:  https://cdn.jsdelivr.net/npm/pptx-preview@1.0.7/dist/pptx-preview.umd.js
+  npm:     https://www.npmjs.com/package/pptx-preview
+  role:    renders a .pptx (OOXML) deck to HTML slides; accepts an in-memory
+           ArrayBuffer, so the board reads the bytes and hands them over directly
+  global:  window.pptxPreview  → pptxPreview.init(container, { width, height, mode })
+           → previewer.preview(arrayBuffer)
+
+Bundled inside pptx-preview.umd.js (per the package's dependencies — NOT separate
+files; that's why the UMD is ~1.3 MB and no other lib file is needed):
+  jszip   ^3.10.1  MIT       — unzips the .pptx OOXML package
+  lodash  ^4.17.21 MIT       — utilities
+  uuid    ^10.0.0  MIT       — id generation
+  echarts ^5.5.1   Apache-2.0 — renders charts embedded in slides
+  tslib   ^2.7.0   0BSD      — TypeScript runtime helpers
+
+The ES build (pptx-preview.es.js) externalizes these deps; we use the UMD build
+specifically because it bundles them, keeping the board a single offline file.
+
+See LICENSE for the full ISC / MIT / 0BSD / Apache-2.0 texts.

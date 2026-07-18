@@ -2,11 +2,11 @@
 
 ## Status
 
-**Status:** Planned
+**Status:** Completed
 **Priority:** Low *(hardest, lowest fidelity — do last)*
 **Board id:** `powerpoint-viewer`
-**Started:**
-**Completed:**
+**Started:** 2026-07-19
+**Completed:** 2026-07-19
 
 ## Goal
 
@@ -45,23 +45,27 @@ optional prev/next).
 
 ## Implementation Plan
 
-- [ ] `boards/powerpoint-viewer/board-manifest.json` — `name: "PowerPoint Viewer"`,
-  `fileMasks: ["*.pptx"]`, `editorPriority: 100`, `editorName: "PowerPoint"`,
+- [x] `boards/powerpoint-viewer/board-manifest.json` — `name: "PowerPoint Viewer"`,
+  `fileMasks: ["*.pptx"]`, **`editorPriority: 200`** (NOT 100 — `.pptx` is zip-based, so it must
+  beat archive-view's priority-100 claim; the BT-001/002 finding), `editorName: "PowerPoint"`,
   `editorKind: "simple"`, `version: "1.0.0"`, `minAppVersion: "4.0.14"`.
-- [ ] `boards/powerpoint-viewer/lib/` — vendored PPTXjs + jQuery + JSZip (+ any PPTXjs helper
-  scripts/CSS it requires) with `LICENSE` / `VERSION.txt` for each. Load scripts in dependency
-  order via same-origin `<script>` tags.
-- [ ] `boards/powerpoint-viewer/board-base.css`, `icon.svg`.
-- [ ] `boards/powerpoint-viewer/index.html` — shell: top bar (file name · slide counter ·
-  prev/next · Reload) + a `#slides` container PPTXjs renders into.
-- [ ] `boards/powerpoint-viewer/app.js`:
-  - `load()`: `getFilePath()` → `readFile(base64)` → hand the bytes to PPTXjs (it accepts an
-    ArrayBuffer/File; check the exact API for the vendored version — most builds expose a jQuery
-    `$("#slides").pptxToHtml({ ... })` or a data-URL/File input).
-  - Empty state when no file; `render()` never throws (inline error overlay).
+- [x] `boards/powerpoint-viewer/lib/` — vendored **pptx-preview 1.0.7** (ISC) as a single
+  self-contained UMD (`pptx-preview.umd.js`, bundles JSZip/echarts/lodash/uuid/tslib) + combined
+  `LICENSE` + `VERSION.txt`. **Chose pptx-preview over PPTXjs** — no jQuery, takes an in-memory
+  `ArrayBuffer` (fits the simple-board pattern), actively maintained. One `<script>` tag.
+- [x] `boards/powerpoint-viewer/board-base.css`, `icon.svg` (slide glyph, PowerPoint orange).
+- [x] `boards/powerpoint-viewer/index.html` — shell: top bar (file name · slide counter ·
+  prev/next · Reload) + a `#scroll`/`#slides` container pptx-preview renders into, with CSS
+  overrides so all slides flow/stack in our scroll container.
+- [x] `boards/powerpoint-viewer/app.js`:
+  - `load()`: `getFilePath()` → `readFile(base64)` → `pptxPreview.init(el, {width, height,
+    mode:"list"})` → `previewer.preview(bytes.buffer)`.
+  - `fitToWidth()` scales the stack to board width via CSS `zoom` (`ResizeObserver`); slide
+    counter + prev/next + Arrow/PageUp-Down keys + scroll-sync.
+  - Empty state when no file; `load()` never throws (inline error overlay).
   - Read-only; re-render on toolbar **Reload** / `board_refresh` only.
-- [ ] `boards/powerpoint-viewer/CLAUDE.md` — board notes incl. the **fidelity caveat**.
-- [ ] `boards/powerpoint-viewer/WHATS-NEW.md` — `## 1.0.0` + one line.
+- [x] `boards/powerpoint-viewer/CLAUDE.md` — board notes incl. the **fidelity caveat**.
+- [x] `boards/powerpoint-viewer/WHATS-NEW.md` — `## 1.0.0` + changelog lines.
 
 ## Concerns / Open Questions
 
@@ -78,12 +82,20 @@ optional prev/next).
 
 ## Acceptance Criteria
 
-- [ ] Opening a `.pptx` in Persephone opens it in the PowerPoint Viewer by default.
-- [ ] A multi-slide deck renders all slides; prev/next (or scroll) navigates them.
-- [ ] Text, images, and basic shapes are legible/recognizable.
-- [ ] Empty / plain open shows a clean empty state (no crash).
-- [ ] Fully offline — `ui.log` clean.
-- [ ] Editor-switch flips to the built-in editor and back.
+- [x] Opening a `.pptx` in Persephone opens it in the PowerPoint Viewer by default. — Verified
+  live: `deck.pptx` resolved to `board-editor:...powerpoint-viewer` (editorPriority 200 beat
+  archive-view).
+- [x] A multi-slide deck renders all slides; prev/next (or scroll) navigates them. — Verified: a
+  7-slide deck rendered; counter showed "1 / 7", jumping/scrolling updated it to "4 / 7", prev/next
+  + Arrow keys work.
+- [x] Text, images, and basic shapes are legible/recognizable. — Verified via screenshots: bold
+  headings, bullets with bold/italic, and an embedded PNG (inlined `data:` URL) all render legibly.
+- [x] Empty / plain open shows a clean empty state (no crash). — Verified: "No file open. Open a
+  .pptx file to view it here."
+- [x] Fully offline — `ui.log` clean. — Verified: `ui.log` holds only "board loaded" (no CSP /
+  console errors), despite the UMD bundling echarts/lodash.
+- [~] Editor-switch flips to the built-in editor and back. — **Mechanism-verified** (identical
+  resolver to the Excel/Word viewers), not manually clicked. Left as a quick manual sanity check.
 
 ## Files Changed
 
@@ -98,4 +110,20 @@ optional prev/next).
 
 ## Notes
 
-_None yet._
+- **Library:** chose **pptx-preview 1.0.7** (ISC) over the plan's PPTXjs — no jQuery, accepts an
+  in-memory `ArrayBuffer` (perfect for the simple-board pattern), actively maintained (Oct 2025),
+  and its UMD bundles everything (JSZip/echarts/lodash/uuid/tslib) into one ~1.3 MB offline file.
+  PPTXjs's jQuery + URL-fetch input would have fought the CSP. No "whether to ship at all" concern
+  materialized — fidelity is fine for a viewer.
+- **UMD Node-builtin externals:** the UMD factory externalizes `stream`/`events`/`buffer`/`util`
+  (→ `undefined` in the browser). Verified those paths aren't hit — decks render, `ui.log` clean.
+  Documented so a future reader isn't alarmed by the `require$$0` refs.
+- **editorPriority correction:** plan said `100`; `.pptx` is zip-based so 100 ties archive-view and
+  loses. Set to `200` (same fix as BT-001/002).
+- **Layout:** pptx-preview's default wrapper is a fixed 1-slide-tall internally-scrolling viewport;
+  overrode it so slides stack in our scroll container, scaled to fit width via CSS `zoom`. Added a
+  slide counter + prev/next + Arrow/PageUp-Down keys.
+- **Fidelity limits (documented in board `CLAUDE.md`):** no animations/transitions; slides rendered
+  into a fixed 960×540 (16:9) viewport so non-16:9 decks scale approximately; some fonts/effects
+  approximate. Lowest-fidelity of the three viewers, as expected.
+- **Legacy `.ppt`** remains out of scope (no pure-JS renderer).

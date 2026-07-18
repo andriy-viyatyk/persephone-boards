@@ -12,7 +12,7 @@ _No active tasks._
 
 ## Planned
 
-- [ ] [BT-003: PowerPoint Viewer board (.pptx)](tasks/BT-003-powerpoint-viewer/README.md)
+_No planned tasks._
 
 ---
 

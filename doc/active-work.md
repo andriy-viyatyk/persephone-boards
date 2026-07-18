@@ -12,7 +12,6 @@ _No active tasks._
 
 ## Planned
 
-- [ ] [BT-002: Word Viewer board (.docx)](tasks/BT-002-word-viewer/README.md)
 - [ ] [BT-003: PowerPoint Viewer board (.pptx)](tasks/BT-003-powerpoint-viewer/README.md)
 
 ---

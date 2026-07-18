@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Word Viewer</title>
+    <link rel="stylesheet" href="./board-base.css" />
+    <style>
+        html, body { height: 100%; margin: 0; }
+        body {
+            display: flex;
+            flex-direction: column;
+            background: var(--p-bg, #1e1e1e);
+            color: var(--p-text, #ddd);
+            overflow: hidden;
+            font-family: system-ui, sans-serif;
+        }
+        #bar {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: var(--p-gap-md, 8px);
+            padding: var(--p-space-sm, 6px) var(--p-space-md, 8px);
+            background: var(--p-panel, #252526);
+            border-bottom: 1px solid var(--p-border, #3c3c3c);
+            font-size: var(--p-font-base, 13px);
+        }
+        #name {
+            flex: 1 1 auto;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--p-text-muted, #9aa0a6);
+        }
+        /* Toolbar icon actions — pinned right; disabled when nothing is loaded. Mirrors the
+           excel-viewer / drawio-viewer toolbar button styling (shared .tool-btn class). */
+        .tool-btn {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: var(--p-space-xs, 4px);
+            border: 1px solid var(--p-border, #3c3c3c);
+            border-radius: var(--p-radius-sm, 3px);
+            background: transparent;
+            color: var(--p-text-muted, #9aa0a6);
+        }
+        .tool-btn svg { display: block; width: 16px; height: 16px; }
+        .tool-btn:hover:not(:disabled) {
+            background: var(--p-overlay, rgba(255, 255, 255, 0.06));
+            color: var(--p-text, #ddd);
+        }
+        .tool-btn:active:not(:disabled) { filter: brightness(0.9); }
+        .tool-btn:disabled { opacity: 0.4; cursor: default; }
+        /* Document host — fills the remaining space; docx-preview renders into #doc. */
+        #wrap {
+            flex: 1 1 auto;
+            position: relative;
+            overflow: hidden;
+        }
+        #doc { position: absolute; inset: 0; overflow: auto; }
+        /* docx-preview injects `.docx-wrapper` (the "desk" behind the pages) and one
+           `section.docx` per page. Keep the pages authentic white paper — that's how a Word
+           document is meant to look regardless of the app theme — and theme only the desk so
+           it blends with the app. The page border + shadow delineate the sheet even when the
+           app is in a light theme (near-white desk). */
+        #doc .docx-wrapper { background: var(--p-bg, #1e1e1e); padding: 24px; }
+        #doc .docx-wrapper > section.docx {
+            box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--p-border, #3c3c3c);
+            margin-bottom: 24px;
+        }
+        /* State overlay — empty / error / loading messages. */
+        #state {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: var(--p-space-xl, 16px);
+            color: var(--p-text-muted, #9aa0a6);
+            background: var(--p-bg, #1e1e1e);
+            pointer-events: none;
+            white-space: pre-line;
+        }
+        #state.show { display: flex; }
+        #state.error { color: var(--p-error, #f48771); }
+    </style>
+</head>
+<body>
+    <div id="bar">
+        <span id="name">Word Viewer</span>
+        <button id="reload" class="tool-btn" title="Reload the file from disk" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+        </button>
+    </div>
+    <div id="wrap">
+        <div id="doc"></div>
+        <div id="state"></div>
+    </div>
+
+    <!-- Vendored libraries (offline; CSP forbids remote network). JSZip FIRST — docx-preview's
+         UMD wrapper reads the global `JSZip`; then docx-preview exposes the global `docx`. -->
+    <script src="./lib/jszip.min.js"></script>
+    <script src="./lib/docx-preview.min.js"></script>
+    <script src="./app.js"></script>
+</body>
+</html>

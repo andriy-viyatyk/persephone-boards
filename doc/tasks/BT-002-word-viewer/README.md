@@ -2,11 +2,11 @@
 
 ## Status
 
-**Status:** Planned
+**Status:** Completed
 **Priority:** Medium
 **Board id:** `word-viewer`
-**Started:**
-**Completed:**
+**Started:** 2026-07-19
+**Completed:** 2026-07-19
 
 ## Goal
 
@@ -46,23 +46,26 @@ for the document body — keep those scoped to the document container so they do
 
 ## Implementation Plan
 
-- [ ] `boards/word-viewer/board-manifest.json` — `name: "Word Viewer"`, `fileMasks: ["*.docx"]`,
-  `editorPriority: 100`, `editorName: "Word"`, `editorKind: "simple"`, `version: "1.0.0"`,
-  `minAppVersion: "4.0.14"`.
-- [ ] `boards/word-viewer/lib/` — vendored `docx-preview` build **+ JSZip** (+ `LICENSE`,
-  `VERSION.txt` for each). Load both via same-origin `<script>` tags in the right order.
-- [ ] `boards/word-viewer/board-base.css` — copied from drawio-viewer.
-- [ ] `boards/word-viewer/icon.svg` — a document icon.
-- [ ] `boards/word-viewer/index.html` — shell: top bar (file name · Reload) + a scrollable
+- [x] `boards/word-viewer/board-manifest.json` — `name: "Word Viewer"`, `fileMasks: ["*.docx"]`,
+  **`editorPriority: 200`** (NOT 100 — `.docx` is zip-based, so it must beat archive-view's
+  priority-100 claim; see the BT-001 finding), `editorName: "Word"`, `editorKind: "simple"`,
+  `version: "1.0.0"`, `minAppVersion: "4.0.14"`.
+- [x] `boards/word-viewer/lib/` — vendored `docx-preview` 0.4.0 **+ JSZip** 3.10.1 (+ combined
+  `LICENSE`, `VERSION.txt`). Loaded via same-origin `<script>` tags, **JSZip first** (the UMD
+  build reads the global `JSZip`, then exposes global `docx`).
+- [x] `boards/word-viewer/board-base.css` — copied from excel-viewer.
+- [x] `boards/word-viewer/icon.svg` — a document icon (Word blue).
+- [x] `boards/word-viewer/index.html` — shell: top bar (file name · Reload) + a scrollable
   `#doc` container that docx-preview renders into.
-- [ ] `boards/word-viewer/app.js`:
-  - `load()`: `getFilePath()` → `readFile(base64)` → `Blob`/`ArrayBuffer` →
-    `docx.renderAsync(blob, document.getElementById("doc"))`.
-  - Empty state when no file; `render()` never throws (inline error overlay on parse failure).
+- [x] `boards/word-viewer/app.js`:
+  - `load()`: `getFilePath()` → `readFile(base64)` → `Blob` →
+    `docx.renderAsync(blob, docEl, docEl, RENDER_OPTIONS)`. Clears `#doc` first (renderAsync
+    appends). `useBase64URL: true` inlines images as `data:` URLs (offline/CSP-safe).
+  - Empty state when no file; `load()` never throws (inline error overlay on parse failure).
   - Read-only; re-render on toolbar **Reload** / `board_refresh` only (simple board = no
     `onContentChange`).
-- [ ] `boards/word-viewer/CLAUDE.md` — board-specific notes (rewrite from scaffold).
-- [ ] `boards/word-viewer/WHATS-NEW.md` — `## 1.0.0` + one line.
+- [x] `boards/word-viewer/CLAUDE.md` — board-specific notes (rewritten from scaffold).
+- [x] `boards/word-viewer/WHATS-NEW.md` — `## 1.0.0` + changelog lines.
 
 ## Concerns / Open Questions
 
@@ -77,11 +80,18 @@ for the document body — keep those scoped to the document container so they do
 
 ## Acceptance Criteria
 
-- [ ] Opening a `.docx` in Persephone opens it in the Word Viewer by default.
-- [ ] A document with headings, lists, tables, and an embedded image renders legibly.
-- [ ] Empty / plain open shows a clean empty state (no crash).
-- [ ] Fully offline — `ui.log` clean.
-- [ ] Editor-switch flips to the built-in editor and back.
+- [x] Opening a `.docx` in Persephone opens it in the Word Viewer by default. — Verified live:
+  `sample.docx` resolved to `board-editor:...word-viewer` (editorPriority 200 beat archive-view).
+- [x] A document with headings, lists, tables, and an embedded image renders legibly. — Verified
+  via screenshot: styled headings, bold/italic, bullet + numbered lists, a table with a bold
+  Total row, and the embedded PNG (data: URL) all render on a white page.
+- [x] Empty / plain open shows a clean empty state (no crash). — Verified: opening the board
+  plainly shows "No file open. Open a .docx file to view it here."
+- [x] Fully offline — `ui.log` clean. — Verified: `ui.log` holds only "board loaded" (no CSP
+  violations / errors), including after a `board_refresh` re-render.
+- [~] Editor-switch flips to the built-in editor and back. — **Mechanism-verified** (identical
+  resolver to the Excel Viewer, which exposes the same "Word ↔ built-in" switch), not manually
+  clicked. Left as a quick manual sanity check.
 
 ## Files Changed
 
@@ -96,4 +106,13 @@ for the document body — keep those scoped to the document container so they do
 
 ## Notes
 
-_None yet._
+- **Library:** went with **docx-preview 0.4.0** (the preferred option) + **JSZip 3.10.1** — the
+  page-accurate render is worth the ~170 KB. No fallback to mammoth needed; fidelity was good.
+- **editorPriority correction:** the plan said `100`, but that ties archive-view (zip-based `.docx`)
+  and loses, so the file opened as an archive. Set to `200` (same fix as BT-001). This is now
+  documented in the board `CLAUDE.md` and the machine memory, and applies to BT-003 (`.pptx`) too.
+- **Images:** `useBase64URL: true` inlines embedded images as `data:` URLs — verified working
+  under the board CSP (the default `blob:` path was avoided to not depend on `img-src blob:`).
+- **No virtualization:** docx-preview renders the whole document into the DOM at once. Fine for
+  typical docs; very large ones may be slow. Documented as a v1 limit.
+- **Legacy `.doc`** remains out of scope (no pure-JS renderer).

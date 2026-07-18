@@ -1,0 +1,22 @@
+Vendored third-party libraries for the Word Viewer board.
+
+docx-preview (docxjs) — renderer
+  version: 0.4.0
+  license: Apache-2.0
+  file:    docx-preview.min.js  (UMD build)
+  source:  https://cdn.jsdelivr.net/npm/docx-preview@0.4.0/dist/docx-preview.min.js
+  role:    renders .docx (OOXML) into DOM as a page-accurate document view;
+           depends on JSZip (global) to read the .docx zip container
+
+JSZip — dependency (ZIP reader)
+  version: 3.10.1
+  license: MIT (dual MIT/GPLv3 upstream; used here under MIT)
+  file:    jszip.min.js
+  source:  https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js
+  role:    unzips the .docx OOXML package; must load BEFORE docx-preview so the
+           UMD build finds the global `JSZip`
+
+Load order in index.html: jszip.min.js → docx-preview.min.js (docx-preview's UMD
+wrapper reads the global `JSZip` and exposes the global `docx`).
+
+See LICENSE for the full Apache-2.0 (docx-preview) and MIT (JSZip) texts.

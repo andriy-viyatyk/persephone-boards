@@ -39,9 +39,17 @@ and `editorKind: "content-host"` (Persephone backs the board with a content host
 4. `zoomPan.onRendered()` fits the freshly-rendered diagram to the viewport and centers it, and
    drives all zoom/pan interaction (see **Zoom & pan** below).
 5. For multi-page files, `renderTabs()` renders a page tab bar (see Gotchas). The top bar is
-   `[ file name ][ tabs (centered) ][ Copy icon ]`.
+   `[ file name ][ tabs (centered) ][ Open-in-Drawing · Save (SVG/PNG) · Copy icons ]`.
 6. **Copy** (the icon button; `diagramToPngBlob` + `copyPng`) rasterizes the current page's SVG
    to a PNG (2×, white background) and writes it to the clipboard with `navigator.clipboard.write`.
+7. **Save** (the download+caret icon) opens a dropdown menu (`#saveMenu`) with **Save as SVG** and
+   **Save as PNG**, both saving the current page to a user-chosen path via `persephone.saveFileDialog`
+   + `persephone.writeFile`:
+   - *SVG* (`diagramToSvgString` + `saveSvg`) serializes the rendered vector SVG (white background
+     rect, natural size) — a faithful, resolution-independent export (no rasterization), mirroring
+     the built-in editors' "Save as SVG".
+   - *PNG* (`diagramToPngBlob` + `savePng`) reuses the Copy rasterization (2×, white background) and
+     writes the blob base64-encoded (`writeFile { encoding: "base64" }`).
 
 ## Zoom & pan
 
@@ -78,8 +86,8 @@ and on encrypted files too — not just plain local paths.
 
 | File | Role |
 |------|------|
-| `index.html` | Page shell: top bar (file name left · page tabs centered · Copy PNG right), diagram viewport (`#diagram` › `#canvas`), state overlay, zoom-% pill. Inline `<script>` sets the offline globals **before** loading the viewer (see Gotchas). |
-| `app.js` | All logic: `host.getContent` + `host.onContentChange` → `render` → `parsePages` → `renderTabs`/`renderPage`; the `zoomPan` controller (fit/center + wheel-zoom/drag-pan/reset, a BaseImageView port); `getFilePath` for the name label only; `diagramToPngBlob`/`copyPng` (clipboard, natural-size). `render(xml)` never throws (degrades to the error overlay). No in-board refresh — a host change / the board toolbar's Reload re-renders. |
+| `index.html` | Page shell: top bar (file name left · page tabs centered · Open-in-Drawing / Save (SVG·PNG dropdown) / Copy-PNG icons right), the `#saveMenu` dropdown popover, diagram viewport (`#diagram` › `#canvas`), state overlay, zoom-% pill. Inline `<script>` sets the offline globals **before** loading the viewer (see Gotchas). |
+| `app.js` | All logic: `host.getContent` + `host.onContentChange` → `render` → `parsePages` → `renderTabs`/`renderPage`; the `zoomPan` controller (fit/center + wheel-zoom/drag-pan/reset, a BaseImageView port); `getFilePath` for the name label + save default-name (`currentFilePath`); `diagramToPngBlob`/`copyPng` (clipboard, natural-size); the Save menu — `diagramToSvgString`/`saveSvg` + `savePng` (`saveFileDialog` + `writeFile`) with `openSaveMenu`/`closeSaveMenu`. `render(xml)` never throws (degrades to the error overlay). No in-board refresh — a host change / the board toolbar's Reload re-renders. |
 | `board-manifest.json` | Content-host custom-editor association (`fileMasks` / `editorPriority` / `editorName` / `editorKind: "content-host"`). |
 | `lib/viewer-static.min.js` | Vendored jgraph/drawio GraphViewer, **v30.3.8**, Apache-2.0 (see `lib/LICENSE`, `lib/VERSION.txt`). ~4 MB, includes inlined stencils. |
 | `board-base.css` | Shared Persephone board theme defaults (don't recreate). |

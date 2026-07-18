@@ -31,8 +31,14 @@ const diagramEl = document.getElementById("diagram");
 const canvas = document.getElementById("canvas");
 const stateEl = document.getElementById("state");
 const copyBtn = document.getElementById("copy");
+const saveBtn = document.getElementById("save");
+const saveMenu = document.getElementById("saveMenu");
 const editDrawBtn = document.getElementById("editdraw");
 const zoomEl = document.getElementById("zoom");
+
+// The absolute path of the .drawio file being viewed (content-host open); "" for a plain open.
+// Used only to suggest a default file name for "Save as SVG"; the content comes from the host.
+let currentFilePath = "";
 
 // ── Zoom & pan ──────────────────────────────────────────────────────────────
 // A vanilla-JS port of Persephone's built-in BaseImageView (the shared zoom/pan behind the
@@ -241,7 +247,9 @@ function hideState() {
 // is on screen — both rasterize the current page.
 function setActionsEnabled(on) {
     copyBtn.disabled = !on;
+    saveBtn.disabled = !on;
     editDrawBtn.disabled = !on;
+    if (!on) closeSaveMenu(); // don't leave the menu open once there's no diagram to save
 }
 
 function basename(p) {
@@ -398,6 +406,156 @@ async function copyPng() {
 
 copyBtn.addEventListener("click", copyPng);
 
+// Serialize the currently-rendered diagram as a standalone SVG document string. GraphViewer
+// already renders the page as vector SVG, so this is a faithful, resolution-independent export
+// (no rasterization) — unlike Copy/Open-in-Drawing which go through PNG. The on-screen <svg>
+// carries no explicit size/namespaces (and its `.mxgraph` box holds the natural bounds), so we
+// clone it, stamp width/height + xmlns, and prepend a white background rect — a diagram is a
+// page authored for a white canvas (the viewport is always white), so the saved file matches.
+function diagramToSvgString() {
+    const svg = canvas.querySelector("svg");
+    if (!svg) throw new Error("No diagram to save.");
+    // Natural size from the `.mxgraph` layout box (getBoundingClientRect would be scaled by the
+    // live zoom transform) — same reasoning as diagramToPngBlob.
+    const mx = canvas.querySelector(".mxgraph");
+    const w = Math.max(1, Math.round(mx ? mx.offsetWidth : svg.getBoundingClientRect().width));
+    const h = Math.max(1, Math.round(mx ? mx.offsetHeight : svg.getBoundingClientRect().height));
+    const clone = svg.cloneNode(true);
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+    clone.setAttribute("width", String(w));
+    clone.setAttribute("height", String(h));
+    const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    // Cover the viewBox bounds if present (drawio SVGs often use a fractional negative origin,
+    // e.g. "-0.5 -0.5 w h"); fall back to full-viewport percentages otherwise.
+    const vb = (clone.getAttribute("viewBox") || "").split(/[\s,]+/).map(Number);
+    if (vb.length === 4 && vb.every((n) => !isNaN(n))) {
+        bg.setAttribute("x", String(vb[0]));
+        bg.setAttribute("y", String(vb[1]));
+        bg.setAttribute("width", String(vb[2]));
+        bg.setAttribute("height", String(vb[3]));
+    } else {
+        bg.setAttribute("x", "0");
+        bg.setAttribute("y", "0");
+        bg.setAttribute("width", "100%");
+        bg.setAttribute("height", "100%");
+    }
+    bg.setAttribute("fill", "#ffffff");
+    clone.insertBefore(bg, clone.firstChild);
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
+}
+
+// Suggested default file name for the save dialog: the .drawio file's stem + the given ext
+// (e.g. "flow.drawio" + "svg" → "flow.svg"), or "diagram.<ext>" for a plain open.
+function suggestedName(ext) {
+    const name = basename(currentFilePath || "diagram");
+    const stem = name.replace(/\.[^.]+$/, "") || "diagram";
+    return stem + "." + ext;
+}
+
+// Read a Blob as a bare base64 string (the payload after the "data:...;base64," prefix), so it
+// can be handed to persephone.writeFile with { encoding: "base64" } for binary formats (PNG).
+function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = String(reader.result);
+            const comma = result.indexOf(",");
+            resolve(comma >= 0 ? result.slice(comma + 1) : "");
+        };
+        reader.onerror = () => reject(new Error("Failed to read the image blob."));
+        reader.readAsDataURL(blob);
+    });
+}
+
+// Save the current page as an SVG file. Prompts for a path via the board bridge's save dialog,
+// then writes the serialized SVG through persephone.writeFile — mirroring the built-in Mermaid/
+// SVG editors' "Save as SVG" action, adapted to the board bridge (the board can't reach the
+// app's internal fs/dialog helpers directly).
+async function saveSvg() {
+    try {
+        const svgText = diagramToSvgString();
+        const path = await P.saveFileDialog({
+            title: "Save as SVG",
+            defaultPath: suggestedName("svg"),
+            filters: [
+                { name: "SVG Image", extensions: ["svg"] },
+                { name: "All Files", extensions: ["*"] },
+            ],
+        });
+        if (!path) return; // user cancelled
+        await P.writeFile(path, svgText, { encoding: "utf8" });
+        if (P.notify) P.notify("Diagram saved as SVG.", "success");
+    } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        if (P.notify) P.notify("Save as SVG failed: " + message, "error");
+    }
+}
+
+// Save the current page as a PNG file (2×, white background — same rasterization as Copy).
+// The blob is base64-encoded and written through persephone.writeFile { encoding: "base64" }.
+async function savePng() {
+    try {
+        const blob = await diagramToPngBlob();
+        const path = await P.saveFileDialog({
+            title: "Save as PNG",
+            defaultPath: suggestedName("png"),
+            filters: [
+                { name: "PNG Image", extensions: ["png"] },
+                { name: "All Files", extensions: ["*"] },
+            ],
+        });
+        if (!path) return; // user cancelled
+        await P.writeFile(path, await blobToBase64(blob), { encoding: "base64" });
+        if (P.notify) P.notify("Diagram saved as PNG.", "success");
+    } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        if (P.notify) P.notify("Save as PNG failed: " + message, "error");
+    }
+}
+
+// ── Save dropdown menu ────────────────────────────────────────────────────────
+// The Save button opens a small popover offering "Save as SVG" / "Save as PNG". The menu is
+// position:fixed and placed from the button's on-screen rect at open time (right-aligned to the
+// button, just below it), so it isn't clipped by body's overflow:hidden and tracks the button.
+function openSaveMenu() {
+    saveMenu.classList.add("show");
+    const rect = saveBtn.getBoundingClientRect();
+    const left = Math.max(4, rect.right - saveMenu.offsetWidth);
+    saveMenu.style.left = left + "px";
+    saveMenu.style.top = rect.bottom + 4 + "px";
+    saveBtn.setAttribute("aria-expanded", "true");
+}
+
+function closeSaveMenu() {
+    saveMenu.classList.remove("show");
+    saveBtn.setAttribute("aria-expanded", "false");
+}
+
+saveBtn.addEventListener("click", (e) => {
+    if (saveBtn.disabled) return;
+    e.stopPropagation(); // don't let the document-level click below immediately re-close it
+    if (saveMenu.classList.contains("show")) closeSaveMenu();
+    else openSaveMenu();
+});
+
+saveMenu.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const item = e.target.closest(".menu-item");
+    if (!item) return;
+    closeSaveMenu();
+    const format = item.getAttribute("data-format");
+    if (format === "svg") saveSvg();
+    else if (format === "png") savePng();
+});
+
+// Dismiss the menu on an outside click, Escape, or a window resize (which would misplace it).
+window.addEventListener("click", closeSaveMenu);
+window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeSaveMenu();
+});
+window.addEventListener("resize", closeSaveMenu);
+
 // Open the current page as a NEW editable drawing in Persephone's built-in Drawing (Excalidraw)
 // editor — the same "Open in Drawing Editor" affordance the built-in Mermaid/Image/SVG viewers
 // have. We rasterize the page to a PNG data URL (PNG is safe: drawio's foreignObject HTML labels
@@ -468,10 +626,12 @@ async function load() {
     // edited file's path). Purely cosmetic; the content itself comes from the host, not this path.
     try {
         const filePath = await P.getFilePath();
+        currentFilePath = filePath || "";
         nameEl.textContent = filePath ? basename(filePath) : "DrawIO Viewer";
         // Tooltip: the full file path (the label itself shows only the basename).
         nameEl.title = filePath || "";
     } catch {
+        currentFilePath = "";
         nameEl.textContent = "DrawIO Viewer";
         nameEl.title = "";
     }

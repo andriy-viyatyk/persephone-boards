@@ -88,6 +88,37 @@
         }
         .tool-btn:active:not(:disabled) { filter: brightness(0.9); }
         .tool-btn:disabled { opacity: 0.4; cursor: default; }
+        /* A tiny caret appended to a split/menu button to hint it opens a dropdown. */
+        .tool-btn .caret { width: 8px; height: 8px; margin-left: 2px; }
+        /* Save dropdown menu — a small popover anchored under the Save button. Positioned
+           (left/top) in JS from the button's on-screen rect; position:fixed so body's
+           overflow:hidden can't clip it. Themed with the same --p-* tokens as the bar. */
+        #saveMenu {
+            position: fixed;
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            min-width: 130px;
+            padding: var(--p-space-xs, 4px);
+            background: var(--p-panel, #252526);
+            border: 1px solid var(--p-border, #3c3c3c);
+            border-radius: var(--p-radius-sm, 3px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            font-size: var(--p-font-base, 13px);
+        }
+        #saveMenu.show { display: flex; }
+        .menu-item {
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+            padding: var(--p-space-xs, 5px) var(--p-space-md, 10px);
+            border: none;
+            border-radius: var(--p-radius-sm, 3px);
+            background: transparent;
+            color: var(--p-text, #ddd);
+            white-space: nowrap;
+        }
+        .menu-item:hover { background: var(--p-overlay, rgba(255, 255, 255, 0.06)); }
         /* Viewport for zoom/pan. Clips the (possibly scaled-up) diagram; the diagram itself is
            absolutely centered inside and the pan/zoom transform is applied to it, so it starts
            centered and zoomed-to-fit — like the built-in Image/Mermaid viewers. */
@@ -177,6 +208,19 @@
                 <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
             </svg>
         </button>
+        <button id="save" class="tool-btn" title="Save current page as an image (SVG or PNG)"
+                aria-haspopup="menu" aria-expanded="false" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+        </button>
         <button id="copy" class="tool-btn" title="Copy diagram as PNG to clipboard" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -184,6 +228,10 @@
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
             </svg>
         </button>
+    </div>
+    <div id="saveMenu" role="menu">
+        <button class="menu-item" data-format="svg" role="menuitem">Save as SVG</button>
+        <button class="menu-item" data-format="png" role="menuitem">Save as PNG</button>
     </div>
     <div id="diagram">
         <div id="canvas"></div>

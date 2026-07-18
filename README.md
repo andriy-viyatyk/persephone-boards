@@ -24,6 +24,8 @@ boards/                     one folder per board (folder name = board id)
     ...board files...
     versions-manifest.json  full version history (written by the publish script)
 boards-manifest.json        catalog: the LATEST version of every board (machine-written)
+how-to/                     board-building recipes (esp. Persephone integration cases); repo
+                            docs only — never shipped in a board ZIP
 scripts/
   publish-board.mjs         zip + release + manifest updater (CI and local fallback)
 .github/workflows/

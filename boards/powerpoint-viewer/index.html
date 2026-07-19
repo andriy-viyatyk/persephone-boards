@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>PowerPoint Viewer</title>
+    <link rel="stylesheet" href="./board-base.css" />
+    <style>
+        html, body { height: 100%; margin: 0; }
+        body {
+            display: flex;
+            flex-direction: column;
+            background: var(--p-bg, #1e1e1e);
+            color: var(--p-text, #ddd);
+            overflow: hidden;
+            font-family: system-ui, sans-serif;
+        }
+        #bar {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: var(--p-gap-md, 8px);
+            padding: var(--p-space-sm, 6px) var(--p-space-md, 8px);
+            background: var(--p-panel, #252526);
+            border-bottom: 1px solid var(--p-border, #3c3c3c);
+            font-size: var(--p-font-base, 13px);
+        }
+        #name {
+            flex: 1 1 auto;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--p-text-muted, #9aa0a6);
+        }
+        /* Slide navigator — counter + prev/next, shown only once a deck is loaded. */
+        #nav {
+            flex: 0 0 auto;
+            display: none;
+            align-items: center;
+            gap: var(--p-gap-sm, 4px);
+        }
+        #nav.show { display: flex; }
+        #counter {
+            min-width: 64px;
+            text-align: center;
+            color: var(--p-text-muted, #9aa0a6);
+            font-variant-numeric: tabular-nums;
+            user-select: none;
+        }
+        .tool-btn {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: var(--p-space-xs, 4px);
+            border: 1px solid var(--p-border, #3c3c3c);
+            border-radius: var(--p-radius-sm, 3px);
+            background: transparent;
+            color: var(--p-text-muted, #9aa0a6);
+        }
+        .tool-btn svg { display: block; width: 16px; height: 16px; }
+        .tool-btn:hover:not(:disabled) {
+            background: var(--p-overlay, rgba(255, 255, 255, 0.06));
+            color: var(--p-text, #ddd);
+        }
+        .tool-btn:active:not(:disabled) { filter: brightness(0.9); }
+        .tool-btn:disabled { opacity: 0.4; cursor: default; }
+        /* Slide host — fills the remaining space and scrolls vertically through the deck. */
+        #wrap { flex: 1 1 auto; position: relative; overflow: hidden; }
+        #scroll { position: absolute; inset: 0; overflow: auto; }
+        #slides { padding: 20px 16px; }
+        /* pptx-preview builds `.pptx-preview-wrapper` (a fixed-size, internally-scrolling
+           viewport) containing one `.pptx-preview-slide-wrapper-N` per slide. Override the
+           wrapper to flow naturally so ALL slides stack in OUR scroll container instead of
+           inside its 1-slide-tall window, and let the themed desk show through. `app.js` then
+           scales the whole stack to fit the board width via `zoom`. */
+        #slides .pptx-preview-wrapper {
+            width: 960px !important;
+            height: auto !important;
+            overflow: visible !important;
+            background: transparent !important;
+            margin: 0 auto !important;
+        }
+        /* Each slide reads as a paper card on the themed desk. */
+        #slides .pptx-preview-slide-wrapper {
+            margin: 0 auto 20px !important;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--p-border, #3c3c3c);
+        }
+        /* State overlay — empty / error / loading messages. */
+        #state {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: var(--p-space-xl, 16px);
+            color: var(--p-text-muted, #9aa0a6);
+            background: var(--p-bg, #1e1e1e);
+            pointer-events: none;
+            white-space: pre-line;
+        }
+        #state.show { display: flex; }
+        #state.error { color: var(--p-error, #f48771); }
+    </style>
+</head>
+<body>
+    <div id="bar">
+        <span id="name">PowerPoint Viewer</span>
+        <div id="nav">
+            <button id="prev" class="tool-btn" title="Previous slide">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+            <span id="counter">–</span>
+            <button id="next" class="tool-btn" title="Next slide">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </button>
+        </div>
+        <button id="reload" class="tool-btn" title="Reload the file from disk" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+        </button>
+    </div>
+    <div id="wrap">
+        <div id="scroll"><div id="slides"></div></div>
+        <div id="state"></div>
+    </div>
+
+    <!-- Vendored renderer (offline; CSP forbids remote network). The UMD build is self-contained
+         (bundles JSZip + echarts + lodash), so it's the only library file needed. -->
+    <script src="./lib/pptx-preview.umd.js"></script>
+    <script src="./app.js"></script>
+</body>
+</html>

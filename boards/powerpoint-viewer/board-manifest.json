@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "name": "PowerPoint Viewer",
+  "description": "Read-only viewer for PowerPoint decks (.pptx) — scrollable slide view rendered offline.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "4.0.15",
+  "fileMasks": ["*.pptx"],
+  "editorPriority": 200,
+  "editorName": "PowerPoint",
+  "editorKind": "simple"
+}

@@ -1,0 +1,38 @@
+Vendored third-party library for the PowerPoint Viewer board.
+
+pptx-preview — renderer
+  version: 1.0.7
+  license: ISC (bundled deps: see below + LICENSE)
+  file:    pptx-preview.umd.js  (self-contained UMD build)
+  source:  https://cdn.jsdelivr.net/npm/pptx-preview@1.0.7/dist/pptx-preview.umd.js
+  npm:     https://www.npmjs.com/package/pptx-preview
+  role:    renders a .pptx (OOXML) deck to HTML slides; accepts an in-memory
+           ArrayBuffer, so the board reads the bytes and hands them over directly
+  global:  window.pptxPreview  → pptxPreview.init(container, { width, height, mode })
+           → previewer.preview(arrayBuffer)
+
+Bundled inside pptx-preview.umd.js (per the package's dependencies — NOT separate
+files; that's why the UMD is ~1.3 MB and no other lib file is needed):
+  jszip   ^3.10.1  MIT       — unzips the .pptx OOXML package
+  lodash  ^4.17.21 MIT       — utilities
+  uuid    ^10.0.0  MIT       — id generation
+  echarts ^5.5.1   Apache-2.0 — renders charts embedded in slides
+  tslib   ^2.7.0   0BSD      — TypeScript runtime helpers
+
+The ES build (pptx-preview.es.js) externalizes these deps; we use the UMD build
+specifically because it bundles them, keeping the board a single offline file.
+
+LOCAL MODIFICATION (pptx-preview.umd.js is patched — not the pristine upstream):
+  The picture (`p:pic`) parser read `r.rels[f].target` with no null-guard, while
+  every sibling case (audio/video/chart) uses optional chaining. A slide whose
+  picture lives on its slideLayout/slideMaster (e.g. a template logo) resolves the
+  blip's `r:embed` against the SLIDE's rels context, where it isn't found — so the
+  lookup threw and pptx-preview dropped the ENTIRE slide from the model (a 12-slide
+  deck loaded as 1). Patched to skip a picture whose rel can't be resolved:
+      g=r.rels[f].target,y=new Mr(g,p,n,r,i),t.push(y)
+    → (g=(r.rels[f]||{}).target)&&(y=new Mr(g,p,n,r,i),t.push(y))
+  Effect: all slides load; a picture with an unresolvable rel (typically a layout
+  logo) is omitted rather than crashing the slide. Properly-embedded images are
+  unaffected. Re-apply this one-line change if you re-vendor pptx-preview.
+
+See LICENSE for the full ISC / MIT / 0BSD / Apache-2.0 texts.

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "name": "Word Viewer",
+  "description": "Read-only viewer for Word documents (.docx) — page-accurate rendering with headings, lists, tables, and images.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "4.0.15",
+  "fileMasks": ["*.docx"],
+  "editorPriority": 200,
+  "editorName": "Word",
+  "editorKind": "simple"
+}

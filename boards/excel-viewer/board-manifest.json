@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "name": "Excel Viewer",
+  "description": "Read-only viewer for Excel spreadsheets (.xlsx / .xls) — one tab per worksheet, sortable/filterable grid.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "4.0.15",
+  "fileMasks": ["*.xlsx", "*.xls"],
+  "editorPriority": 200,
+  "editorName": "Excel",
+  "editorKind": "simple"
+}

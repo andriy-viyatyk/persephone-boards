@@ -1,0 +1,22 @@
+Vendored third-party libraries for the Excel Viewer board.
+
+SheetJS (xlsx) — parser
+  version: 0.20.3
+  license: Apache-2.0
+  file:    xlsx.full.min.js  (standalone build, no dependencies)
+  source:  https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js
+  role:    reads .xlsx (OOXML) and legacy .xls (BIFF) binary into arrays
+
+Tabulator (tabulator-tables) — renderer
+  version: 6.5.1
+  license: MIT
+  files:   tabulator.min.js, tabulator.min.css
+  source:  https://cdn.jsdelivr.net/npm/tabulator-tables@6.5.1/dist/js/tabulator.min.js
+           https://cdn.jsdelivr.net/npm/tabulator-tables@6.5.1/dist/css/tabulator.min.css
+  role:    grid renderer — sorting, filtering, range-copy, virtual DOM
+
+Tabulator theme skin — tabulator.css
+  source:  https://raw.githubusercontent.com/andriy-viyatyk/persephone/main/boards-assets/tabulator.css
+  role:    Persephone's --p-* theme skin for Tabulator (from the boards-assets catalog)
+
+See LICENSE for the full Apache-2.0 (SheetJS) and MIT (Tabulator) texts.

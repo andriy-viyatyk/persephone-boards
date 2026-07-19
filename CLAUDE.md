@@ -30,6 +30,10 @@ how-to/                     board-building recipes (esp. Persephone integration 
                             docs only, never shipped in a board ZIP. See how-to/README.md
 scripts/publish-board.mjs   zip + release + manifest updater (CI and local fallback)
 .github/workflows/publish-boards.yml   runs the publish script on push to main
+doc/                        task tracking (repo docs only, never shipped in a board ZIP)
+  active-work.md            dashboard — Active / Planned board tasks
+  tasks/                    one folder per task with a README.md; completed.md, backlog.md
+    _template/README.md     task-document template
 ```
 
 ## Releasing a board version (the important part)
@@ -99,6 +103,23 @@ PATH. The GitHub Action is the normal path; this is only a fallback.
   usual cases).
 - Vendored third-party components carry their own license files inside the board folder
   (e.g. `boards/drawio-viewer/lib/LICENSE`, `VERSION.txt`).
+
+## Task tracking
+
+Board work is tracked in [`doc/`](doc/) (mirrors Persephone's own scheme, scaled down):
+
+- **[`doc/active-work.md`](doc/active-work.md)** — the dashboard. **Active** = in progress,
+  **Planned** = queued. Each entry links to a task document.
+- **[`doc/tasks/BT-XXX-short-name/README.md`](doc/tasks/)** — one folder per task. Copy
+  [`doc/tasks/_template/README.md`](doc/tasks/_template/README.md) to start one.
+- **[`doc/tasks/completed.md`](doc/tasks/completed.md)** — one-line evidence per finished task
+  (survives after the task folder is deleted).
+- **[`doc/tasks/backlog.md`](doc/tasks/backlog.md)** — ideas not yet planned.
+
+Task IDs are `BT-XXX` (Board Task) — repo-local and sequential, independent of Persephone's
+`US-XXX`. Lifecycle: create under **Planned** → move to **Active** when work starts → mark `[x]`,
+log to `completed.md`, and remove from the dashboard when done. These docs are repo-only — they
+live outside `boards/<id>/`, so they never land in a board's release ZIP.
 
 ## Authoring a board
 

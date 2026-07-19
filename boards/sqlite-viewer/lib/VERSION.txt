@@ -1,0 +1,15 @@
+Vendored third-party libraries for the SQLite Viewer board.
+
+Tabulator — grid renderer
+  version: 6.5.1
+  license: MIT (see LICENSE)
+  files: tabulator.min.js, tabulator.min.css
+  tabulator.css is the Persephone theme skin from the boards-assets catalog.
+
+sqlite-vec — SQLite vector-search extension (vec0 virtual-table module)
+  version: 0.1.9
+  license: MIT (dual MIT OR Apache-2.0; see LICENSE)
+  files: vec0.dll (official prebuilt loadable extension, windows-x86_64)
+  Loaded best-effort by scripts/db-server.mjs so vec0 virtual tables
+  (e.g. mneme's chunks_vec) are queryable. Windows-only by design —
+  Persephone itself is Windows-only.

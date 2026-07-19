@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Tables</title>
+    <link rel="stylesheet" href="./board-base.css" />
+    <style>
+        html, body { height: 100%; margin: 0; }
+        body {
+            /* Sidebar panel = app chrome (--p-bg-dark, US-883); falls back to the old
+               panel color until that token ships. */
+            background: var(--p-bg-dark, var(--p-panel, #252526));
+            color: var(--p-text, #ddd);
+            font-family: system-ui, sans-serif;
+            font-size: var(--p-font-base, 13px);
+            overflow-y: auto;
+        }
+        #list { padding: var(--p-space-sm, 6px) 0; }
+        .empty {
+            padding: var(--p-space-xl, 16px);
+            color: var(--p-text-muted, #9aa0a6);
+            text-align: center;
+            white-space: pre-line;
+        }
+        .group {
+            padding: var(--p-space-sm, 6px) var(--p-space-md, 10px) var(--p-space-xs, 3px);
+            font-size: var(--p-font-sm, 11px);
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--p-text-muted, #9aa0a6);
+            user-select: none;
+        }
+        .tbl {
+            display: flex;
+            align-items: center;
+            gap: var(--p-gap-sm, 6px);
+            padding: var(--p-space-xs, 3px) var(--p-space-md, 10px);
+            cursor: pointer;
+            border-left: 2px solid transparent;
+        }
+        /* Hover: neutral translucent (NOT --p-hover — that's a modal scrim, ~80% black).
+           Active row: the app's focused-list selection color. */
+        .tbl:hover { background: rgba(128, 128, 128, 0.15); }
+        .tbl.active {
+            background: var(--p-tree-selection, rgba(128, 128, 128, 0.15));
+            border-left-color: var(--p-accent, #4c8bf5);
+        }
+        .tbl-name {
+            flex: 1 1 auto;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .tbl-rows {
+            flex: 0 0 auto;
+            font-size: var(--p-font-sm, 11px);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            color: var(--p-text-muted, #9aa0a6);
+        }
+    </style>
+</head>
+<body>
+    <div id="list"><div class="empty">No database open.</div></div>
+    <script src="./tables.js"></script>
+</body>
+</html>

@@ -8,7 +8,7 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-_No active tasks._
+- [ ] [BT-005: SQLite Viewer board (.db / .sqlite / .sqlite3 / .db3)](tasks/BT-005-sqlite-viewer/README.md)
 
 ## Planned
 

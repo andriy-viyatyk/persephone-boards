@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "name": "SQLite Viewer",
+  "description": "Read-only SQL browser for SQLite databases (.db / .sqlite / .sqlite3 / .db3) — tables in the sidebar, free-form SELECT queries (FTS5 included), results in a sortable/filterable grid.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "4.0.16",
+  "fileMasks": ["*.db", "*.sqlite", "*.sqlite3", "*.db3"],
+  "editorPriority": 100,
+  "editorName": "SQLite",
+  "editorKind": "simple",
+  "secondaryViews": [{ "id": "tables", "html": "tables.html", "title": "Tables" }]
+}

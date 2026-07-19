@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>SQLite Viewer</title>
+    <!-- Load order (per the boards-assets catalog): shared base → Tabulator vendor CSS →
+         Persephone Tabulator skin (last, so it wins). -->
+    <link rel="stylesheet" href="./board-base.css" />
+    <link rel="stylesheet" href="./lib/tabulator.min.css" />
+    <link rel="stylesheet" href="./lib/tabulator.css" />
+    <style>
+        html, body { height: 100%; margin: 0; }
+        body {
+            display: flex;
+            flex-direction: column;
+            background: var(--p-bg, #1e1e1e);
+            color: var(--p-text, #ddd);
+            overflow: hidden;
+            font-family: system-ui, sans-serif;
+        }
+        /* Top bar — file name pinned left, toolbar actions pinned right. Chrome surfaces use
+           --p-bg-dark (the app's titleBar/sideBar color, US-883); until that token ships the
+           fallback keeps the old --p-panel look. */
+        #bar {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: var(--p-gap-md, 8px);
+            padding: var(--p-space-sm, 6px) var(--p-space-md, 8px);
+            background: var(--p-bg-dark, var(--p-panel, #252526));
+            border-bottom: 1px solid var(--p-border, #3c3c3c);
+            font-size: var(--p-font-base, 13px);
+        }
+        #name {
+            flex: 0 1 auto;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--p-text-muted, #9aa0a6);
+        }
+        .spacer { flex: 1 1 auto; min-width: 0; }
+        .tool-btn {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: var(--p-space-xs, 4px);
+            border: 1px solid var(--p-border, #3c3c3c);
+            border-radius: var(--p-radius-sm, 3px);
+            background: transparent;
+            color: var(--p-text-muted, #9aa0a6);
+        }
+        .tool-btn svg { display: block; width: 16px; height: 16px; }
+        /* Hover: a neutral translucent — NOT --p-hover/--p-overlay (those are modal SCRIM
+           colors, ~60-80% black; as a hover fill they flash near-black). */
+        .tool-btn:hover:not(:disabled) {
+            background: rgba(128, 128, 128, 0.15);
+            color: var(--p-text, #ddd);
+        }
+        .tool-btn:active:not(:disabled) { filter: brightness(0.9); }
+        .tool-btn:disabled { opacity: 0.4; cursor: default; }
+        /* SQL query box — textarea + Run/Stop, vertically resizable by the user. */
+        #sqlbox {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: stretch;
+            gap: var(--p-gap-md, 8px);
+            padding: var(--p-space-sm, 6px) var(--p-space-md, 8px);
+            border-bottom: 1px solid var(--p-border, #3c3c3c);
+        }
+        #sql {
+            flex: 1 1 auto;
+            min-width: 0;
+            height: 76px;
+            min-height: 44px;
+            max-height: 40vh;
+            resize: vertical;
+            padding: var(--p-space-sm, 6px);
+            border: 1px solid var(--p-border, #3c3c3c);
+            border-radius: var(--p-radius-sm, 3px);
+            background: var(--p-panel, #252526);
+            color: var(--p-text, #ddd);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: var(--p-font-base, 13px);
+            line-height: 1.45;
+        }
+        #sqlbtns {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: var(--p-gap-sm, 6px);
+        }
+        #run {
+            font: inherit;
+            font-size: var(--p-font-base, 13px);
+            cursor: pointer;
+            padding: var(--p-space-xs, 4px) var(--p-space-lg, 14px);
+            border: 1px solid transparent;
+            border-radius: var(--p-radius-sm, 3px);
+            background: var(--p-accent, #4c8bf5);
+            color: var(--p-accent-text, #fff);
+        }
+        #run:hover:not(:disabled) { filter: brightness(1.1); }
+        #run:disabled { opacity: 0.4; cursor: default; }
+        #stop {
+            font: inherit;
+            font-size: var(--p-font-sm, 12px);
+            cursor: pointer;
+            padding: var(--p-space-xs, 3px) var(--p-space-md, 10px);
+            border: 1px solid var(--p-border, #3c3c3c);
+            border-radius: var(--p-radius-sm, 3px);
+            background: transparent;
+            color: var(--p-text-muted, #9aa0a6);
+        }
+        #stop:hover:not(:disabled) { color: var(--p-error, #f48771); border-color: var(--p-error, #f48771); }
+        #stop:disabled { opacity: 0.4; cursor: default; }
+        #hint {
+            font-size: var(--p-font-sm, 11px);
+            color: var(--p-text-muted, #9aa0a6);
+            text-align: center;
+            user-select: none;
+        }
+        /* Status line — row count / timing, or the query error (in red, scrollable). */
+        #status {
+            flex: 0 0 auto;
+            padding: var(--p-space-xs, 4px) var(--p-space-md, 8px);
+            font-size: var(--p-font-sm, 12px);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            color: var(--p-text-muted, #9aa0a6);
+            border-bottom: 1px solid var(--p-border, #3c3c3c);
+            white-space: pre-wrap;
+            max-height: 96px;
+            overflow-y: auto;
+        }
+        #status.error { color: var(--p-error, #f48771); }
+        /* Grid host — fills the remaining space; Tabulator renders into it. */
+        #wrap {
+            flex: 1 1 auto;
+            position: relative;
+            overflow: hidden;
+        }
+        #grid { position: absolute; inset: 0; }
+        /* NOTE: Tabulator puts the `.tabulator` class on #grid ITSELF, not a child — target
+           `#grid` directly; `#grid .tabulator …` (descendant) matches nothing. */
+        #grid.tabulator { height: 100%; }
+        /* Grid header — Persephone's own grids (AVGrid) paint their header with the app's
+           chrome color (--color-bg-dark), not the lighter panel color the Tabulator skin
+           uses. Override the skin (the #grid id out-specifies its class selectors). */
+        #grid .tabulator-header,
+        #grid .tabulator-header .tabulator-col {
+            background: var(--p-bg-dark, var(--p-panel, #252526));
+        }
+        /* Header-filter inputs stay input-colored (the app's input surface is --p-panel). */
+        #grid .tabulator-header-filter input {
+            background: var(--p-panel, #313131);
+        }
+        /* Row-number gutter — chrome-colored rail, matching the header. */
+        #grid .sv-rownum {
+            background: var(--p-bg-dark, var(--p-panel, #252526));
+            color: var(--p-text-muted, #9aa0a6);
+            font-size: var(--p-font-sm, 12px);
+            user-select: none;
+        }
+        /* NULL cells — muted + italic so NULL is distinguishable from the empty string. */
+        #grid .sv-null { color: var(--p-text-muted, #9aa0a6); font-style: italic; opacity: 0.7; }
+        /* Uniform row background — no zebra striping; reads as a plain result grid. */
+        #grid .tabulator-row.tabulator-row-even {
+            background-color: var(--p-bg, #1e1e1e);
+        }
+        /* State overlay — empty / error / loading messages. */
+        #state {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: var(--p-space-xl, 16px);
+            color: var(--p-text-muted, #9aa0a6);
+            background: var(--p-bg, #1e1e1e);
+            pointer-events: none;
+            white-space: pre-line;
+        }
+        #state.show { display: flex; }
+        #state.error { color: var(--p-error, #f48771); }
+    </style>
+</head>
+<body>
+    <div id="bar">
+        <span id="name">SQLite Viewer</span>
+        <div class="spacer"></div>
+        <button id="open" class="tool-btn" title="Open a SQLite database file…">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+        </button>
+        <button id="reload" class="tool-btn" title="Re-open the database from disk" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+        </button>
+    </div>
+    <div id="sqlbox">
+        <textarea id="sql" spellcheck="false"
+                  placeholder="SELECT … (pick a table in the Tables sidebar panel, or type a query)"></textarea>
+        <div id="sqlbtns">
+            <button id="run" disabled>Run</button>
+            <button id="stop" disabled>Stop</button>
+            <div id="hint">Ctrl+Enter</div>
+        </div>
+    </div>
+    <div id="status"></div>
+    <div id="wrap">
+        <div id="grid"></div>
+        <div id="state"></div>
+    </div>
+
+    <!-- Vendored library (offline; CSP forbids remote network). -->
+    <script src="./lib/tabulator.min.js"></script>
+    <script src="./app.js"></script>
+</body>
+</html>

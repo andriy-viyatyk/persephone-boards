@@ -5,7 +5,7 @@
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
   "version": "1.0.0",
-  "minAppVersion": "4.0.14",
+  "minAppVersion": "4.0.15",
   "fileMasks": ["*.docx"],
   "editorPriority": 200,
   "editorName": "Word",

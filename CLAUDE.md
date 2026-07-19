@@ -123,8 +123,39 @@ live outside `boards/<id>/`, so they never land in a board's release ZIP.
 
 ## Authoring a board
 
-The generic Persephone board authoring reference — the `persephone.*` bridge, the `--p-*` theme
-contract, CSP rules, the reload/test loop — lives in the Persephone app, not here. From inside
-Persephone use the **`read_guide("boards")`** MCP tool and the bundled Demo board. A board's own
-`boards/<id>/CLAUDE.md` (see `boards/drawio-viewer/CLAUDE.md`) documents only what's specific to
-that board.
+**The running Persephone app (its MCP server) is a REQUIRED tool for board work — it is the
+documentation source, the scaffolder, and the test harness.** The generic board authoring
+reference — the `persephone.*` bridge, the `--p-*` theme contract, CSP rules, the reload/test
+loop, custom-editor wiring — lives in the Persephone app, not in this repo.
+
+**If the Persephone MCP is not available** (its tools are missing or fail to respond): **STOP
+and ask the user** to start Persephone or reconnect its MCP. Do not proceed without it — do not
+author a board "blind" from repo examples alone.
+
+Required workflow for a new board:
+
+1. **Read the docs FIRST.** Call the **`read_guide("boards")`** MCP tool before designing
+   anything. Do NOT design a board by only reverse-engineering existing boards in this repo —
+   that gives a partial picture of the board surface and repeatedly leads to overcomplicated
+   designs for problems the documented `persephone.*` bridge already solves simply (file access,
+   custom-editor association, theming, backend scripts, shared state, dialogs, …).
+2. **Scaffold with the `create_board` MCP tool** (`dir` = this repo's `boards/` folder). Never
+   hand-create a board folder from scratch: the scaffold is a working starter with correct
+   `board-manifest.json`, `board-base.css`, and shim wiring — and a board created this way is
+   auto-trusted, so the whole create → open → develop loop runs without user prompts.
+3. **Set `minAppVersion` to the running Persephone version.** For a NEW board, read the
+   current app version with the `get_app_info` MCP tool and put it in the scaffolded
+   `board-manifest.json` as `minAppVersion` — that is the version the board is actually built
+   and tested against. When *updating an existing* board, leave `minAppVersion` alone — bump it
+   only when the change starts using a Persephone feature that shipped in a newer version (then
+   set it to the version that introduced that feature).
+4. **Develop and test through the MCP**: `open_board` to open it, then iterate with
+   edit files → `board_refresh` → `browser_*` tools (`browser_snapshot`, `browser_click`,
+   `browser_evaluate`, `browser_take_screenshot` — always passing the board's `pageId` from
+   `list_pages`). Verify UI changes visually with a screenshot, and check the board's `ui.log`
+   for errors before declaring it working.
+
+Existing boards and the `how-to/` recipes are the *secondary* reference — good for repo
+conventions and solved integration cases, never a substitute for step 1. A board's own
+`boards/<id>/CLAUDE.md` (see `boards/drawio-viewer/CLAUDE.md`) documents only what's specific
+to that board.

@@ -99,6 +99,16 @@ wrapped in `safe()` so a malformed part degrades that one field instead of faili
 - **CSP forbids remote network.** MD5 is vendored under `lib/`; SHA uses the frame's `crypto.subtle`
   (a secure context here). If `crypto.subtle` were ever unavailable, SHA fields degrade to "—" while
   MD5/imphash still work.
+- **Large binaries (100s of MB, e.g. an Electron `.exe`) must not freeze the frame.** Three things
+  make this work (all in `app.js`): (1) **fast base64 decode** — a plain indexed `charCodeAt` loop
+  (`decodeBase64`), NOT `Uint8Array.from(atob(b64), fn)` which invokes the callback per element via
+  the iterator protocol and takes *minutes* / hangs on a 200 MB file (this was the original "Loading…
+  then gray forever" bug). (2) **Render structure first, hash after a paint** — parsing only reads
+  headers/tables so it's fast; `load()` renders all tabs, then `await requestAnimationFrame` and
+  computes hashes, filling them in (Overview/Hashes re-render; hash cells show "computing…" meanwhile
+  via `hashCell`). (3) **Skip the pure-JS full-file MD5 above `MD5_MAX_BYTES` (96 MB)** — it blocks
+  the main thread; SHA-1/SHA-256 stay because `crypto.subtle` is native + off-thread. The Hashes/
+  Overview show "skipped (large file)" for MD5 in that case; imphash (a tiny MD5) is unaffected.
 - **Icon rebuild:** the RT_ICON payload (DIB *or* PNG) is wrapped in a minimal one-image `.ico`
   (ICONDIR + one ICONDIRENTRY) and shown as a `data:image/x-icon` URL — works for both classic and
   Vista+ PNG icons.

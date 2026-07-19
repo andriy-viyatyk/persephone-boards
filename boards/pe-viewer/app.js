@@ -14,6 +14,8 @@ const tabsEl = document.getElementById("tabs");
 const panelEl = document.getElementById("panel");
 
 let currentPath = "";
+let currentPe = null;      // last parsed result
+let currentHashes = null;  // null while hashes are still computing (rendered as "computing…")
 
 // ── small DOM helpers ───────────────────────────────────────────────────────────────────────
 
@@ -130,7 +132,7 @@ function selectTab(id) {
 
 // ── tab builders ────────────────────────────────────────────────────────────────────────────
 
-function buildOverview(pe, hashes) {
+function buildOverview(pe) {
     const vi = pe.versionInfo;
     const S = (vi && vi.strings) || {};
     const wrap = el("div", { class: "overview" });
@@ -189,12 +191,24 @@ function buildOverview(pe, hashes) {
     // Key fingerprints (full list is on the Hashes tab).
     wrap.appendChild(section("Fingerprint",
         kv([
-            ["SHA-256", mono(hashes.sha256)],
+            ["SHA-256", hashCell("sha256")],
             ["Imphash", mono(pe.imphash)],
         ]),
     ));
 
     return wrap;
+}
+
+// A hash value cell that reflects the async hashing lifecycle: "computing…" while hashes are in
+// flight, the value once ready, or a "skipped" note for the full-file MD5 on very large files.
+function hashCell(key) {
+    if (currentHashes === null) return el("span", { class: "note" }, "computing…");
+    const v = currentHashes[key];
+    if (v == null) {
+        if (key === "md5" && currentHashes.md5Skipped) return el("span", { class: "note" }, "skipped (large file)");
+        return "—";
+    }
+    return mono(v);
 }
 
 function mitChip(label, on) {
@@ -330,15 +344,15 @@ function buildSignature(pe) {
     return wrap;
 }
 
-function buildHashes(pe, hashes) {
+function buildHashes(pe) {
     return el("div", null, section("Hashes",
         kv([
-            ["MD5", mono(hashes.md5)],
-            ["SHA-1", mono(hashes.sha1)],
-            ["SHA-256", mono(hashes.sha256)],
+            ["MD5", hashCell("md5")],
+            ["SHA-1", hashCell("sha1")],
+            ["SHA-256", hashCell("sha256")],
             ["Imphash", mono(pe.imphash)],
         ]),
-        el("p", { class: "note" }, "Click a value to copy. Imphash fingerprints the import table (used to group related binaries); MD5/SHA are over the whole file.")));
+        el("p", { class: "note" }, "Click a value to copy. Imphash fingerprints the import table (used to group related binaries); MD5/SHA are over the whole file. The full-file MD5 is skipped for very large files to keep the viewer responsive — SHA-256 (hardware-accelerated) still covers integrity checks.")));
 }
 
 function buildDetails(pe) {
@@ -393,16 +407,36 @@ async function copy(text) {
 
 // ── hashes ──────────────────────────────────────────────────────────────────────────────────
 
+// Above this size the pure-JS MD5 (which blocks the main thread) is skipped — SHA-1/SHA-256 go
+// through crypto.subtle, which is hardware-accelerated and runs off the main thread, so they stay
+// cheap even on 100s of MB. imphash (a tiny MD5 of the import list) is always computed in the parser.
+const MD5_MAX_BYTES = 96 * 1024 * 1024;
+
 async function computeHashes(bytes) {
     const out = { md5: null, sha1: null, sha256: null };
-    try { out.md5 = window.md5hex(bytes); } catch (e) { /* ignore */ }
     const subtle = window.crypto && window.crypto.subtle;
     if (subtle) {
         const toHex = (buf) => Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
-        try { out.sha1 = toHex(await subtle.digest("SHA-1", bytes)); } catch (e) { /* ignore */ }
         try { out.sha256 = toHex(await subtle.digest("SHA-256", bytes)); } catch (e) { /* ignore */ }
+        try { out.sha1 = toHex(await subtle.digest("SHA-1", bytes)); } catch (e) { /* ignore */ }
+    }
+    if (bytes.length <= MD5_MAX_BYTES) {
+        try { out.md5 = window.md5hex(bytes); } catch (e) { /* ignore */ }
+    } else {
+        out.md5Skipped = true;
     }
     return out;
+}
+
+// Fast base64 → bytes. A plain indexed charCodeAt loop is dramatically faster than
+// Uint8Array.from(atob(b64), fn) (which invokes the callback per element through the iterator
+// protocol) — the latter takes *minutes* and freezes the frame on a 200 MB binary.
+function decodeBase64(b64) {
+    const bin = atob(b64);
+    const n = bin.length;
+    const bytes = new Uint8Array(n);
+    for (let i = 0; i < n; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
 }
 
 // ── load ────────────────────────────────────────────────────────────────────────────────────
@@ -422,27 +456,43 @@ async function load() {
         }
 
         nameEl.textContent = fileName(currentPath);
+        showState("Loading…");
         reloadBtn.disabled = false;
 
+        // Force a paint of the "Loading…" overlay before the (synchronous, multi-second on a large
+        // binary) read + decode + parse, so a big file shows "Loading…" rather than a gray flash.
+        await new Promise((r) => requestAnimationFrame(() => r()));
+
         const b64 = await P.readFile(currentPath, { encoding: "base64" });
-        const bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+        const bytes = decodeBase64(b64);
 
         const pe = window.PEParser.parse(bytes);
-        const hashes = await computeHashes(bytes);
+        currentPe = pe;
+        currentHashes = null; // "computing…" until the async pass below completes
 
+        // Render the structure IMMEDIATELY — parsing only reads headers/tables, so it's fast even
+        // for a 200 MB binary. Hashing the whole file is deferred so the UI never freezes.
         hideState();
-
         tabDefs = [
-            { id: "overview", label: "Overview", render: () => buildOverview(pe, hashes) },
+            { id: "overview", label: "Overview", render: () => buildOverview(pe) },
             { id: "headers", label: "Headers", render: () => buildHeaders(pe) },
             { id: "sections", label: "Sections", badge: pe.sections.length, render: () => buildSections(pe) },
             { id: "imports", label: "Imports", badge: pe.imports.length || null, render: () => buildImports(pe) },
             { id: "exports", label: "Exports", badge: pe.exports ? pe.exports.functions.length : null, render: () => buildExports(pe) },
             { id: "signature", label: "Signature", render: () => buildSignature(pe) },
-            { id: "hashes", label: "Hashes", render: () => buildHashes(pe, hashes) },
+            { id: "hashes", label: "Hashes", render: () => buildHashes(pe) },
             { id: "details", label: "Details", render: () => buildDetails(pe) },
         ];
         selectTab("overview");
+
+        // Compute hashes after a paint so the tabs are already interactive. Guard against a newer
+        // load() (e.g. Reload spam) overwriting fresher results.
+        await new Promise((r) => requestAnimationFrame(() => r()));
+        const token = currentPath;
+        const hashes = await computeHashes(bytes);
+        if (currentPath !== token) return; // a newer load superseded this one
+        currentHashes = hashes;
+        if (activeTab === "overview" || activeTab === "hashes") selectTab(activeTab);
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
         showState("Could not open this file.\n" + message, true);

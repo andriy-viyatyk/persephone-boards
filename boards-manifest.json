@@ -3,7 +3,7 @@
   "boards": [
     {
       "id": "drawio-viewer",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "name": "DrawIO Viewer",
       "description": "Read-only viewer for diagrams.net / draw.io (.drawio) diagrams.",
       "fileMasks": [
@@ -14,14 +14,14 @@
       "standalone": false,
       "minAppVersion": "4.0.14",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/drawio-viewer-v1.0.2/drawio-viewer.zip",
-        "size": 846662,
-        "sha256": "45929c65b6c1bb270665fa65b29c960960c65a4a0063a693af2e24e92a26ac4a"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/drawio-viewer-v1.0.3/drawio-viewer.zip",
+        "size": 846895,
+        "sha256": "620c8e926c5a1c0400503a72a50547017afe7c1ffe29fdcd2061222fa5978321"
       }
     },
     {
       "id": "excel-viewer",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Excel Viewer",
       "description": "Read-only viewer for Excel spreadsheets (.xlsx / .xls) — one tab per worksheet, sortable/filterable grid.",
       "fileMasks": [
@@ -33,14 +33,14 @@
       "standalone": false,
       "minAppVersion": "4.0.15",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/excel-viewer-v1.0.0/excel-viewer.zip",
-        "size": 462507,
-        "sha256": "900fe0f415173882d63e8afc112a0783f389050374b9877e81dd689392ca9ee7"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/excel-viewer-v1.0.1/excel-viewer.zip",
+        "size": 462929,
+        "sha256": "1915a9e7c0ccba7a02399309451803059f91a0ec37a47b9c36375eb7b21bb858"
       }
     },
     {
       "id": "pe-viewer",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "PE Viewer",
       "description": "Read-only inspector for Windows PE binaries (.exe / .dll / .sys / .ocx / .scr) — version info, headers, sections, imports/exports, digital signature, hashes, and more.",
       "fileMasks": [
@@ -55,14 +55,14 @@
       "standalone": false,
       "minAppVersion": "4.0.15",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pe-viewer-v1.0.0/pe-viewer.zip",
-        "size": 28668,
-        "sha256": "7cccaf07e4336a9111513dd22758596cdf0d091c6b4648063503464c61bb57a7"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pe-viewer-v1.0.1/pe-viewer.zip",
+        "size": 29012,
+        "sha256": "793bc498b918cf05bbe7dc9aad60ff7cb065f65befc4b1e1d14ac5bc47b3e05a"
       }
     },
     {
       "id": "powerpoint-viewer",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "PowerPoint Viewer",
       "description": "Read-only viewer for PowerPoint decks (.pptx) — scrollable slide view rendered offline.",
       "fileMasks": [
@@ -73,14 +73,35 @@
       "standalone": false,
       "minAppVersion": "4.0.15",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/powerpoint-viewer-v1.0.0/powerpoint-viewer.zip",
-        "size": 440245,
-        "sha256": "0a001785e452b2d06e49ebc42b45445a95bd6d5f59ec354e35ced999c1293a0f"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/powerpoint-viewer-v1.0.1/powerpoint-viewer.zip",
+        "size": 440463,
+        "sha256": "58325268a9e3f91801801aed2b089e66ed5d4cc17bbcf910cd0503ff9e79ac84"
+      }
+    },
+    {
+      "id": "sqlite-viewer",
+      "version": "1.0.0",
+      "name": "SQLite Viewer",
+      "description": "Read-only SQL browser for SQLite databases (.db / .sqlite / .sqlite3 / .db3) — tables in the sidebar, free-form SELECT queries (FTS5 included), results in a sortable/filterable grid.",
+      "fileMasks": [
+        "*.db",
+        "*.sqlite",
+        "*.sqlite3",
+        "*.db3"
+      ],
+      "editorName": "SQLite",
+      "editorKind": "simple",
+      "standalone": false,
+      "minAppVersion": "4.0.16",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/sqlite-viewer-v1.0.0/sqlite-viewer.zip",
+        "size": 272695,
+        "sha256": "0f524a4b3ad974465a8e026726e3caf5868e27792b1e9ccc42ced316c19f3dc1"
       }
     },
     {
       "id": "word-viewer",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Word Viewer",
       "description": "Read-only viewer for Word documents (.docx) — page-accurate rendering with headings, lists, tables, and images.",
       "fileMasks": [
@@ -91,9 +112,9 @@
       "standalone": false,
       "minAppVersion": "4.0.15",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/word-viewer-v1.0.0/word-viewer.zip",
-        "size": 64328,
-        "sha256": "0c8e9961c87cb91771876c7f0514b2f63fc1cd4713f56c5cc49e26dc61bf051c"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/word-viewer-v1.0.1/word-viewer.zip",
+        "size": 64545,
+        "sha256": "8364a49c70b2b0c9c1155fe77629baef2f02df9cb834533bae1dd01d364bbff1"
       }
     }
   ]

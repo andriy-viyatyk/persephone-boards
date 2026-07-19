@@ -39,6 +39,28 @@
       }
     },
     {
+      "id": "pe-viewer",
+      "version": "1.0.0",
+      "name": "PE Viewer",
+      "description": "Read-only inspector for Windows PE binaries (.exe / .dll / .sys / .ocx / .scr) — version info, headers, sections, imports/exports, digital signature, hashes, and more.",
+      "fileMasks": [
+        "*.exe",
+        "*.dll",
+        "*.sys",
+        "*.ocx",
+        "*.scr"
+      ],
+      "editorName": "PE Viewer",
+      "editorKind": "simple",
+      "standalone": false,
+      "minAppVersion": "4.0.15",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pe-viewer-v1.0.0/pe-viewer.zip",
+        "size": 28668,
+        "sha256": "7cccaf07e4336a9111513dd22758596cdf0d091c6b4648063503464c61bb57a7"
+      }
+    },
+    {
       "id": "powerpoint-viewer",
       "version": "1.0.0",
       "name": "PowerPoint Viewer",

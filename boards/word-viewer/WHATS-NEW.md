@@ -3,6 +3,10 @@
 One line per change, newest first. Keep it short. Record pending changes under a heading for
 the **next version** you'll release (the version `board-manifest.json` will be bumped to).
 
+## 1.0.1
+
+- Toolbar chrome now follows Persephone's own theme chrome color (Persephone 4.0.16+; unchanged look on older versions), with softer hover highlights.
+
 ## 1.0.0
 - Read-only viewer for Word documents (`.docx`), rendered page-accurate ("looks like Word").
 - Renders headings, lists, tables, embedded images, headers/footers, and footnotes.

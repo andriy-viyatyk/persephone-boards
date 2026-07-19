@@ -1,5 +1,9 @@
 # What's New — PE Viewer
 
+## 1.0.1
+
+- Toolbar, tab strip, and table-header chrome now follows Persephone's own theme chrome color (Persephone 4.0.16+; unchanged look on older versions), with softer hover highlights.
+
 ## 1.0.0
 
 - First release: read-only inspector for Windows PE binaries (`.exe`, `.dll`, `.sys`, `.ocx`, `.scr`).

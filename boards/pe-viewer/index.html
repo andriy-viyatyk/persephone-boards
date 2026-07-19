@@ -26,7 +26,9 @@
             align-items: center;
             gap: var(--p-gap-md, 8px);
             padding: var(--p-space-sm, 6px) var(--p-space-md, 8px);
-            background: var(--p-panel, #252526);
+            /* Chrome = the app's titleBar/sideBar color (--p-bg-dark, Persephone 4.0.16+);
+               falls back to the old --p-panel look on older versions. */
+            background: var(--p-bg-dark, var(--p-panel, #252526));
             border-bottom: 1px solid var(--p-border, #3c3c3c);
         }
         #name {
@@ -50,7 +52,8 @@
             color: var(--p-text-muted, #9aa0a6);
         }
         .tool-btn svg { display: block; width: 16px; height: 16px; }
-        .tool-btn:hover:not(:disabled) { background: var(--p-overlay, rgba(255,255,255,0.06)); color: var(--p-text, #ddd); }
+        /* Hover: neutral translucent — NOT --p-overlay (a modal scrim, 60% black). */
+        .tool-btn:hover:not(:disabled) { background: rgba(128, 128, 128, 0.15); color: var(--p-text, #ddd); }
         .tool-btn:active:not(:disabled) { filter: brightness(0.9); }
         .tool-btn:disabled { opacity: 0.4; cursor: default; }
 
@@ -60,7 +63,9 @@
             display: none;
             gap: 2px;
             padding: var(--p-space-xs, 4px) var(--p-space-md, 8px) 0;
-            background: var(--p-panel, #252526);
+            /* Tab strip = chrome, like the app's own tab bar; the active tab (--p-bg below)
+               then reads as the raised page — the VS Code tab-strip pattern. */
+            background: var(--p-bg-dark, var(--p-panel, #252526));
             border-bottom: 1px solid var(--p-border, #3c3c3c);
             overflow-x: auto;
         }
@@ -89,7 +94,7 @@
             padding: 0 5px;
             border-radius: 8px;
             font-size: 10px;
-            background: var(--p-overlay, rgba(255,255,255,0.08));
+            background: rgba(128, 128, 128, 0.2);
             color: var(--p-text-muted, #9aa0a6);
         }
 
@@ -123,7 +128,7 @@
         .app-icon { width: 56px; height: 56px; flex: 0 0 auto; object-fit: contain; image-rendering: auto; }
         .app-icon.placeholder {
             display: flex; align-items: center; justify-content: center;
-            background: var(--p-overlay, rgba(255,255,255,0.06));
+            background: rgba(128, 128, 128, 0.15);
             border-radius: var(--p-radius-md, 5px);
             color: var(--p-text-muted, #9aa0a6);
             font-weight: 700;
@@ -140,7 +145,7 @@
             padding: 2px 8px;
             border-radius: 10px;
             font-size: var(--p-font-sm, 12px);
-            background: var(--p-overlay, rgba(255,255,255,0.08));
+            background: rgba(128, 128, 128, 0.12);
             border: 1px solid var(--p-border, #3c3c3c);
             color: var(--p-text, #ddd);
             white-space: nowrap;
@@ -175,8 +180,9 @@
             border-bottom: 1px solid var(--p-border, #3c3c3c);
             vertical-align: middle;
         }
-        table.data th { color: var(--p-text-muted, #9aa0a6); position: sticky; top: 0; background: var(--p-panel, #252526); }
-        table.data tbody tr:hover { background: var(--p-overlay, rgba(255,255,255,0.04)); }
+        /* Sticky table header = chrome color, like the app's own grid headers (AVGrid). */
+        table.data th { color: var(--p-text-muted, #9aa0a6); position: sticky; top: 0; background: var(--p-bg-dark, var(--p-panel, #252526)); }
+        table.data tbody tr:hover { background: rgba(128, 128, 128, 0.1); }
 
         .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
         .copyable { cursor: pointer; border-bottom: 1px dotted var(--p-text-muted, #777); }
@@ -185,7 +191,7 @@
 
         /* entropy meter */
         .ent { display: flex; align-items: center; gap: 8px; min-width: 120px; }
-        .ent-bar { flex: 1 1 auto; height: 8px; min-width: 60px; background: var(--p-overlay, rgba(255,255,255,0.08)); border-radius: 4px; overflow: hidden; }
+        .ent-bar { flex: 1 1 auto; height: 8px; min-width: 60px; background: rgba(128, 128, 128, 0.2); border-radius: 4px; overflow: hidden; }
         .ent-fill { height: 100%; background: var(--p-accent, #4c8bf5); }
         .ent-fill.hot { background: var(--p-warning, #e0a458); }
         .ent-num { font-family: ui-monospace, monospace; font-size: var(--p-font-sm, 12px); color: var(--p-text-muted, #9aa0a6); }

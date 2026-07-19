@@ -24,7 +24,9 @@
             align-items: center;
             gap: var(--p-gap-md, 8px);
             padding: var(--p-space-sm, 6px) var(--p-space-md, 8px);
-            background: var(--p-panel, #252526);
+            /* Chrome = the app's titleBar/sideBar color (--p-bg-dark, Persephone 4.0.16+);
+               falls back to the old --p-panel look on older versions. */
+            background: var(--p-bg-dark, var(--p-panel, #252526));
             border-bottom: 1px solid var(--p-border, #3c3c3c);
             font-size: var(--p-font-base, 13px);
         }
@@ -62,7 +64,9 @@
         }
         .tab:hover { color: var(--p-text, #ddd); }
         .tab.active {
-            background: var(--p-overlay, rgba(255, 255, 255, 0.06));
+            /* Chip-active fill = --p-panel (the app's IconButton chip pattern); reads as a
+               raised chip on the darker chrome bar. */
+            background: var(--p-panel, #313131);
             color: var(--p-text, #ddd);
             border-color: var(--p-accent, #4c8bf5);
         }
@@ -81,8 +85,9 @@
             color: var(--p-text-muted, #9aa0a6);
         }
         .tool-btn svg { display: block; width: 16px; height: 16px; }
+        /* Hover: neutral translucent — NOT --p-overlay (a modal scrim, 60% black). */
         .tool-btn:hover:not(:disabled) {
-            background: var(--p-overlay, rgba(255, 255, 255, 0.06));
+            background: rgba(128, 128, 128, 0.15);
             color: var(--p-text, #ddd);
         }
         .tool-btn:active:not(:disabled) { filter: brightness(0.9); }
@@ -97,10 +102,21 @@
         /* NOTE: Tabulator puts the `.tabulator` class on the #grid element ITSELF, not a child —
            so target `#grid` directly. `#grid .tabulator …` (descendant) matches nothing. */
         #grid.tabulator { height: 100%; }
-        /* Row-number gutter — the frozen left column. Style it like a header cell (muted
-           panel background) so it reads as an Excel row-number rail, not a data column. */
+        /* Grid header — Persephone's own grids (AVGrid) paint their header with the app's
+           chrome color (--p-bg-dark), not the lighter panel color the Tabulator skin uses.
+           Override the skin (the #grid id out-specifies its class selectors). */
+        #grid .tabulator-header,
+        #grid .tabulator-header .tabulator-col {
+            background: var(--p-bg-dark, var(--p-panel, #252526));
+        }
+        /* Header-filter inputs stay input-colored (the app's input surface is --p-panel). */
+        #grid .tabulator-header-filter input {
+            background: var(--p-panel, #313131);
+        }
+        /* Row-number gutter — the frozen left column. Chrome-colored rail, matching the
+           header, so it reads as an Excel row-number rail, not a data column. */
         #grid .xl-rownum {
-            background: var(--p-panel, #252526);
+            background: var(--p-bg-dark, var(--p-panel, #252526));
             color: var(--p-text-muted, #9aa0a6);
             font-size: var(--p-font-sm, 12px);
             user-select: none;

@@ -4,7 +4,7 @@
   "description": "Read-only viewer for diagrams.net / draw.io (.drawio) diagrams.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "minAppVersion": "4.0.14",
   "fileMasks": ["*.drawio"],
   "editorPriority": 100,

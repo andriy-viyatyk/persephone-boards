@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "name": "Todo",
+  "description": "Todo list editor (content-host board) with a Lists & Tags sidebar — EPIC-044 proving ground.",
+  "author": "Persephone",
+  "repository": "",
+  "fileMasks": ["*.todo.json"],
+  "editorPriority": 0,
+  "editorName": "Todo",
+  "editorKind": "content-host",
+  "secondaryViews": [
+    { "id": "lists", "title": "Lists & Tags" }
+  ]
+}

@@ -68,11 +68,46 @@
            document is meant to look regardless of the app theme — and theme only the desk so
            it blends with the app. The page border + shadow delineate the sheet even when the
            app is in a light theme (near-white desk). */
-        #doc .docx-wrapper { background: var(--p-bg, #1e1e1e); padding: 24px; }
+        /* width:fit-content + margin-inline:auto centers the pages while they fit the viewport,
+           but lets them left-align and scroll fully once zoomed wider than it — without this a
+           flex-centered page's left overflow is unreachable. The desk color matches the body bg
+           so the strip beside a narrow page stays seamless. */
+        #doc .docx-wrapper {
+            background: var(--p-bg, #1e1e1e);
+            padding: 24px;
+            width: fit-content;
+            margin-inline: auto;
+        }
         #doc .docx-wrapper > section.docx {
             box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
             border: 1px solid var(--p-border, #3c3c3c);
             margin-bottom: 24px;
+        }
+        /* Zoom % pill — bottom-right of the document viewport; click to reset to 100%.
+           Ctrl+Wheel (or Ctrl +/-/0) zooms the pages. Unlike the drawio-viewer's pill (which
+           sits on a white diagram canvas and uses fixed light colors), this one floats over the
+           themed "desk" behind the pages, so it uses the --p-* theme tokens to stay legible in
+           both light and dark themes. Hidden until a document is loaded. */
+        #zoom {
+            position: absolute;
+            bottom: var(--p-space-lg, 12px);
+            right: var(--p-space-lg, 12px);
+            z-index: 5;
+            padding: var(--p-space-xs, 3px) var(--p-space-md, 8px);
+            background: var(--p-panel, #252526);
+            border: 1px solid var(--p-border, #3c3c3c);
+            border-radius: var(--p-radius-sm, 3px);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+            color: var(--p-text-muted, #9aa0a6);
+            font-size: var(--p-font-sm, 12px);
+            font-family: monospace;
+            cursor: pointer;
+            user-select: none;
+            display: none;
+        }
+        #zoom:hover {
+            color: var(--p-text, #ddd);
+            background: var(--p-bg-dark, var(--p-panel, #313131));
         }
         /* State overlay — empty / error / loading messages. */
         #state {
@@ -106,6 +141,7 @@
     <div id="wrap">
         <div id="doc"></div>
         <div id="state"></div>
+        <div id="zoom" title="Zoom: Ctrl + Mouse Wheel (or Ctrl and + / − / 0).&#10;Click here to reset to 100%.">100%</div>
     </div>
 
     <!-- Vendored libraries (offline; CSP forbids remote network). JSZip FIRST — docx-preview's

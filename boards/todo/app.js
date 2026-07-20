@@ -409,8 +409,14 @@
         $("search-clear").hidden = !(sel.searchText || "");
 
         const qa = $("quick-add-input");
-        qa.disabled = !sel.selectedList;
-        qa.placeholder = sel.selectedList ? "Add an item…" : "Select a list to add items…";
+        const locked = !sel.selectedList;
+        // Locked (list "All"): readOnly rather than disabled, so it stays clickable — a click
+        // opens a list picker (see wireMainChrome/openListMenu). This is a board-only affordance;
+        // the built-in editor just disables the input, which hides where to pick a list when the
+        // Lists & Tags panel is collapsed.
+        qa.readOnly = locked;
+        qa.classList.toggle("locked", locked);
+        qa.placeholder = locked ? "Select a list to add items…" : "Add an item…";
 
         const { undone, done } = filteredItems();
         const totalAll = data.items.length;
@@ -454,15 +460,15 @@
     function renderItemRow(it) {
         const row = el("div", { class: "todo-item" + (it.done ? " done" : "") });
 
-        // Checkbox
-        row.appendChild(
-            el("button", {
-                class: "checkbox",
-                title: it.done ? "Mark not done" : "Mark done",
-                onclick: () => toggleItem(it.id),
-                text: it.done ? "☑" : "☐",
-            }),
-        );
+        // Checkbox — native input, styled to the Persephone checkbox look via board-base.css
+        const checkbox = el("input", {
+            class: "checkbox",
+            type: "checkbox",
+            title: it.done ? "Mark not done" : "Mark done",
+            onchange: () => toggleItem(it.id),
+        });
+        checkbox.checked = it.done;
+        row.appendChild(checkbox);
 
         // Main column: title + comment + meta
         const col = el("div", { class: "item-col" });
@@ -670,7 +676,7 @@
     function openColorMenu(anchor, tagName) {
         const existing = anchor.querySelector(".tag-menu");
         if (existing) { existing.remove(); return; }
-        const menu = el("div", { class: "tag-menu" });
+        const menu = el("div", { class: "tag-menu color-menu" });
         const add = (label, color) => {
             const opt = el("button", { class: "tag-menu-item" });
             opt.appendChild(el("span", { class: "dot" + (color ? "" : " no-color"), style: color ? `background:${color}` : "" }));
@@ -681,6 +687,36 @@
         add("No color", "");
         for (const c of TAG_COLORS) add(c, c);
         anchor.appendChild(menu);
+        setTimeout(() => {
+            const off = (e) => {
+                if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener("click", off); }
+            };
+            document.addEventListener("click", off);
+        }, 0);
+    }
+
+    // Popup list picker for the (locked) quick-add input — a board-only affordance so a list can
+    // be chosen without opening the Lists & Tags panel. Anchored under the input.
+    function openListMenu(anchor) {
+        const host = anchor.closest(".quick-add") || anchor.parentElement;
+        const existing = host.querySelector(".tag-menu");
+        if (existing) { existing.remove(); return; }
+        const menu = el("div", { class: "tag-menu list-menu" });
+        if (!data.lists.length) {
+            menu.appendChild(el("div", { class: "tag-menu-empty", text: "No lists yet — add one in the Lists & Tags panel." }));
+        } else {
+            for (const name of data.lists) {
+                const opt = el("button", { class: "tag-menu-item" });
+                opt.appendChild(document.createTextNode(name));
+                opt.addEventListener("click", () => {
+                    menu.remove();
+                    setSelectedList(name);
+                    setTimeout(() => $("quick-add-input").focus(), 0);
+                });
+                menu.appendChild(opt);
+            }
+        }
+        host.appendChild(menu);
         setTimeout(() => {
             const off = (e) => {
                 if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener("click", off); }
@@ -726,7 +762,16 @@
     function wireMainChrome() {
         const qa = $("quick-add-input");
         const addNow = () => { addItem(qa.value); qa.value = ""; };
-        $("quick-add-btn").addEventListener("click", addNow);
+        // While locked (list "All"), a click on the input or the + opens a list picker instead of
+        // doing nothing. mousedown only blocks focus (no caret behind the popup); the picker opens
+        // on the click that follows — so the opening click isn't swallowed by the outside-click
+        // dismissal, which openListMenu registers a tick later.
+        qa.addEventListener("mousedown", (e) => { if (qa.readOnly) e.preventDefault(); });
+        qa.addEventListener("click", () => { if (qa.readOnly) openListMenu(qa); });
+        $("quick-add-btn").addEventListener("click", () => {
+            if (qa.readOnly) openListMenu(qa);
+            else addNow();
+        });
         qa.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addNow(); } });
 
         const search = $("search");

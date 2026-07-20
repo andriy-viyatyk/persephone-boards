@@ -4,6 +4,7 @@
   "description": "Todo list editor (content-host board) with a Lists & Tags sidebar — EPIC-044 proving ground.",
   "author": "Persephone",
   "repository": "",
+  "minAppVersion": "4.0.17",
   "fileMasks": ["*.todo.json"],
   "editorPriority": 0,
   "editorName": "Todo",

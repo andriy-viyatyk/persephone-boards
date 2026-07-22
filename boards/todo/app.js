@@ -23,6 +23,10 @@
     let data = emptyTodoData();
     let parseError = false;
 
+    // The last content we wrote to (or read from) the host, so writeNow() can skip a no-op write —
+    // e.g. clicking into an item field and out again without typing must NOT mark the page modified.
+    let lastWritten = null;
+
     // Selection/search mirror — updated from persephone.state.onChange (source of truth).
     let sel = { selectedList: "", selectedTag: "", searchText: "" };
 
@@ -122,8 +126,13 @@
             clearTimeout(writeTimer);
             writeTimer = null;
         }
+        const text = serialize(data);
+        // Nothing actually changed (e.g. focus + blur with no edit) — don't touch the host, so the
+        // page's modified flag stays clean.
+        if (text === lastWritten) return;
         try {
-            P.host.setContent(serialize(data));
+            P.host.setContent(text);
+            lastWritten = text;
         } catch (e) {
             P.notify("Todo board: failed to save — " + (e && e.message ? e.message : e), "error");
         }
@@ -879,10 +888,12 @@
         // never missed. Cross-frame writes from the other view arrive here too.
         P.host.onContentChange((text) => {
             data = parse(text);
+            lastWritten = serialize(data); // external edit is now our baseline — don't echo it back
             render();
         });
         try {
             data = parse(await P.host.getContent());
+            lastWritten = serialize(data); // baseline the loaded content so a no-op blur won't write
         } catch {
             // Opened plainly (no content host) — show an empty state and stop.
             if (role === "main") {

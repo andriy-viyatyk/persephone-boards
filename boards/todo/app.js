@@ -29,6 +29,12 @@
     // Inline-edit state for the lists panel: { kind: "list"|"tag", name } | null.
     let editing = null;
 
+    // Which item field (in the main view) is currently being edited: an item title/comment
+    // renders as a highlighted read-only view by default and swaps to a <textarea> only while
+    // edited. Tracked here (not just in the DOM) so a cross-frame re-render keeps it editable.
+    // { itemId, field: "title" | "comment" } | null.
+    let editingField = null;
+
     const uuid = () =>
         (crypto && crypto.randomUUID && crypto.randomUUID()) ||
         "id-" + Math.abs(Date.now() ^ (performance.now() * 1000)).toString(36);
@@ -225,17 +231,11 @@
         const it = item(id);
         if (!it) return;
         it.comment = "";
+        editingField = { itemId: id, field: "comment" }; // open the new comment straight in edit mode
         writeNow();
         render();
-    }
-    function removeComment(id) {
-        const it = item(id);
-        if (!it) return;
-        if (it.comment === null || it.comment.trim() === "") {
-            it.comment = null;
-            writeNow();
-            render();
-        }
+        const ta = document.querySelector(`textarea.item-comment[data-item-id="${id}"][data-field="comment"]`);
+        if (ta) ta.focus();
     }
     function setItemTag(id, name) {
         const it = item(id);
@@ -408,12 +408,15 @@
         if (document.activeElement !== search) search.value = sel.searchText || "";
         $("search-clear").hidden = !(sel.searchText || "");
 
+        // Header list switch — always shows the current list ("All" when none selected). Clicking
+        // it opens the list picker (see wireMainChrome/openListSwitch).
+        $("list-name").textContent = sel.selectedList || "All";
+
         const qa = $("quick-add-input");
         const locked = !sel.selectedList;
         // Locked (list "All"): readOnly rather than disabled, so it stays clickable — a click
-        // opens a list picker (see wireMainChrome/openListMenu). This is a board-only affordance;
-        // the built-in editor just disables the input, which hides where to pick a list when the
-        // Lists & Tags panel is collapsed.
+        // (like the header "List:" switch) opens the list picker. This is a board-only affordance;
+        // the built-in editor just disables the input, which hides where to pick a list.
         qa.readOnly = locked;
         qa.classList.toggle("locked", locked);
         qa.placeholder = locked ? "Select a list to add items…" : "Add an item…";
@@ -421,8 +424,10 @@
         const { undone, done } = filteredItems();
         const totalAll = data.items.length;
         const shown = undone.length + done.length;
-        $("count").textContent =
-            shown === totalAll ? `${totalAll} items` : `${shown} of ${totalAll} items`;
+        // Item count → the host footer via persephone.setStatusText (mirrors the built-in Todo,
+        // which shows the count in its footer). Optional-call: on an app build without the method
+        // the count simply doesn't show (minAppVersion 4.0.17 guarantees it), never throws.
+        P.setStatusText?.(shown === totalAll ? `${totalAll} items` : `${shown} of ${totalAll} items`);
 
         const empty = $("main-empty");
         const list = $("todo-list");
@@ -473,37 +478,22 @@
         // Main column: title + comment + meta
         const col = el("div", { class: "item-col" });
 
-        const title = el("textarea", {
-            class: "item-title",
-            rows: "1",
-            "data-item-id": it.id,
-            "data-field": "title",
-        });
-        title.value = it.title;
-        title.addEventListener("input", () => updateItemTitle(it.id, title.value));
-        title.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") { e.preventDefault(); title.blur(); }
-        });
-        title.addEventListener("blur", writeNow);
-        col.appendChild(title);
+        // Title: a highlighted read-only view by default; click swaps in a textarea to edit.
+        col.appendChild(
+            editingField && editingField.itemId === it.id && editingField.field === "title"
+                ? buildTitleEditor(it)
+                : buildTitleView(it),
+        );
 
-        // Comment
+        // Comment: `null` = no comment (show the add button); otherwise the same view/edit swap.
         if (it.comment === null) {
             col.appendChild(
                 el("button", { class: "add-comment", text: "+ Add comment", onclick: () => addComment(it.id) }),
             );
+        } else if (editingField && editingField.itemId === it.id && editingField.field === "comment") {
+            col.appendChild(buildCommentEditor(it));
         } else {
-            const comment = el("textarea", {
-                class: "item-comment",
-                rows: "1",
-                placeholder: "Comment…",
-                "data-item-id": it.id,
-                "data-field": "comment",
-            });
-            comment.value = it.comment;
-            comment.addEventListener("input", () => setItemComment(it.id, comment.value));
-            comment.addEventListener("blur", () => removeComment(it.id));
-            col.appendChild(comment);
+            col.appendChild(buildCommentView(it));
         }
 
         row.appendChild(col);
@@ -526,6 +516,148 @@
         return row;
     }
 
+    // ── Title / comment view↔edit swap + search-word highlighting ────────
+    // A <textarea> can't style individual words, so matched search words are only shown while
+    // the field is a read-only view. Clicking it swaps in the textarea for editing; on blur it
+    // swaps back to the (re-highlighted) view. Editors keep data-item-id/data-field so the
+    // existing captureFocus/restoreFocus keeps the caret across a cross-frame re-render.
+
+    function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+    // Append `text` to `node`, wrapping every occurrence of a current search word in <mark>.
+    // Uses the SAME word split as filteredItems(), so what's highlighted is exactly why the
+    // item matched.
+    function appendHighlighted(node, text, query) {
+        if (!text) return;
+        const q = (query || "").trim().toLowerCase();
+        const words = q ? q.split(/\s+/).filter(Boolean).map(escapeRegExp) : [];
+        if (!words.length) { node.appendChild(document.createTextNode(text)); return; }
+        const re = new RegExp("(" + words.join("|") + ")", "gi");
+        let last = 0, m;
+        while ((m = re.exec(text)) !== null) {
+            if (m.index > last) node.appendChild(document.createTextNode(text.slice(last, m.index)));
+            node.appendChild(el("mark", { class: "hl", text: m[0] }));
+            last = m.index + m[0].length;
+            if (re.lastIndex === m.index) re.lastIndex++; // guard against a zero-width match loop
+        }
+        if (last < text.length) node.appendChild(document.createTextNode(text.slice(last)));
+    }
+
+    // Does any current search word appear in `text`? (Used to tint a matching tag chip.)
+    function matchesSearch(text) {
+        const q = (sel.searchText || "").trim().toLowerCase();
+        if (!q || !text) return false;
+        const t = String(text).toLowerCase();
+        return q.split(/\s+/).filter(Boolean).some((w) => t.includes(w));
+    }
+
+    // Best-effort: map a click position to a character offset in the view's text, so the swapped
+    // textarea drops the caret where the user clicked. Falls back to end-of-text (null → caller).
+    function caretOffsetFromClick(container, e) {
+        try {
+            let range = null;
+            if (document.caretRangeFromPoint) {
+                range = document.caretRangeFromPoint(e.clientX, e.clientY);
+            } else if (document.caretPositionFromPoint) {
+                const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+                if (pos) { range = document.createRange(); range.setStart(pos.offsetNode, pos.offset); }
+            }
+            if (!range) return null;
+            let offset = 0;
+            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+            let n;
+            while ((n = walker.nextNode())) {
+                if (n === range.startContainer) return offset + range.startOffset;
+                offset += n.textContent.length;
+            }
+            return null;
+        } catch { return null; }
+    }
+
+    function buildTitleView(it) {
+        const view = el("div", { class: "item-title item-view" });
+        appendHighlighted(view, it.title || "", sel.searchText);
+        view.addEventListener("mousedown", (e) => {
+            e.preventDefault(); // suppress the view's own text-selection so we control the caret
+            beginEdit(view, it, "title", caretOffsetFromClick(view, e));
+        });
+        return view;
+    }
+
+    function buildTitleEditor(it) {
+        const title = el("textarea", {
+            class: "item-title", rows: "1", "data-item-id": it.id, "data-field": "title",
+        });
+        title.value = it.title;
+        title.addEventListener("input", () => updateItemTitle(it.id, title.value));
+        title.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") { e.preventDefault(); title.blur(); }
+        });
+        title.addEventListener("blur", () => endEdit(it.id, "title"));
+        return title;
+    }
+
+    function buildCommentView(it) {
+        const view = el("div", { class: "item-comment item-view" });
+        if (it.comment) appendHighlighted(view, it.comment, sel.searchText);
+        else { view.classList.add("placeholder"); view.textContent = "Comment…"; }
+        view.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            beginEdit(view, it, "comment", caretOffsetFromClick(view, e));
+        });
+        return view;
+    }
+
+    function buildCommentEditor(it) {
+        const comment = el("textarea", {
+            class: "item-comment", rows: "1", placeholder: "Comment…",
+            "data-item-id": it.id, "data-field": "comment",
+        });
+        comment.value = it.comment;
+        comment.addEventListener("input", () => setItemComment(it.id, comment.value));
+        comment.addEventListener("blur", () => endEditComment(it.id));
+        return comment;
+    }
+
+    // Swap a view node for its editor, focus it, and drop the caret at `offset` (or the end).
+    function beginEdit(viewNode, it, field, offset) {
+        editingField = { itemId: it.id, field };
+        const editor = field === "title" ? buildTitleEditor(it) : buildCommentEditor(it);
+        viewNode.replaceWith(editor);
+        editor.focus();
+        const pos = offset == null ? editor.value.length : Math.max(0, Math.min(offset, editor.value.length));
+        try { editor.setSelectionRange(pos, pos); } catch { /* no-op */ }
+    }
+
+    // Leave edit mode for a title: flush the debounced write and swap back to the view in place
+    // (in place — not a full render() — so a click on a sibling button that caused the blur isn't
+    // cancelled by a list rebuild).
+    function endEdit(id, field) {
+        if (!editingField || editingField.itemId !== id || editingField.field !== field) return;
+        editingField = null;
+        writeNow();
+        const it = item(id);
+        const ta = document.querySelector(`textarea[data-item-id="${id}"][data-field="${field}"]`);
+        if (ta && it) ta.replaceWith(field === "title" ? buildTitleView(it) : buildCommentView(it));
+    }
+
+    // Leave edit mode for a comment: an empty comment collapses back to null (the "+ Add comment"
+    // button), which needs a structural rebuild; a non-empty one swaps to the view in place.
+    function endEditComment(id) {
+        if (!editingField || editingField.itemId !== id || editingField.field !== "comment") return;
+        const it = item(id);
+        editingField = null;
+        if (it && (it.comment === null || String(it.comment).trim() === "")) {
+            it.comment = null;
+            writeNow();
+            render();
+            return;
+        }
+        writeNow();
+        const ta = document.querySelector(`textarea.item-comment[data-item-id="${id}"][data-field="comment"]`);
+        if (ta && it) ta.replaceWith(buildCommentView(it));
+    }
+
     function renderTagChip(it) {
         const wrap = el("div", { class: "tag-chip-wrap" });
         const current = it.tag ? data.tags.find((t) => t.name === it.tag) : null;
@@ -533,6 +665,7 @@
         if (current) {
             if (current.color) chip.appendChild(el("span", { class: "dot", style: `background:${current.color}` }));
             chip.appendChild(document.createTextNode(current.name));
+            if (matchesSearch(current.name)) chip.classList.add("hl-chip");
         } else {
             chip.textContent = "＋ tag";
             chip.classList.add("muted");
@@ -695,26 +828,30 @@
         }, 0);
     }
 
-    // Popup list picker for the (locked) quick-add input — a board-only affordance so a list can
-    // be chosen without opening the Lists & Tags panel. Anchored under the input.
-    function openListMenu(anchor) {
-        const host = anchor.closest(".quick-add") || anchor.parentElement;
+    // Popup list picker anchored to the header "List:" switch. Offers "All" plus every list, marks
+    // the current one, and lets a list be chosen without opening the Lists & Tags panel. Also
+    // reached from the (locked) quick-add input/＋ so the whole disabled add-row still switches.
+    function openListSwitch() {
+        const host = $("list-switch");
         const existing = host.querySelector(".tag-menu");
         if (existing) { existing.remove(); return; }
-        const menu = el("div", { class: "tag-menu list-menu" });
-        if (!data.lists.length) {
-            menu.appendChild(el("div", { class: "tag-menu-empty", text: "No lists yet — add one in the Lists & Tags panel." }));
+        const menu = el("div", { class: "tag-menu list-switch-menu" });
+        const addOpt = (label, name) => {
+            const opt = el("button", { class: "tag-menu-item" + (sel.selectedList === name ? " active" : "") });
+            opt.appendChild(document.createTextNode(label));
+            opt.addEventListener("click", () => {
+                menu.remove();
+                setSelectedList(name);
+                // Focus the quick-add once a real list is picked (it becomes typable).
+                if (name) setTimeout(() => { const qa = $("quick-add-input"); if (qa) qa.focus(); }, 0);
+            });
+            menu.appendChild(opt);
+        };
+        addOpt("All", "");
+        if (data.lists.length) {
+            for (const name of data.lists) addOpt(name, name);
         } else {
-            for (const name of data.lists) {
-                const opt = el("button", { class: "tag-menu-item" });
-                opt.appendChild(document.createTextNode(name));
-                opt.addEventListener("click", () => {
-                    menu.remove();
-                    setSelectedList(name);
-                    setTimeout(() => $("quick-add-input").focus(), 0);
-                });
-                menu.appendChild(opt);
-            }
+            menu.appendChild(el("div", { class: "tag-menu-empty", text: "No lists yet — add one in the Lists & Tags panel." }));
         }
         host.appendChild(menu);
         setTimeout(() => {
@@ -762,14 +899,18 @@
     function wireMainChrome() {
         const qa = $("quick-add-input");
         const addNow = () => { addItem(qa.value); qa.value = ""; };
-        // While locked (list "All"), a click on the input or the + opens a list picker instead of
-        // doing nothing. mousedown only blocks focus (no caret behind the popup); the picker opens
-        // on the click that follows — so the opening click isn't swallowed by the outside-click
-        // dismissal, which openListMenu registers a tick later.
+        // The header "List:" switch is the primary list picker. While locked (list "All"), the
+        // disabled input and its ＋ redirect to the same picker so clicking anywhere in the add-row
+        // still switches lists. mousedown only blocks focus (no caret behind the popup); the picker
+        // opens on the click that follows — so the opening click isn't swallowed by the
+        // outside-click dismissal, which openListSwitch registers a tick later.
+        // Listener on the inner button (not the #list-switch wrapper) so an option click — which
+        // bubbles up through the wrapper the menu lives in — doesn't re-trigger and reopen it.
+        $("list-switch-btn").addEventListener("click", openListSwitch);
         qa.addEventListener("mousedown", (e) => { if (qa.readOnly) e.preventDefault(); });
-        qa.addEventListener("click", () => { if (qa.readOnly) openListMenu(qa); });
+        qa.addEventListener("click", () => { if (qa.readOnly) openListSwitch(); });
         $("quick-add-btn").addEventListener("click", () => {
-            if (qa.readOnly) openListMenu(qa);
+            if (qa.readOnly) openListSwitch();
             else addNow();
         });
         qa.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addNow(); } });

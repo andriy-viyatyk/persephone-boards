@@ -46,6 +46,22 @@ input:focus, textarea:focus { border-color: var(--p-accent, #0078d4); outline: n
     background: var(--p-bg-dark, #181818);
 }
 .file-name { display: none; } /* the built-in shows the file name only in the tab */
+
+/* Header list switch — always-visible "List: <name>" that opens the list picker. The wrapper is
+   `relative` so the .tag-menu popover (appended as the button's sibling) anchors to it; the inner
+   button is the click target and carries the hover affordance. */
+.list-switch { position: relative; display: inline-flex; max-width: 45%; }
+.list-switch-btn {
+    display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
+    height: var(--p-size-control-md, 26px); padding: 0 var(--p-space-md, 8px);
+    border: 1px solid transparent; border-radius: var(--p-radius-md, 4px);
+    color: var(--p-text, #e0e0e0); font-size: var(--p-font-sm, 12px); white-space: nowrap;
+}
+.list-switch-btn:hover { background: var(--p-panel, #2a2a2a); border-color: var(--p-border-light, #333); }
+.list-switch-label { color: var(--p-text-muted, #888); }
+.list-switch-name { overflow: hidden; text-overflow: ellipsis; }
+.list-switch-caret { color: var(--p-text-muted, #888); font-size: var(--p-font-xs, 11px); }
+
 .search-wrap { position: relative; margin-left: auto; display: flex; align-items: center; }
 .search-wrap input {
     width: 200px; height: var(--p-size-control-md, 26px);
@@ -53,14 +69,11 @@ input:focus, textarea:focus { border-color: var(--p-accent, #0078d4); outline: n
     background: var(--p-bg-dark, #181818);
 }
 .search-wrap #search-clear { position: absolute; right: 4px; }
-.count { color: var(--p-text-muted, #888); font-size: var(--p-font-sm, 12px); white-space: nowrap; }
 
 .quick-add {
     display: flex; gap: var(--p-space-sm, 6px);
     padding: var(--p-space-sm, 6px) var(--p-space-lg, 12px) var(--p-space-md, 8px);
     flex: 0 0 auto;
-    /* Positioned so the list-picker popover (.tag-menu) anchors under the input. */
-    position: relative;
 }
 /* Dark filled input like the built-in quick-add (Textarea default variant: bg-dark +
    light border, accent border on focus). The panel around it stays the default bg. */
@@ -93,8 +106,13 @@ input:focus, textarea:focus { border-color: var(--p-accent, #0078d4); outline: n
 .todo-item:hover { background: var(--p-panel, #2a2a2a); }
 .todo-item.done .item-title { color: var(--p-text-muted, #888); text-decoration: line-through; }
 
-/* Native checkbox styled by board-base.css; nudge it to align with the title's first line. */
-.checkbox { margin-top: 2px; }
+/* Native checkbox styled by board-base.css. Keep its crisp 16×16 square box (resizing it makes
+   the `center / contain` mask touch the side edges and clip the vertical strokes) and only push
+   it down to sit centered on the title's first line: margin-top = title padding-top (2px) plus
+   half the gap between the first-line box (1.6em min-height) and the 16px checkbox. Em-based, so
+   it stays centered if a theme changes the font size. The `.todo-item` prefix is required —
+   board-base's `input[type="checkbox"]` rule (margin:0) out-specifies a bare `.checkbox`. */
+.todo-item .checkbox { margin-top: calc((1.6em - 16px) / 2 + 2px); }
 
 .item-col { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .item-title, .item-comment {
@@ -109,6 +127,23 @@ input:focus, textarea:focus { border-color: var(--p-accent, #0078d4); outline: n
 .item-comment { font-size: var(--p-font-sm, 12px); color: var(--p-text-muted, #aaa); }
 .add-comment { font-size: var(--p-font-xs, 11px); color: var(--p-text-muted, #888); text-align: left; padding: 0 4px; }
 .add-comment:hover { color: var(--p-link, #3b82f6); }
+
+/* Read-only title/comment view (shown when not editing). Reuses .item-title/.item-comment for
+   font/color/line-through parity with the textarea, then adds wrapping + click-to-edit affordance. */
+.item-view { cursor: text; white-space: pre-wrap; overflow-wrap: anywhere; }
+.item-title.item-view:empty::after { content: "(empty)"; color: var(--p-text-muted, #888); opacity: 0.55; }
+.item-comment.item-view.placeholder { opacity: 0.6; }
+
+/* Matched search words — tinted with the theme accent. */
+mark.hl {
+    background: color-mix(in srgb, var(--p-accent, #0078d4) 34%, transparent);
+    color: inherit; border-radius: 2px; padding: 0 1px;
+}
+/* A tag chip whose name matches the search picks up an accent outline + fill. */
+.tag-chip.hl-chip {
+    border-color: var(--p-accent, #0078d4);
+    background: color-mix(in srgb, var(--p-accent, #0078d4) 18%, transparent);
+}
 
 /* Right column: tag chip · date · delete (delete on hover), aligned to the title's line. */
 .item-right { display: flex; align-items: center; gap: var(--p-space-md, 8px); flex: 0 0 auto; padding-top: 4px; }
@@ -139,10 +174,13 @@ input:focus, textarea:focus { border-color: var(--p-accent, #0078d4); outline: n
     padding: 4px 8px; border-radius: var(--p-radius-sm, 3px); font-size: var(--p-font-sm, 12px);
 }
 .tag-menu-item:hover { background: var(--p-accent, #0078d4); color: var(--p-accent-text, #fff); }
+/* The currently-selected list in the switch popover. */
+.tag-menu-item.active { color: var(--p-accent, #0078d4); font-weight: 700; }
+.tag-menu-item.active:hover { color: var(--p-accent-text, #fff); }
 /* Color popover in the Lists & Tags rows opens under the actions on the right. */
 .tag-menu.color-menu { left: auto; right: 0; }
-/* List picker under the quick-add input — aligned to the input's left edge. */
-.tag-menu.list-menu { left: var(--p-space-lg, 12px); right: auto; min-width: 200px; }
+/* List picker under the header "List:" switch — aligned to its left edge. */
+.tag-menu.list-switch-menu { left: 0; right: auto; min-width: 160px; }
 .tag-menu-empty { padding: 4px 8px; color: var(--p-text-muted, #888); font-size: var(--p-font-sm, 12px); }
 
 /* ── Lists & Tags panel (secondary frame) ───────────────────────────── */

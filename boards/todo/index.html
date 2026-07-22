@@ -12,12 +12,19 @@
   <!-- ── Main list view (persephone.view === "main") ─────────────────────── -->
   <div id="main-root" class="root">
     <header class="topbar">
+      <div id="list-switch" class="list-switch">
+        <button id="list-switch-btn" class="list-switch-btn" type="button" title="Switch list">
+          <span class="list-switch-label">List:</span>
+          <span id="list-name" class="list-switch-name">All</span>
+          <span class="list-switch-caret">▾</span>
+        </button>
+        <!-- list picker (.tag-menu) is appended here by openListSwitch -->
+      </div>
       <span id="file-name" class="file-name">Todo Board</span>
       <div class="search-wrap">
         <input id="search" type="text" placeholder="Search…" autocomplete="off" />
         <button id="search-clear" class="icon-btn" title="Clear search" hidden>✕</button>
       </div>
-      <span id="count" class="count"></span>
     </header>
 
     <div class="quick-add">

@@ -1,9 +1,10 @@
 {
   "schemaVersion": 1,
   "name": "Todo",
-  "description": "Todo list editor (content-host board) with a Lists & Tags sidebar — EPIC-044 proving ground.",
+  "description": "Todo list editor for .todo.json files — a content-host board with a Lists & Tags sidebar, search with match highlighting, tags, and per-item comments.",
   "author": "Persephone",
-  "repository": "",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
   "minAppVersion": "4.0.17",
   "fileMasks": ["*.todo.json"],
   "editorPriority": 0,

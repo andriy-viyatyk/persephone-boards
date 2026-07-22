@@ -100,8 +100,26 @@
       }
     },
     {
+      "id": "todo",
+      "version": "1.0.0",
+      "name": "Todo",
+      "description": "Todo list editor for .todo.json files — a content-host board with a Lists & Tags sidebar, search with match highlighting, tags, and per-item comments.",
+      "fileMasks": [
+        "*.todo.json"
+      ],
+      "editorName": "Todo",
+      "editorKind": "content-host",
+      "standalone": false,
+      "minAppVersion": "4.0.17",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/todo-v1.0.0/todo.zip",
+        "size": 21742,
+        "sha256": "7f00c59834e32db1c887214008cd494c2e0e3d487165762bff4eca423262957e"
+      }
+    },
+    {
       "id": "word-viewer",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "name": "Word Viewer",
       "description": "Read-only viewer for Word documents (.docx) — page-accurate rendering with headings, lists, tables, and images.",
       "fileMasks": [
@@ -112,9 +130,9 @@
       "standalone": false,
       "minAppVersion": "4.0.15",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/word-viewer-v1.0.1/word-viewer.zip",
-        "size": 64545,
-        "sha256": "8364a49c70b2b0c9c1155fe77629baef2f02df9cb834533bae1dd01d364bbff1"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/word-viewer-v1.0.2/word-viewer.zip",
+        "size": 66543,
+        "sha256": "51f2b20b199999b7dde0e8d9365fe2bacadfb0a9f9b2a2c2142cf414dbf8836f"
       }
     }
   ]

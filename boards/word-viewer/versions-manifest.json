@@ -3,6 +3,16 @@
   "id": "word-viewer",
   "versions": [
     {
+      "version": "1.0.2",
+      "date": "2026-07-22",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/word-viewer-v1.0.2/word-viewer.zip",
+        "size": 66543,
+        "sha256": "51f2b20b199999b7dde0e8d9365fe2bacadfb0a9f9b2a2c2142cf414dbf8836f"
+      },
+      "minAppVersion": "4.0.15"
+    },
+    {
       "version": "1.0.1",
       "date": "2026-07-19",
       "archive": {

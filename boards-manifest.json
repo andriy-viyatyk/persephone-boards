@@ -39,6 +39,24 @@
       }
     },
     {
+      "id": "pdf-viewer",
+      "version": "1.0.0",
+      "name": "PDF Viewer",
+      "description": "Viewer for PDF documents — the stock pdf.js viewer with search, thumbnails, outline, zoom/fit, rotate and print.",
+      "fileMasks": [
+        "*.pdf"
+      ],
+      "editorName": "PDF",
+      "editorKind": "simple",
+      "standalone": false,
+      "minAppVersion": "4.0.18",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pdf-viewer-v1.0.0/pdf-viewer.zip",
+        "size": 3514035,
+        "sha256": "c7eb9279a38145225f8e30fc7084a6922fa989f9050092807e16ca7d0bc0d5a0"
+      }
+    },
+    {
       "id": "pe-viewer",
       "version": "1.0.1",
       "name": "PE Viewer",

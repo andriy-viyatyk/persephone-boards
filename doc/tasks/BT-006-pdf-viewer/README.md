@@ -41,14 +41,18 @@ installer and PDF viewing becomes an opt-in catalog install.
 - [x] `icon.svg`, `WHATS-NEW.md`, board `CLAUDE.md`
 - [x] Non-local sources (archive entries, `https`) — `editorSources: "any"` + reject handling; the
       Persephone side landed in `US-907` (materialize → local path, not a binary content host)
+- [x] Publish 1.0.0 to the catalog (`US-910`)
 - [ ] Full parity pass against the built-in viewer (`US-909`)
-- [ ] Drop `editorPriority` to a low value once the built-in PDF editor is removed, then publish
+- [ ] Drop `editorPriority` from 200 once the built-in PDF editor is removed (`US-911`), as a bump
 
 ## Concerns / Open Questions
 
-- **`editorPriority` is 200 only for coexistence.** The built-in claims `.pdf` at 100 and ties go
-  to the built-in, so the board needs >100 to be the default while both exist. Must be lowered
-  before publishing — after the built-in is removed only Monaco's `0` floor remains.
+- **`editorPriority` is 200, and it SHIPPED that way.** The built-in claims `.pdf` at 100 and ties go
+  to the built-in, so anything ≤ 100 would install and then never open a PDF — lowering it before the
+  built-in is removed would break the published board. 200 is correct in both worlds (it also clears
+  Monaco's `0` floor once the built-in is gone), so the drop is ladder hygiene only: squatting the top
+  `category` tier leaves no room for another board to claim `.pdf`. Deferred to Persephone's `US-911`
+  as a version bump.
 - ~~**Non-local sources are the one real functional gap.**~~ **Closed.** Not a binary content host in
   the end: Persephone materializes a non-local source into a temp cache file and `getFilePath()`
   returns that path, so all three source kinds arrive through the board's existing code path. The
@@ -153,3 +157,21 @@ Gotcha worth remembering for testing: `app.pages.openFile` **dedupes** to an exi
 manifest edit does not take effect on board reload (Persephone caches manifests until a trust change
 or restart). Both cost real time during this task. Also `app.openRawLink(linkData)` did nothing from a
 script — the working call is `app.events.openRawLink.sendAsync(io.createLinkData(href))`.
+
+### 2026-08-05 — published 1.0.0 (Persephone `US-910`)
+
+`pdf-viewer-v1.0.0` is live: 3.5 MB ZIP from an 11 MB folder, sha256-verified, and the catalog +
+`versions-manifest.json` entries were machine-written by the publish workflow as designed.
+
+Published **ahead of Persephone 4.0.18's own release**, deliberately. The board needs `frame-src` /
+`wasm-unsafe-eval` in `BOARD_CSP` and the `editorSources` gate, none of which have shipped, so
+`isCompatible` keeps it uninstallable until 4.0.18 goes out — at which point it becomes available
+with no further action here.
+
+Worth knowing: the publish script writes a **fixed field set** into `boards-manifest.json`, so
+`editorSources` and `editorPriority` do **not** appear in the catalog entry. They travel inside the
+release ZIP's own `board-manifest.json`, which is what Persephone's custom-editor registry actually
+reads, so nothing is lost — but don't go looking for them in the catalog.
+
+The icon was changed from `currentColor` to fixed Acrobat red (`#E5252A`) before publishing: it was
+the only board icon still inheriting the text color, so it rendered black-on-black in dark mode.

@@ -42,7 +42,7 @@ installer and PDF viewing becomes an opt-in catalog install.
 - [x] Non-local sources (archive entries, `https`) — `editorSources: "any"` + reject handling; the
       Persephone side landed in `US-907` (materialize → local path, not a binary content host)
 - [x] Publish 1.0.0 to the catalog (`US-910`)
-- [ ] Full parity pass against the built-in viewer (`US-909`)
+- [x] Full parity pass against the built-in viewer (`US-909`)
 - [ ] Drop `editorPriority` from 200 once the built-in PDF editor is removed (`US-911`), as a bump
 
 ## Concerns / Open Questions
@@ -59,8 +59,8 @@ installer and PDF viewing becomes an opt-in catalog install.
   board's whole contribution is one manifest field (`editorSources: "any"`, without which Persephone
   refuses to offer a non-local source to a simple board) plus handling a `getFilePath()` **rejection**
   — a failure mode that did not exist while it was local-only.
-- **Print and Save-as from inside a `board://` frame are unverified.** The buttons exist; the
-  behavior has not been exercised.
+- ~~**Print and Save-as from inside a `board://` frame are unverified.**~~ **Closed — both work.**
+  Confirmed by the parity pass; no bridge support and no CSP change were needed.
 - **The viewer does not follow Persephone's theme** — it keeps pdf.js's own light/dark styling.
   Acceptable, or a later restyle over the `--p-*` palette.
 
@@ -73,7 +73,7 @@ installer and PDF viewing becomes an opt-in catalog install.
 - [x] `ui.log` is clean (no CSP violations)
 - [x] Fully offline (no CDN / network)
 - [x] Archive-embedded and remote PDFs work
-- [ ] Print and Save-as verified
+- [x] Print and Save-as verified
 
 ## Files Changed
 
@@ -175,3 +175,12 @@ reads, so nothing is lost — but don't go looking for them in the catalog.
 
 The icon was changed from `currentColor` to fixed Acrobat red (`#E5252A`) before publishing: it was
 the only board icon still inheriting the text color, so it rendered black-on-black in dark mode.
+
+### 2026-08-05 — parity confirmed (Persephone `US-909`)
+
+Verified against the built-in viewer over the epic's parity checklist. Everything matches, including
+the two items that were open questions rather than expectations: **print** and **Save-as** from inside
+the `board://` frame both work as they do in the built-in editor — no bridge support, no CSP change.
+
+The board is functionally complete at 1.0.0. The only outstanding item is the `editorPriority` drop,
+which is blocked on Persephone's `US-911` removing the built-in editor.

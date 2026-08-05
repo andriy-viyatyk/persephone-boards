@@ -7,7 +7,7 @@
   "version": "1.0.0",
   "minAppVersion": "4.0.18",
   "fileMasks": ["*.pdf"],
-  "editorPriority": 200,
+  "editorPriority": 100,
   "editorName": "PDF",
   "editorKind": "simple",
   "editorSources": "any"

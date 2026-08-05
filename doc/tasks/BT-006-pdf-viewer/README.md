@@ -43,16 +43,21 @@ installer and PDF viewing becomes an opt-in catalog install.
       Persephone side landed in `US-907` (materialize → local path, not a binary content host)
 - [x] Publish 1.0.0 to the catalog (`US-910`)
 - [x] Full parity pass against the built-in viewer (`US-909`)
-- [ ] Drop `editorPriority` from 200 once the built-in PDF editor is removed (`US-911`), as a bump
+- [x] Drop `editorPriority` from 200 once the built-in PDF editor is removed (`US-911`) — staged
+      unreleased on `develop`, NOT a version bump
 
 ## Concerns / Open Questions
 
-- **`editorPriority` is 200, and it SHIPPED that way.** The built-in claims `.pdf` at 100 and ties go
-  to the built-in, so anything ≤ 100 would install and then never open a PDF — lowering it before the
-  built-in is removed would break the published board. 200 is correct in both worlds (it also clears
-  Monaco's `0` floor once the built-in is gone), so the drop is ladder hygiene only: squatting the top
-  `category` tier leaves no room for another board to claim `.pdf`. Deferred to Persephone's `US-911`
-  as a version bump.
+- **`editorPriority` is 200 in the published 1.0.0, and it stays that way.** The built-in claimed
+  `.pdf` at 100 and ties go to the built-in, so anything ≤ 100 would have installed and then never
+  opened a PDF — lowering it before the built-in was removed would have broken the published board.
+  Now that Persephone's `US-911` has removed the built-in editor, nothing built-in claims `.pdf`, so
+  **200 keeps working indefinitely** (it clears Monaco's `0` floor and has no tie to lose). The drop to
+  100 is therefore ladder hygiene only — squatting the top `category` tier leaves no room for another
+  board to claim `.pdf` — and is **committed to `develop` without a version bump or a publish**. It
+  ships with whatever the board's next functional release turns out to be. Publishing it alone would
+  spend a version number and an update prompt for no observable change, and would reintroduce a
+  `minAppVersion` sequencing constraint that not publishing avoids.
 - ~~**Non-local sources are the one real functional gap.**~~ **Closed.** Not a binary content host in
   the end: Persephone materializes a non-local source into a temp cache file and `getFilePath()`
   returns that path, so all three source kinds arrive through the board's existing code path. The

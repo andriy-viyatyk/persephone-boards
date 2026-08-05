@@ -1,0 +1,71 @@
+/* Persephone board — shared base styles (board-base.css).
+ *
+ * Copied into EVERY board at creation (blank + demo). Provides Persephone-like
+ * defaults driven by the `--p-*` theme contract: page background/text, a monospace
+ * default font, themed scrollbars, and a box-sizing reset. Link it FIRST in your
+ * board, then your own stylesheet — so the board matches the app out of the box and
+ * restyles live on a theme switch. It's a plain file in your board folder; edit it
+ * (or override its rules from your own CSS) freely.
+ */
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: var(--p-bg, #1e1e1e);
+    color: var(--p-text, #e0e0e0);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: var(--p-font-base, 13px);
+    line-height: 1.5;
+}
+
+a { color: var(--p-link, #3b82f6); }
+
+/* Themed focus ring — replace Chromium's default (light) focus outline with one driven
+   by the accent token, so focused controls (inputs, selects, buttons, links) match the
+   app and re-tint on a theme switch. Targets :focus-visible so it shows for keyboard /
+   interaction focus but not on plain mouse clicks of non-text controls. Override it per
+   control from your own stylesheet if you want a different treatment. */
+:focus-visible {
+    outline: 2px solid var(--p-accent, #0078d4);
+    outline-offset: 1px;
+}
+
+/* Themed scrollbars (Chromium) — track + slightly-rounded thumb, driven by
+   the scrollbar tokens so they match the app and re-tint on a theme switch. */
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: var(--p-scrollbar, transparent); }
+::-webkit-scrollbar-thumb {
+    background: var(--p-scrollbar-thumb, rgba(128, 128, 128, 0.4));
+    border-radius: var(--p-radius-sm, 3px);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--p-text-muted, #888); }
+::-webkit-scrollbar-corner { background: var(--p-scrollbar, transparent); }
+
+/* Checkboxes (Chromium) — reproduce Persephone's checkbox look: a rounded-square
+   outline with a check glyph, drawn as a CSS mask from the same SVG geometry the app
+   uses and painted in the muted text token, so it re-tints on a theme switch and
+   brightens on hover exactly like the app's checkbox. Applies to any native
+   <input type="checkbox"> in the board. Override it per control from your own
+   stylesheet if you want a different treatment. */
+input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    flex: 0 0 auto;
+    width: 16px; height: 16px; margin: 0; padding: 0;
+    cursor: pointer;
+    background-color: var(--p-text-muted, #888);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='0.75' y='0.75' width='14.5' height='14.5' rx='3.25' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='0.75' y='0.75' width='14.5' height='14.5' rx='3.25' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E") center / contain no-repeat;
+    transition: background-color 0.12s;
+}
+input[type="checkbox"]:hover:not(:disabled) { background-color: var(--p-text, #e0e0e0); }
+input[type="checkbox"]:checked {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='0.75' y='0.75' width='14.5' height='14.5' rx='3.25' fill='none' stroke='white' stroke-width='1.5'/%3E%3Cpath d='M3.75 7.75L6.75 10.75L12.25 5.25' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='0.75' y='0.75' width='14.5' height='14.5' rx='3.25' fill='none' stroke='white' stroke-width='1.5'/%3E%3Cpath d='M3.75 7.75L6.75 10.75L12.25 5.25' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+}
+input[type="checkbox"]:indeterminate {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='0.75' y='0.75' width='14.5' height='14.5' rx='3.25' fill='none' stroke='white' stroke-width='1.5'/%3E%3Cline x1='4.5' y1='8' x2='11.5' y2='8' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='0.75' y='0.75' width='14.5' height='14.5' rx='3.25' fill='none' stroke='white' stroke-width='1.5'/%3E%3Cline x1='4.5' y1='8' x2='11.5' y2='8' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+input[type="checkbox"]:disabled { cursor: default; opacity: 0.5; }

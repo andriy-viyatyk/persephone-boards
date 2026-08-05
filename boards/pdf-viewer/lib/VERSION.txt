@@ -1,0 +1,20 @@
+pdf.js (PDF.js) — Mozilla
+Version: 5.4.530
+License: Apache License 2.0 — see pdfjs/LICENSE
+Upstream: https://github.com/mozilla/pdf.js
+
+Vendored from Persephone's own `assets/pdfjs/` copy, already pruned of files that are
+useless in a shipped app (~10 MB):
+
+- source maps removed: build/pdf.mjs.map, build/pdf.worker.mjs.map,
+  build/pdf.sandbox.mjs.map, web/viewer.mjs.map
+- the trailing `//# sourceMappingURL=` line stripped from each corresponding .mjs
+- pdf.js's own sample document removed: web/compressed.tracemonkey-pldi-09.pdf
+  (it is the stock viewer's `defaultUrl` fallback, unreachable here because the board
+  always supplies `?file=`)
+
+Deliberately kept, because removing them breaks real documents: web/locale/ (viewer UI
+translations), web/cmaps/ (CJK), web/standard_fonts/ (non-embedded font fallback),
+web/wasm/ (JPEG 2000 decoding), build/pdf.sandbox.mjs (AcroForm JavaScript).
+
+Re-apply the same prune when upgrading pdf.js.

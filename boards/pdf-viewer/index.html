@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>PDF Viewer</title>
+    <link rel="stylesheet" href="./board-base.css" />
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* The stock pdf.js viewer fills the board. It is a nested same-origin
+           `board://` frame, so the board hands it bytes directly through
+           PDFViewerApplication.open({ data }) — see app.js. */
+        #viewer {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        /* Status overlay — covers the frame until the document is displayed, and
+           returns if something fails. */
+        #status {
+            position: absolute;
+            inset: 0;
+            display: none;
+            flex-direction: column;
+            gap: var(--p-space-lg, 12px);
+            align-items: center;
+            justify-content: center;
+            padding: var(--p-space-xl, 16px);
+            background: var(--p-bg, #1e1e1e);
+            color: var(--p-text, #d4d4d4);
+            text-align: center;
+            font-family: var(--p-font-family, system-ui), sans-serif;
+        }
+
+        #status.visible { display: flex; }
+        #status-title { font-size: var(--p-font-lg, 16px); }
+
+        #status-detail {
+            color: var(--p-text-muted, #9aa0a6);
+            font-size: var(--p-font-sm, 12px);
+            max-width: 70ch;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        /* Diagnostics table — the point of v1. Rendered into the status overlay on
+           failure so a CSP blocker is legible instead of a blank frame. */
+        table {
+            margin: 0 auto;
+            border-collapse: collapse;
+            font-size: var(--p-font-sm, 12px);
+            text-align: left;
+        }
+
+        th, td {
+            padding: var(--p-space-xs, 4px) var(--p-space-md, 8px);
+            border-bottom: 1px solid var(--p-border, #3c3c3c);
+        }
+
+        th { color: var(--p-text-muted, #9aa0a6); font-weight: normal; }
+        .ok { color: var(--p-success, #4ec9b0); }
+        .fail { color: var(--p-error, #f48771); }
+    </style>
+</head>
+<body>
+    <iframe id="viewer" title="PDF document"></iframe>
+
+    <div id="status" class="visible">
+        <div id="status-title">Loading…</div>
+        <div id="status-detail"></div>
+        <div id="diagnostics"></div>
+    </div>
+
+    <script src="./app.js"></script>
+</body>
+</html>

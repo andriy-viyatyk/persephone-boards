@@ -8,7 +8,7 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-_No active tasks._
+- [ ] [BT-006: PDF Viewer board (.pdf)](tasks/BT-006-pdf-viewer/README.md)
 
 ## Planned
 

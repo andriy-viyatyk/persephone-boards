@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- Fixed Acrobat-red (not currentColor) so the icon reads on both light and dark themes,
+       matching the other viewers' explicit brand colors. -->
+  <path d="M6 3h8l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="#E5252A"
+        fill-opacity="0.12" stroke="#E5252A" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M14 3v5h5" stroke="#E5252A" stroke-width="1.6" stroke-linejoin="round"/>
+  <!-- font-size is tuned so "PDF" clears the page outline's stroke on both sides at 24 units. -->
+  <text x="11.5" y="18" font-family="sans-serif" font-size="6.5" font-weight="bold"
+        fill="#E5252A" text-anchor="middle">PDF</text>
+</svg>

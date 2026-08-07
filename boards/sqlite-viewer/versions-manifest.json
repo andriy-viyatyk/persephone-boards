@@ -3,6 +3,16 @@
   "id": "sqlite-viewer",
   "versions": [
     {
+      "version": "1.0.1",
+      "date": "2026-08-07",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/sqlite-viewer-v1.0.1/sqlite-viewer.zip",
+        "size": 272756,
+        "sha256": "85bef10fd21260ad8d459dbccd4864aed425bacf3b827bb99f49ab9d87a13e3d"
+      },
+      "minAppVersion": "4.0.16"
+    },
+    {
       "version": "1.0.0",
       "date": "2026-07-19",
       "archive": {

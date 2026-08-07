@@ -3,6 +3,16 @@
   "id": "powerpoint-viewer",
   "versions": [
     {
+      "version": "1.0.2",
+      "date": "2026-08-07",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/powerpoint-viewer-v1.0.2/powerpoint-viewer.zip",
+        "size": 440524,
+        "sha256": "614527010bfeb45e1995a82b45bf4d9ee03fa792773c3b6432088a9b40bd201b"
+      },
+      "minAppVersion": "4.0.15"
+    },
+    {
       "version": "1.0.1",
       "date": "2026-07-19",
       "archive": {

@@ -99,6 +99,17 @@ PATH. The GitHub Action is the normal path; this is only a fallback.
   `boards/<id>/board-manifest.json`, and that version MUST NOT already have a `‹id›-v‹version›`
   release tag. A mismatch desyncs the shipped changelog from the released version; a stale
   version silently ships nothing. If they disagree, fix them before publishing.
+- **Every board should carry a `screenshot.png`** and declare it as
+  `"screenshot": "screenshot.png"` in `board-manifest.json`. Persephone shows it on the board's
+  card in the **Search boards** tab and on the Board Info page. Capture the app's content area
+  **below the page-tab strip** — so the board's own sidebar panel, editor-switch chips and
+  status footer are included — with the board showing real content, then scale to **1120×700
+  (16:10)**. Keep it under ~300 KB. Two hard rules: the value must be a **bare file name** (the
+  app rejects any path separator, `..` or scheme, since it is resolved against this repo's raw
+  URL under `boards/<id>/`), and the image must contain **no personal data** — no user-profile
+  paths, no customer content — because it is served publicly from this repo. Unlike
+  `WHATS-NEW.md`, `screenshot.png` is **excluded** from the release ZIP: it is catalog
+  decoration the board never reads, and the app loads it from the raw URL.
 - Board content is what lands in the ZIP — keep dev-only junk out (the excludes above cover the
   usual cases).
 - Vendored third-party components carry their own license files inside the board folder

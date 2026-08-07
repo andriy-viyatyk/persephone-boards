@@ -21,6 +21,9 @@ boards/                     one folder per board (folder name = board id)
   drawio-viewer/            e.g. the DrawIO Viewer board
     board-manifest.json     board identity + version (the source of truth for publishing)
     WHATS-NEW.md            short human changelog — one line per change (tracked per board)
+    screenshot.png          1120x700 catalog image shown on the board's card in the app
+                            (declared as "screenshot" in the manifest; NOT shipped in the ZIP —
+                            the app loads it from this repo's raw URL)
     ...board files...
     versions-manifest.json  full version history (written by the publish script)
 boards-manifest.json        catalog: the LATEST version of every board (machine-written)

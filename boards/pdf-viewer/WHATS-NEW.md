@@ -1,5 +1,9 @@
 # What's New
 
+## 1.0.1
+
+- Added a catalog screenshot, shown on the board's card in Persephone's Search boards tab.
+
 ## 1.0.0
 
 - First version. Views PDF documents using the stock pdf.js viewer (search, thumbnails,

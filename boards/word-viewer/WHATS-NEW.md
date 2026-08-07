@@ -3,6 +3,10 @@
 One line per change, newest first. Keep it short. Record pending changes under a heading for
 the **next version** you'll release (the version `board-manifest.json` will be bumped to).
 
+## 1.0.3
+
+- Added a catalog screenshot, shown on the board's card in Persephone's Search boards tab.
+
 ## 1.0.2
 
 - Zoom the document with **Ctrl+Wheel** (also Ctrl +/-/0), with a zoom-percent pill at the bottom-right — click it to reset to 100%.

@@ -3,6 +3,10 @@
 One line per change, newest first. Keep it short. Record pending changes under a heading for
 the **next version** you'll release (the version `board-manifest.json` will be bumped to).
 
+## 1.0.2
+
+- Added a catalog screenshot, shown on the board's card in Persephone's Search boards tab.
+
 ## 1.0.1
 
 - Now the default editor for `.todo.json` files — they open in the board and show the Todo icon in the file tree.

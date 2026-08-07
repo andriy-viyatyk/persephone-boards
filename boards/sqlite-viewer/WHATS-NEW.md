@@ -1,5 +1,9 @@
 # What's New
 
+## 1.0.1
+
+- Added a catalog screenshot, shown on the board's card in Persephone's Search boards tab.
+
 ## 1.0.0
 
 - Initial release: read-only SQL browser for SQLite databases (.db / .sqlite / .sqlite3 / .db3).

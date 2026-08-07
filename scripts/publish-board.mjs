@@ -33,7 +33,11 @@ const catalogPath = path.join(repoRoot, "boards-manifest.json");
 // Names excluded from a published ZIP (dev junk + catalog metadata that is not board content).
 // NOTE: WHATS-NEW.md is intentionally NOT in this set — it ships inside the ZIP so the app can
 // display a board's changelog on its properties screen. Do not add it here.
-const EXCLUDE = new Set(["ui.log", "versions-manifest.json", ".git", "node_modules"]);
+//
+// screenshot.png IS excluded: it is catalog decoration, not board content. The app loads it
+// straight from this repo over https (the raw URL under boards/<id>/), so shipping a copy in
+// every ZIP would add ~100-200 KB to each install for a file the board itself never reads.
+const EXCLUDE = new Set(["ui.log", "versions-manifest.json", ".git", "node_modules", "screenshot.png"]);
 
 function run(cmd, args, opts = {}) {
     return execFileSync(cmd, args, {
@@ -124,6 +128,9 @@ function buildCatalogEntry(id, m, archive) {
         editorKind: m.editorKind,
         standalone: resolveStandalone(m),
         minAppVersion: m.minAppVersion,
+        // Bare file name only — the app resolves it against this repo's raw URL under
+        // boards/<id>/ and rejects anything carrying a path separator or a scheme.
+        screenshot: m.screenshot,
         archive,
     };
     for (const k of Object.keys(entry)) if (entry[k] === undefined) delete entry[k];

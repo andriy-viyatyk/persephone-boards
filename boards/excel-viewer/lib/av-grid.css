@@ -1,0 +1,1054 @@
+/* av-grid — generated from src/styles/av-grid.css.ts. Do not edit. */
+[data-type="render-grid"].avg-grid {
+    --avg-font-family: var(--p-font-family, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif);
+    --avg-font-size: var(--p-font-base, 13px);
+    --avg-text: var(--p-text, #202020);
+    --avg-text-muted: var(--p-text-muted, #767676);
+    --avg-bg: var(--p-bg, #ffffff);
+    --avg-accent: var(--p-accent, #0078d4);
+
+    --avg-border-color: color-mix(in srgb, var(--avg-text) 22%, transparent);
+    /* The cell lines are not structural borders and should not read like them: they are
+       texture between values, so they sit well below --avg-border-color. Persephone draws
+       them from --color-border-light for exactly that reason, which is --p-border-light here. */
+    --avg-grid-line: var(--p-border-light, color-mix(in srgb, var(--avg-text) 11%, transparent));
+    /* The header band is chrome rather than content, so it takes the app's chrome surface —
+       darker than the grid in a dark theme, not a tint of the grid's own background. */
+    --avg-header-bg: var(--p-bg-dark, color-mix(in srgb, var(--avg-text) 7%, var(--avg-bg)));
+    --avg-header-text: var(--avg-text);
+    --avg-cell-bg: var(--avg-bg);
+    --avg-cell-text: var(--avg-text);
+
+    --avg-hover-bg: color-mix(in srgb, var(--avg-text) 6%, transparent);
+    --avg-selection-bg: color-mix(in srgb, var(--avg-accent) 18%, transparent);
+    --avg-selection-border: var(--avg-accent);
+    /* The selection outline while the grid does not have focus. */
+    --avg-selection-border-blurred: var(--avg-text-muted);
+
+    --avg-cell-padding-x: 4px;
+
+    font-family: var(--avg-font-family);
+    font-size: var(--avg-font-size);
+    color: var(--avg-text);
+    background-color: var(--avg-bg);
+    outline: none;
+}
+
+/* ---------------------------------------------------------------- header */
+
+.avg-grid .avg-header-cell {
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+    position: absolute;
+    padding-left: var(--avg-cell-padding-x);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    background-color: var(--avg-header-bg);
+    color: var(--avg-header-text);
+    border-bottom: solid 1px var(--avg-grid-line);
+    user-select: none;
+    cursor: default;
+}
+
+.avg-grid .avg-header-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 4px;
+}
+
+.avg-grid .avg-flex-space {
+    flex: 1 1 auto;
+}
+
+.avg-grid .avg-sort-icon {
+    display: none;
+    flex: 0 0 auto;
+    align-items: center;
+    color: var(--avg-text-muted);
+    margin-right: 2px;
+}
+
+.avg-grid .avg-header-cell[data-sort] .avg-sort-icon {
+    display: inline-flex;
+}
+
+/* The resize grip: three faint dashes, revealed on hover over the right edge. */
+.avg-grid .avg-header-cell[data-resizable="true"] {
+    padding-right: 10px;
+}
+
+.avg-grid .avg-header-cell[data-resizable="true"]::after {
+    content: "";
+    cursor: col-resize;
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    inline-size: 10px;
+}
+
+.avg-grid .avg-header-cell[data-resizable="true"]:hover::after {
+    background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        transparent 20%,
+        var(--avg-border-color) 30%,
+        transparent 40%,
+        var(--avg-border-color) 50%,
+        transparent 60%,
+        var(--avg-border-color) 70%,
+        transparent 80%,
+        transparent 100%
+    );
+    background-size: 4px 100%;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.avg-grid .avg-header-cell.avg-drag-source {
+    opacity: 0.4;
+}
+
+.avg-grid .avg-header-cell.avg-drag-over {
+    box-shadow: inset 2px 0 0 0 var(--avg-accent);
+}
+
+.avg-grid .avg-filter-button {
+    display: none;
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--avg-text-muted);
+    background-color: var(--avg-header-bg);
+}
+
+.avg-grid .avg-header-cell:hover .avg-filter-button,
+.avg-grid .avg-filter-button.avg-column-filtered {
+    display: inline-flex;
+}
+
+.avg-grid .avg-filter-button.avg-column-filtered {
+    color: var(--avg-accent);
+}
+
+/* ------------------------------------------------------------ data cells */
+
+.avg-grid .avg-data-cell {
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+    position: absolute;
+    padding: 0 var(--avg-cell-padding-x);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    background-color: var(--avg-cell-bg);
+    color: var(--avg-cell-text);
+    border-bottom: solid 1px var(--avg-grid-line);
+    border-right: solid 1px var(--avg-grid-line);
+    outline: none;
+    user-select: none;
+}
+
+.avg-grid .avg-data-cell[data-col="0"] {
+    border-left: solid 1px var(--avg-grid-line);
+}
+
+.avg-grid .avg-align-center {
+    justify-content: center;
+}
+
+.avg-grid .avg-align-right {
+    justify-content: flex-end;
+}
+
+/*
+ * Every state tint is painted on ::before, an overlay covering the cell. Two reasons, both
+ * from the reference: the cell's own background stays available for a host to set, and the
+ * selection border can be drawn on the same layer as the selection fill without a second
+ * element.
+ */
+.avg-grid .avg-data-cell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-color: transparent;
+    pointer-events: none;
+}
+
+.avg-grid .avg-row-selected::before,
+.avg-grid .avg-data-cell.avg-in-selection::before {
+    background-color: var(--avg-selection-bg);
+}
+
+.avg-grid .avg-data-cell.avg-row-hovered:not(.avg-editing)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-color: var(--avg-hover-bg);
+    pointer-events: none;
+}
+
+/* Selection edges — muted while the grid is blurred, accent-coloured once it has focus. */
+.avg-grid .avg-data-cell.avg-in-selection-top:not(.avg-focused)::before {
+    border-top: 1px solid var(--avg-selection-border-blurred);
+}
+.avg-grid .avg-data-cell.avg-in-selection-bottom:not(.avg-focused)::before {
+    border-bottom: 1px solid var(--avg-selection-border-blurred);
+}
+.avg-grid .avg-data-cell.avg-in-selection-left:not(.avg-focused)::before {
+    border-left: 1px solid var(--avg-selection-border-blurred);
+}
+.avg-grid .avg-data-cell.avg-in-selection-right:not(.avg-focused)::before {
+    border-right: 1px solid var(--avg-selection-border-blurred);
+}
+
+.avg-grid:focus-within .avg-data-cell.avg-in-selection-top:not(.avg-focused)::before {
+    border-top-color: var(--avg-selection-border);
+}
+.avg-grid:focus-within .avg-data-cell.avg-in-selection-bottom:not(.avg-focused)::before {
+    border-bottom-color: var(--avg-selection-border);
+}
+.avg-grid:focus-within .avg-data-cell.avg-in-selection-left:not(.avg-focused)::before {
+    border-left-color: var(--avg-selection-border);
+}
+.avg-grid:focus-within .avg-data-cell.avg-in-selection-right:not(.avg-focused)::before {
+    border-right-color: var(--avg-selection-border);
+}
+
+.avg-grid .avg-data-cell.avg-focused::before {
+    background-color: var(--avg-selection-bg);
+    border: 1px solid var(--avg-selection-border-blurred);
+}
+
+.avg-grid:focus-within .avg-data-cell.avg-focused::before {
+    border-color: var(--avg-selection-border);
+}
+
+/* Borderless variant — the static grid lines only. Selection and focus keep their borders. */
+.avg-grid[data-cell-borders="off"] .avg-header-cell {
+    border-bottom: none;
+}
+
+.avg-grid[data-cell-borders="off"] .avg-data-cell,
+.avg-grid[data-cell-borders="off"] .avg-data-cell[data-col="0"] {
+    border: none;
+}
+
+/* ------------------------------------------------------- select column */
+
+/*
+ * The checkbox column is an ordinary column whose render hook returns markup, so it needs no
+ * layout of its own — only centring, a pointer cursor and the accent tint when checked. The
+ * header's title span holds the select-all box, which is why the header rule targets padding.
+ */
+.avg-grid .avg-header-cell[data-column-key="--select-column--"] {
+    padding-left: 0;
+    justify-content: center;
+}
+
+/*
+ * The title span normally holds text, so its inline content sits on a baseline with descender
+ * space below it — which lifts an icon inside it a couple of pixels above the cell's centre.
+ * Making the span a flex box takes the baseline out of it and centres the checkbox on both
+ * axes, so it lines up with the boxes in the column below and with the labels beside it.
+ */
+.avg-grid .avg-header-cell[data-column-key="--select-column--"] .avg-header-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0;
+    overflow: visible;
+}
+
+/*
+ * The header's flex spacer is what pushes the filter funnel to the right edge — and it also
+ * absorbs every free pixel, so the justify-content above has nothing left to centre with. The
+ * select column has no funnel, so the spacer has no job here.
+ *
+ * (No backticks in this file's comments: the whole sheet is one template literal.)
+ */
+.avg-grid .avg-header-cell[data-column-key="--select-column--"] .avg-flex-space {
+    display: none;
+}
+
+/*
+ * The row-selection checkbox, and the one an editable boolean cell carries. Both keep their 16x16
+ * box even when empty, which for the boolean is what makes the first click on it land: the hit
+ * target does not wait to be revealed. Neither is conditional on hover — the glyph inside a
+ * boolean's box is chosen in the render path, where the grid already knows which cell the pointer
+ * is on.
+ */
+.avg-grid .avg-select-box,
+.avg-grid .avg-bool-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    color: var(--avg-text-muted);
+    cursor: pointer;
+}
+
+.avg-grid .avg-select-box.avg-checked,
+.avg-grid .avg-bool-box.avg-checked {
+    color: var(--avg-accent);
+}
+
+.avg-grid .avg-data-cell[data-column-key="--select-column--"],
+.avg-grid .avg-header-cell[data-column-key="--select-column--"] {
+    cursor: pointer;
+}
+
+/* -------------------------------------------------------------- editing */
+
+/*
+ * The editor fills its cell, inset by one pixel so the focus outline the cell already draws
+ * stays visible around it. It inherits the grid's font rather than the browser's control font,
+ * so the text does not jump size or family when a cell opens for editing.
+ */
+.avg-grid .avg-cell-editor {
+    position: absolute;
+    inset: 1px;
+    box-sizing: border-box;
+    width: auto;
+    padding: 0 3px;
+    margin: 0;
+    border: none;
+    outline: none;
+    border-radius: 0;
+    font: inherit;
+    color: var(--avg-cell-text);
+    background-color: var(--avg-cell-bg);
+}
+
+/*
+ * The dropdown editor's closed state: the current value and a caret, filling the cell exactly
+ * as the text editor does. It is a div rather than a select because the list it opens is drawn
+ * by this library and themed by the same tokens as the grid — a native popup is drawn by the
+ * platform and ignores every one of them.
+ */
+.avg-grid .avg-cell-select {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow: hidden;
+    cursor: default;
+    user-select: none;
+}
+
+.avg-grid .avg-cell-select-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.avg-grid .avg-cell-select-caret {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    color: var(--avg-text-muted);
+}
+
+.avg-grid .avg-cell-select-caret > svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* Wide enough to read whatever the column's width happens to be — matchAnchorWidth sets the
+   width inline from the cell, and a 60px column would otherwise open a 60px list. */
+.avg-cell-select-popover {
+    min-width: 160px;
+}
+
+.avg-cell-select-popover .avg-popover-content {
+    /* The list scrolls, not the panel around it — two scrollbars on one column of options. */
+    overflow: hidden;
+}
+
+.avg-cell-select-list {
+    padding: 0 2px;
+}
+
+/* The hover tint is suppressed over an open editor — see the ::after rule above. */
+.avg-grid .avg-data-cell.avg-editing::before {
+    border: 1px solid var(--avg-selection-border);
+    background-color: transparent;
+}
+
+/* ---------------------------------------------------------------- pieces */
+
+.avg-grid .avg-check-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    color: var(--avg-text-muted);
+}
+
+/*
+ * The add-row and add-column affordances. Both sit outside the pooled cells: the row button in
+ * the slack below the last row, the column button at the right end of the header band — so both
+ * scroll with the content they extend, rather than floating over the viewport.
+ */
+.avg-grid .avg-add-row {
+    position: absolute;
+    bottom: 1px;
+    left: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    color: var(--avg-text-muted);
+    opacity: 0.6;
+}
+
+/* Brighter, not different: these two are chrome, and the accent is reserved for state the grid
+   is reporting — a sort, a filter, a selection edge. Persephone lights them the same way, from
+   icon.light to icon.default. */
+.avg-grid .avg-add-row:hover {
+    opacity: 1;
+    color: var(--p-text-strong, var(--avg-text));
+}
+
+.avg-grid .avg-add-column {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 100%;
+    padding: 0;
+    border: none;
+    background-color: var(--avg-header-bg);
+    font: inherit;
+    cursor: pointer;
+    user-select: none;
+    color: var(--avg-text-muted);
+    opacity: 0.6;
+}
+
+.avg-grid .avg-add-column:hover {
+    opacity: 1;
+    color: var(--p-text-strong, var(--avg-text));
+}
+
+/* --- Popover ---------------------------------------------------------------------------
+   Mounted on document.body, so it is outside the grid root and inherits none of the tokens
+   defined there. It repeats the theme contract rather than reaching for it: a popover has to
+   look like it belongs to the grid it was opened from, and both read the same --p-* tokens. */
+.avg-popover {
+    --avg-font-family: var(--p-font-family, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif);
+    --avg-font-size: var(--p-font-base, 13px);
+    --avg-text: var(--p-text, #202020);
+    --avg-text-muted: var(--p-text-muted, #767676);
+    --avg-bg: var(--p-bg, #ffffff);
+    --avg-accent: var(--p-accent, #0078d4);
+    --avg-border-color: color-mix(in srgb, var(--avg-text) 22%, transparent);
+    --avg-hover-bg: color-mix(in srgb, var(--avg-text) 6%, transparent);
+    --avg-selection-bg: color-mix(in srgb, var(--avg-accent) 18%, transparent);
+    /* A menu row is picked, not marked. A checklist can tint its rows — several are on at once
+       and the text under them has to stay readable — but exactly one menu row is under the
+       pointer, and the platform draws that one in the full selection colour. */
+    --avg-menu-selection-bg: var(--p-selection-bg, var(--avg-accent));
+    --avg-menu-selection-text: var(--p-selection-text, #ffffff);
+    /* Apply is the same gesture as picking a menu row, so it takes the same pair. The accent is
+       a *line* colour — dark enough to read against a light background — and filling a button
+       with it left the label, which was --avg-bg, near-black on dark blue in a dark theme. */
+    --avg-button-primary-bg: var(--p-selection-bg, var(--avg-accent));
+    --avg-button-primary-text: var(--p-selection-text, var(--avg-bg));
+
+    position: fixed;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow: hidden;
+    font-family: var(--avg-font-family);
+    font-size: var(--avg-font-size);
+    color: var(--avg-text);
+    background-color: var(--avg-bg);
+    border: solid 1px var(--avg-border-color);
+    border-radius: 6px;
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--avg-text) 25%, transparent);
+    outline: none;
+}
+
+.avg-popover-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+}
+
+.avg-popover-resize {
+    position: absolute;
+    right: 1px;
+    bottom: 1px;
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: nwse-resize;
+    color: var(--avg-text-muted);
+    opacity: 0.6;
+    user-select: none;
+    touch-action: none;
+    z-index: 1;
+}
+
+.avg-popover-resize:hover {
+    opacity: 1;
+}
+
+.avg-popover-resize > svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* Opened above its anchor, the popover grows upward, so the grip moves to the top corner. */
+.avg-popover[data-placement^="top"] .avg-popover-resize {
+    top: 1px;
+    bottom: auto;
+    cursor: nesw-resize;
+    transform: rotate(-90deg);
+}
+
+/* --- Menu ------------------------------------------------------------------------------
+   A menu is a popover with rows in it, so everything above applies and this is only the rows.
+   The list scrolls rather than the popover content, so a search box stays put above it. */
+.avg-menu .avg-popover-content {
+    overflow: hidden;
+}
+
+.avg-menu-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 4px 0;
+    overflow: auto;
+}
+
+.avg-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* The reference's ROW_HEIGHT — kept in step with MENU_ROW_HEIGHT in Menu.ts, which is what
+       a PageDown counts by. */
+    height: 26px;
+    padding: 0 8px;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* One highlight, not two: the keyboard's active row and the pointer's hover are the same
+   state, so moving the pointer after using the arrows does not leave two rows lit. */
+.avg-menu-item:hover,
+.avg-menu-item[data-active],
+.avg-menu-item[data-submenu-open] {
+    background-color: var(--avg-menu-selection-bg);
+    color: var(--avg-menu-selection-text);
+}
+
+/* The row's furniture follows its label onto the highlight. A hotkey or a chevron left at
+   --avg-text-muted is barely legible against a solid accent, and the check mark left at the
+   accent itself disappears into it entirely. */
+.avg-menu-item:hover .avg-menu-hotkey,
+.avg-menu-item:hover .avg-menu-icon,
+.avg-menu-item:hover .avg-menu-chevron,
+.avg-menu-item:hover .avg-menu-check,
+.avg-menu-item[data-active] .avg-menu-hotkey,
+.avg-menu-item[data-active] .avg-menu-icon,
+.avg-menu-item[data-active] .avg-menu-chevron,
+.avg-menu-item[data-active] .avg-menu-check,
+.avg-menu-item[data-submenu-open] .avg-menu-hotkey,
+.avg-menu-item[data-submenu-open] .avg-menu-icon,
+.avg-menu-item[data-submenu-open] .avg-menu-chevron,
+.avg-menu-item[data-submenu-open] .avg-menu-check {
+    color: var(--avg-menu-selection-text);
+}
+
+.avg-menu-item[data-start-group] {
+    margin-top: 4px;
+    border-top: solid 1px var(--avg-border-color);
+}
+
+.avg-menu-item[data-disabled] {
+    color: var(--avg-text-muted);
+    cursor: default;
+}
+
+/* A disabled row does not light up, so it also does not take the highlight's text colour. */
+.avg-menu-item[data-disabled]:hover,
+.avg-menu-item[data-disabled]:hover .avg-menu-hotkey,
+.avg-menu-item[data-disabled]:hover .avg-menu-icon,
+.avg-menu-item[data-disabled]:hover .avg-menu-chevron,
+.avg-menu-item[data-disabled]:hover .avg-menu-check {
+    background-color: transparent;
+    color: var(--avg-text-muted);
+}
+
+/* A secondary action sharing the menu with the primary ones — the column items under the row
+   ones. Dimmed until it is the row being pointed at, so the menu reads in two tiers. */
+.avg-menu-item[data-minor]:not(:hover):not([data-active]) {
+    color: var(--avg-text-muted);
+}
+
+.avg-menu-label {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.avg-menu-hotkey {
+    flex: 0 0 auto;
+    margin-left: 24px;
+    color: var(--avg-text-muted);
+}
+
+.avg-menu-icon,
+.avg-menu-chevron,
+.avg-menu-check {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    color: var(--avg-text-muted);
+}
+
+.avg-menu-item > svg,
+.avg-menu-icon > svg,
+.avg-menu-check > svg {
+    width: 16px;
+    height: 16px;
+}
+
+.avg-menu-chevron > svg {
+    width: 12px;
+    height: 12px;
+}
+
+.avg-menu-check {
+    color: var(--avg-accent);
+}
+
+/* The search box is the list's, so it reuses the list's own input rule and only needs the
+   token block a menu popover already carries. */
+.avg-menu .avg-menu-search {
+    flex: 0 0 auto;
+}
+
+.avg-menu .avg-menu-search:focus,
+.avg-menu .avg-menu-search:focus-visible {
+    border-color: var(--avg-accent);
+    outline: none;
+}
+
+/* --- VirtualList -----------------------------------------------------------------------
+   Mounted wherever its caller puts it — inside a popover, usually — so like the popover it
+   defines its own tokens rather than inheriting the grid's. */
+.avg-list {
+    --avg-text: var(--p-text, #202020);
+    --avg-text-muted: var(--p-text-muted, #767676);
+    --avg-bg: var(--p-bg, #ffffff);
+    --avg-accent: var(--p-accent, #0078d4);
+    --avg-border-color: color-mix(in srgb, var(--avg-text) 22%, transparent);
+    --avg-hover-bg: color-mix(in srgb, var(--avg-text) 6%, transparent);
+    --avg-selection-bg: color-mix(in srgb, var(--avg-accent) 18%, transparent);
+
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    color: var(--avg-text);
+}
+
+/* Width stated rather than stretched. An input in a flex column does not fill it: its width:auto
+   resolves to the intrinsic size a text field has, so align-items:stretch never applies and the
+   box sits at ~120px however wide the popover is. The calc is the two 4px margins. */
+.avg-list-search {
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    width: calc(100% - 8px);
+    margin: 4px;
+    padding: 1px 6px;
+    /* After the shorthand, which would otherwise reset it. */
+    font: inherit;
+    line-height: 18px;
+    color: var(--avg-text);
+    background-color: transparent;
+    border: solid 1px var(--avg-border-color);
+    border-radius: 4px;
+    outline: none;
+}
+
+/* The 1px border is the focus indicator. A host's own :focus-visible ring would sit outside it
+   at whatever width that host chose — 2px on a Persephone board — and a bare .avg-list-search
+   ties with a bare :focus-visible on specificity, so it loses on source order. Scoped to the
+   list to outrank it, and both states named because the host may style either. */
+.avg-list .avg-list-search:focus,
+.avg-list .avg-list-search:focus-visible {
+    border-color: var(--avg-accent);
+    outline: none;
+}
+
+.avg-list-body {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+/* The rows are engine-rendered, so the item rule has to cover both the pooled cells and the
+   select-all row, which is an ordinary element above the scroll area. */
+.avg-list-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 6px;
+    box-sizing: border-box;
+    white-space: nowrap;
+    overflow: hidden;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* The engine positions its rows; it does not position them *absolutely* — that is the
+   stylesheet's job, exactly as it is for .avg-data-cell. Without this the rows lay out in
+   flow, which looks right at the top of the list only because each row's inline width fills the
+   container and forces a wrap, and then shows an empty band everywhere below: the top the
+   engine wrote is ignored, so scrolling reveals content nobody positioned. Scoped to the grid
+   region, so the select-all row above it stays in flow. */
+.avg-list-grid .avg-list-item {
+    position: absolute;
+}
+
+.avg-list-all {
+    display: flex;
+    flex: 0 0 auto;
+    height: 24px;
+    border-bottom: solid 1px var(--avg-border-color);
+    color: var(--avg-text-muted);
+}
+
+.avg-list-item:hover {
+    background-color: var(--avg-hover-bg);
+}
+
+.avg-list-item[data-selected] {
+    background-color: var(--avg-selection-bg);
+}
+
+.avg-list-item[data-active] {
+    outline: solid 1px var(--avg-accent);
+    outline-offset: -1px;
+}
+
+.avg-list-item[data-disabled] {
+    color: var(--avg-text-muted);
+    cursor: default;
+    opacity: 0.6;
+}
+
+.avg-list-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.avg-list-box {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    color: var(--avg-text-muted);
+}
+
+.avg-list-box.avg-checked {
+    color: var(--avg-accent);
+}
+
+.avg-list-box > svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* A single-pick list has no checkboxes — the row highlight is the selection. */
+.avg-list:not([data-multiple]) .avg-list-box {
+    display: none;
+}
+
+.avg-list-empty {
+    padding: 8px;
+    color: var(--avg-text-muted);
+    text-align: center;
+}
+
+/* --- Filter popover --------------------------------------------------------------------
+   The body of a filter popover: the checklist, then the two buttons. It sets a min-width and
+   lets the popover take its width from it, so a narrow column still gets a readable list. */
+.avg-filter-popover .avg-popover-content {
+    /* The content scrolls nothing itself — the list inside it does, and a scrollbar on both
+       would let the buttons scroll out of reach. */
+    overflow: hidden;
+}
+
+.avg-filter-content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.avg-filter-list {
+    padding: 0 2px;
+}
+
+.avg-filter-buttons {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    /* The extra 14px on the right is the resize grip's own square, which sits at the bottom
+       corner with a z-index above this row. Without it "Clear" ends up under the grip: the
+       press that means "resize" lands on the button, and the press that means "Clear" is
+       taken by the grip. */
+    padding: 6px 20px 6px 6px;
+    border-top: solid 1px var(--avg-border-color);
+}
+
+/* A custom filter body is host DOM, so the grid styles only the space around it: the panel
+   scrolls if the body is taller than the room under its anchor, and the buttons keep the row they
+   have under the checklist. No grip on this popover, so the 20px reserved for one comes back. */
+.avg-custom-filter-content > .avg-filter-buttons {
+    padding: 6px;
+}
+
+.avg-custom-filter-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 8px;
+}
+
+.avg-button {
+    padding: 3px 12px;
+    font: inherit;
+    color: var(--avg-text);
+    background-color: transparent;
+    border: solid 1px var(--avg-border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.avg-button:hover:not(:disabled) {
+    border-color: var(--avg-accent);
+    color: var(--avg-accent);
+}
+
+.avg-button-primary {
+    color: var(--avg-button-primary-text, var(--avg-bg));
+    background-color: var(--avg-button-primary-bg, var(--avg-accent));
+    border-color: var(--avg-button-primary-bg, var(--avg-accent));
+}
+
+.avg-button-primary:hover:not(:disabled) {
+    color: var(--avg-button-primary-text, var(--avg-bg));
+    opacity: 0.85;
+}
+
+.avg-button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.avg-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    color: inherit;
+    background-color: transparent;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.avg-icon-button:hover {
+    color: var(--avg-accent);
+}
+
+/* Lit while its own popover is open — set from the model, so a repaint keeps it. */
+.avg-grid .avg-filter-button.avg-filter-open {
+    display: inline-flex;
+    color: var(--avg-accent);
+}
+
+/* --- Filter bar ------------------------------------------------------------------------
+   The bar can be mounted anywhere on the page, not only above its grid, so it carries its own
+   copy of the token block for the same reason .avg-popover does: it cannot count on inheriting
+   from a .avg-grid ancestor because it may not have one. */
+.avg-filter-bar {
+    --avg-font-family: var(--p-font-family, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif);
+    --avg-font-size: var(--p-font-base, 13px);
+    --avg-text: var(--p-text, #202020);
+    --avg-text-muted: var(--p-text-muted, #767676);
+    --avg-bg: var(--p-bg, #ffffff);
+    --avg-accent: var(--p-accent, #0078d4);
+    --avg-border-color: color-mix(in srgb, var(--avg-text) 22%, transparent);
+    /* The same two the header band uses: the bar is the grid's chrome, and reading as a
+       separate surface is the point of it. */
+    --avg-header-bg: var(--p-bg-dark, color-mix(in srgb, var(--avg-text) 7%, var(--avg-bg)));
+    --avg-grid-line: var(--p-border-light, color-mix(in srgb, var(--avg-text) 11%, transparent));
+    --avg-hover-bg: color-mix(in srgb, var(--avg-text) 6%, transparent);
+
+    box-sizing: border-box;
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 4px;
+    font-family: var(--avg-font-family);
+    font-size: var(--avg-font-size);
+    color: var(--avg-text);
+    background-color: var(--avg-header-bg);
+    border-bottom: solid 1px var(--avg-grid-line);
+}
+
+/* No filters, no bar — not an empty strip of chrome, and no height taken from the grid. */
+.avg-filter-bar.avg-filter-bar-empty {
+    display: none;
+}
+
+.avg-filter-bar-chips {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-width: 0;
+}
+
+.avg-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    background-color: var(--avg-bg);
+    border: solid 1px var(--avg-border-color);
+    border-radius: 4px;
+}
+
+.avg-filter-chip-open,
+.avg-filter-chip:hover {
+    border-color: var(--avg-accent);
+}
+
+.avg-filter-chip-body {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    padding: 1px 2px 1px 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.avg-filter-chip-name {
+    flex: 0 0 auto;
+    color: var(--avg-text-muted);
+}
+
+/* The one part that may not fit: the label is already truncated to a character budget, and
+   this catches what a wide font or a long single value gets past it. */
+.avg-filter-chip-values {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.avg-filter-chip-caret {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    padding: 0 2px;
+    color: var(--avg-text-muted);
+}
+
+.avg-filter-chip-open .avg-filter-chip-caret {
+    color: var(--avg-accent);
+}
+
+.avg-filter-chip-remove {
+    flex: 0 0 auto;
+    margin-right: 2px;
+    border-left: solid 1px var(--avg-border-color);
+    border-radius: 0;
+    color: var(--avg-text-muted);
+}
+
+.avg-filter-bar-clear {
+    flex: 0 0 auto;
+    color: var(--avg-text-muted);
+}
+
+.avg-filter-bar .avg-icon-button > svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* --- Filter bar mounted by the grid ------------------------------------------------------
+   filterBar: true puts the bar and the grid in a column, and the grid takes what is left.
+   The grid's own height is written inline by the engine, so it is set to auto here and the
+   flex line decides it — a percentage would resolve against the wrapper and overflow by
+   exactly the height of the bar. */
+.avg-grid-wrap {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    /* The same flex the engine writes on the grid root, because the wrapper takes the root's
+       place as the host's child and has to fill it the same way. Without this the wrapper is a
+       flex item at its default 0 1 auto, sizes itself to the grid's intrinsic width, and a
+       grid that used to fill a flex-row container renders in a column down the left. */
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+}
+
+.avg-grid-wrap > .avg-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.avg-grid .avg-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--avg-text-muted);
+    pointer-events: none;
+}

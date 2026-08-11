@@ -7,16 +7,14 @@ SheetJS (xlsx) — parser
   source:  https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js
   role:    reads .xlsx (OOXML) and legacy .xls (BIFF) binary into arrays
 
-Tabulator (tabulator-tables) — renderer
-  version: 6.5.1
+av-grid — renderer
+  version: 2.0.0
   license: MIT
-  files:   tabulator.min.js, tabulator.min.css
-  source:  https://cdn.jsdelivr.net/npm/tabulator-tables@6.5.1/dist/js/tabulator.min.js
-           https://cdn.jsdelivr.net/npm/tabulator-tables@6.5.1/dist/css/tabulator.min.css
-  role:    grid renderer — sorting, filtering, range-copy, virtual DOM
+  files:   av-grid.umd.js (renamed from the package's av-grid.umd.cjs), av-grid.css
+  source:  npm `av-grid` → dist/av-grid.umd.cjs + dist/av-grid.css
+           https://github.com/andriy-viyatyk/av-grid
+  role:    grid renderer — virtualized rendering, sorting, filtering, range select,
+           clipboard copy, context menu. Themed straight off the --p-* contract, so
+           it needs no skin file.
 
-Tabulator theme skin — tabulator.css
-  source:  https://raw.githubusercontent.com/andriy-viyatyk/persephone/main/boards-assets/tabulator.css
-  role:    Persephone's --p-* theme skin for Tabulator (from the boards-assets catalog)
-
-See LICENSE for the full Apache-2.0 (SheetJS) and MIT (Tabulator) texts.
+See LICENSE for the full Apache-2.0 (SheetJS) and MIT (av-grid) texts.

@@ -8,9 +8,9 @@
 const P = window.persephone;
 
 // av-grid's UMD build puts the whole module namespace on `window.AVGrid`; the class is
-// `AVGrid.AVGrid`. Keep both names apart so it stays obvious which is which.
-const AVG = window.AVGrid;
-const AVGridClass = AVG.AVGrid;
+// `AVGrid.AVGrid` (the helpers — `inferColumns`, `detectColumnWidths`, … — hang off the same
+// object). Keep the two names apart so it stays obvious which is which.
+const AVGridClass = window.AVGrid.AVGrid;
 
 // DOM handles.
 const nameEl = document.getElementById("name");
@@ -18,18 +18,12 @@ const tabsEl = document.getElementById("tabs");
 const stateEl = document.getElementById("state");
 const reloadBtn = document.getElementById("reload");
 const searchEl = document.getElementById("search");
-const gridHost = document.getElementById("grid");
 
 // Loaded-workbook state.
 let workbook = null; // the SheetJS workbook
 let activeSheet = null; // name of the sheet currently shown
 let grid = null; // the live av-grid instance (destroyed + rebuilt per sheet)
 let currentPath = ""; // the file path (for the name label / reload)
-
-// Column-width detection bounds, and how many rows are measured to pick a width.
-const MIN_COLUMN_WIDTH = 64;
-const MAX_COLUMN_WIDTH = 420;
-const WIDTH_SAMPLE_ROWS = 200;
 
 // ---- state overlay -------------------------------------------------------------------------
 
@@ -118,36 +112,10 @@ function buildGrid(ws) {
         if (numericOnly[i]) columns[i + 1].align = "right"; // +1 — column 0 is the row gutter
     }
 
-    detectWidths(columns, rows);
-
+    // No widths are set on the data columns: av-grid detects each one from the header label and
+    // the first 50 rows, measured as the cell will DISPLAY them — so our `formatValue` (Excel's
+    // formatted text) is what gets measured, not the raw value behind it. Bounded to 60–300px.
     return { columns, rows };
-}
-
-// Give every data column a width sized to its content, the way a spreadsheet does.
-//
-// av-grid only detects widths from the data when it INFERS the columns; a host that supplies its
-// own `columns` (as this board must, to get letter headers and a row gutter) gets a flat
-// `defaultGridColumnWidth` of 140px for all of them. So we run the grid's own `inferColumns()`
-// over a probe — the first rows projected to the DISPLAYED text under the same keys, which is
-// what the user actually sees — and copy the widths it detects onto our columns, bounded so that
-// neither a one-letter column nor one runaway note cell decides the layout.
-function detectWidths(columns, rows) {
-    if (rows.length === 0) return;
-
-    const dataColumns = columns.filter((c) => !c.isStatusColumn);
-    const probe = rows.slice(0, WIDTH_SAMPLE_ROWS).map((row) => {
-        const sample = {};
-        for (const column of dataColumns) sample[column.key] = row["d" + column.key.slice(1)] || "";
-        return sample;
-    });
-
-    const detected = new Map(AVG.inferColumns(probe).map((c) => [c.key, c.width]));
-
-    for (const column of dataColumns) {
-        const width = detected.get(column.key);
-        if (typeof width !== "number") continue;
-        column.width = Math.min(MAX_COLUMN_WIDTH, Math.max(MIN_COLUMN_WIDTH, width));
-    }
 }
 
 // ---- sheet tab bar -------------------------------------------------------------------------
@@ -216,6 +184,10 @@ function renderSheet(name) {
         // Removable chips for whatever the header funnels have filtered. Takes no vertical space
         // until something is actually filtered.
         filterBar: true,
+        // `highlightSearch` is left at its default (colour only): it marks the searched words
+        // inside the cells with no setup. "both" — which the av-grid docs suggest for dark
+        // themes — was tried and reads WORSE here, because Persephone's accent is saturated
+        // enough that the tint becomes a solid block behind text of nearly the same colour.
     });
 }
 
@@ -285,34 +257,9 @@ searchEl.addEventListener("input", () => {
     if (grid) grid.setSearchString(searchEl.value);
 });
 
-// Clicking a cell does not give the grid DOM focus by itself (document.activeElement stays on
-// <body>), so the arrow keys would do nothing until something else focused it. Focus the grid's
-// root on the way down — CAPTURE phase, before the grid handles the same gesture, and
-// `grid.element.focus()` rather than `grid.focus()`: the latter also re-homes the *cell* focus to
-// A1, which would undo the very click that triggered it.
-gridHost.addEventListener(
-    "mousedown",
-    () => {
-        if (grid) grid.element.focus({ preventScroll: true });
-    },
-    true,
-);
-
-// Ctrl/Cmd+C (and Ctrl+Shift+C, which prepends the column letters) copy the selected range.
-//
-// The board owns this because av-grid's own Ctrl+C rides the browser's native `copy` event —
-// and that event NEVER FIRES inside a Persephone board iframe, so the built-in binding silently
-// copies nothing here (verified: the keydown reaches the grid, no `copy` event follows). The
-// right-click Copy items are unaffected: those go through `copySelection()`, which writes with
-// navigator.clipboard — the same call we make below. preventDefault keeps the two paths from
-// both running in an environment where the native event does work.
-document.addEventListener("keydown", (e) => {
-    if (!grid) return;
-    if (!(e.ctrlKey || e.metaKey) || (e.key !== "c" && e.key !== "C")) return;
-    const el = document.activeElement;
-    if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return; // let text copy work
-    e.preventDefault();
-    grid.copySelection(e.shiftKey ? "copyWithHeaders" : "copy");
-});
+// NOTE: the grid needs no help from this board for focus or for the clipboard. A press inside it
+// takes DOM focus itself, and Ctrl+C / Ctrl+Shift+C copy through the browser's own copy event.
+// If either ever looks broken while you are driving the board from an agent, the harness is the
+// suspect, not the grid — see the "Run & test" note in CLAUDE.md.
 
 load();

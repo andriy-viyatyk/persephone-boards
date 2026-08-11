@@ -75,25 +75,30 @@ the previous Tabulator build could not do (it only ever had the display string, 
   adds removable chips above the grid; the bar takes **no vertical space until something is
   filtered**.
 - **Search** — the toolbar box calls `grid.setSearchString()`. Every whitespace-separated word
-  must appear in some column's displayed value.
+  must appear in some column's displayed value, and each one is **highlighted inside the cells**
+  (av-grid 2.1+, on by default — see the `highlightSearch` note in `renderSheet`).
 - **Range selection** — click and drag, or Shift+arrows. The row-number gutter is a status
-  column, so it is **excluded from the selection and from copy** automatically.
-- **Copy** — right-click **Copy** / **Copy as…** (With Headers, JSON, HTML table) come from
-  av-grid's own context menu, correctly reduced to copy-only because the grid isn't `editable`.
-  **Ctrl+C / Ctrl+Shift+C are owned by the board** — see the gotcha below.
+  column (`isStatusColumn`), so av-grid keeps it out of the focus, the selection and every copy
+  path on its own — a copied range pastes into a spreadsheet with no row numbers glued to the
+  front, and it needs no code here.
+- **Copy** — Ctrl+C, Ctrl+Shift+C (with the column letters as a header row) and right-click
+  **Copy** / **Copy as…** (With Headers, JSON, HTML table) are all av-grid's own, and the menu is
+  correctly reduced to copy-only because the grid isn't `editable`. **The board binds nothing.**
 - **Virtualization** — 20,000 rows render in ~90 ms with ~230 cells in the DOM; scrolling and
   sorting stay flat. No row cap needed.
-- **Column widths** — sized to content; see the `detectWidths()` gotcha below.
+- **Column widths** — detected from the header label and the first 50 rows, measured as the cell
+  *displays* them, so our `formatValue` is what counts. Bounded 60–300px. The board sets no width
+  on a data column.
 
 ## Key files
 
 | File | Role |
 |------|------|
 | `index.html` | Page shell: top bar (file name · sheet tabs · Search · Reload) + `#grid` host + `#state` overlay. Loads CSS in order (board-base → av-grid → board overrides) and JS (av-grid → xlsx → app). Board-specific grid CSS (the row-number rail) lives here. |
-| `app.js` | All logic: `load()` (path → bytes → `XLSX.read`), `buildGrid()` (worksheet → columns+rows), `detectWidths()`, `renderSheet()` (the av-grid instance), `renderTabs()`, `ROW_COLUMN`, state overlay, the Ctrl+C and click-to-focus workarounds. |
+| `app.js` | All logic: `load()` (path → bytes → `XLSX.read`), `buildGrid()` (worksheet → columns+rows), `renderSheet()` (the av-grid instance), `renderTabs()`, `ROW_COLUMN`, state overlay. |
 | `board-manifest.json` | Simple custom-editor association (`fileMasks`, `editorPriority: 200`, `editorName`, `editorKind: "simple"`). |
 | `lib/xlsx.full.min.js` | Vendored **SheetJS** 0.20.3, Apache-2.0 — the parser (reads `.xlsx` + `.xls`). |
-| `lib/av-grid.umd.js` + `lib/av-grid.css` | Vendored **av-grid** 2.0.0, MIT — the renderer. No skin file: av-grid reads the `--p-*` contract directly. |
+| `lib/av-grid.umd.js` + `lib/av-grid.css` | Vendored **av-grid** 2.1.0, MIT — the renderer. No skin file: av-grid reads the `--p-*` contract directly. |
 | `lib/LICENSE`, `lib/VERSION.txt` | License texts + vendored versions for both libraries. |
 | `board-base.css` | Shared Persephone board theme defaults (don't recreate). |
 | `icon.svg` | Board icon (spreadsheet glyph). |
@@ -114,9 +119,14 @@ the previous Tabulator build could not do (it only ever had the display string, 
   plain open with no file (empty state), sorting a numeric **and** a date column, a funnel filter
   + the chip bar, the search box, a range select + Ctrl+C, and right-click → Copy.
   `ui.log` should stay clean (no CSP violations, no errors).
-- **`browser_click` can stop landing in the board frame** when the app window isn't OS-focused;
-  synthesising the pointer sequence via `browser_evaluate` (`pointerdown`/`mousedown`/`mouseup`/
-  `click` with `clientX`/`clientY`) always works, and `browser_press_key` is unaffected.
+- **Read [Driving the grid from an agent](https://raw.githubusercontent.com/andriy-viyatyk/av-grid/main/docs/api.md)
+  before concluding anything from a click.** Persephone's `browser_click` fires a bare synthetic
+  `click` — no `pointerdown`, which is where av-grid resolves focus, cell focus and drags — and
+  `browser_press_key` fires `isTrusted: false` keys, which **cannot** drive the clipboard on any
+  browser. Both failures look exactly like grid bugs; three were reported against av-grid from
+  this board on that basis and none were real. Prefer the API (`grid.focusCell`, `selectRange`,
+  `copySelection`, `getState`), synthesise the full pointer sequence in `browser_evaluate` when a
+  real gesture is needed, and **verify Ctrl+C by hand**.
 
 ## Gotchas (the non-obvious decisions)
 
@@ -144,25 +154,17 @@ the previous Tabulator build could not do (it only ever had the display string, 
   `.avg-data-cell` would then out-rank the board's rules at equal specificity. Linking it in
   `<head>` puts the board's overrides last. A board rule must still out-specify one av-grid
   class: write `.avg-data-cell.xl-rownum`, not a bare `.xl-rownum`.
-- **The native `copy` event NEVER FIRES in a board iframe**, so av-grid's built-in Ctrl+C —
-  which rides that event — silently copies nothing here. Verified: the `keydown` reaches the grid
-  root, no `copy` event follows. The board therefore binds Ctrl+C / Ctrl+Shift+C itself and calls
-  `grid.copySelection("copy" | "copyWithHeaders")`, which writes through `navigator.clipboard`
-  (the board frame has clipboard permission; the keypress supplies the gesture). The right-click
-  **Copy** items already take that path and work untouched. *This is the same trap the Tabulator
-  build hit for a different reason (it used `document.execCommand("copy")`) — assume any grid
-  library's keyboard copy is broken in a board until proven otherwise.*
-- **Clicking a cell does not focus the grid.** `document.activeElement` stays on `<body>`, so
-  arrow keys and Shift+arrow selection do nothing until something focuses it. The board focuses
-  `grid.element` from a **capture-phase** `mousedown` on the host. Use `grid.element.focus()`,
-  **not** `grid.focus()` — the latter also re-homes the *cell* focus to A1, which cancels the very
-  click that triggered it.
-- **Explicit `columns` get a flat 140px width.** av-grid only detects widths from content when it
-  *infers* the columns; a host that passes its own `columns` gets `defaultGridColumnWidth` for
-  every one. `detectWidths()` works around it by running av-grid's exported `inferColumns()` over
-  a probe — the first 200 rows projected to their **displayed** text under the same keys — and
-  copying the detected widths across, bounded to 64–420px. (Measure the *display* text, not the
-  raw values: a `Date` object's width is meaningless.)
+- **The board does NOT bind Ctrl+C, and does NOT help the grid take focus.** Both were once
+  workarounds here and both are gone — they were fixing a test harness, not the grid (see the
+  "Run & test" note above). A press inside the grid takes DOM focus itself, and Ctrl+C /
+  Ctrl+Shift+C copy through the browser's own `copy` event. Don't reintroduce either on the
+  evidence of an MCP-driven click or keypress. *(The Tabulator build did genuinely need its own
+  copy — it went through `document.execCommand("copy")` — which is why this looked familiar.)*
+- **Don't set widths on the data columns.** av-grid detects them from the header label and the
+  first 50 rows, measured through the cell's *display* value, so `formatValue` is what it sees —
+  which is exactly right here, since the raw values include `Date` objects whose width means
+  nothing. (av-grid ≤ 2.0.0 only detected widths for *inferred* columns and gave explicit ones a
+  flat 140px; the board carried a `detectWidths()` probe for that, deleted in 2.1.0.)
 - **Read-only.** No write path, no `persephone.writeFile` for the opened file. Switch to a
   built-in editor to edit; this board only reads. `editable` is left off, which is also what
   reduces av-grid's context menu to Copy / Copy as… with no Paste or row/column items.

@@ -8,7 +8,7 @@ SheetJS (xlsx) — parser
   role:    reads .xlsx (OOXML) and legacy .xls (BIFF) binary into arrays
 
 av-grid — renderer
-  version: 2.0.0
+  version: 2.1.0
   license: MIT
   files:   av-grid.umd.js (renamed from the package's av-grid.umd.cjs), av-grid.css
   source:  npm `av-grid` → dist/av-grid.umd.cjs + dist/av-grid.css

@@ -11,7 +11,8 @@ the **next version** you'll release (the version `board-manifest.json` will be b
   displayed text, so a date column orders by date and `100` no longer lands before `12`.
 - **Column filters are now a searchable checklist** of the column's distinct values (cascading
   with the other columns' filters), with removable filter chips above the grid.
-- **New: a Search box** in the toolbar — filters rows across every column at once.
+- **New: a Search box** in the toolbar — filters rows across every column at once, and highlights
+  the words you searched for inside the cells.
 - Ctrl+Shift+C copies the selection with the column letters as a header row.
 - Right-click adds **Copy as…** — With Headers, JSON, or a formatted HTML table.
 

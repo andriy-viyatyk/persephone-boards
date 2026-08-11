@@ -22,7 +22,7 @@
     },
     {
       "id": "excel-viewer",
-      "version": "1.0.2",
+      "version": "1.1.0",
       "name": "Excel Viewer",
       "description": "Read-only viewer for Excel spreadsheets (.xlsx / .xls) — one tab per worksheet, sortable/filterable grid.",
       "fileMasks": [
@@ -35,9 +35,9 @@
       "minAppVersion": "4.0.15",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/excel-viewer-v1.0.2/excel-viewer.zip",
-        "size": 462992,
-        "sha256": "404d23435518b81d9563a129c37a6734f1c39ce9b84bbed62e1082cbb1304c23"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/excel-viewer-v1.1.0/excel-viewer.zip",
+        "size": 415032,
+        "sha256": "49d602d91d1e20c0bdf8a7dffb944acb3f039c65ff961666f06054e9f4109bf1"
       }
     },
     {

@@ -261,16 +261,12 @@ async function load() {
         nameEl.textContent = fileName(currentPath);
         reloadBtn.disabled = false;
 
-        const b64 = await P.readFile(currentPath, { encoding: "base64" });
-
-        // Decode base64 → bytes with a plain indexed loop. This looks like something
-        // `Uint8Array.from(bin, ch => ch.charCodeAt(0))` should do more elegantly, but that form
-        // runs the callback through the generic iterator path: on a 20.5 MB file it measured
-        // 1352 ms against 26 ms here — a 52x difference, and it was the single biggest avoidable
-        // cost in the whole load. Do not "simplify" this back.
-        const bin = atob(b64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        // Bytes straight from the bridge — no base64 anywhere. `board-manifest.json` declares
+        // minAppVersion 4.0.21, so the encoding is always available and needs no probing.
+        // (The old base64 route cost an encode in main, a 33% bigger payload over the port, and
+        // an atob + per-byte decode here: 65 ms of pure conversion on this file, and ~3x the
+        // transient memory. It also capped a board at ~400 MB, V8's max string length.)
+        const bytes = await P.readFile(currentPath, { encoding: "binary" });
         fileBytes = bytes; // kept for on-demand parsing of the other sheets
 
         // A big workbook gets the FIRST sheet only, and the rest on demand (ensureSheetParsed);

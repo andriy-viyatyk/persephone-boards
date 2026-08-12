@@ -9,6 +9,8 @@ the **next version** you'll release (the version `board-manifest.json` will be b
   and switching sheets from ~2.0 s to ~0.4 s.
 - Workbooks over 4 MB now parse only the sheet you're looking at; the others are parsed the first
   time you open them.
+- Reads the file as raw bytes instead of base64, so a workbook over ~400 MB can now be opened at
+  all (base64 of one exceeded the browser's maximum string length). Requires Persephone 4.0.21.
 
 ## 1.1.0
 

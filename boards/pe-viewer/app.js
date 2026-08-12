@@ -428,17 +428,6 @@ async function computeHashes(bytes) {
     return out;
 }
 
-// Fast base64 → bytes. A plain indexed charCodeAt loop is dramatically faster than
-// Uint8Array.from(atob(b64), fn) (which invokes the callback per element through the iterator
-// protocol) — the latter takes *minutes* and freezes the frame on a 200 MB binary.
-function decodeBase64(b64) {
-    const bin = atob(b64);
-    const n = bin.length;
-    const bytes = new Uint8Array(n);
-    for (let i = 0; i < n; i++) bytes[i] = bin.charCodeAt(i);
-    return bytes;
-}
-
 // ── load ────────────────────────────────────────────────────────────────────────────────────
 
 async function load() {
@@ -460,11 +449,14 @@ async function load() {
         reloadBtn.disabled = false;
 
         // Force a paint of the "Loading…" overlay before the (synchronous, multi-second on a large
-        // binary) read + decode + parse, so a big file shows "Loading…" rather than a gray flash.
+        // binary) read + parse, so a big file shows "Loading…" rather than a gray flash.
         await new Promise((r) => requestAnimationFrame(() => r()));
 
-        const b64 = await P.readFile(currentPath, { encoding: "base64" });
-        const bytes = decodeBase64(b64);
+        // Bytes straight from the bridge (app 4.0.21+, declared as minAppVersion). This replaces
+        // an atob + a per-byte decode of a base64 string 33% larger than the file — which on the
+        // 200 MB binaries this board is built for was both the slowest step and a hard ceiling:
+        // past ~400 MB, base64 of the file exceeds V8's maximum string length and cannot be read.
+        const bytes = await P.readFile(currentPath, { encoding: "binary" });
 
         const pe = window.PEParser.parse(bytes);
         currentPe = pe;

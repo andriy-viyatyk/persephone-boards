@@ -51,15 +51,6 @@ function hideStatus() {
     statusEl.classList.remove("visible");
 }
 
-/** Decode base64 to bytes. `persephone.readFile` hands back base64 for binary content;
- *  pdf.js wants a Uint8Array. */
-function base64ToBytes(b64) {
-    const binary = atob(b64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
-}
-
 function formatBytes(n) {
     if (n < 1024) return n + " B";
     if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
@@ -241,8 +232,11 @@ async function main() {
     try {
         showStatus("Reading…", filePath);
         const startedRead = performance.now();
-        const b64 = await P.readFile(filePath, { encoding: "base64" });
-        const bytes = base64ToBytes(b64);
+        // Bytes straight from the bridge — pdf.js wants a Uint8Array, which is exactly what
+        // `encoding: "binary"` returns (app 4.0.21+, declared as minAppVersion). The old base64
+        // route cost an atob + a per-byte decode here, and capped the board at ~400 MB, where
+        // base64 of the file exceeds V8's maximum string length.
+        const bytes = await P.readFile(filePath, { encoding: "binary" });
         const readMs = Math.round(performance.now() - startedRead);
 
         const startedOpen = performance.now();

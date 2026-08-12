@@ -1,5 +1,11 @@
 # What's New — PE Viewer
 
+## 1.0.3
+
+- Reads the file as raw bytes instead of base64 — faster on large files, and files
+  over ~400 MB can now be opened at all (base64 of one exceeded the browser's maximum
+  string length). Requires Persephone 4.0.21.
+
 ## 1.0.2
 
 - Added a catalog screenshot, shown on the board's card in Persephone's Search boards tab.

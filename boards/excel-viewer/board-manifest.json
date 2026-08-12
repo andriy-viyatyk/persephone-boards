@@ -5,7 +5,7 @@
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
   "version": "1.1.1",
-  "minAppVersion": "4.0.15",
+  "minAppVersion": "4.0.21",
   "screenshot": "screenshot.png",
   "fileMasks": ["*.xlsx", "*.xls"],
   "editorPriority": 200,

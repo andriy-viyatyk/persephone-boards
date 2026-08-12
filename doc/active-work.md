@@ -9,6 +9,7 @@ Overview of active and planned board work in this repo.
 ## Active
 
 - [ ] [BT-006: PDF Viewer board (.pdf)](tasks/BT-006-pdf-viewer/README.md)
+- [ ] BT-013: Excel Viewer — large-workbook load time (10.9 s → 6.0 s on a 20.5 MB / 124k-row file)
 
 ## Planned
 

@@ -3,6 +3,13 @@
 One line per change, newest first. Keep it short. Record pending changes under a heading for
 the **next version** you'll release (the version `board-manifest.json` will be bumped to).
 
+## 1.1.1
+
+- **Large workbooks open ~45% faster.** A 20.5 MB / 124k-row file went from ~10.9 s to ~6.0 s,
+  and switching sheets from ~2.0 s to ~0.4 s.
+- Workbooks over 4 MB now parse only the sheet you're looking at; the others are parsed the first
+  time you open them.
+
 ## 1.1.0
 
 - Rebuilt on the **av-grid** renderer (replacing Tabulator) — a smaller, faster grid that follows

@@ -24,6 +24,28 @@ let workbook = null; // the SheetJS workbook
 let activeSheet = null; // name of the sheet currently shown
 let grid = null; // the live av-grid instance (destroyed + rebuilt per sheet)
 let currentPath = ""; // the file path (for the name label / reload)
+let fileBytes = null; // the raw file, kept so a second sheet can be parsed on demand
+
+// SheetJS options, shared by the initial load and every on-demand sheet parse.
+// Measured on a 20.5 MB / 124k-row / 27-column workbook (see CLAUDE.md):
+//   • `dense`         — cells land in ws["!data"][r][c] instead of ws["A1"]-style address
+//                       keys. Parses ~1.6 s faster AND lets buildGrid index straight into
+//                       an array (321 ms) instead of building 3.35 M address strings (1.56 s).
+//   • `cellFormula`   — off. This viewer never reads `cell.f`; parsing formulae cost ~0.75 s.
+//   • `cellDates`     — ON, and load-bearing: dates arrive as real Date values, which is what
+//                       makes the date columns sort by instant rather than by text.
+//   • `cellText`      — left ON (the default). It produces `cell.w`, Excel's formatted text,
+//                       which IS the thing this board displays. Turning it off is another
+//                       ~0.7 s but there would be nothing to show.
+const READ_OPTIONS = { type: "array", cellDates: true, cellFormula: false, dense: true };
+
+// Above this file size, parse one sheet at a time instead of the whole workbook (see
+// ensureSheetParsed). Every parse re-pays a fixed unzip + shared-string cost that scales with the
+// FILE, not with the sheet — ~1.0 s on the 20.5 MB workbook, ~10 ms on a small one. So deferring
+// is a clear win on a big file (you rarely open every sheet) and a clear loss on a small one,
+// where it would add a visible hitch to a switch that is otherwise free. 4 MB sits well clear of
+// both: a workbook that size parses in a few hundred ms whole.
+const LAZY_PARSE_MIN_BYTES = 4 * 1024 * 1024;
 
 // ---- state overlay -------------------------------------------------------------------------
 
@@ -76,6 +98,9 @@ function buildGrid(ws) {
     }
 
     const range = XLSX.utils.decode_range(ref);
+    // Dense sheets (READ_OPTIONS.dense) expose a row-major array; the address keys are absent.
+    // `data` is null only if something handed us a sparse sheet, which the slow path below reads.
+    const data = ws["!data"] || null;
 
     columns.push(Object.assign({}, ROW_COLUMN)); // a fresh copy per sheet — the grid owns it
 
@@ -98,8 +123,13 @@ function buildGrid(ws) {
 
     for (let r = range.s.r; r <= range.e.r; r++) {
         const row = { __row: r + 1 }; // 1-based Excel row number
+        const src = data ? data[r] : null; // the dense row, or null on the sparse fallback
+        if (data && !src) {
+            rows.push(row); // a row with no cells at all
+            continue;
+        }
         for (let c = range.s.c; c <= range.e.c; c++) {
-            const cell = ws[XLSX.utils.encode_cell({ r, c })];
+            const cell = src ? src[c] : ws[XLSX.utils.encode_cell({ r, c })];
             if (cell == null || cell.v == null) continue; // leave the cell empty
             row["c" + c] = cell.v;
             row["d" + c] = cell.w != null ? cell.w : String(cell.v);
@@ -148,10 +178,24 @@ function destroyGrid() {
     }
 }
 
+// Parse one sheet on demand. The initial load only parses the sheet it is about to show
+// (`sheets: <index>`), because the per-sheet cost dominates: on the 20.5 MB test workbook the
+// fixed cost — unzip + the shared-string table — is ~1.0 s, while the 124k-row sheet itself is
+// ~4.4 s. A workbook with five big sheets would otherwise pay for all five to show one.
+// The parsed sheet is kept on `workbook.Sheets`, so switching back to it costs nothing.
+function ensureSheetParsed(name) {
+    if (workbook.Sheets[name] || !fileBytes) return;
+    const index = workbook.SheetNames.indexOf(name);
+    if (index < 0) return;
+    const parsed = XLSX.read(fileBytes, Object.assign({}, READ_OPTIONS, { sheets: index }));
+    workbook.Sheets[name] = parsed.Sheets[name];
+}
+
 function renderSheet(name) {
     activeSheet = name;
     renderTabs();
 
+    ensureSheetParsed(name);
     const ws = workbook.Sheets[name];
     const { columns, rows } = buildGrid(ws);
 
@@ -205,6 +249,7 @@ async function load() {
         if (!currentPath) {
             // Opened plainly (not as an editor for a file) — clean empty state, no crash.
             workbook = null;
+            fileBytes = null;
             activeSheet = null;
             destroyGrid();
             nameEl.textContent = "Excel Viewer";
@@ -217,11 +262,23 @@ async function load() {
         reloadBtn.disabled = false;
 
         const b64 = await P.readFile(currentPath, { encoding: "base64" });
-        const bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
 
-        // cellDates so dates arrive as real Date values (which sort by instant) with formatted
-        // .w text alongside.
-        workbook = XLSX.read(bytes, { type: "array", cellDates: true });
+        // Decode base64 → bytes with a plain indexed loop. This looks like something
+        // `Uint8Array.from(bin, ch => ch.charCodeAt(0))` should do more elegantly, but that form
+        // runs the callback through the generic iterator path: on a 20.5 MB file it measured
+        // 1352 ms against 26 ms here — a 52x difference, and it was the single biggest avoidable
+        // cost in the whole load. Do not "simplify" this back.
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        fileBytes = bytes; // kept for on-demand parsing of the other sheets
+
+        // A big workbook gets the FIRST sheet only, and the rest on demand (ensureSheetParsed);
+        // a small one is parsed whole, so switching sheets never stalls. `SheetNames` lists every
+        // sheet either way, so the tab bar is complete from the start.
+        const lazy = bytes.length >= LAZY_PARSE_MIN_BYTES;
+        workbook = XLSX.read(bytes, lazy ? Object.assign({}, READ_OPTIONS, { sheets: 0 }) : READ_OPTIONS);
+        if (!lazy) fileBytes = null; // nothing left to parse — release the 20 MB-class buffer
 
         const names = workbook.SheetNames || [];
         if (names.length === 0) {
@@ -233,6 +290,7 @@ async function load() {
         renderSheet(names[0]);
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
+        fileBytes = null;
         destroyGrid();
         showState("Could not open this file.\n" + message, true);
         P.notify(message, "error");

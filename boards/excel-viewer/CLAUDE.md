@@ -22,8 +22,11 @@ this must be **> 100** for `.xlsx`. Opened plainly (no file) it shows an empty-s
 
 1. `app.js` `load()` calls `persephone.getFilePath()`. Empty/undefined → empty-state overlay.
    Otherwise it reads the file with `persephone.readFile(path, { encoding: "base64" })`, decodes
-   the base64 to a `Uint8Array`, and parses it with `XLSX.read(bytes, { type: "array",
-   cellDates: true })`.
+   the base64 to a `Uint8Array` with an indexed loop, and parses it with `XLSX.read(bytes,
+   READ_OPTIONS)` — `{ type: "array", cellDates: true, cellFormula: false, dense: true }`. On a
+   file ≥ `LAZY_PARSE_MIN_BYTES` (4 MB) only the first sheet is parsed (`sheets: 0`); the others
+   are parsed when first selected. See **Load performance** below — every one of those choices is
+   a measured one, and two of them are easy to "clean up" back into a 5× slower board.
 2. A **sheet tab bar** is built from `workbook.SheetNames` (shown only when there's more than one
    sheet). Clicking a tab calls `renderSheet(name)`.
 3. `buildGrid(ws)` turns one worksheet into av-grid `{ columns, rows }`, **Excel-style**:
@@ -43,6 +46,58 @@ this must be **> 100** for `.xlsx`. Opened plainly (no file) it shows an empty-s
    the only re-render triggers are the toolbar **Reload** button and the `board_refresh` MCP tool
    (which re-runs `app.js`). `load()` is wrapped so a parse failure degrades to an error overlay
    and a `notify(..., "error")` rather than crashing.
+
+## Load performance
+
+Measured on a real 20.5 MB workbook: **124,150 rows × 27 columns**, 3.35 M cells, two sheets.
+It opened in ~10.9 s before this pass and ~6.0 s after. The breakdown is worth keeping, because
+it is not where anyone guesses:
+
+| Stage | Before | After | What changed |
+|---|---:|---:|---|
+| `persephone.readFile` (main reads + base64-encodes + ships 26 MB over the port) | 100 ms | 100 ms | — it was never the disk |
+| `atob` | 34 ms | 34 ms | — |
+| base64 string → `Uint8Array` | **1352 ms** | **26 ms** | indexed loop instead of `Uint8Array.from(bin, ch => ch.charCodeAt(0))` |
+| `XLSX.read` | 7767 ms | 5400 ms | `dense: true`, `cellFormula: false`, first sheet only |
+| `buildGrid` (3.35 M cells → row objects) | 1560 ms | 321 ms | reads `ws["!data"][r][c]` instead of building 3.35 M `encode_cell` address strings |
+| **Total** | **~10.9 s** | **~6.0 s** | |
+
+Sheet switching went from ~2.0 s to ~0.4 s (rebuild only; an already-parsed sheet is kept).
+
+Rules that follow from this — all three are things a tidy-up would undo:
+
+- **Do NOT rewrite the decode loop as `Uint8Array.from(binaryString, ch => ch.charCodeAt(0))`.**
+  It reads better and costs **52×** more (1352 ms vs 26 ms on 20 MB): that form runs the callback
+  through the generic iterator protocol, one call per byte.
+- **Do NOT drop `dense: true`,** and do not "restore" `ws[XLSX.utils.encode_cell(...)]` lookups
+  in `buildGrid`. Dense sheets put cells in `ws["!data"][r][c]` and have **no address keys at
+  all**, so the sparse path is not just slower, it reads `undefined`. `buildGrid` keeps a
+  fallback for a sparse sheet; it is a safety net, not the intended path.
+- **`cellDates: true` and `cellText` (default on) are load-bearing** — the first is what makes
+  dates sort by instant, the second produces `cell.w`, the formatted text this board displays.
+  Turning `cellText` off is another ~700 ms and leaves nothing to render. `cellFormula: false` is
+  safe only because nothing here reads `cell.f`.
+
+Per-sheet parsing is a size-dependent trade: each `XLSX.read` re-pays a fixed unzip +
+shared-string cost that scales with the **file** (~1.0 s here, ~10 ms on a small workbook), so
+deferring wins on a big file — you rarely open every sheet — and loses on a small one, where it
+would add a hitch to a switch that is otherwise free. Hence the 4 MB threshold. Below it the
+workbook is parsed whole and `fileBytes` is released; above it `fileBytes` is retained so another
+sheet can be parsed on demand.
+
+Verified equivalent, not just faster: 478,872 cells sampled across the whole 124 k-row sheet
+compared raw value and formatted text against the old sparse parse — **0 mismatches** — and a
+sort of a 124,150-row date column produced 0 inversions in both directions.
+
+**What is left, if this ever needs to be faster.** The remaining ~5.4 s is SheetJS parsing, and
+nothing in this board can shrink it. Two real options, neither taken here:
+*(a)* parse in a **Worker** (the board CSP allows `worker-src 'self'`) — this does not make the
+parse faster and posting 124 k built row objects back costs its own structured clone, but it
+would keep the UI responsive and allow a progress indicator;
+*(b)* **progressive first paint** — `sheetRows: 500` parses in ~1.6 s, so the first screen could
+appear ~4 s sooner, with the full parse swapped in behind it (which needs (a) to not freeze).
+A third would be an app change: a binary `encoding` for `persephone.readFile`, which would drop
+the base64 encode + `atob` + decode (~160 ms here) and the 26 MB string entirely.
 
 ## Raw + formatted — why every cell is stored twice
 

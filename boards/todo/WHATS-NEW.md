@@ -3,6 +3,11 @@
 One line per change, newest first. Keep it short. Record pending changes under a heading for
 the **next version** you'll release (the version `board-manifest.json` will be bumped to).
 
+## 1.1.0
+
+- Publishes the todo model to agents at `pages[i].editor.app`, with named main and sidebar controls.
+- Requires Persephone 5.0.1.
+
 ## 1.0.2
 
 - Added a catalog screenshot, shown on the board's card in Persephone's Search boards tab.

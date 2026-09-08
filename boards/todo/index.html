@@ -13,7 +13,7 @@
   <div id="main-root" class="root">
     <header class="topbar">
       <div id="list-switch" class="list-switch">
-        <button id="list-switch-btn" class="list-switch-btn" type="button" title="Switch list">
+        <button id="list-switch-btn" class="list-switch-btn" type="button" title="Switch list" data-name="list-switch">
           <span class="list-switch-label">List:</span>
           <span id="list-name" class="list-switch-name">All</span>
           <span class="list-switch-caret">▾</span>
@@ -22,13 +22,13 @@
       </div>
       <span id="file-name" class="file-name">Todo Board</span>
       <div class="search-wrap">
-        <input id="search" type="text" placeholder="Search…" autocomplete="off" />
+        <input id="search" type="text" placeholder="Search…" autocomplete="off" data-name="search" />
         <button id="search-clear" class="icon-btn" title="Clear search" hidden>✕</button>
       </div>
     </header>
 
     <div class="quick-add">
-      <input id="quick-add-input" type="text" placeholder="Add an item…" autocomplete="off" />
+      <input id="quick-add-input" type="text" placeholder="Add an item…" autocomplete="off" data-name="quick-add-input" />
       <button id="quick-add-btn" class="icon-btn add" title="Add item">＋</button>
     </div>
 
@@ -38,17 +38,17 @@
 
   <!-- ── Lists & Tags secondary view (persephone.view === "lists") ───────── -->
   <div id="lists-root" class="root" hidden>
-    <div class="new-row">
+    <div class="new-row" data-name="add-list">
       <input id="new-list" type="text" placeholder="New list…" autocomplete="off" />
       <button id="add-list" class="icon-btn add" title="Add list">＋</button>
     </div>
     <div class="section-title">Lists</div>
-    <div id="lists-body"></div>
+    <div id="lists-body" data-name="lists"></div>
 
     <div class="section-title">Tags</div>
-    <div id="tags-body"></div>
+    <div id="tags-body" data-name="tags"></div>
 
-    <div class="new-row bottom">
+    <div class="new-row bottom" data-name="add-tag">
       <input id="new-tag" type="text" placeholder="New tag…" autocomplete="off" />
       <button id="add-tag" class="icon-btn add" title="Add tag">＋</button>
     </div>

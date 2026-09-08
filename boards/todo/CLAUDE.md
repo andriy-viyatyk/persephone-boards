@@ -3,7 +3,7 @@
 A Persephone **content-host custom-editor board** with a **secondary (sidebar) view**. It
 reimplements the built-in Todo editor as a sandboxed board: the todo list in the main view,
 a **Lists & Tags** panel in the sidebar, coordinated through the board bridge. It is the
-EPIC-044 proving ground — registered **alongside** the built-in Todo (it does not replace it).
+EPIC-044 proving ground — the default editor for `.todo.json` files.
 
 > New here? The generic Persephone board authoring reference (the `persephone.*` bridge, the
 > `--p-*` theme contract, CSP rules, secondary views & shared state, reload/test flow) is
@@ -15,9 +15,8 @@ EPIC-044 proving ground — registered **alongside** the built-in Todo (it does 
 Persephone associates this board with `*.todo.json` files via `board-manifest.json`:
 `fileMasks: ["*.todo.json"]`, `editorKind: "content-host"` (Persephone owns the file and injects
 `persephone.host.*`), `editorName: "Todo"` (the switch-widget label), and
-`editorPriority: 0` — **switch-option-only**, so the built-in "ToDo" editor stays the default
-for `.todo.json`; the user flips to "Todo" via the editor-switch widget. The manifest also
-declares one secondary view: `{ id: "lists", title: "Lists & Tags" }`.
+`editorPriority: 200` — this **is the default editor** for `.todo.json` files (it has been since
+1.0.1). The manifest also declares one secondary view: `{ id: "lists", title: "Lists & Tags" }`.
 
 ## Architecture (one file, two frames)
 
@@ -62,8 +61,8 @@ Todo editor.
 
 1. Trust the board once: `open_board("C:\\projects\\persephone-boards\\todo")` (or the Trust
    dialog). Until trusted, the `*.todo.json` association is inert.
-2. Open any `*.todo.json` → it opens in the built-in Todo by default; switch the editor to
-   **"Todo"** via the page toolbar's editor-switch widget.
+2. Open any `*.todo.json` → it opens in this Todo board by default; the built-in Todo remains
+   available via the page toolbar's editor-switch widget.
 3. **Key tests:**
    - Add a list in the **Lists & Tags** panel → it appears; select it → the main list filters.
    - Add/toggle/edit/delete items in the main view → the panel's counts update live (cross-frame
@@ -74,6 +73,24 @@ Todo editor.
 4. After editing board files, reload with the in-board **Reload** button or `board_refresh` (MCP).
    Inspect the secondary view with `browser_tabs` (list → select `board-secondary:lists`) then
    `browser_snapshot`. Watch `ui.log` for CSP violations (there should be none — no remote network).
+
+5. Check the AiVision surface with `pages[i].editor.reload()` followed by
+   `pages[i].editor.app`.
+
+## AiVision surface
+
+`pages[i].editor.app` exposes the live Todo object model to agents. The AiVision section lives
+between the mutation functions and tag palette in `app.js`. Read `items` for the filtered,
+ordered items, `lists` for list counts, and `tags` for tag counts and colours; write
+`selectedList`, `selectedTag`, or `searchText` to change the item view. The thirteen methods
+validate their arguments and return useful values. Agent deletes are immediate and unconfirmed,
+while UI deletes still show the in-board confirmation. Agent `addItem` accepts an optional list
+name, which must already exist; the UI continues to use the selected list.
+
+Named controls are `quick-add-input`, `search`, and `list-switch` in the `main` frame, plus
+`add-list`, `add-tag`, `lists`, and `tags` in the `lists` secondary frame. Highlighting a sidebar
+control opens that panel. The indexed node shape is refreshed only when lists, tags, or items
+changes between empty and non-empty; this is needed because registration happens before async load.
 
 ## Gotchas (non-obvious decisions)
 
@@ -91,5 +108,5 @@ Todo editor.
   inline edit input — both CSP-safe and independent of blocked browser dialogs.
 - **No external libraries / no remote network.** Everything is vendored (`board-base.css`) or
   inline. Tag colors are named CSS colors mirrored from the app palette.
-- **`editorPriority: 0` is intentional.** The built-in Todo stays the default; this board is the
-  A/B alternative. Bump the priority above 20 to make it the default (not the current intent).
+- **`editorPriority: 200` makes this board the default.** It has been the default `.todo.json`
+  editor since 1.0.1; the built-in Todo remains available through the editor switcher.

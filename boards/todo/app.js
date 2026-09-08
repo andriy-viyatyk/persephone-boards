@@ -200,21 +200,23 @@
     // ── Mutations ───────────────────────────────────────────────────────
     const item = (id) => data.items.find((i) => i.id === id);
 
-    function addItem(title) {
+    function addItem(title, listName = sel.selectedList) {
         const t = title.trim();
-        if (!t || !sel.selectedList) return;
-        data.items.push({
+        if (!t || !listName) return null;
+        const created = {
             id: uuid(),
-            list: sel.selectedList,
+            list: listName,
             title: t,
             done: false,
             createdDate: new Date().toISOString(),
             doneDate: null,
             comment: null,
             tag: null,
-        });
+        };
+        data.items.push(created);
         writeNow();
         render();
+        return created;
     }
     function toggleItem(id) {
         const it = item(id);
@@ -253,14 +255,18 @@
         writeNow();
         render();
     }
-    async function deleteItem(id) {
-        const it = item(id);
-        if (!it) return;
-        if (!(await confirmAction(`Delete "${it.title || "this item"}"?`))) return;
+    // The core lets the AiVision method delete immediately without blocking on the in-board dialog.
+    function deleteItemCore(id) {
         data.items = data.items.filter((i) => i.id !== id);
         if (data.state) delete data.state[id];
         writeNow();
         render();
+    }
+    async function deleteItem(id) {
+        const it = item(id);
+        if (!it) return;
+        if (!(await confirmAction(`Delete "${it.title || "this item"}"?`))) return;
+        deleteItemCore(id);
     }
 
     function addList(name) {
@@ -281,13 +287,17 @@
         if (sel.selectedList === oldName) setSelectedList(n);
         render();
     }
-    async function deleteList(name) {
-        if (!(await confirmAction(`Delete list "${name}"? Its items become unassigned.`))) return;
+    // The core lets the AiVision method delete immediately without blocking on the in-board dialog.
+    function deleteListCore(name) {
         data.lists = data.lists.filter((l) => l !== name);
         for (const i of data.items) if (i.list === name) i.list = "";
         writeNow();
         if (sel.selectedList === name) setSelectedList("");
         render();
+    }
+    async function deleteList(name) {
+        if (!(await confirmAction(`Delete list "${name}"? Its items become unassigned.`))) return;
+        deleteListCore(name);
     }
 
     function addTag(name) {
@@ -314,13 +324,381 @@
         writeNow();
         render();
     }
-    async function deleteTag(name) {
-        if (!(await confirmAction(`Delete tag "${name}"?`))) return;
+    // The core lets the AiVision method delete immediately without blocking on the in-board dialog.
+    function deleteTagCore(name) {
         data.tags = data.tags.filter((t) => t.name !== name);
         for (const i of data.items) if (i.tag === name) i.tag = null;
         writeNow();
         if (sel.selectedTag === name) setSelectedTag("");
         render();
+    }
+    async function deleteTag(name) {
+        if (!(await confirmAction(`Delete tag "${name}"?`))) return;
+        deleteTagCore(name);
+    }
+
+    // ── AiVision surface ────────────────────────────────────────────────────────────────────────
+    // This is kept behind the host check so the board remains usable when opened standalone.
+    let registerAiVision = () => {};
+    let refreshAiVision = () => {};
+    let remoteAiVision = null;
+    let aiVisionShape = null;
+    const aiVision = P && P.aiVision;
+    if (aiVision) {
+        const elementDeclarations = [
+            {
+                name: "quick-add-input", view: "main",
+                purpose: "The box that adds an item to the selected list: type a title and press Enter.",
+                where: "Under the header in the main todo list.",
+            },
+            {
+                name: "search", view: "main",
+                purpose: "Free-text search over item titles, comments, list names and tag names.",
+                where: "Right-hand side of the main header.",
+            },
+            {
+                name: "list-switch", view: "main",
+                purpose: "The \"List:\" button that chooses which list the main view shows.",
+                where: "Left-hand side of the main header.",
+            },
+            {
+                name: "add-list", view: "lists",
+                purpose: "The \"New list\u2026\" box and its + button, for creating a list by hand.",
+                where: "Top of the \"Lists & Tags\" sidebar panel.",
+            },
+            {
+                name: "add-tag", view: "lists",
+                purpose: "The \"New tag\u2026\" box and its + button, for creating a tag by hand.",
+                where: "Bottom of the \"Lists & Tags\" sidebar panel.",
+            },
+            {
+                name: "lists", view: "lists",
+                purpose: "Every list with its undone/total counts; clicking one filters the main view.",
+                where: "\"Lists\" section of the \"Lists & Tags\" sidebar panel.",
+            },
+            {
+                name: "tags", view: "lists",
+                purpose: "Every tag with its colour; clicking one filters the main view.",
+                where: "\"Tags\" section of the \"Lists & Tags\" sidebar panel.",
+            },
+        ];
+        const elementParts = aiVision.createElements(elementDeclarations);
+
+        const itemSummary = (it) => ({
+            kind: "TodoItem", id: it.id, title: it.title, list: it.list, tag: it.tag,
+            done: it.done, comment: it.comment,
+        });
+        const makeTodoItem = (id) => ({
+            aiVision: {
+                kind: "TodoItem",
+                summary: "One todo item. Its id is the stable identifier every ...Item method takes.",
+                members: [
+                    { name: "id", kind: "property", summary: "Stable item id; pass this to every ...Item method." },
+                    { name: "title", kind: "property", summary: "The item's title." },
+                    { name: "list", kind: "property", summary: "The list containing the item, or an empty string." },
+                    { name: "tag", kind: "property", summary: "The item's tag name, or null." },
+                    { name: "done", kind: "property", summary: "Whether the item is complete." },
+                    { name: "comment", kind: "property", summary: "The item's comment, or null." },
+                    { name: "createdDate", kind: "property", summary: "ISO timestamp when the item was created." },
+                    { name: "doneDate", kind: "property", summary: "ISO timestamp when completed, or null." },
+                ],
+                summarize: () => {
+                    const it = item(id);
+                    return it ? itemSummary(it) : undefined;
+                },
+            },
+            get id() { return item(id)?.id; },
+            get title() { return item(id)?.title; },
+            get list() { return item(id)?.list; },
+            get tag() { return item(id)?.tag; },
+            get done() { return item(id)?.done; },
+            get comment() { return item(id)?.comment; },
+            get createdDate() { return item(id)?.createdDate; },
+            get doneDate() { return item(id)?.doneDate; },
+        });
+        const shownItems = () => {
+            const shown = filteredItems();
+            return shown.undone.concat(shown.done);
+        };
+        const itemsNode = {
+            aiVision: {
+                kind: "TodoItems",
+                summary: "The filtered, ordered items. The filter comes from selectedList, selectedTag and searchText; clear those to show everything.",
+                members: [
+                    { name: "count", kind: "property", summary: "Number of items currently shown." },
+                    { name: "totalCount", kind: "property", summary: "Number of all items in the file, before filtering." },
+                ],
+                index: (key) => {
+                    const all = shownItems();
+                    if (typeof key === "number") return all[key] ? makeTodoItem(all[key].id) : undefined;
+                    if (typeof key === "string") return item(key) ? makeTodoItem(key) : undefined;
+                    return undefined;
+                },
+                summarize: () => shownItems().map(itemSummary),
+            },
+            get count() { return shownItems().length; },
+            get totalCount() { return data.items.length; },
+        };
+        const listSummary = (name) => {
+            const counts = listCounts()[name] || { total: 0, undone: 0 };
+            return { kind: "TodoList", name, total: counts.total, undone: counts.undone };
+        };
+        const makeTodoList = (name) => ({
+            aiVision: {
+                kind: "TodoList",
+                summary: "One list and its item counts.",
+                members: [
+                    { name: "name", kind: "property", summary: "The list name." },
+                    { name: "total", kind: "property", summary: "Total items assigned to this list." },
+                    { name: "undone", kind: "property", summary: "Incomplete items assigned to this list." },
+                ],
+                summarize: () => listSummary(name),
+            },
+            get name() { return data.lists.includes(name) ? name : undefined; },
+            get total() { return listCounts()[name]?.total || 0; },
+            get undone() { return listCounts()[name]?.undone || 0; },
+        });
+        const listsNode = {
+            aiVision: {
+                kind: "TodoLists",
+                summary: "Every list in the file, with total and undone item counts.",
+                members: [{ name: "count", kind: "property", summary: "Number of lists." }],
+                index: (key) => {
+                    if (typeof key === "number") {
+                        const name = data.lists[key];
+                        return name === undefined ? undefined : makeTodoList(name);
+                    }
+                    if (typeof key === "string") return data.lists.includes(key) ? makeTodoList(key) : undefined;
+                    return undefined;
+                },
+                summarize: () => data.lists.map(listSummary),
+            },
+            get count() { return data.lists.length; },
+        };
+        const tagSummary = (name) => {
+            const tag = data.tags.find((t) => t.name === name);
+            return {
+                kind: "TodoTag", name, color: tag ? tag.color : "",
+                count: data.items.filter((it) => it.tag === name).length,
+            };
+        };
+        const makeTodoTag = (name) => ({
+            aiVision: {
+                kind: "TodoTag",
+                summary: "One tag, its colour, and the number of items carrying it.",
+                members: [
+                    { name: "name", kind: "property", summary: "The tag name." },
+                    { name: "color", kind: "property", summary: "The tag colour, or an empty string." },
+                    { name: "count", kind: "property", summary: "Number of items carrying this tag." },
+                ],
+                summarize: () => tagSummary(name),
+            },
+            get name() { return data.tags.some((t) => t.name === name) ? name : undefined; },
+            get color() { return data.tags.find((t) => t.name === name)?.color || ""; },
+            get count() { return data.items.filter((it) => it.tag === name).length; },
+        });
+        const tagsNode = {
+            aiVision: {
+                kind: "TodoTags",
+                summary: "Every tag in the file, with its colour and item count.",
+                members: [{ name: "count", kind: "property", summary: "Number of tags." }],
+                index: (key) => {
+                    if (typeof key === "number") {
+                        const tag = data.tags[key];
+                        return tag === undefined ? undefined : makeTodoTag(tag.name);
+                    }
+                    if (typeof key === "string") return data.tags.some((t) => t.name === key) ? makeTodoTag(key) : undefined;
+                    return undefined;
+                },
+                summarize: () => data.tags.map((t) => tagSummary(t.name)),
+            },
+            get count() { return data.tags.length; },
+        };
+        const quotedNames = (names) => names.map((name) => `"${name}"`).join(", ") || "(none)";
+        const unknownItem = (id) => new Error(`No item with id "${id}". Read items[n].id for the ids currently shown.`);
+        const unknownList = (name) => new Error(`No list named "${name}". Lists: ${quotedNames(data.lists)}. Add it with addList("${name}").`);
+        const unknownTag = (name) => new Error(`No tag named "${name}". Tags: ${quotedNames(data.tags)}. Add it with addTag("${name}").`);
+        const exposedItem = (id) => {
+            const itemId = String(id);
+            const it = item(itemId);
+            if (!it) throw unknownItem(itemId);
+            return it;
+        };
+        const exposedAddItem = (title, list) => {
+            const titleText = title == null ? "" : String(title);
+            if (!titleText.trim()) throw new Error('addItem needs a non-empty title, for example addItem("Buy milk", "Groceries").');
+            const listName = list === undefined ? sel.selectedList : String(list);
+            if (!listName) throw new Error('No list to add to. Pass a list name \u2014 addItem("\u2026", "Groceries") \u2014 or set selectedList first.');
+            if (!data.lists.includes(listName)) throw new Error(`No list named "${listName}". Create it with addList("${listName}") first.`);
+            return addItem(titleText, listName).id;
+        };
+        const exposedToggleItem = (id) => {
+            const it = exposedItem(id);
+            toggleItem(it.id);
+            return it.done;
+        };
+        const exposedSetItemTitle = (id, title) => {
+            const it = exposedItem(id);
+            it.title = title == null ? "" : String(title);
+            writeNow();
+            render();
+            return it.title;
+        };
+        const exposedSetItemComment = (id, comment) => {
+            const it = exposedItem(id);
+            it.comment = comment == null || comment === "" ? null : String(comment);
+            writeNow();
+            render();
+            return it.comment;
+        };
+        const exposedSetItemTag = (id, tag) => {
+            const it = exposedItem(id);
+            const tagName = tag == null ? null : String(tag).trim() || null;
+            if (tagName && !data.tags.some((t) => t.name === tagName)) data.tags.push({ name: tagName, color: "" });
+            setItemTag(it.id, tagName);
+            return it.tag;
+        };
+        const exposedDeleteItem = (id) => {
+            const it = exposedItem(id);
+            deleteItemCore(it.id);
+            return true;
+        };
+        const exposedAddList = (name) => {
+            const listName = name == null ? "" : String(name).trim();
+            if (!listName) throw new Error("addList needs a non-empty name.");
+            if (data.lists.includes(listName)) throw new Error(`List "${listName}" already exists. Choose another name or use renameList.`);
+            addList(listName);
+            return listName;
+        };
+        const exposedRenameList = (from, to) => {
+            const fromName = String(from);
+            const toName = to == null ? "" : String(to).trim();
+            if (!data.lists.includes(fromName)) throw unknownList(fromName);
+            if (!toName || data.lists.includes(toName)) throw new Error(`Cannot rename list "${fromName}" to "${toName}". Choose a new name with renameList.`);
+            renameList(fromName, toName);
+            return toName;
+        };
+        const exposedDeleteList = (name) => {
+            const listName = String(name);
+            if (!data.lists.includes(listName)) throw unknownList(listName);
+            deleteListCore(listName);
+            return true;
+        };
+        const exposedAddTag = (name) => {
+            const tagName = name == null ? "" : String(name).trim();
+            if (!tagName) throw new Error("addTag needs a non-empty name.");
+            if (data.tags.some((t) => t.name === tagName)) throw new Error(`Tag "${tagName}" already exists. Choose another name or use renameTag.`);
+            addTag(tagName);
+            return tagName;
+        };
+        const exposedRenameTag = (from, to) => {
+            const fromName = String(from);
+            const toName = to == null ? "" : String(to).trim();
+            if (!data.tags.some((t) => t.name === fromName)) throw unknownTag(fromName);
+            if (!toName || data.tags.some((t) => t.name === toName)) throw new Error(`Cannot rename tag "${fromName}" to "${toName}". Choose a new name with renameTag.`);
+            renameTag(fromName, toName);
+            return toName;
+        };
+        const exposedSetTagColor = (name, color) => {
+            const tagName = String(name);
+            if (!data.tags.some((t) => t.name === tagName)) throw unknownTag(tagName);
+            const value = color == null ? "" : String(color);
+            if (value !== "" && !TAG_COLORS.includes(value)) {
+                throw new Error(`Invalid color "${value}". Use setTagColor with "" or one of: ${TAG_COLORS.join(", ")}.`);
+            }
+            setTagColor(tagName, value);
+            return value;
+        };
+        const exposedDeleteTag = (name) => {
+            const tagName = String(name);
+            if (!data.tags.some((t) => t.name === tagName)) throw unknownTag(tagName);
+            deleteTagCore(tagName);
+            return true;
+        };
+        const app = {
+            aiVision: {
+                kind: "TodoApp",
+                summary: "The Todo board's live object model for the open .todo.json file.",
+                overview: "Read items for the filtered view.\nRead lists/tags for vocabulary.\nSet selectedList, selectedTag or searchText to change items; call addItem, toggleItem or setItemTag to change the file.",
+                help: "This is a .todo.json file open in the Todo board. items is the filtered view; clear selectedList, selectedTag and searchText to widen it to everything. Every ...Item method takes the item id from items[n].id, not its title or position. addItem takes an optional list name, and that list must exist first. Deletes are immediate and unconfirmed. The Lists & Tags sidebar controls live in a secondary view; highlighting one opens that panel. The board writes the file on every change, and Ctrl+S saves it.",
+                members: [
+                    { name: "fileName", kind: "property", summary: "Name of the open .todo.json file, or an empty string if none is open." },
+                    { name: "items", kind: "property", node: true, indexable: true, summary: "The filtered, ordered items currently shown." },
+                    { name: "lists", kind: "property", node: true, indexable: true, summary: "Every list with total and undone counts." },
+                    { name: "tags", kind: "property", node: true, indexable: true, summary: "Every tag with its colour and item count." },
+                    { name: "selectedList", kind: "property", writable: true, summary: "The selected list name; empty string means All. Must be an existing list." },
+                    { name: "selectedTag", kind: "property", writable: true, summary: "The selected tag name; empty string means all tags. Must be an existing tag." },
+                    { name: "searchText", kind: "property", writable: true, summary: "Free-text filter over titles, comments, lists and tags." },
+                    { name: "addItem", kind: "method", signature: "addItem(title: string, list?: string)", summary: "Add a new todo item to a list and return its id. The optional list must already exist; without it the item goes to selectedList." },
+                    { name: "toggleItem", kind: "method", signature: "toggleItem(id: string)", summary: "Mark a todo item done, or undo it: toggles the item with this id and returns its new done value." },
+                    { name: "setItemTitle", kind: "method", signature: "setItemTitle(id: string, title: string)", summary: "Rename a todo item: replace the title of the item with this id and return it." },
+                    { name: "setItemComment", kind: "method", signature: "setItemComment(id: string, comment: string | null)", summary: "Add or replace the comment (the note) on a todo item; null or an empty string clears it." },
+                    { name: "setItemTag", kind: "method", signature: "setItemTag(id: string, tag: string | null)", summary: "Put a tag on a todo item, or null to take it off. A tag name that does not exist yet is created with no colour." },
+                    { name: "deleteItem", kind: "method", signature: "deleteItem(id: string)", summary: "Remove a todo item from the list, by id.", caution: "Deletes the item immediately \u2014 no confirmation dialog and no undo." },
+                    { name: "addList", kind: "method", signature: "addList(name: string)", summary: "Create a list and return its name; the new list also becomes selectedList." },
+                    { name: "renameList", kind: "method", signature: "renameList(from: string, to: string)", summary: "Rename a list and return its new name; the list's items move with it." },
+                    { name: "deleteList", kind: "method", signature: "deleteList(name: string)", summary: "Delete a list; its items remain in the file but become unassigned.", caution: "Deletes the list immediately \u2014 no confirmation and no undo. Its items stay in the file but become unassigned." },
+                    { name: "addTag", kind: "method", signature: "addTag(name: string)", summary: "Create a tag and return its name." },
+                    { name: "renameTag", kind: "method", signature: "renameTag(from: string, to: string)", summary: "Rename a tag and return its new name; items are retagged." },
+                    { name: "setTagColor", kind: "method", signature: "setTagColor(name: string, color: string)", summary: "Set a tag colour; pass an empty string for no colour." },
+                    { name: "deleteTag", kind: "method", signature: "deleteTag(name: string)", summary: "Delete a tag; items carrying it lose the tag.", caution: "Deletes the tag immediately \u2014 no confirmation and no undo." },
+                ].concat(elementParts.members),
+                elements: elementDeclarations,
+                provide: elementParts.provide,
+                summarize: () => ({
+                    kind: "TodoApp", fileName, lists: data.lists.length, tags: data.tags.length,
+                    items: data.items.length, shown: shownItems().length,
+                    selectedList: sel.selectedList, selectedTag: sel.selectedTag, searchText: sel.searchText,
+                }),
+            },
+            get fileName() { return fileName; },
+            get items() { return itemsNode; },
+            get lists() { return listsNode; },
+            get tags() { return tagsNode; },
+            get selectedList() { return sel.selectedList; },
+            set selectedList(value) {
+                const name = value === null || value === "" ? "" : String(value);
+                if (name && !data.lists.includes(name)) throw unknownList(name);
+                setSelectedList(name);
+            },
+            get selectedTag() { return sel.selectedTag; },
+            set selectedTag(value) {
+                const name = value === null || value === "" ? "" : String(value);
+                if (name && !data.tags.some((t) => t.name === name)) throw unknownTag(name);
+                setSelectedTag(name);
+            },
+            get searchText() { return sel.searchText; },
+            set searchText(value) { setSearchText(value == null ? "" : String(value)); },
+            addItem: exposedAddItem,
+            toggleItem: exposedToggleItem,
+            setItemTitle: exposedSetItemTitle,
+            setItemComment: exposedSetItemComment,
+            setItemTag: exposedSetItemTag,
+            deleteItem: exposedDeleteItem,
+            addList: exposedAddList,
+            renameList: exposedRenameList,
+            deleteList: exposedDeleteList,
+            addTag: exposedAddTag,
+            renameTag: exposedRenameTag,
+            setTagColor: exposedSetTagColor,
+            deleteTag: exposedDeleteTag,
+        };
+        const collectionShape = () => [data.lists.length > 0, data.tags.length > 0, data.items.length > 0].join();
+        // expose() derives indexed item shapes once. Refresh only when a collection changes
+        // empty/non-empty state, so a board author copying this surface does not lose the shape
+        // after the async load or after the first item/list/tag is created or removed.
+        refreshAiVision = () => {
+            if (role !== "main" || !remoteAiVision || typeof remoteAiVision.refresh !== "function") return;
+            const next = collectionShape();
+            if (next !== aiVisionShape) {
+                aiVisionShape = next;
+                remoteAiVision.refresh();
+            }
+        };
+        registerAiVision = () => {
+            remoteAiVision = aiVision.expose(app);
+            aiVisionShape = collectionShape();
+        };
     }
 
     // ── Tag color palette (mirrors src/renderer/theme/palette-colors.ts) ──
@@ -400,12 +778,14 @@
     const $ = (id) => document.getElementById(id);
 
     let fileNameSet = false;
+    let fileName = "";
     function setFileNameLabel() {
         if (fileNameSet) return;
         fileNameSet = true;
         Promise.resolve(P.getFilePath && P.getFilePath())
             .then((fp) => {
-                if (fp) $("file-name").textContent = fp.replace(/^.*[\\/]/, "");
+                fileName = fp ? fp.replace(/^.*[\\/]/, "") : "";
+                if (fileName) $("file-name").textContent = fileName;
             })
             .catch(() => {});
     }
@@ -875,6 +1255,7 @@
     function render() {
         if (role === "main") renderMain();
         else { renderLists(); renderTags(); }
+        refreshAiVision();
     }
 
     // ── Boot ────────────────────────────────────────────────────────────
@@ -957,6 +1338,7 @@
             wireListsChrome();
         }
         wireState();
+        registerAiVision();
         load();
     }
 

@@ -3,6 +3,16 @@
   "id": "pe-viewer",
   "versions": [
     {
+      "version": "1.0.3",
+      "date": "2026-09-09",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pe-viewer-v1.0.3/pe-viewer.zip",
+        "size": 29169,
+        "sha256": "0e304f1e7152bff4ab399b213cbf2846239cb9e7cb4e59a7254892494883e0dd"
+      },
+      "minAppVersion": "4.0.21"
+    },
+    {
       "version": "1.0.2",
       "date": "2026-08-07",
       "archive": {

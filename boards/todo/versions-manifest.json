@@ -3,6 +3,16 @@
   "id": "todo",
   "versions": [
     {
+      "version": "1.1.0",
+      "date": "2026-09-09",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/todo-v1.1.0/todo.zip",
+        "size": 26967,
+        "sha256": "12a0aa87b29fedb5cc427c57005a2f49edf8f22b755d61ed5390b2e9bd791859"
+      },
+      "minAppVersion": "5.0.1"
+    },
+    {
       "version": "1.0.2",
       "date": "2026-08-07",
       "archive": {

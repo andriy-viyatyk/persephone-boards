@@ -3,6 +3,16 @@
   "id": "pdf-viewer",
   "versions": [
     {
+      "version": "1.0.2",
+      "date": "2026-09-09",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pdf-viewer-v1.0.2/pdf-viewer.zip",
+        "size": 3514250,
+        "sha256": "0a8db417a35046bd753e19bebed9bf137e8ed14fe9717fb414fe0dc07c9b13f9"
+      },
+      "minAppVersion": "4.0.21"
+    },
+    {
       "version": "1.0.1",
       "date": "2026-08-07",
       "archive": {

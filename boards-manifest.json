@@ -22,7 +22,7 @@
     },
     {
       "id": "excel-viewer",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "name": "Excel Viewer",
       "description": "Read-only viewer for Excel spreadsheets (.xlsx / .xls) — one tab per worksheet, sortable/filterable grid.",
       "fileMasks": [
@@ -32,17 +32,17 @@
       "editorName": "Excel",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "4.0.15",
+      "minAppVersion": "4.0.21",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/excel-viewer-v1.1.0/excel-viewer.zip",
-        "size": 415032,
-        "sha256": "49d602d91d1e20c0bdf8a7dffb944acb3f039c65ff961666f06054e9f4109bf1"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/excel-viewer-v1.1.1/excel-viewer.zip",
+        "size": 418532,
+        "sha256": "4ad3022ae57d27893b512f4f42cb04f0285ae397380a2ca6515bd61754790fdd"
       }
     },
     {
       "id": "pdf-viewer",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "name": "PDF Viewer",
       "description": "Viewer for PDF documents — the stock pdf.js viewer with search, thumbnails, outline, zoom/fit, rotate and print.",
       "fileMasks": [
@@ -51,17 +51,17 @@
       "editorName": "PDF",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "4.0.18",
+      "minAppVersion": "4.0.21",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pdf-viewer-v1.0.1/pdf-viewer.zip",
-        "size": 3514105,
-        "sha256": "e3a4cdfd7a2a5dade7656f45bf2582cac9fdda95fe2bfe616a878a152f10aba9"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pdf-viewer-v1.0.2/pdf-viewer.zip",
+        "size": 3514250,
+        "sha256": "0a8db417a35046bd753e19bebed9bf137e8ed14fe9717fb414fe0dc07c9b13f9"
       }
     },
     {
       "id": "pe-viewer",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "name": "PE Viewer",
       "description": "Read-only inspector for Windows PE binaries (.exe / .dll / .sys / .ocx / .scr) — version info, headers, sections, imports/exports, digital signature, hashes, and more.",
       "fileMasks": [
@@ -74,12 +74,12 @@
       "editorName": "PE Viewer",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "4.0.15",
+      "minAppVersion": "4.0.21",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pe-viewer-v1.0.2/pe-viewer.zip",
-        "size": 29075,
-        "sha256": "3c148ee901ae13ff9fc30a2b1d7b18de3e7fa876856391270af4bd728a40af78"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pe-viewer-v1.0.3/pe-viewer.zip",
+        "size": 29169,
+        "sha256": "0e304f1e7152bff4ab399b213cbf2846239cb9e7cb4e59a7254892494883e0dd"
       }
     },
     {
@@ -125,7 +125,7 @@
     },
     {
       "id": "todo",
-      "version": "1.0.2",
+      "version": "1.1.0",
       "name": "Todo",
       "description": "Todo list editor for .todo.json files — a content-host board with a Lists & Tags sidebar, search with match highlighting, tags, and per-item comments.",
       "fileMasks": [
@@ -134,12 +134,12 @@
       "editorName": "Todo",
       "editorKind": "content-host",
       "standalone": false,
-      "minAppVersion": "4.0.17",
+      "minAppVersion": "5.0.1",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/todo-v1.0.2/todo.zip",
-        "size": 21853,
-        "sha256": "0091d9acbcb9ca541c0650106b642ccc3934f5328f07eab40e407f4687e78dc7"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/todo-v1.1.0/todo.zip",
+        "size": 26967,
+        "sha256": "12a0aa87b29fedb5cc427c57005a2f49edf8f22b755d61ed5390b2e9bd791859"
       }
     },
     {

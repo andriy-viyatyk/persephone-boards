@@ -144,7 +144,7 @@
     },
     {
       "id": "todo",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "name": "Todo",
       "description": "Todo list editor for .todo.json files — a content-host board with a Lists & Tags sidebar, search with match highlighting, tags, and per-item comments.",
       "fileMasks": [
@@ -153,12 +153,12 @@
       "editorName": "Todo",
       "editorKind": "content-host",
       "standalone": false,
-      "minAppVersion": "5.0.1",
+      "minAppVersion": "5.0.2",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/todo-v1.1.0/todo.zip",
-        "size": 26967,
-        "sha256": "12a0aa87b29fedb5cc427c57005a2f49edf8f22b755d61ed5390b2e9bd791859"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/todo-v1.2.0/todo.zip",
+        "size": 34158,
+        "sha256": "abcac2c72e67251493a030036b42d18d6550e8cefeb0aef0d59b620328a16f92"
       }
     },
     {

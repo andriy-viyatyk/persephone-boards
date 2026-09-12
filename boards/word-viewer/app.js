@@ -15,6 +15,10 @@ const docEl = document.getElementById("doc");
 const zoomEl = document.getElementById("zoom");
 
 let currentPath = ""; // the file path (for the name label / reload)
+// The bytes the current render came from. Retained ONLY so the AiVision model can read the
+// package's docProps/*.xml for document properties (JSZip is already loaded as docx-preview's
+// own dependency) — that is a re-unzip of what is in memory, never a second read from disk.
+let currentBytes = null;
 
 // ---- zoom ----------------------------------------------------------------------------------
 // The document is a SCROLLING view (docx-preview renders paper pages stacked in the scrollable
@@ -101,6 +105,35 @@ const zoomCtl = (() => {
     };
 })();
 
+// ---- the agent surface ---------------------------------------------------------------------
+// `pages[pageId].editor.app` — an agent reads the rendered document directly instead of
+// converting the file with an external tool. See word-aivision.js for the whole model; this is
+// only the context it reads the board through.
+
+/** The page section the user is looking at: the first one whose bottom is still below the top of
+ *  the viewport. Mirrors what a reader would call "the current page" while scrolling. */
+function visiblePageNumber() {
+    const list = docEl.querySelectorAll("section.docx");
+    if (list.length === 0) return undefined;
+    const top = docEl.getBoundingClientRect().top;
+    for (let i = 0; i < list.length; i++) {
+        if (list[i].getBoundingClientRect().bottom > top + 1) return i + 1;
+    }
+    return list.length;
+}
+
+const aiVisionModel = window.WORDAI && window.WORDAI.createAiVisionModel({
+    getDocEl: () => docEl,
+    getFilePath: () => currentPath || undefined,
+    getFileName: () => (currentPath ? fileName(currentPath) : undefined),
+    getBytes: () => currentBytes,
+    getCurrentPage: visiblePageNumber,
+    scrollToPage: (pageNumber) => {
+        const section = docEl.querySelectorAll("section.docx")[pageNumber - 1];
+        if (section) section.scrollIntoView({ block: "start" });
+    },
+});
+
 // Note: right-click on a link (Open Link / Copy Link) and on selected text (Copy) is provided
 // globally by Persephone's board shim for every board — no board code needed here.
 
@@ -149,6 +182,8 @@ async function load() {
         // renderAsync appends into the container; clear any previous render (and its injected
         // <style>) so a reload / re-open starts clean.
         docEl.innerHTML = "";
+        currentBytes = null;
+        if (aiVisionModel) aiVisionModel.documentChanged();
 
         const path = await P.getFilePath();
         currentPath = path || "";
@@ -173,6 +208,16 @@ async function load() {
         await docx.renderAsync(blob, docEl, docEl, RENDER_OPTIONS);
         hideState();
         zoomCtl.onRendered();
+        currentBytes = bytes;
+        // The rendered DOM is what the agent surface reads, so it can only be refreshed once
+        // renderAsync has resolved. A failure here must not break the viewer for the user.
+        if (aiVisionModel) {
+            try {
+                aiVisionModel.documentChanged();
+            } catch (err) {
+                console.warn("word-viewer: could not refresh the agent surface", err);
+            }
+        }
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
         docEl.innerHTML = "";
@@ -188,5 +233,7 @@ async function load() {
 // board with no content host, so there's no onContentChange — the toolbar Reload (and the
 // board_refresh MCP tool, which re-runs this script) are the only re-render triggers.
 reloadBtn.addEventListener("click", load);
+
+if (aiVisionModel) aiVisionModel.register();
 
 load();

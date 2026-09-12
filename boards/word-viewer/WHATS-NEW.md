@@ -3,6 +3,19 @@
 One line per change, newest first. Keep it short. Record pending changes under a heading for
 the **next version** you'll release (the version `board-manifest.json` will be bumped to).
 
+## 1.1.0
+
+- **An AI assistant can now read the Word document you have open.** Ask it about the document and
+  it reads it straight from the page — no converting the file first, and nothing leaves your machine.
+- It reads the document's **structure**, not just its words: headings, tables and lists come
+  through intact, so it can quote a table or summarise a section properly.
+- It can search a long document for a topic, read just the pages that matter, and tell you which
+  page something is on — then scroll your view there and highlight it.
+- **Charts and pictures too.** It can pull an embedded image out of the document and look at it.
+- It can save the document as Markdown or plain text, or save its pictures, wherever you ask.
+- A `.docx` inside a `.zip`, or at a web address, now opens in this board as well.
+- Requires Persephone 5.0.2.
+
 ## 1.0.3
 
 - Added a catalog screenshot, shown on the board's card in Persephone's Search boards tab.

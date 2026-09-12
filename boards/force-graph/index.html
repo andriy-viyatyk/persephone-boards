@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Force Graph</title>
+    <!-- Persephone injects the --p-* palette, the boot context and the persephone bridge
+         shim into <head> BEFORE these links. board-base.css first (it carries the .p-*
+         chrome layer this board's toolbar uses), then av-grid's stylesheet (linked rather
+         than injected, see injectStyles: false), then our own styles. -->
+    <link rel="stylesheet" href="./board-base.css" />
+    <link rel="stylesheet" href="./lib/av-grid.css" />
+    <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+    <!-- Layout mirrors the built-in graph-view editor: the canvas owns the whole body and
+         every piece of chrome floats over it - toolbar + panel strip top-left, legend
+         bottom-left, detail top-right - each at 50% opacity until hovered or focused.
+         Button order and icons match the built-in body toolbar; the two image buttons sit
+         at the right of the same row (EPIC-100 D4: a board cannot reach the page toolbar).
+         Icons are injected by graph-icons.js so this file stays readable; the text in each
+         button is the fallback that shows if that script ever fails to load. -->
+    <div id="root">
+        <div class="canvas-host">
+            <canvas id="canvas" data-name="graph-canvas"></canvas>
+            <div class="state-overlay" id="loading" hidden>Loading&hellip;</div>
+            <div class="state-overlay" id="empty-hint" hidden>Right-click &rarr; Add Node to start building the graph</div>
+            <div class="error-panel" id="error-panel" hidden></div>
+        </div>
+
+        <div class="fg-chrome" id="chrome">
+            <div class="p-toolbar" id="toolbar">
+                <button class="p-btn icon" id="settings" data-name="graph-settings" title="Force tuning" aria-label="Force tuning">Physics</button>
+                <button class="p-btn icon" id="toggle-grouping" data-name="graph-toggle-grouping" title="Enable grouping" aria-label="Toggle grouping">Grouping</button>
+                <button class="p-btn icon" id="reset-view" data-name="graph-reset-view" title="Reset view" aria-label="Reset view">Reset view</button>
+                <button class="p-btn icon" id="expand-all" data-name="graph-expand-all" title="Expand all nodes" aria-label="Expand all nodes">Expand all</button>
+                <div class="search-wrap">
+                    <input class="p-input" id="search" data-name="graph-search" type="text" placeholder="Search nodes&hellip;" autocomplete="off" spellcheck="false" />
+                    <button class="icon-clear" id="search-clear" data-name="graph-search-clear" title="Clear search" hidden>&#10005;</button>
+                </div>
+                <span class="search-info" id="search-info" data-name="graph-search-info"></span>
+                <button class="p-btn link selection-info" id="selection-info" data-name="graph-selection-menu" hidden></button>
+                <span class="p-sep"></span>
+                <button class="p-btn icon" id="open-in-draw" data-name="graph-open-in-draw" title="Open in Drawing Editor" aria-label="Open in Drawing Editor">Open in Drawing</button>
+                <button class="p-btn icon" id="copy-image" data-name="graph-copy-image" title="Copy Image to Clipboard" aria-label="Copy Image to Clipboard">Copy image</button>
+            </div>
+
+            <!-- Physics / Expansion / Results panel strip. -->
+            <div id="panel-slot"></div>
+        </div>
+
+        <!-- Legend panel (bottom-left, collapsible). -->
+        <div id="legend-slot"></div>
+
+        <!-- Selected-node detail panel (top-right, collapsible). -->
+        <div id="detail-slot"></div>
+    </div>
+
+    <!-- Vendored libraries (UMD -> window.d3 / window.AVGrid). No CDN: a board's CSP blocks
+         remote script. -->
+    <script src="./lib/d3-graph.min.js"></script>
+    <script src="./lib/av-grid.umd.js"></script>
+    <script src="./graph-core.js"></script>
+    <script src="./graph-renderer.js"></script>
+    <script src="./graph-theme.js"></script>
+    <script src="./graph-icons.js"></script>
+    <script src="./graph-ui.js"></script>
+    <script src="./graph-actions.js"></script>
+    <script src="./graph-panels.js"></script>
+    <script src="./graph-aivision.js"></script>
+    <script src="./app.js"></script>
+</body>
+</html>

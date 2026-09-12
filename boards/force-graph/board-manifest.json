@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "name": "Force Graph",
+  "description": "Force-directed graph viewer and editor for .fg.json files - a content-host board with a canvas renderer, a live d3-force simulation, six node shapes, five levels, group containers and BFS visibility for large graphs.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "5.0.2",
+  "screenshot": "screenshot.png",
+  "fileMasks": [
+    "*.fg.json"
+  ],
+  "contentMasks": [
+    "\"type\"\\s*:\\s*\"force-graph\""
+  ],
+  "editorPriority": 200,
+  "editorName": "Force Graph",
+  "editorKind": "content-host",
+  "guides": "guides"
+}

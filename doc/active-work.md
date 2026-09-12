@@ -11,7 +11,7 @@ Overview of active and planned board work in this repo.
 - [ ] [BT-017: Force Graph board — detail panel resizer](tasks/BT-017-detail-panel-resizer/README.md)
 - [ ] [BT-019: Force Graph board — ship its own user and agent documentation](tasks/BT-019-force-graph-guides/README.md)
 - [ ] [BT-021: Move the greek-gods.fg.json example into the Force Graph board](tasks/BT-021-example-graph/README.md)
-- [ ] BT-020: Todo board — backfill the documentation deleted when the built-in Todo editor was removed (blocked on US-1406)
+- [ ] [BT-020: Todo board — backfill its documentation](tasks/BT-020-todo-board-guides/README.md)
 - [ ] BT-018: Force Graph board — colored tab icon (the `currentColor` icon rendered black; a board icon is loaded as an `<img>`, so it inherits no color)
 
 - [ ] [BT-006: PDF Viewer board (.pdf)](tasks/BT-006-pdf-viewer/README.md)

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "force-graph",
+  "versions": [
+    {
+      "version": "1.0.0",
+      "date": "2026-09-12",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/force-graph-v1.0.0/force-graph.zip",
+        "size": 199383,
+        "sha256": "11d5be0f8ae5bf5591181829faf991e9f075ccc3ad1d96e6a4c9ebc83e3b4717"
+      },
+      "minAppVersion": "5.0.2"
+    }
+  ]
+}

@@ -61,7 +61,7 @@
     },
     {
       "id": "pdf-viewer",
-      "version": "1.0.2",
+      "version": "1.1.0",
       "name": "PDF Viewer",
       "description": "Viewer for PDF documents — the stock pdf.js viewer with search, thumbnails, outline, zoom/fit, rotate and print.",
       "fileMasks": [
@@ -70,12 +70,12 @@
       "editorName": "PDF",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "4.0.21",
+      "minAppVersion": "5.0.2",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pdf-viewer-v1.0.2/pdf-viewer.zip",
-        "size": 3514250,
-        "sha256": "0a8db417a35046bd753e19bebed9bf137e8ed14fe9717fb414fe0dc07c9b13f9"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pdf-viewer-v1.1.0/pdf-viewer.zip",
+        "size": 3531673,
+        "sha256": "df39673c336d34c1e633aa3ba7a94b10875576cc9d009a27eb2d5dafd7add2e9"
       }
     },
     {
@@ -163,7 +163,7 @@
     },
     {
       "id": "word-viewer",
-      "version": "1.0.3",
+      "version": "1.1.0",
       "name": "Word Viewer",
       "description": "Read-only viewer for Word documents (.docx) — page-accurate rendering with headings, lists, tables, and images.",
       "fileMasks": [
@@ -172,12 +172,12 @@
       "editorName": "Word",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "4.0.15",
+      "minAppVersion": "5.0.2",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/word-viewer-v1.0.3/word-viewer.zip",
-        "size": 66606,
-        "sha256": "d52acd24e80b8d744c112c95f091c82fd6872e5ff4cb614ac1ef920f5e96407a"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/word-viewer-v1.1.0/word-viewer.zip",
+        "size": 87716,
+        "sha256": "6e2e6b5c13f219df95cb3a2c257c1b06aa9d94daf75dc23b38ef2f0b6cf6090b"
       }
     }
   ]

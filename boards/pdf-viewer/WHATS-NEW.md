@@ -1,5 +1,16 @@
 # What's New
 
+## 1.1.0
+
+- **An AI assistant can now read the PDF you have open.** Ask it about the document and it reads
+  the text straight from the page — no converting the file first, and nothing leaves your machine.
+- It can search a long PDF for a topic, read just the pages that matter, and tell you which page
+  something is on.
+- **Scanned PDFs work too.** Where there is no text to extract, the assistant renders the page as
+  an image and reads that instead — so a scan is no longer a dead end.
+- It can also save a page as a PNG or JPEG, or the text as a file, wherever you ask.
+- Requires Persephone 5.0.2.
+
 ## 1.0.2
 
 - Reads the file as raw bytes instead of base64 — faster on large files, and files

@@ -14,7 +14,8 @@ The board does **not** implement a PDF viewer. It hosts pdf.js's own **unmodifie
 
 1. `persephone.getFilePath()` — a readable **local** path for the source Persephone opened us for
    (`editorKind: "simple"`).
-2. `persephone.readFile(path, { encoding: "base64" })` → decoded to a `Uint8Array`.
+2. `persephone.readFile(path, { encoding: "binary" })` → a `Uint8Array`, which is what pdf.js
+   wants. (1.0.2 moved off `"base64"`, which cost a decode and capped the board at ~400 MB.)
 3. `frame.contentWindow.PDFViewerApplication.open({ data: bytes })`.
 
 Four deliberate choices, each load-bearing:
@@ -50,12 +51,40 @@ the code must respect, and does:
   `undefined` returned when the board is opened plainly rather than as a file's editor, and it is
   the only failure mode that did not exist while the board was local-only.
 
+## The agent surface (`pages[pageId].editor.app`)
+
+Since 1.1.0 the board publishes an AiVision model (`pdf-aivision.js`) so an agent can **read the
+open document directly** instead of converting the file with an external tool. It works because
+the nested viewer frame is same-origin: `frame.contentWindow.PDFViewerApplication.pdfDocument` is
+a full `PDFDocumentProxy`, already parsed. Text, search, outline, metadata, and page rendering all
+come from it; nothing is re-read from disk.
+
+The model is read-only with respect to the PDF. `saveText` / `savePageImage` / `savePageImages`
+only ever create new files, at an **absolute** path the agent names (a relative path would land
+inside the board's own folder, so it is rejected).
+
+Two design points worth keeping:
+
+- **`getStats()` exists because transport is the bottleneck, not extraction.** Extracting all 14
+  pages of `_test/sample.pdf` takes ~120 ms and yields 83k characters, while a `call` result is
+  bounded at 20k. Reporting per-page character counts lets an agent plan its reads instead of
+  discovering the limit by truncation.
+- **`hasTextLayer` and `pagesWithUnreadableText` are the honesty flags.** A PDF can return no text
+  (a scan) or *wrong* text (mojibake). Both are reported, and both route the agent to
+  `savePageImage`, which is the actual answer. See the gotchas below.
+
+`elements` / `highlight` are deliberately **not** implemented — see the gotcha.
+
+The agent-facing documentation is `guides/agent.md`, which ships with the board.
+
 ## Key files
 
 | File | Purpose |
 |------|---------|
 | `index.html` | Full-bleed iframe + a status overlay used for errors and the capability table |
 | `app.js` | The whole board: path → bytes → `PDFViewerApplication.open`, plus the capability probes |
+| `pdf-aivision.js` | The AiVision model published at `pages[pageId].editor.app` |
+| `guides/` | The board's own user + agent documentation, mounted by Persephone |
 | `lib/pdfjs/` | Unmodified pdf.js 5.4.530, pruned. See `lib/VERSION.txt` |
 | `lib/VERSION.txt` | pdf.js version, license pointer, and exactly what was pruned + what must NOT be |
 
@@ -93,6 +122,32 @@ into a directive name.
 - **`editorPriority` is 200 while the built-in PDF editor still exists** (it claims `.pdf` at 100,
   and ties go to the built-in). Once the built-in is removed only Monaco's `0` floor remains to
   beat, so this should drop to a low value before publishing.
+- **Rendering a page MUST use `intent: "print"`.** pdf.js's default `"display"` intent drives its
+  render loop with `requestAnimationFrame`, and Chromium does not fire rAF in a window that is not
+  painting. An agent renders while the user is in another application, so the Persephone window is
+  usually unfocused — and then `document.visibilityState` still reads `"visible"`, rAF never fires,
+  and the render promise **never settles**. No error, no rejection; it surfaces only as a call
+  timeout. Measured in this exact state: `display` = hang, `print` = 41 ms. `renderPage()` also
+  races a 30 s timeout so a regression says so instead of hanging.
+- **The render canvas MUST come from the VIEWER frame's document**, not the board's. pdf.js
+  registers the PDF's fonts as font faces on the document that owns the document proxy — 12 faces
+  in the viewer frame, 0 in the board frame. Render into a board-frame canvas and you get a
+  pixel-perfect page layout in which **every glyph is a hollow box**, with no error anywhere. This
+  is only catchable by *looking* at the output, which is why the board's verification reads the
+  PNG back rather than trusting the byte count.
+- **pdf.js returns prototyped objects that the AiVision resolver will not serialize.** Its metadata
+  `info` reaches an agent as `"No AiVision descriptor yet for Object"` unless normalized — hence
+  `toPlain()` (a JSON round-trip) in `pdf-aivision.js`.
+- **No `elements` / `highlight` in the model.** `aiVision.createElements` binds `data-name`
+  attributes in the **board's own** document and the highlight overlay runs there, but every viewer
+  control (`#pageNumber`, `#findInput`, `#zoomInButton`) lives in the nested frame. A `highlight`
+  would silently point at nothing, so none is published; `snapshot()` drives the viewer UI instead.
+- **Extracted text can be wrong, not just missing.** A font with no `ToUnicode` map — routine for
+  chart and figure labels — extracts as symbol soup (`$!"# %!"#`) that reads like content. It
+  cannot be caught per page (on `_test/sample.pdf` the affected pages still score 0.85
+  letters-per-character, because only the *figure* is garbled), so `findGarbled()` tests per token:
+  4+ characters, no vowel, no digit, at least one symbol, trailing punctuation stripped. Validated
+  on that fixture at 0 false positives across 12 clean pages, flagging pages 10 and 13.
 - **pdf.js internals move between versions.** `PDFViewerApplication.pdfSidebar` and
   `pdfDocument._transport._worker` do not exist under those names in 5.4.530. Don't probe
   internals; drive the viewer through `eventBus` and documented `PDFViewerApplication` methods.
@@ -102,8 +157,8 @@ into a directive name.
 **Writing.** The board is read-only: no annotation persistence, no form-field save, no dirty
 tracking. pdf.js's own download button still works (it saves a copy).
 
-Measured transport cost on a 1 MB PDF: bridge read 5 ms, base64 decode 5 ms, 1.33x base64 inflation
-— negligible, which is why the board reads the whole file over the bridge rather than streaming it.
+Transport cost is negligible on a 1 MB PDF (a few ms over the bridge), which is why the board reads
+the whole file rather than streaming it.
 
 ## Test
 
@@ -124,6 +179,24 @@ app.pages.openFile("<repo>/_test/sample.pdf")            → local file
 app.openRawLink("<repo>/_test/pdfs.zip!sample.pdf")      → archive entry (materialized)
 app.openRawLink("https://<host>/some.pdf")               → remote URL (materialized)
 ```
+
+**Testing the agent surface.** `_test/scanned.pdf` (gitignored, regenerate with the recipe below)
+is an **image-only PDF with no text layer** — the fixture that proves the scanned-document path,
+which `sample.pdf` cannot. Build one by wrapping any JPEG in a minimal one-page PDF whose only
+content is a `DCTDecode` image XObject drawn with `q w 0 0 h 0 0 cm /Im0 Do Q`.
+
+```
+pages[pageId].editor.app.getStats()                  → sample.pdf: 14 pages, 82791 chars,
+                                                       pagesWithUnreadableText [10, 13]
+                                                     → scanned.pdf: hasTextLayer false + the note
+pages[pageId].editor.app.getText(13, 14)             → page markers, real prose
+pages[pageId].editor.app.search("trace tree")        → hits with page numbers and snippets
+pages[pageId].editor.app.savePageImage("<abs>.png", 1)
+```
+
+**Always READ the rendered PNG back, don't just check it was written.** The font-realm bug
+produces a correctly-sized file, a valid PNG, and a perfect page layout in which every glyph is an
+empty box — byte counts and return values all look healthy.
 
 Then check `ui.log` — it must contain only `board loaded`. A **"fake worker"** warning there means
 the pdf.js Worker was blocked and parsing fell back in-thread (correct output, janky UI).

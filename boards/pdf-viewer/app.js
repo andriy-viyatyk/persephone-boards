@@ -41,6 +41,77 @@ function recordViolation(e) {
 
 window.addEventListener("securitypolicyviolation", recordViolation);
 
+// ── Agent surface ───────────────────────────────────────────────────────────────────
+// The nested viewer frame is same-origin, so its `PDFViewerApplication.pdfDocument` is a full
+// pdf.js document object. `pdf-aivision.js` publishes it at `pages[pageId].editor.app` — see
+// that file's header for why the model looks the way it does. Everything here is just the
+// accessors it reads through; the board keeps owning the state.
+
+/** The file this board was opened for, or undefined for a plainly-opened board. */
+let currentFilePath;
+/** Document metadata, read once per open so the model's properties stay synchronous. */
+let documentInfo;
+let documentHasOutline = false;
+
+function viewerApp() {
+    try {
+        return frame.contentWindow ? frame.contentWindow.PDFViewerApplication : undefined;
+    } catch {
+        return undefined; // frame not loaded, or gone
+    }
+}
+
+function currentDocument() {
+    const app = viewerApp();
+    return app ? app.pdfDocument : undefined;
+}
+
+const aiVisionModel = window.PDFAI && window.PDFAI.createAiVisionModel({
+    getDocument: currentDocument,
+    /** The viewer frame's document — where pdf.js registered the PDF's font faces, and
+     *  therefore the only document whose canvas can rasterize the page's text. */
+    getViewerDocument: () => {
+        const win = frame.contentWindow;
+        if (!win || !win.document) throw new Error("The PDF viewer frame is not available.");
+        return win.document;
+    },
+    getFilePath: () => currentFilePath,
+    getFileName: () => (currentFilePath ? currentFilePath.split(/[\\/]/).pop() : undefined),
+    getPageCount: () => {
+        const doc = currentDocument();
+        return doc ? doc.numPages : undefined;
+    },
+    getCurrentPage: () => {
+        const app = viewerApp();
+        return app ? app.page : undefined;
+    },
+    setCurrentPage: (pageNumber) => {
+        const app = viewerApp();
+        if (app) app.page = pageNumber;
+    },
+    getHasOutline: () => documentHasOutline,
+    getInfo: () => documentInfo,
+});
+
+/** Read the metadata the model reports synchronously. Best-effort: a PDF with a broken
+ *  metadata stream must not stop the board from serving its text. */
+async function readDocumentFacts(doc) {
+    documentInfo = undefined;
+    documentHasOutline = false;
+    try {
+        const meta = await doc.getMetadata();
+        documentInfo = meta && meta.info ? meta.info : undefined;
+    } catch (err) {
+        console.warn("[pdf-viewer] metadata unavailable: " + (err && err.message ? err.message : String(err)));
+    }
+    try {
+        const outline = await doc.getOutline();
+        documentHasOutline = !!(outline && outline.length > 0);
+    } catch {
+        documentHasOutline = false;
+    }
+}
+
 function showStatus(title, detail) {
     titleEl.textContent = title;
     detailEl.textContent = detail || "";
@@ -208,7 +279,14 @@ async function main() {
         return;
     }
 
+    currentFilePath = filePath;
+
     const frameResult = await framePromise;
+
+    // Publish the agent model as soon as the frame exists, even when no document follows: an
+    // agent then gets a model that says "No PDF is open in this board yet" instead of finding
+    // no `.app` at all and concluding the board cannot be read.
+    if (frameResult.ok && aiVisionModel) aiVisionModel.register();
 
     if (!filePath) {
         // Opened as a plain board rather than as a file's editor. Still useful: show the
@@ -244,6 +322,18 @@ async function main() {
         const openMs = Math.round(performance.now() - startedOpen);
 
         hideStatus();
+
+        // The document the agent model reads is now a different one: drop the cached text and
+        // republish. Non-fatal — a failure here costs the agent surface, not the viewer.
+        try {
+            const doc = currentDocument();
+            if (doc) await readDocumentFacts(doc);
+            if (aiVisionModel) aiVisionModel.documentChanged();
+        } catch (err) {
+            console.warn("[pdf-viewer] agent model not refreshed: "
+                + (err && err.message ? err.message : String(err)));
+        }
+
         // Kept as a cheap perf trace: a slow open here is the board's own doing, whereas a slow
         // `getFilePath()` above is Persephone materializing a non-local source.
         console.log("[pdf-viewer] " + formatBytes(bytes.length)

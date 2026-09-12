@@ -1,0 +1,29 @@
+Vendored third-party libraries for the Force Graph board
+
+d3-graph.min.js — concatenation of the official D3 v7 UMD dist builds,
+in load order. All are ISC-licensed, Copyright Mike Bostock (see LICENSE).
+Upstream: https://github.com/d3/<module>  |  https://cdn.jsdelivr.net/npm/<module>@<version>/dist/<module>.min.js
+
+  d3-color           3.1.0
+  d3-dispatch        3.0.1
+  d3-timer           3.0.1
+  d3-ease            3.0.1
+  d3-interpolate     3.0.1
+  d3-quadtree        3.0.1
+  d3-selection       3.0.0
+  d3-force           3.0.0
+  d3-transition      3.0.1
+  d3-drag            3.0.0
+  d3-zoom            3.0.0
+
+Only d3-force, d3-selection, d3-zoom and d3-drag are used directly;
+the rest are their transitive runtime dependencies.
+
+av-grid 2.6.1 — data grid (MIT, Copyright (c) 2026 Andriy Viyatyk)
+  files:  av-grid.umd.js (renamed from the package's av-grid.umd.cjs), av-grid.css
+  source: npm `av-grid` -> dist/av-grid.umd.cjs + dist/av-grid.css
+          https://github.com/andriy-viyatyk/av-grid
+  role:   the Links and Properties grids in the detail panel (editable cells,
+          add/delete rows, dropdown cell options, per-cell classes, focus-change
+          callbacks) and, through its exported `showMenu`, this board's context
+          menus. Needs no skin: its --avg-* tokens fall back to --p-*.

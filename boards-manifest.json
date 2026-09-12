@@ -41,6 +41,25 @@
       }
     },
     {
+      "id": "force-graph",
+      "version": "1.0.0",
+      "name": "Force Graph",
+      "description": "Force-directed graph viewer and editor for .fg.json files - a content-host board with a canvas renderer, a live d3-force simulation, six node shapes, five levels, group containers and BFS visibility for large graphs.",
+      "fileMasks": [
+        "*.fg.json"
+      ],
+      "editorName": "Force Graph",
+      "editorKind": "content-host",
+      "standalone": false,
+      "minAppVersion": "5.0.2",
+      "screenshot": "screenshot.png",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/force-graph-v1.0.0/force-graph.zip",
+        "size": 199383,
+        "sha256": "11d5be0f8ae5bf5591181829faf991e9f075ccc3ad1d96e6a4c9ebc83e3b4717"
+      }
+    },
+    {
       "id": "pdf-viewer",
       "version": "1.0.2",
       "name": "PDF Viewer",

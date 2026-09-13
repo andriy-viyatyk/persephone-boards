@@ -29,6 +29,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ==============================================================================
 Bundled inside pptx-preview.umd.js — JSZip, Lodash, uuid — MIT License
+(JSZip is ALSO vendored separately as jszip.min.js for the agent surface; same MIT terms.)
   JSZip   3.10.x  Copyright (c) 2009-2016 Stuart Knightley, David Duponchel,
                   Franz Buchinger, António Afonso
   Lodash  4.17.x  Copyright OpenJS Foundation and other contributors

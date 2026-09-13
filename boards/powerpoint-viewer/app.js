@@ -26,8 +26,26 @@ const SLIDE_H = 540;
 const H_PADDING = 32; // #slides horizontal padding (16px each side), scaled by zoom too
 
 let currentPath = ""; // the file path (for the name label / reload)
+// The rendered bytes, retained ONLY so the agent surface can re-unzip the package for what the
+// renderer does not put in the DOM: speaker notes, chart series data, slide titles, docProps.
+// Never re-read from disk; cleared when a new load starts.
+let currentBytes = null;
 let slideEls = []; // the rendered .pptx-preview-slide-wrapper elements, in order
 let currentIndex = 0; // 0-based index of the slide currently in view
+
+// ---- the agent surface -----------------------------------------------------------------------
+
+// Built from window.PPTXAI (pptx-aivision.js, loaded before this file). It reads the rendered DOM
+// plus the retained package bytes; the board only has to tell it where things are and how to move
+// the user's view.
+const aiVisionModel = window.PPTXAI && window.PPTXAI.createAiVisionModel({
+    getSlidesEl: () => slidesEl,
+    getFilePath: () => currentPath || undefined,
+    getFileName: () => (currentPath ? fileName(currentPath) : undefined),
+    getBytes: () => currentBytes,
+    getCurrentSlide: () => (slideEls.length ? currentIndex + 1 : undefined),
+    scrollToSlide: (slideNumber) => goToSlide(slideNumber - 1),
+});
 
 // ---- state overlay -------------------------------------------------------------------------
 
@@ -116,6 +134,8 @@ async function load() {
         showState("Loading…");
         reloadBtn.disabled = true;
         resetView();
+        currentBytes = null;
+        if (aiVisionModel) aiVisionModel.documentChanged();
 
         const path = await P.getFilePath();
         currentPath = path || "";
@@ -144,6 +164,15 @@ async function load() {
         if (slideEls.length === 0) {
             showState("This deck has no slides.");
             return;
+        }
+
+        currentBytes = bytes;
+        // Republish the shape now that slide count / file name are known. Never let a failure
+        // here take down a render that already succeeded.
+        try {
+            if (aiVisionModel) aiVisionModel.documentChanged();
+        } catch (err) {
+            console.warn("AiVision refresh failed", err);
         }
 
         hideState();
@@ -180,5 +209,7 @@ document.addEventListener("keydown", (e) => {
         goToSlide(currentIndex - 1);
     }
 });
+
+if (aiVisionModel) aiVisionModel.register();
 
 load();

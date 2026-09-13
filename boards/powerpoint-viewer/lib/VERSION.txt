@@ -19,6 +19,22 @@ files; that's why the UMD is ~1.3 MB and no other lib file is needed):
   echarts ^5.5.1   Apache-2.0 — renders charts embedded in slides
   tslib   ^2.7.0   0BSD      — TypeScript runtime helpers
 
+JSZip — separate vendored copy (ZIP reader), added in board 1.1.0
+  version: 3.10.1
+  license: MIT (dual MIT/GPLv3 upstream; used here under MIT)
+  file:    jszip.min.js
+  source:  https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js
+  global:  window.JSZip
+  role:    the AGENT SURFACE re-opens the .pptx package to read what the RENDERER
+           does not put in the DOM: speaker notes (ppt/notesSlides/*.xml), chart
+           series data (ppt/charts/*.xml), authoritative slide titles from the
+           <p:ph type="title"/> placeholder, and docProps/*.xml metadata.
+  why a SECOND copy: pptx-preview bundles its own JSZip INTERNALLY and exposes only
+           `pptxPreview.init` — there is no global `JSZip` and no accessor for the
+           parsed model (verified live: previewer exposes render methods only). So
+           the agent surface cannot borrow the renderer's copy and vendors its own.
+           This is the same jszip.min.js the Word Viewer board vendors.
+
 The ES build (pptx-preview.es.js) externalizes these deps; we use the UMD build
 specifically because it bundles them, keeping the board a single offline file.
 

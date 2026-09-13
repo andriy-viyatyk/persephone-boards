@@ -3,11 +3,12 @@
 <head>
     <meta charset="utf-8" />
     <title>SQLite Viewer</title>
-    <!-- Load order (per the boards-assets catalog): shared base → Tabulator vendor CSS →
-         Persephone Tabulator skin (last, so it wins). -->
+    <!-- Load order: shared base → av-grid's stylesheet → this board's overrides (last, so they
+         win). av-grid would inject its own <style> at create() time — i.e. AFTER everything on
+         this page — so we link it here and pass `injectStyles: false`, which is what makes the
+         overrides below able to out-specify it. -->
     <link rel="stylesheet" href="./board-base.css" />
-    <link rel="stylesheet" href="./lib/tabulator.min.css" />
-    <link rel="stylesheet" href="./lib/tabulator.css" />
+    <link rel="stylesheet" href="./lib/av-grid.css" />
     <style>
         html, body { height: 100%; margin: 0; }
         body {
@@ -18,8 +19,8 @@
             overflow: hidden;
             font-family: system-ui, sans-serif;
         }
-        /* Top bar — file name pinned left, toolbar actions pinned right. Chrome surfaces use
-           --p-bg-dark (the app's titleBar/sideBar color, US-883); until that token ships the
+        /* Top bar — file name pinned left, search + toolbar actions pinned right. Chrome surfaces
+           use --p-bg-dark (the app's titleBar/sideBar color, US-883); until that token ships the
            fallback keeps the old --p-panel look. */
         #bar {
             flex: 0 0 auto;
@@ -40,6 +41,21 @@
             color: var(--p-text-muted, #9aa0a6);
         }
         .spacer { flex: 1 1 auto; min-width: 0; }
+        /* Free-text search across every column's displayed value (grid.setSearchString) —
+           narrows the result rows and marks the words inside the cells. */
+        #search {
+            flex: 0 0 auto;
+            width: 160px;
+            font: inherit;
+            font-size: var(--p-font-sm, 12px);
+            padding: var(--p-space-xs, 3px) var(--p-space-sm, 6px);
+            border: 1px solid var(--p-border, #3c3c3c);
+            border-radius: var(--p-radius-sm, 3px);
+            background: var(--p-panel, #313131);
+            color: var(--p-text, #ddd);
+        }
+        #search::placeholder { color: var(--p-text-muted, #9aa0a6); }
+        #search:disabled { opacity: 0.4; }
         .tool-btn {
             flex: 0 0 auto;
             display: inline-flex;
@@ -135,39 +151,36 @@
             overflow-y: auto;
         }
         #status.error { color: var(--p-error, #f48771); }
-        /* Grid host — fills the remaining space; Tabulator renders into it. */
+        /* Grid host — fills the remaining space; av-grid renders into it. The host MUST have a
+           definite height: av-grid measures its own root to decide what is on screen, and a host
+           with no height gives a blank grid (getState().viewport.width === 0 says so). */
         #wrap {
             flex: 1 1 auto;
             position: relative;
             overflow: hidden;
         }
         #grid { position: absolute; inset: 0; }
-        /* NOTE: Tabulator puts the `.tabulator` class on #grid ITSELF, not a child — target
-           `#grid` directly; `#grid .tabulator …` (descendant) matches nothing. */
-        #grid.tabulator { height: 100%; }
-        /* Grid header — Persephone's own grids (AVGrid) paint their header with the app's
-           chrome color (--color-bg-dark), not the lighter panel color the Tabulator skin
-           uses. Override the skin (the #grid id out-specifies its class selectors). */
-        #grid .tabulator-header,
-        #grid .tabulator-header .tabulator-col {
-            background: var(--p-bg-dark, var(--p-panel, #252526));
-        }
-        /* Header-filter inputs stay input-colored (the app's input surface is --p-panel). */
-        #grid .tabulator-header-filter input {
-            background: var(--p-panel, #313131);
-        }
-        /* Row-number gutter — chrome-colored rail, matching the header. */
-        #grid .sv-rownum {
+        /* With `filterBar: true` the grid wraps itself in a flex column (.avg-grid-wrap) that
+           holds the chip bar above the grid — make it claim the host's full height. */
+        #grid > .avg-grid-wrap { height: 100%; }
+        /* Row-number gutter — the pinned status column. Chrome-colored rail, matching the header,
+           so it reads as a row-number rail rather than a data column.
+           NOTE: a board rule must OUT-SPECIFY av-grid's own `.avg-data-cell` / `.avg-header-cell`
+           (one class), so write the state class into the selector rather than using a bare
+           `.sv-rownum`. */
+        .avg-data-cell.sv-rownum,
+        .avg-header-cell.sv-rownum {
             background: var(--p-bg-dark, var(--p-panel, #252526));
             color: var(--p-text-muted, #9aa0a6);
             font-size: var(--p-font-sm, 12px);
             user-select: none;
         }
-        /* NULL cells — muted + italic so NULL is distinguishable from the empty string. */
-        #grid .sv-null { color: var(--p-text-muted, #9aa0a6); font-style: italic; opacity: 0.7; }
-        /* Uniform row background — no zebra striping; reads as a plain result grid. */
-        #grid .tabulator-row.tabulator-row-even {
-            background-color: var(--p-bg, #1e1e1e);
+        /* NULL cells — muted + italic, so a SQL NULL stays distinguishable from the empty
+           string. Same specificity rule as above. */
+        .avg-data-cell.sv-null {
+            color: var(--p-text-muted, #9aa0a6);
+            font-style: italic;
+            opacity: 0.7;
         }
         /* State overlay — empty / error / loading messages. */
         #state {
@@ -191,6 +204,7 @@
     <div id="bar">
         <span id="name">SQLite Viewer</span>
         <div class="spacer"></div>
+        <input id="search" type="search" placeholder="Search results…" disabled />
         <button id="open" class="tool-btn" title="Open a SQLite database file…">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -220,8 +234,13 @@
         <div id="state"></div>
     </div>
 
-    <!-- Vendored library (offline; CSP forbids remote network). -->
-    <script src="./lib/tabulator.min.js"></script>
+    <!-- Vendored library (offline; CSP forbids remote network). av-grid's UMD build is renamed
+         from .cjs to .js so it loads as a plain classic script; it puts the module namespace on
+         `window.AVGrid` (the class is `AVGrid.AVGrid`). -->
+    <script src="./lib/av-grid.umd.js"></script>
+    <!-- The AiVision agent surface, before app.js: it only defines window.SQLiteAI, and app.js
+         constructs the model from it while evaluating. -->
+    <script src="./sqlite-aivision.js"></script>
     <script src="./app.js"></script>
 </body>
 </html>

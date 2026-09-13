@@ -103,7 +103,7 @@
     },
     {
       "id": "powerpoint-viewer",
-      "version": "1.0.2",
+      "version": "1.1.0",
       "name": "PowerPoint Viewer",
       "description": "Read-only viewer for PowerPoint decks (.pptx) — scrollable slide view rendered offline.",
       "fileMasks": [
@@ -112,12 +112,12 @@
       "editorName": "PowerPoint",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "4.0.15",
+      "minAppVersion": "5.0.2",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/powerpoint-viewer-v1.0.2/powerpoint-viewer.zip",
-        "size": 440524,
-        "sha256": "614527010bfeb45e1995a82b45bf4d9ee03fa792773c3b6432088a9b40bd201b"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/powerpoint-viewer-v1.1.0/powerpoint-viewer.zip",
+        "size": 493445,
+        "sha256": "a1635faa3e2d08980dd1cdb8c1b85b946d601e06c2389947e238c449e4fe8975"
       }
     },
     {

@@ -4,6 +4,13 @@ One line per change, newest first. Keep it short. Record pending changes under a
 the **next version** you'll release (the version `board-manifest.json` will be bumped to) — so
 the number is decided up front and nothing needs renaming at release time.
 
+## 1.1.0
+
+- An AI assistant can now read the diagram: shapes, containers and connections, decompressed from the file and including your unsaved edits.
+- It can render a page to an image and read the picture — the only way to read a diagram that has no labels.
+- It can point at what it is talking about: switch pages, zoom to a shape and ring it on screen, or ring one of the board's own buttons.
+- Added board guides, shown on the board's Info page and to assistants.
+
 ## 1.0.4
 
 - Added a catalog screenshot, shown on the board's card in Persephone's Search boards tab.

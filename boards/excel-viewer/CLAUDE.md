@@ -145,13 +145,42 @@ the previous Tabulator build could not do (it only ever had the display string, 
   *displays* them, so our `formatValue` is what counts. Bounded 60–300px. The board sets no width
   on a data column.
 
+## The agent surface (AiVision)
+
+`xlsx-aivision.js` publishes a live model of the open workbook at `pages[pageId].editor.app` via
+`persephone.aiVision.expose(root)`. `app.js` constructs it with a bag of **accessors** (never
+values) and calls `register()` before the first `load()`.
+
+This surface is deliberately larger than the PDF / Word / PowerPoint ones. Those boards wrap
+someone else's viewer and can only read; this board is our app on our own grid, so the agent gets
+everything the **user** can reach — sheet tabs, the search box, sort, filters, the selected range
+and the column order — and the user watches it happen.
+
+**Two sources of truth, answering different questions.** This is the central design decision:
+
+| | Holds | Used for |
+|---|---|---|
+| The **workbook** (SheetJS) | Every sheet, every row, sheet order | All data reads. Works on any sheet — *including an unparsed one*, which `ctx.ensureSheetParsed` parses on demand — and ignores filters and sort |
+| The **grid** (av-grid) | One sheet as displayed: sorted, filtered, searched, selected, reordered | `getView()` and every action |
+
+`getCells(range, { view: true })` is the explicit bridge between them. Keeping reads on the
+workbook is what lets an agent answer a question about sheet 3 without switching the user's tab.
+
+**Addressing is A1 notation, always.** Column letters and 1-based Excel row numbers cross the
+boundary; the grid's own vocabulary — column keys (`c3`), display row indices that move under a
+sort — stays inside. `letterOfKey` / `keyOfLetter` are the only translation, and they go through
+the key (authoritative, order-independent) rather than the column's `name`.
+
 ## Key files
 
 | File | Role |
 |------|------|
-| `index.html` | Page shell: top bar (file name · sheet tabs · Search · Reload) + `#grid` host + `#state` overlay. Loads CSS in order (board-base → av-grid → board overrides) and JS (av-grid → xlsx → app). Board-specific grid CSS (the row-number rail) lives here. |
+| `index.html` | Page shell: top bar (file name · sheet tabs · Search · Reload) + `#grid` host + `#state` overlay. Loads CSS in order (board-base → av-grid → board overrides) and JS (av-grid → xlsx → xlsx-aivision → app). Board-specific grid CSS (the row-number rail) lives here. |
 | `app.js` | All logic: `load()` (path → bytes → `XLSX.read`), `buildGrid()` (worksheet → columns+rows), `renderSheet()` (the av-grid instance), `renderTabs()`, `ROW_COLUMN`, state overlay. |
-| `board-manifest.json` | Simple custom-editor association (`fileMasks`, `editorPriority: 200`, `editorName`, `editorKind: "simple"`). |
+| `xlsx-aivision.js` | The **AiVision agent surface** — the whole of it. Defines `window.XLSXAI` only; `app.js` builds the model from it. A1 parsing, workbook reads, grid driving, the published member list and help text. |
+| `guides/index.md` | User-facing board guide (`audience: both`) — what the board opens and what an assistant can do with it. |
+| `guides/agent.md` | Agent-facing reference (`audience: agent`) — the call table, the two sources, and the two traps (displayed-text filters, on-screen-rectangle selection). |
+| `board-manifest.json` | Simple custom-editor association (`fileMasks`, `editorPriority: 200`, `editorName`, `editorKind: "simple"`) plus `guides: "guides"`. `minAppVersion` is **5.0.2** — the version that has `persephone.aiVision`. |
 | `lib/xlsx.full.min.js` | Vendored **SheetJS** 0.20.3, Apache-2.0 — the parser (reads `.xlsx` + `.xls`). |
 | `lib/av-grid.umd.js` + `lib/av-grid.css` | Vendored **av-grid** 2.1.0, MIT — the renderer. No skin file: av-grid reads the `--p-*` contract directly. |
 | `lib/LICENSE`, `lib/VERSION.txt` | License texts + vendored versions for both libraries. |
@@ -227,6 +256,85 @@ the previous Tabulator build could not do (it only ever had the display string, 
   its value in the top-left cell only. Known fidelity limit.
 - **Row 1 is data.** A viewer opens arbitrary sheets with no guaranteed header row, so the grid
   never promotes row 1 to a header — column headers are always the spreadsheet letters.
+
+### Gotchas specific to the agent surface
+
+Every one of these was **measured** on the live board, and most of them contradict what the
+obvious assumption would have been.
+
+- **Column filters match the DISPLAYED text, not the underlying value.** `applyFilter({ columnKey:
+  "c3", value: [19.5] })` matches **0 rows**; `value: ["$19.50"]` matches 1. Same for dates: a
+  `Date` object and its ISO string both match 0, `"1/15/26"` matches 1. av-grid sorts on `row[key]`
+  and filters on `formatValue`, and this board deliberately feeds those two different things (see
+  "Raw + formatted" above) — so on **every formatted column** the two disagree. The natural
+  assumption (filter by the value, since that is what sorting uses) is silently wrong: the grid
+  just goes empty. `setFilter` therefore diffs the values it was given against
+  `getColumnValues(letter)` when nothing matches, and names the ones that are not real — turning an
+  empty grid into an explanation. Do not remove that check.
+- **`highlightString` is in the av-grid docs but NOT in the vendored 2.1.0 build.**
+  `setOptions({ highlightString: "Ada" })` is accepted with **no error** and marks **nothing** — the
+  docs on `main` are ahead of the pinned release. That is why there is no `showText`-style
+  highlight here; pointing at something is `selectRange` + `scrollToCell`. Re-measure before adding
+  one, and do not trust the online docs for what this build can do.
+- **A `setColumns()` reorder preserves sort, filters and widths — but NOT the selection.** Measured:
+  a 3-column selection (`c1,c2,c3`) came back as a **1-column** one after moving a column, because
+  the selection is column-*index* based and the indices now point elsewhere. `setColumnOrder`
+  therefore clears the selection explicitly rather than leave the user with one that silently
+  moved.
+- **`getSelection().columns` includes the `__row` status column; `getSelectionText()` does not.**
+  Selecting from the left edge returns `["__row","c3","c0"]` while the copied text correctly has
+  two columns. `describeSelection` filters status columns out so the two agree.
+- **DO NOT hold a reference to `grid`.** `renderSheet()` **destroys and rebuilds** it on every sheet
+  switch, and it is **`null`** for an empty sheet. Everything goes through `ctx.getGrid()` and
+  `requireGrid()`, which is also what produces the useful "sheet X is empty, switch with
+  goToSheet" error instead of a `TypeError`.
+- **A grid selection is a rectangle on SCREEN, not on the sheet.** Row indices are *display*
+  indices, so a filter can hide a row entirely and a sort can move rows apart. `selectRange` maps
+  Excel row numbers through `displayIndexOfRow` and refuses with the specific cause (filter / sort /
+  column order) rather than selecting a different block. Likewise `describeSelection` only reports a
+  single A1 `range` when the rows and columns really are contiguous — reporting a tidy `"B2:D10"`
+  for rows a sort scattered would be a lie an agent would act on.
+- **`undefined` does not survive the trip to the agent as an absent field — it arrives as `null`.**
+  Which reads as "the answer is nothing" rather than "this does not apply". Hence `compact()` on
+  every returned object; keep using it.
+- **Reads go to the workbook, not the grid, and that is deliberate.** It is what lets an agent read
+  a sheet the user has never opened (`ensureSheetParsed` parses it on demand, exactly as clicking
+  the tab would) without switching their tab. Only `{ view: true }` and the actions touch the grid.
+- **`saveCsv` / `saveMarkdown` use a separate unbounded reader.** `readSheetCellsUnbounded` exists
+  so the `MAX_CELLS` cap can never accidentally apply to the call whose entire purpose is the range
+  that was too big to return. Do not merge the two functions.
+- **The search box and the grid must be set together.** `ctx.setSearchText` writes the `<input>`
+  value *and* calls `grid.setSearchString`. Setting only the grid leaves the box showing something
+  else — the user's view would disagree with the user's controls.
+
+### Testing the agent surface
+
+Fixtures are the existing `_test/excel-viewer-test.xlsx` (sheets **Sales** — mixed types, a
+currency format, a date column, gaps; **Big** — 20,000 rows, exercises lazy parse *and* the read
+truncation; **Empty** — exercises `grid === null`) and `_test/excel-viewer-test.xls` (legacy,
+single sheet).
+
+Drive it the way an agent does — through `pages[pageId].editor.app.<member>` over the MCP, not
+`evaluate` — so the member list, the CAUTION flags and the error text all get exercised:
+
+- `getStats()` on both files. The `.xls` is a genuinely different parse path.
+- `setFilter("D", [19.5])` **must** produce the "NOTHING MATCHED … not among column D's displayed
+  values" note; `setFilter("D", ["$19.50"])` must match.
+- `selectRange` must refuse under each of the three causes: while filtered, while sorted, and after
+  a reorder. Check the message names the right one.
+- `showCells("B2:D4")` then confirm the paint, not just the state:
+  `document.querySelectorAll('.avg-data-cell.avg-in-selection').length` should equal the cell count.
+  **The board page must be the ACTIVE tab for this check.** A background page's frame is `0x0`, so
+  the grid paints nothing and the count is `0` while the model's state is perfectly correct — it
+  looks exactly like a broken selection. `grid.getState().viewport.width === 0` is the tell; call
+  `pages.showPage(pageId)` first. (This bit once, after opening a second workbook in another tab.)
+- `getCells(null, { sheet: "Big" })` must report `rowCount: 4000` (20,000 cells ÷ 5 columns) and a
+  truncation note, while `saveCsv(path, null, { sheet: "Big" })` writes all **20,001** rows.
+- `getCells("A1:C3", { sheet: "Big" })` while **Sales** is active — reading an unparsed sheet must
+  not switch the tab.
+- `goToSheet("Empty")` then any action: must give the "sheet is empty" error, not a `TypeError`.
+- After `setSearch("ada")`, the `<input>` value and `grid.getSearchString()` must be equal.
+- `ui.log` stays clean.
 
 ## Reference
 

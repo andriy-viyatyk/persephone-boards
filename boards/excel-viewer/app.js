@@ -26,6 +26,29 @@ let grid = null; // the live av-grid instance (destroyed + rebuilt per sheet)
 let currentPath = ""; // the file path (for the name label / reload)
 let fileBytes = null; // the raw file, kept so a second sheet can be parsed on demand
 
+// The AiVision agent surface. Everything it needs is handed over as accessors rather than values:
+// the grid is DESTROYED and rebuilt on every sheet switch, and `workbook` / `activeSheet` change
+// under it, so a captured reference would go stale the first time the user clicks a tab.
+const aiVisionModel = window.XLSXAI && window.XLSXAI.createAiVisionModel({
+    getGrid: () => grid,
+    getWorkbook: () => workbook,
+    getActiveSheet: () => activeSheet,
+    getFilePath: () => currentPath || undefined,
+    getFileName: () => (currentPath ? fileName(currentPath) : undefined),
+    // A sheet the user has never opened is unparsed on a big workbook — the agent may read it
+    // anyway, which parses it exactly as clicking the tab would.
+    ensureSheetParsed: (name) => ensureSheetParsed(name),
+    showSheet: (name) => renderSheet(name),
+    // The toolbar search box, driven the same way the user drives it — the input's value is part
+    // of what the user sees, so setting the grid's search string alone would desync the box.
+    getSearchText: () => searchEl.value,
+    setSearchText: (text) => {
+        searchEl.value = text;
+        if (grid) grid.setSearchString(text);
+    },
+    reload: () => load(),
+});
+
 // SheetJS options, shared by the initial load and every on-demand sheet parse.
 // Measured on a 20.5 MB / 124k-row / 27-column workbook (see CLAUDE.md):
 //   • `dense`         — cells land in ws["!data"][r][c] instead of ws["A1"]-style address
@@ -210,6 +233,9 @@ function renderSheet(name) {
 
     if (rows.length === 0) {
         showState("This sheet is empty.");
+        // Still a view change worth announcing: the active sheet is now this one, and the agent
+        // surface reports there is no grid rather than describing the previous sheet's.
+        if (aiVisionModel) aiVisionModel.sheetChanged();
         return;
     }
     hideState();
@@ -233,6 +259,8 @@ function renderSheet(name) {
         // themes — was tried and reads WORSE here, because Persephone's accent is saturated
         // enough that the tint becomes a solid block behind text of nearly the same colour.
     });
+
+    if (aiVisionModel) aiVisionModel.sheetChanged();
 }
 
 // ---- load the file -------------------------------------------------------------------------
@@ -240,6 +268,8 @@ function renderSheet(name) {
 async function load() {
     try {
         showState("Loading…");
+        // Every cache in the agent surface belongs to the workbook being replaced.
+        if (aiVisionModel) aiVisionModel.workbookChanged();
         reloadBtn.disabled = true;
         searchEl.disabled = true;
 
@@ -284,6 +314,8 @@ async function load() {
         }
 
         renderSheet(names[0]);
+        // Announced AFTER the first sheet renders, so the shape the agent sees is the loaded one.
+        if (aiVisionModel) aiVisionModel.workbookChanged();
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
         fileBytes = null;
@@ -315,5 +347,9 @@ searchEl.addEventListener("input", () => {
 // takes DOM focus itself, and Ctrl+C / Ctrl+Shift+C copy through the browser's own copy event.
 // If either ever looks broken while you are driving the board from an agent, the harness is the
 // suspect, not the grid — see the "Run & test" note in CLAUDE.md.
+
+// Publish the agent surface before the first load, so an agent that attaches while the workbook
+// is still parsing sees the model (reporting isLoaded: false) rather than nothing at all.
+if (aiVisionModel) aiVisionModel.register();
 
 load();

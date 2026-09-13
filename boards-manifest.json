@@ -122,7 +122,7 @@
     },
     {
       "id": "sqlite-viewer",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "name": "SQLite Viewer",
       "description": "Read-only SQL browser for SQLite databases (.db / .sqlite / .sqlite3 / .db3) — tables in the sidebar, free-form SELECT queries (FTS5 included), results in a sortable/filterable grid.",
       "fileMasks": [
@@ -134,12 +134,12 @@
       "editorName": "SQLite",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "4.0.16",
+      "minAppVersion": "5.0.2",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/sqlite-viewer-v1.0.1/sqlite-viewer.zip",
-        "size": 272756,
-        "sha256": "85bef10fd21260ad8d459dbccd4864aed425bacf3b827bb99f49ab9d87a13e3d"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/sqlite-viewer-v1.1.0/sqlite-viewer.zip",
+        "size": 270228,
+        "sha256": "d01c6a24fc70d7d69a7835a04830b6d472d2d94d6ef64c30c7baf6e2e4999a98"
       }
     },
     {

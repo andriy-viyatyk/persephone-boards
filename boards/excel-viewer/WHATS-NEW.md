@@ -3,6 +3,18 @@
 One line per change, newest first. Keep it short. Record pending changes under a heading for
 the **next version** you'll release (the version `board-manifest.json` will be bumped to).
 
+## 1.2.0
+
+- **An AI agent can now read and drive this board directly.** Ask the assistant about the open
+  workbook and it reads the cells itself — no converting the file first.
+- It can do what you can do: switch sheet tabs, type in the search box, sort and filter columns,
+  select a range and scroll it into view, and reorder the columns.
+- It can point at things: ask "which rows have no status?" and it can select those cells so you
+  see exactly what it means.
+- It reads any sheet, including ones you have not opened, and can write a range out to a CSV or
+  Markdown file.
+- Requires Persephone 5.0.2.
+
 ## 1.1.1
 
 - **Large workbooks open ~45% faster.** A 20.5 MB / 124k-row file went from ~10.9 s to ~6.0 s,

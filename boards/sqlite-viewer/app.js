@@ -3,7 +3,7 @@
 // A "simple" custom-editor board: Persephone hands us a file PATH; we spawn ONE resident
 // query server (scripts/db-server.mjs) on Persephone's bundled Node runtime via
 // persephone.executeNode(), stream it requests as JSON lines over stdin, and render each
-// reply in a Tabulator grid. Strictly read-only (the server opens the db readOnly).
+// reply in an av-grid grid. Strictly read-only (the server opens the db readOnly).
 //
 // The table list lives in a SECONDARY VIEW ("Tables", tables.html) shown in Persephone's
 // own sidebar; the two frames coordinate through persephone.state.*:
@@ -14,9 +14,15 @@
 
 const P = window.persephone;
 
+// av-grid's UMD build puts the whole module namespace on `window.AVGrid`; the class is
+// `AVGrid.AVGrid` (the helpers — `inferColumns`, `detectColumnWidths`, … — hang off the same
+// object). Keep the two names apart so it stays obvious which is which.
+const AVGridClass = window.AVGrid.AVGrid;
+
 // DOM handles.
 const nameEl = document.getElementById("name");
 const sqlEl = document.getElementById("sql");
+const searchEl = document.getElementById("search");
 const runBtn = document.getElementById("run");
 const stopBtn = document.getElementById("stop");
 const statusEl = document.getElementById("status");
@@ -29,9 +35,54 @@ let currentPath = ""; // absolute path of the opened database
 let srv = null; // the resident db-server execute handle (streaming mode)
 let nextId = 0; // request id counter
 const pending = new Map(); // id → { resolve, reject }
-let table = null; // live Tabulator instance
+let grid = null; // the live av-grid instance (destroyed + rebuilt per result)
 let queryRunning = false;
 let lastRunSeq = 0; // last handled sidebar "run" command (guards replays)
+let schemaTables = []; // the server's schema reply — tables + views with counts and columns
+let lastResult = null; // the reply behind the grid on screen: { sql, columns, rows, … }
+
+// The AiVision agent surface. Everything it needs is handed over as accessors rather than values:
+// the grid is DESTROYED and rebuilt on every result, and `srv` / `lastResult` / `schemaTables`
+// change under it, so a captured reference would go stale on the first query.
+const aiVisionModel = window.SQLiteAI && window.SQLiteAI.createAiVisionModel({
+    getGrid: () => grid,
+    getResult: () => lastResult,
+    getSchemaTables: () => schemaTables,
+    getFilePath: () => currentPath || undefined,
+    getFileName: () => (currentPath ? fileName(currentPath) : undefined),
+    isOpen: () => !!srv,
+    isQueryRunning: () => queryRunning,
+    // Ask the database WITHOUT touching the grid — the agent's read path. The db is open
+    // readOnly, so this cannot change the file whatever SQL it is given.
+    ask: (sql) => request("query", { sql: String(sql) }),
+    // Run a query the way the user does: into the box, then onto the screen.
+    run: (sql) => {
+        sqlEl.value = String(sql);
+        return runQuery(sqlEl.value);
+    },
+    getSql: () => sqlEl.value,
+    // The status line, which is where runQuery puts a SQLite error — the agent cannot see it.
+    getStatus: () => statusEl.textContent || "",
+    setSql: (text) => { sqlEl.value = text == null ? "" : String(text); },
+    openTable: (name) => selectTable(name),
+    stop: () => cancelQuery(),
+    // The toolbar search box, driven the same way the user drives it — the input's value is part
+    // of what the user sees, so setting the grid's search string alone would desync the box.
+    getSearchText: () => searchEl.value,
+    setSearchText: (text) => {
+        searchEl.value = text;
+        if (grid) grid.setSearchString(text);
+    },
+    reload: () => loadDb(currentPath, { autoQuery: false }),
+});
+
+/** Tear the grid down. The result grid has a per-result lifecycle — see renderResult. */
+function destroyGrid() {
+    if (grid) {
+        grid.destroy();
+        grid = null;
+    }
+}
 
 // ---- state overlay / status ------------------------------------------------------------------
 
@@ -140,114 +191,115 @@ function request(op, extra) {
 
 // ---- grid ------------------------------------------------------------------------------------
 
-// Natural-order sorter: numeric-aware string compare so numbers sort by value.
-const naturalSorter = (a, b) =>
-    String(a == null ? "" : a).localeCompare(String(b == null ? "" : b), undefined, {
-        numeric: true,
-        sensitivity: "base",
-    });
-
-// Safe cell formatter: NULL rendered as a muted marker (distinguishable from ""), other
-// values as a text node — never innerHTML, so db content can't inject markup.
-function cellFormatter(cell) {
-    const v = cell.getValue();
-    if (v === null || v === undefined) {
-        cell.getElement().classList.add("sv-null");
-        return "NULL";
-    }
-    return document.createTextNode(String(v));
-}
-
-// Serialize a Tabulator range to TSV, excluding the row-number gutter (`__row`).
-function rangeToTsv(range) {
-    const cols = range.getColumns().filter((c) => c.getField() !== "__row");
-    return range
-        .getRows()
-        .map((row) =>
-            cols
-                .map((col) => {
-                    const v = row.getCell(col).getValue();
-                    return v == null ? "" : String(v);
-                })
-                .join("\t"),
-        )
-        .join("\n");
-}
-
-// Own copy path — Tabulator's clipboard module is dead in the board iframe (its
-// execCommand("copy") event never fires here), so we build TSV + navigator.clipboard.
-async function copySelection(fallbackCell) {
-    if (!table) return;
-    let ranges = table.getRanges();
-    if (ranges.length === 0) {
-        if (!fallbackCell) return;
-        table.addRange(fallbackCell, fallbackCell);
-        ranges = table.getRanges();
-    }
-    const tsv = ranges.map(rangeToTsv).join("\n");
-    try {
-        await navigator.clipboard.writeText(tsv);
-    } catch (err) {
-        P.notify("Copy failed: " + ((err && err.message) || err), "error");
-    }
-}
-
-const CELL_MENU = [{ label: "Copy", action: (e, cell) => copySelection(cell) }];
-
-const ROW_HEADER = {
-    title: "",
-    field: "__row",
-    headerSort: false,
+// The result row-number gutter, as an av-grid *status column*: a non-data column pinned to the
+// left. It carries the 1-based position of the row IN THE RESULT SET, never sorts or filters, and
+// keeps its number when the data columns are sorted — so it stays a stable handle on a row.
+const ROW_COLUMN = {
+    key: "__row",
+    name: "",
+    width: 64,
+    align: "right",
+    isStatusColumn: true,
     resizable: false,
-    width: 56,
-    hozAlign: "right",
-    cssClass: "sv-rownum",
-    clipboard: false,
+    readonly: true,
+    filterType: null,
+    cellClass: "sv-rownum",
+    headerClass: "sv-rownum",
 };
 
-/** Render one query result ({ columns, rows }) into the grid. */
-function renderResult(res) {
-    if (table) {
-        table.destroy();
-        table = null;
-    }
-    hideState();
+/**
+ * Turn one query reply ({ columns, rows }) into av-grid `{ columns, rows }`.
+ *
+ * Rows arrive from the server as ARRAYS, not objects — that is what preserves column order and
+ * survives `SELECT a.x, b.x` returning two columns called `x`. So each column gets a synthetic
+ * key ("c0", "c1", …) and the column's NAME is only a label; two columns may share one.
+ *
+ * The raw value goes in under the key, untouched. av-grid's hook-precedence table then splits the
+ * three consumers that would otherwise disagree:
+ *   • the screen / search / filters read `formatValue` — where NULL becomes the literal "NULL",
+ *     the marker the user sees;
+ *   • sorting reads `row[key]` — the raw value, compared by its runtime type, so a numeric column
+ *     orders numerically and nulls land together at the ascending end;
+ *   • copy reads `copyValue` — where NULL becomes "", so a pasted range has an empty cell rather
+ *     than the word NULL.
+ * That is also why there is no custom sorter here any more: the Tabulator build only ever had the
+ * display string, so it needed `localeCompare(..., { numeric: true })` to fake numeric order.
+ */
+function buildGrid(res) {
+    const names = res.columns || [];
+    const columns = [Object.assign({}, ROW_COLUMN)]; // a fresh copy per result — the grid owns it
 
-    const columns = res.columns.map((name, i) => ({
-        title: name,
-        field: "c" + i,
-        headerSort: true,
-        sorter: naturalSorter,
-        headerFilter: "input",
-        headerFilterPlaceholder: "filter…",
-        resizable: true,
-        maxWidth: 420,
-        formatter: cellFormatter,
-    }));
-
-    const data = res.rows.map((arr, r) => {
+    const rows = (res.rows || []).map((arr, r) => {
         const row = { __row: r + 1 };
         for (let i = 0; i < arr.length; i++) row["c" + i] = arr[i];
         return row;
     });
 
-    if (columns.length === 0) {
+    // Right-align a column only when every value it actually holds is a number — all-NULL and
+    // empty columns stay left-aligned rather than being guessed at.
+    const sawNumber = names.map(() => false);
+    const sawOther = names.map(() => false);
+    for (const row of rows) {
+        for (let i = 0; i < names.length; i++) {
+            const v = row["c" + i];
+            if (v == null) continue;
+            if (typeof v === "number") sawNumber[i] = true;
+            else sawOther[i] = true;
+        }
+    }
+
+    for (let i = 0; i < names.length; i++) {
+        const key = "c" + i; // captured per column, so each hook is a single lookup
+        columns.push({
+            key,
+            name: names[i],
+            align: sawNumber[i] && !sawOther[i] ? "right" : undefined,
+            formatValue: (_column, row) => {
+                const v = row[key];
+                return v == null ? "NULL" : String(v);
+            },
+            // What a copied cell holds. A NULL copies as empty — pasting the word "NULL" into a
+            // spreadsheet would turn a missing value into a literal string.
+            copyValue: (cell) => (cell.value == null ? "" : cell.value),
+            // Muted italic NULL, so it stays distinguishable from the empty string on screen.
+            cellClass: (cell) => (cell.value == null ? "sv-null" : undefined),
+        });
+    }
+
+    return { columns, rows };
+}
+
+/** Render one query result ({ columns, rows }) into the grid. */
+function renderResult(res) {
+    destroyGrid();
+    hideState();
+
+    // A new result is a new dataset: drop whatever was being searched for.
+    searchEl.value = "";
+
+    if (!res.columns || res.columns.length === 0) {
+        searchEl.disabled = true;
         showState("The statement returned no columns.");
         return;
     }
 
-    table = new Tabulator("#grid", {
-        data,
-        columns,
-        rowHeader: ROW_HEADER,
-        columnDefaults: { contextMenu: CELL_MENU },
-        height: "100%",
-        layout: "fitData",
-        movableColumns: true,
-        selectableRange: true,
-        selectableRangeColumns: false,
-        selectableRangeRows: false,
-        selectableRangeClearCells: false,
+    const built = buildGrid(res);
+    searchEl.disabled = built.rows.length === 0;
+
+    grid = AVGridClass.create("#grid", {
+        name: "sqlite-result",
+        rows: built.rows,
+        columns: built.columns,
+        // The result row number is unique per row and survives sorting and filtering.
+        getRowKey: (row) => String(row.__row),
+        // Read-only: no `editable`, no `can*` — the grid offers no editing affordance and its
+        // context menu is Copy / Copy as… only.
+        // av-grid's stylesheet is linked in index.html (see the load-order note there), so it
+        // must not inject a second copy after this page's own rules.
+        injectStyles: false,
+        // Removable chips for whatever the header funnels have filtered. Takes no vertical space
+        // until something is actually filtered.
+        filterBar: true,
     });
 }
 
@@ -262,7 +314,11 @@ async function runQuery(sql) {
     setStatus("Running…");
     try {
         const res = await request("query", { sql: text });
+        // The reply behind what is on screen. Kept whole (the grid reshapes it into rows keyed by
+        // column, and drops nothing) so the agent surface can answer from the result itself.
+        lastResult = { sql: text, columns: res.columns, rows: res.rows, rowCount: res.rowCount, truncated: !!res.truncated, ms: res.ms };
         renderResult(res);
+        if (aiVisionModel) aiVisionModel.resultChanged();
         const cap = res.truncated ? ` (showing first ${res.rowCount.toLocaleString()} — result truncated)` : "";
         setStatus(`${res.rowCount.toLocaleString()} row${res.rowCount === 1 ? "" : "s"} in ${res.ms} ms${cap}`);
     } catch (err) {
@@ -298,15 +354,21 @@ function defaultQuery(tableName) {
 
 // ---- shared state (Tables sidebar panel) -----------------------------------------------------
 
-/** Push the schema (and current db name) for the sidebar panel to render. */
+/** Push the schema (and current db name) for the sidebar panel to render. Also the one place the
+ *  schema is remembered, so the agent surface answers "what is in this database" without a round
+ *  trip to the server. */
 function publishSchema(tables) {
-    P.state.merge({ db: { name: fileName(currentPath), tables: tables || [] } });
+    schemaTables = tables || [];
+    P.state.merge({ db: { name: fileName(currentPath), tables: schemaTables } });
+    if (aiVisionModel) aiVisionModel.databaseChanged();
 }
 
+// Returns the runQuery promise: the sidebar click ignores it, but the agent surface awaits it —
+// without it, openTable() resolves before the query has run and reports the PREVIOUS result.
 function selectTable(tableName) {
     sqlEl.value = defaultQuery(tableName);
     P.state.merge({ selected: tableName });
-    runQuery(sqlEl.value);
+    return runQuery(sqlEl.value);
 }
 
 // ---- open a database -------------------------------------------------------------------------
@@ -316,6 +378,15 @@ async function loadDb(path, opts) {
     try {
         showState("Opening database…");
         setStatus("");
+        // Opening a DIFFERENT database drops whatever result was on screen — it belonged to the
+        // previous file. (A reload passes autoQuery: false and deliberately keeps it, so the user
+        // gets their result back after re-opening the connection.)
+        if (autoQuery) {
+            destroyGrid();
+            lastResult = null;
+            searchEl.value = "";
+            searchEl.disabled = true;
+        }
         currentPath = path;
         nameEl.textContent = fileName(path);
         reloadBtn.disabled = false;
@@ -338,7 +409,11 @@ async function loadDb(path, opts) {
         }
     } catch (err) {
         const message = (err && err.message) || String(err);
-        if (table) { table.destroy(); table = null; }
+        destroyGrid();
+        lastResult = null;
+        publishSchema([]); // nothing is open — say so, in the panel and to the agent
+        searchEl.value = "";
+        searchEl.disabled = true;
         showState("Could not open this database.\n" + message, true);
         P.notify(message, "error");
     }
@@ -374,6 +449,10 @@ async function boot() {
         }
     });
 
+    // Publish the agent surface before the first open, so an agent that attaches while the
+    // database is still opening sees the model (reporting isLoaded: false) rather than nothing.
+    if (aiVisionModel) aiVisionModel.register();
+
     const path = await P.getFilePath();
     if (path) {
         loadDb(path);
@@ -401,15 +480,19 @@ document.addEventListener("keydown", (e) => {
     }
 });
 
-// Ctrl/Cmd+C copies the selected grid range as TSV (Tabulator's own copy is broken in the
-// board iframe). Skip when an input/textarea is focused so normal text copy still works.
-document.addEventListener("keydown", (e) => {
-    if (!(e.ctrlKey || e.metaKey) || (e.key !== "c" && e.key !== "C")) return;
-    const el = document.activeElement;
-    if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
-    if (!table || table.getRanges().length === 0) return;
-    e.preventDefault();
-    copySelection();
+// Free-text search across every column's displayed value. Every whitespace-separated word has to
+// appear in some column, so "error 42" narrows to rows holding both, and the words are marked
+// inside the cells.
+searchEl.addEventListener("input", () => {
+    if (grid) grid.setSearchString(searchEl.value);
 });
+
+// NOTE: the grid needs no help from this board for focus or for the clipboard. A press inside it
+// takes DOM focus itself, and Ctrl+C / Ctrl+Shift+C copy through the browser's own copy event.
+// The Tabulator build DID need its own copy path — that one went through
+// document.execCommand("copy"), which never fires in a board iframe — which is why deleting the
+// hand-rolled TSV builder looks riskier than it is. See the "Run & test" note in CLAUDE.md before
+// concluding otherwise from an MCP-driven keypress: those arrive as isTrusted: false and cannot
+// drive the clipboard on any browser.
 
 boot();

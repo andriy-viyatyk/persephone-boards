@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AiVision Explorer</title>
+    <link rel="stylesheet" href="./board-base.css" />
+    <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+    <div id="boot" class="boot-state" aria-live="polite">
+        <div class="boot-card">
+            <div class="eyebrow">AiVision Explorer</div>
+            <h1 id="boot-title">Connecting to the live model…</h1>
+            <p id="boot-message">Reading the Persephone root descriptor.</p>
+            <button id="retry" class="p-btn primary" type="button" hidden>Retry</button>
+        </div>
+    </div>
+
+    <div id="app-shell" hidden>
+        <header class="topbar p-toolbar">
+            <span class="brand-mark">AV</span>
+            <span class="p-toolbar-title">AiVision Explorer</span>
+            <span class="p-sep"></span>
+            <span class="root-label">Root</span>
+            <code id="root-path" class="path-chip">Persephone</code>
+            <span class="p-spacer"></span>
+            <span id="operation-status" class="operation-status" aria-live="polite">Ready</span>
+            <button id="refresh" class="p-btn" type="button">Refresh</button>
+        </header>
+
+        <main class="explorer-layout">
+            <aside class="tree-pane" aria-label="AiVision tree">
+                <div class="pane-heading">
+                    <div>
+                        <div class="eyebrow">Descriptor graph</div>
+                        <h2>Model tree</h2>
+                    </div>
+                    <button id="collapse-tree" class="p-btn icon" type="button" title="Collapse all">−</button>
+                </div>
+                <p class="tree-note">Nodes come from live children and members marked <code>node: true</code>.</p>
+                <div id="tree-status" class="inline-status" aria-live="polite"></div>
+                <nav id="tree" class="tree" aria-label="Model nodes"></nav>
+            </aside>
+
+            <section class="detail-pane" aria-label="Selected node details">
+                <div class="detail-header">
+                    <div class="eyebrow">Selected path</div>
+                    <h1 id="selected-path">Persephone root</h1>
+                    <div class="descriptor-line">
+                        <span id="selected-kind" class="kind-badge">Persephone</span>
+                        <span id="selected-summary" class="muted">Loading descriptor…</span>
+                    </div>
+                </div>
+
+                <section class="panel search-panel" aria-labelledby="search-title">
+                    <div class="section-heading compact">
+                        <div>
+                            <div class="eyebrow">Find in help</div>
+                            <h2 id="search-title">Help search</h2>
+                        </div>
+                    </div>
+                    <form id="search-form" class="search-form">
+                        <label class="sr-only" for="search-query">Search query</label>
+                        <input id="search-query" class="p-input" type="search" placeholder="Search the live descriptor graph…" autocomplete="off" />
+                        <label class="sr-only" for="search-limit">Result limit</label>
+                        <select id="search-limit" class="p-select">
+                            <option value="10">10</option>
+                            <option value="20" selected>20</option>
+                            <option value="50">50</option>
+                        </select>
+                        <button class="p-btn primary" type="submit">Search</button>
+                    </form>
+                    <div id="search-status" class="inline-status" aria-live="polite"></div>
+                    <div id="search-results" class="search-results"></div>
+                </section>
+
+                <div class="detail-grid">
+                    <section class="panel result-panel" aria-labelledby="result-title">
+                        <div class="section-heading">
+                            <div>
+                                <div class="eyebrow">Explicit read</div>
+                                <h2 id="result-title">Returned value</h2>
+                            </div>
+                            <span id="value-state" class="status-pill">Descriptor only</span>
+                        </div>
+                        <pre id="returned-value" class="code-block">No value read yet.</pre>
+                    </section>
+
+                    <section class="panel help-panel" aria-labelledby="help-title">
+                        <div class="section-heading">
+                            <div>
+                                <div class="eyebrow">Context</div>
+                                <h2 id="help-title">Help &amp; notes</h2>
+                            </div>
+                        </div>
+                        <div id="descriptor-notes" class="notes-content"></div>
+                    </section>
+                </div>
+
+                <section class="panel members-panel" aria-labelledby="members-title">
+                    <div class="section-heading">
+                        <div>
+                            <div class="eyebrow">Allow-listed surface</div>
+                            <h2 id="members-title">Members</h2>
+                        </div>
+                        <span id="member-count" class="status-pill">0</span>
+                    </div>
+                    <div id="members" class="members-list"></div>
+                </section>
+
+                <section class="panel events-panel" aria-labelledby="events-title">
+                    <div class="section-heading">
+                        <div>
+                            <div class="eyebrow">Renderer window</div>
+                            <h2 id="events-title">Events feed</h2>
+                        </div>
+                        <span id="events-state" class="status-pill">Connecting…</span>
+                    </div>
+                    <div id="event-error" class="inline-status error-text" hidden></div>
+                    <div id="events" class="events-list"></div>
+                </section>
+            </section>
+        </main>
+    </div>
+
+    <div id="dialog-mount"></div>
+    <div id="notification-mount" class="notification-mount" aria-live="polite"></div>
+    <script src="./app.js"></script>
+</body>
+</html>

@@ -143,28 +143,60 @@ loop, custom-editor wiring — lives in the Persephone app, not in this repo.
 and ask the user** to start Persephone or reconnect its MCP. Do not proceed without it — do not
 author a board "blind" from repo examples alone.
 
+### One tool, many paths
+
+The Persephone MCP advertises **exactly one tool: `call`**. It takes a `path` into the app's live
+object model, plus optional `args` (a JSON array, for a method), `value` (to assign a property),
+and `maxLength`. There are no `create_board` / `open_board` / `board_refresh` / `browser_*` /
+`read_guide` / `get_app_info` tools any more — every one of those is now a path under `call`.
+
+Two discovery paths matter more than any table below, because they are always current:
+
+- `call` with **no path** → the overview of every top-level area.
+- `<path>.$help` → long-form help for that node; `<path>.$describe` → the same descriptor as JSON
+  (`kind`, `summary`, `members[]`, `children[]`, …). Use these instead of guessing member names.
+
 Required workflow for a new board:
 
-1. **Read the docs FIRST.** Call the **`read_guide("boards")`** MCP tool before designing
-   anything. Do NOT design a board by only reverse-engineering existing boards in this repo —
-   that gives a partial picture of the board surface and repeatedly leads to overcomplicated
-   designs for problems the documented `persephone.*` bridge already solves simply (file access,
-   custom-editor association, theming, backend scripts, shared state, dialogs, …).
-2. **Scaffold with the `create_board` MCP tool** (`dir` = this repo's `boards/` folder). Never
+1. **Read the docs FIRST.** Read the boards guide at path **`guides.agents.boards`** before
+   designing anything. Do NOT design a board by only reverse-engineering existing boards in this
+   repo — that gives a partial picture of the board surface and repeatedly leads to
+   overcomplicated designs for problems the documented `persephone.*` bridge already solves
+   simply (file access, custom-editor association, theming, backend scripts, shared state,
+   dialogs, …).
+2. **Scaffold with `boards.createBoard`** — `args: ["<board-id>", "<this repo>/boards"]`. Never
    hand-create a board folder from scratch: the scaffold is a working starter with correct
-   `board-manifest.json`, `board-base.css`, and shim wiring — and a board created this way is
-   auto-trusted, so the whole create → open → develop loop runs without user prompts.
-3. **Set `minAppVersion` to the running Persephone version.** For a NEW board, read the
-   current app version with the `get_app_info` MCP tool and put it in the scaffolded
-   `board-manifest.json` as `minAppVersion` — that is the version the board is actually built
-   and tested against. When *updating an existing* board, leave `minAppVersion` alone — bump it
-   only when the change starts using a Persephone feature that shipped in a newer version (then
-   set it to the version that introduced that feature).
-4. **Develop and test through the MCP**: `open_board` to open it, then iterate with
-   edit files → `board_refresh` → `browser_*` tools (`browser_snapshot`, `browser_click`,
-   `browser_evaluate`, `browser_take_screenshot` — always passing the board's `pageId` from
-   `list_pages`). Verify UI changes visually with a screenshot, and check the board's `ui.log`
-   for errors before declaring it working.
+   `board-manifest.json`, `board-base.css`, shim wiring and a copy of the app's board authoring
+   reference as `boards/<id>/CLAUDE.md` — and a board created this way is auto-trusted, so the
+   whole create → open → develop loop runs without user prompts. **The first argument becomes the
+   folder name**, so pass the board id (`aivision-explorer`), not the display name; set the
+   human-readable `name` in `board-manifest.json` afterwards.
+3. **Set `minAppVersion` to the running Persephone version.** For a NEW board, read path
+   **`version`** and put that in `board-manifest.json` — it is the version the board is actually
+   built and tested against. When *updating an existing* board, leave `minAppVersion` alone —
+   bump it only when the change starts using a Persephone feature that shipped in a newer version
+   (then set it to the version that introduced that feature).
+4. **Develop and test through `call`:**
+   - `boards.openBoard` with `args: ["<board root>"]` opens it.
+   - `pages` lists open pages with their ids; `pages["<id>"].editor` is the board page's facade.
+     Read `pages["<id>"].editor.$help` for the full surface — it carries `boardRoot`,
+     `renderState` (trusted / untrusted / not-found), `getManifest()`, `statusText`, `busy`,
+     `frameReady`, `secondaryViews`, `tabs` / `switchTab(tabId)`, and `app` once the board
+     publishes an AiVision model.
+   - `pages["<id>"].editor.reload()` with `args: []` replaces the old `board_refresh`; it reports
+     whether the main frame became ready.
+   - `window.screen.*` replaces the `browser_*` family for a board. A board iframe's accessibility
+     tree is **merged into the app window's**, so `window.screen.snapshot()` shows the board's own
+     content with `[ref=eNN]` handles, and `click`, `hover`, `type`, `select`, `pressKey`,
+     `evaluate`, `waitFor` and `screenshot` all act on it. Pass a ref explicitly as
+     `{ ref: "e12" }`; a plain string is always a CSS selector.
+   - Verify UI changes visually with `window.screen.screenshot()`, and read the board's `ui.log`
+     for errors before declaring it working.
+
+   Two traps worth knowing. An iframe with fewer than three accessibility nodes is omitted from
+   the snapshot entirely, so a *missing* board in the tree usually means it rendered nearly
+   nothing — not that the snapshot failed. And only the **active** page's content appears, so
+   activate the board's page with `pages.showPage("<id>")` before trusting anything you read.
 
 Existing boards and the `how-to/` recipes are the *secondary* reference — good for repo
 conventions and solved integration cases, never a substitute for step 1. A board's own

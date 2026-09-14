@@ -13,10 +13,9 @@ Overview of active and planned board work in this repo.
   `screenshot.png` is still missing, because a live capture would include the tab strip and status
   bar of a real session.
 
-## Planned
-
 - [ ] [BT-023: AiVision Explorer — one unified tree over every member](tasks/BT-023-aivision-explorer-unified-tree/README.md)
-  — supersedes the original BT-023 root picker, which is dropped.
+  — supersedes the original BT-023 root picker, which is dropped. Implemented and verified live
+  (board v1.0.1); unreviewed, and publishing is still blocked by BT-022's missing screenshot.
 
 Both belong to Persephone's **EPIC-101** (*Structured descriptor access and the AiVision Explorer
 board*); that epic document holds the design and the verified background. The `$describe` resolver

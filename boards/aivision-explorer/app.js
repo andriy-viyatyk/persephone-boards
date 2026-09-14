@@ -4,9 +4,12 @@
 
     const P = window.persephone;
     const state = {
-        rootPath: "", // Kept as a parameter for BT-023's board/web-page root picker.
+        rootPath: "",
         selectedPath: "",
         selectedDescriptor: null,
+        selectedRow: null,
+        selectedMember: null,
+        treeRows: new Map(),
         autoReadSelection: false,
         descriptors: new Map(),
         expanded: new Set(),
@@ -151,14 +154,39 @@
         (Array.isArray(descriptor && descriptor.children) ? descriptor.children : []).forEach((child) => {
             if (!child || typeof child.path !== "string" || seen.has(child.path)) return;
             seen.add(child.path);
-            rows.push({ path: child.path, label: child.segment || child.path, kind: child.kind, summary: child.summary, restricted: child.restricted, source: "child" });
+            rows.push({
+                path: child.path,
+                label: child.segment || child.path,
+                memberKind: undefined,
+                expandable: true,
+                writable: undefined,
+                caution: undefined,
+                restricted: child.restricted,
+                summary: child.summary,
+                signature: undefined,
+                source: "child",
+                parentPath,
+            });
         });
         (Array.isArray(descriptor && descriptor.members) ? descriptor.members : []).forEach((member) => {
-            if (!member || member.node !== true) return;
+            if (!member) return;
             const path = memberPath(parentPath, member.name);
             if (seen.has(path)) return;
             seen.add(path);
-            rows.push({ path, label: member.name, kind: member.kind, summary: member.summary, restricted: member.restricted, caution: member.caution, source: "member" });
+            rows.push({
+                path,
+                label: member.name,
+                memberKind: member.kind,
+                expandable: member.node === true,
+                writable: member.writable,
+                caution: member.caution,
+                restricted: member.restricted,
+                summary: member.summary,
+                signature: member.signature,
+                source: "member",
+                member,
+                parentPath,
+            });
         });
         return rows;
     }
@@ -170,22 +198,28 @@
             refs.treeStatus.textContent = "Loading descriptor graph…";
             return;
         }
-        refs.treeStatus.textContent = "Children are live paths; ordinary members stay in the detail view.";
+        refs.treeStatus.textContent = "Every member is listed; only expandable nodes show a caret.";
         const renderedPaths = new Set();
+        state.treeRows.clear();
 
         function addRow(row, depth) {
             if (renderedPaths.has(row.path)) return;
             renderedPaths.add(row.path);
+            state.treeRows.set(row.path, row);
             const wrapper = node("div", "tree-entry");
             const button = node("button", "tree-row" + (state.selectedPath === row.path ? " selected" : ""));
             button.type = "button";
             button.dataset.path = row.path;
+            button.dataset.expandable = row.expandable ? "true" : "false";
+            if (row.memberKind) button.dataset.memberKind = row.memberKind;
             if (row.caution) button.dataset.caution = row.caution;
             button.style.paddingLeft = (7 + depth * 15) + "px";
             const cached = state.descriptors.get(row.path);
             const expanded = state.expanded.has(row.path);
-            button.append(node("span", "tree-caret", expanded ? "▾" : "›"));
-            button.append(node("span", "tree-kind", row.kind === "method" ? "ƒ" : "◆"));
+            // The caret slot is always rendered so leaf labels line up under their siblings;
+            // it is empty for a leaf, which is also what marks the row as not expandable.
+            button.append(node("span", "tree-caret", row.expandable ? (expanded ? "▾" : "›") : ""));
+            button.append(node("span", "tree-kind", row.memberKind === "method" ? "ƒ" : "◆"));
             button.append(node("span", "tree-label", text(row.label)));
             if (row.restricted || (cached && cached.restricted)) button.append(node("span", "restricted-label", "restricted"));
             if (row.summary) button.title = text(row.summary);
@@ -199,12 +233,14 @@
         const rootButton = node("button", "tree-row" + (state.selectedPath === state.rootPath ? " selected" : ""), "Persephone root");
         rootButton.type = "button";
         rootButton.dataset.path = state.rootPath;
+        rootButton.dataset.expandable = "true";
         rootButton.style.paddingLeft = "7px";
         rootButton.title = text(rootDescriptor.summary);
         rootButton.prepend(node("span", "tree-caret", state.expanded.has(state.rootPath) ? "▾" : "⌄"));
         rootButton.prepend(node("span", "tree-kind", "◆"));
         refs.tree.append(rootButton);
         renderedPaths.add(state.rootPath);
+        state.treeRows.set(state.rootPath, { path: state.rootPath, label: "Persephone root", expandable: true, source: "root", parentPath: "" });
         if (state.expanded.has(state.rootPath)) {
             descriptorRows(rootDescriptor, state.rootPath).forEach((row) => addRow(row, 1));
         }
@@ -224,6 +260,12 @@
         addNote("Resolved help", descriptor.help);
         addNote("Identity", descriptor.identity);
         addNote("Restricted", descriptor.restricted, "restricted-note");
+        const members = Array.isArray(descriptor.members) ? descriptor.members : [];
+        const editorWithoutModel = (descriptor.kind === "BoardEditor" || descriptor.kind === "BrowserEditor")
+            && !members.some((member) => member && member.name === "app");
+        if (editorWithoutModel) {
+            addNote("Model state", "This page has no published model — activate its tab once, then refresh.", "unrendered-page-hint");
+        }
         if (!refs.notes.childNodes.length) refs.notes.append(node("div", "empty-state", "This descriptor has no additional notes."));
     }
 
@@ -239,7 +281,11 @@
             return;
         }
         if (state.values.has(state.selectedPath)) showReturned(state.values.get(state.selectedPath), "Returned value");
-        else showReturned(undefined, state.autoReadSelection ? "No value read" : "Not read — use Read below");
+        else if (state.selectedMember && state.selectedMember.kind === "method") {
+            showReturned(undefined, "Not invoked — use Invoke below");
+        } else {
+            showReturned(undefined, state.autoReadSelection ? "No value read" : "Not read — use Read below");
+        }
     }
 
     function renderMember(member, parentPath) {
@@ -289,6 +335,11 @@
 
     function renderMembers(descriptor) {
         refs.members.replaceChildren();
+        if (state.selectedMember) {
+            refs.memberCount.textContent = "1";
+            refs.members.append(renderMember(state.selectedMember, state.selectedRow.parentPath));
+            return;
+        }
         const members = descriptor && Array.isArray(descriptor.members) ? descriptor.members : [];
         refs.memberCount.textContent = String(members.length);
         if (!members.length) {
@@ -302,9 +353,13 @@
         const descriptor = state.selectedDescriptor;
         refs.rootPath.textContent = state.rootPath || "Persephone";
         refs.selectedPath.textContent = state.selectedPath || "\"\" · Persephone root";
-        refs.selectedKind.textContent = descriptor ? text(descriptor.kind || "Node") : "Search result";
-        refs.selectedSummary.textContent = descriptor ? text(descriptor.summary || "No summary supplied.") : "Descriptor unavailable for this leaf path.";
-        renderNotes(descriptor);
+        refs.selectedKind.textContent = state.selectedMember
+            ? text(state.selectedMember.kind || "member")
+            : (descriptor ? text(descriptor.kind || "Node") : "Search result");
+        refs.selectedSummary.textContent = state.selectedMember
+            ? text(state.selectedMember.summary || "No summary supplied.")
+            : (descriptor ? text(descriptor.summary || "No summary supplied.") : "Descriptor unavailable for this leaf path.");
+        renderNotes(state.selectedMember ? null : descriptor);
         renderResultForSelection();
         renderMembers(descriptor);
         renderTree();
@@ -415,11 +470,24 @@
         }
     }
 
-    async function selectPath(path, options) {
+    async function selectPath(path, options, row) {
         const autoRead = !!(options && options.autoRead);
         const token = ++state.selectionToken;
         state.selectedPath = path;
+        state.selectedRow = row || null;
+        state.selectedMember = row && row.source === "member" && !row.expandable ? row.member : null;
         state.autoReadSelection = autoRead;
+
+        // Leaf rows are fully described by their parent's member record. Never append
+        // .$describe to a leaf: descriptor-less values reject that call, and methods
+        // must never be reached through a call-syntax path.
+        if (row && !row.expandable) {
+            state.selectedDescriptor = state.descriptors.get(row.parentPath) || null;
+            renderDescriptor();
+            setOperation("Ready", "success");
+            return;
+        }
+
         setOperation("Loading " + (path || "the Persephone root") + "…");
         try {
             state.selectedDescriptor = await loadDescriptor(path);
@@ -434,7 +502,8 @@
         }
     }
 
-    async function togglePath(path) {
+    async function togglePath(path, row) {
+        if (!row || !row.expandable) return;
         if (state.expanded.has(path)) {
             state.expanded.delete(path);
             renderTree();
@@ -458,10 +527,10 @@
         const button = event.target.closest("button[data-path]");
         if (!button) return;
         const path = button.dataset.path || "";
-        // Tree rows come only from `children[]` and `node: true` members, which the descriptor
-        // contract says are safe to read. A row carrying `caution` is still read only on request.
-        await selectPath(path, { autoRead: !button.dataset.caution });
-        if (path || path === state.rootPath) await togglePath(path);
+        const row = state.treeRows.get(path);
+        if (!row) return;
+        await selectPath(path, { autoRead: row.expandable && !row.caution }, row);
+        await togglePath(path, row);
     });
 
     function renderSearch() {
@@ -620,6 +689,8 @@
             // Trust-first preflight: do not render an empty tree before this succeeds.
             const root = await loadDescriptor(state.rootPath, true);
             state.selectedPath = state.rootPath;
+            state.selectedRow = null;
+            state.selectedMember = null;
             state.selectedDescriptor = root;
             state.expanded.add(state.rootPath);
             refs.boot.hidden = true;

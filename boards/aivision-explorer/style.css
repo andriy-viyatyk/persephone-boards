@@ -102,6 +102,7 @@ code, pre, .path-chip, .member-path { font-family: var(--p-font-mono, ui-monospa
 .notes-content .note-block { margin-bottom: var(--p-space-md); }
 .notes-content .note-label { margin-bottom: 3px; color: var(--p-text-muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .notes-content .restricted-note { padding: var(--p-space-sm); border-left: 3px solid var(--p-warning); background: var(--p-bg-dark); }
+.notes-content .unrendered-page-hint { padding: var(--p-space-sm); border-left: 3px solid var(--p-accent); background: var(--p-bg-dark); color: var(--p-accent); }
 .members-list { display: grid; gap: var(--p-space-sm); }
 .member-card { padding: var(--p-space-md); border: 1px solid var(--p-border); border-radius: var(--p-radius-sm); background: var(--p-bg); }
 .member-top { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }

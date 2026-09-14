@@ -2,10 +2,10 @@
 
 ## Status
 
-**Status:** Planned
+**Status:** Implemented — awaiting review
 **Priority:** High
 **Board id:** `aivision-explorer`
-**Started:** -
+**Started:** 2026-09-15
 **Completed:** -
 
 > **Supersedes the original BT-023** (a root picker that switched the viewer between Persephone's
@@ -140,28 +140,28 @@ surfacing a resolver error. Do not try to activate the page from the board.
 
 ## Implementation Plan
 
-- [ ] Rewrite `descriptorRows(descriptor, parentPath)` in `boards/aivision-explorer/app.js` to emit
+- [x] Rewrite `descriptorRows(descriptor, parentPath)` in `boards/aivision-explorer/app.js` to emit
       the merged row shape above. Keep `children[].path` verbatim, keep `memberPath()` for members,
       keep deduplication by absolute path, and keep child rows first.
-- [ ] Extend `addRow()` / `renderTree()`: render a caret only when `row.expandable`; distinguish
+- [x] Extend `addRow()` / `renderTree()`: render a caret only when `row.expandable`; distinguish
       property, method and node rows visually (the existing `◆` / `ƒ` glyphs plus a `node` badge);
       keep `data-path`, keep `data-caution`, and add `data-expandable` and `data-member-kind`.
-- [ ] Guard `togglePath()` so a non-expandable row cannot be expanded and never calls `$describe`.
-- [ ] Rework the tree click handler: select every row; auto-read only when the row is expandable
+- [x] Guard `togglePath()` so a non-expandable row cannot be expanded and never calls `$describe`.
+- [x] Rework the tree click handler: select every row; auto-read only when the row is expandable
       **and** carries no `caution`; pass the row's member record to the detail pane.
-- [ ] Replace the detail pane's node-only rendering with the three-way branch. Reuse
+- [x] Replace the detail pane's node-only rendering with the three-way branch. Reuse
       `renderMember()`'s existing controls for the property and method cases — it already renders
       Read, a disabled-unless-`writable` assign box, an arguments box, Invoke, and the caution box.
-- [ ] Keep the Members panel for an expandable node as the whole-node overview; for a leaf
+- [x] Keep the Members panel for an expandable node as the whole-node overview; for a leaf
       selection show the single-member editor instead. Do not render both for a leaf.
-- [ ] Add the unrendered-page hint when an editor node's descriptor has no `app` member and its
+- [x] Add the unrendered-page hint when an editor node's descriptor has no `app` member and its
       `kind` is `BoardEditor` or the browser editor.
-- [ ] Keep `sanitizePath()` on every `helpSearch` result and keep search-result selection
+- [x] Keep `sanitizePath()` on every `helpSearch` result and keep search-result selection
       `{ autoRead: false }`.
-- [ ] Update `boards/aivision-explorer/CLAUDE.md` to describe the unified tree, and add a
+- [x] Update `boards/aivision-explorer/CLAUDE.md` to describe the unified tree, and add a
       `WHATS-NEW.md` entry under the next version heading with a matching `board-manifest.json`
       version bump.
-- [ ] Verify in the running app: expand to `pages[i].editor.app` and further into a board's model;
+- [x] Verify in the running app: expand to `pages[i].editor.app` and further into a board's model;
       read a property; assign a writable one; invoke a method with arguments; confirm a cautioned
       operation and cancel one; confirm selecting `pages[i].grouped` does **not** create a grouped
       page; confirm a never-activated board page shows the hint. Check `ui.log` is clean.
@@ -186,20 +186,20 @@ surfacing a resolver error. Do not try to activate the page from the board.
 
 ## Acceptance Criteria
 
-- [ ] Every member of a described node appears as a tree row; only live children and `node: true`
+- [x] Every member of a described node appears as a tree row; only live children and `node: true`
       members are expandable, and only those show a caret.
-- [ ] `pages[i].editor.app` appears as an ordinary expandable node for a rendered board or browser
+- [x] `pages[i].editor.app` appears as an ordinary expandable node for a rendered board or browser
       page, and its model can be walked in place without any root switching.
-- [ ] Selecting a property shows Read and, when writable, an assign box; selecting a method shows
+- [x] Selecting a property shows Read and, when writable, an assign box; selecting a method shows
       its signature, an arguments box and Invoke; selecting a node shows its descriptor.
-- [ ] Expanding or selecting never invokes a method and never reads a `caution` getter — verified
+- [x] Expanding or selecting never invokes a method and never reads a `caution` getter — verified
       specifically against `pages[i].grouped`, which must not create a grouped page when clicked.
-- [ ] Assign and Invoke on a cautioned member still require a fresh per-operation confirmation.
-- [ ] A `helpSearch` result for a method still selects a plain member path and does not invoke.
-- [ ] A board page that has never been activated shows the "no published model" hint rather than an
+- [x] Assign and Invoke on a cautioned member still require a fresh per-operation confirmation.
+- [x] A `helpSearch` result for a method still selects a plain member path and does not invoke.
+- [x] A board page that has never been activated shows the "no published model" hint rather than an
       error or a silent omission.
-- [ ] `ui.log` is clean (no CSP violations)
-- [ ] Fully offline (no CDN / network)
+- [x] `ui.log` is clean (no CSP violations)
+- [x] Fully offline (no CDN / network)
 
 ## Files Changed
 

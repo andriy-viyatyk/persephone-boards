@@ -12,7 +12,12 @@ _Nothing in progress._
 
 ## Planned
 
-_Nothing queued._
+- [ ] [BT-022: AiVision Explorer board — tree, path resolution, help and events](tasks/BT-022-aivision-explorer/README.md)
+- [ ] [BT-023: AiVision Explorer — root picker for board and web-page models](tasks/BT-023-aivision-explorer-roots/README.md)
+
+Both belong to Persephone's **EPIC-101** (*Structured descriptor access and the AiVision Explorer
+board*); that epic document holds the design and the verified background. BT-022 depends on the
+`$describe` resolver segment landing in `ai-vision` first.
 
 ---
 

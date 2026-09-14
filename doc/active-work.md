@@ -8,16 +8,19 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-_Nothing in progress._
+- [ ] [BT-022: AiVision Explorer board — tree, path resolution, help and events](tasks/BT-022-aivision-explorer/README.md)
+  — implemented and verified in the running app (commit `0e022a6`), but **not publishable**:
+  `screenshot.png` is still missing, because a live capture would include the tab strip and status
+  bar of a real session.
 
 ## Planned
 
-- [ ] [BT-022: AiVision Explorer board — tree, path resolution, help and events](tasks/BT-022-aivision-explorer/README.md)
-- [ ] [BT-023: AiVision Explorer — root picker for board and web-page models](tasks/BT-023-aivision-explorer-roots/README.md)
+- [ ] [BT-023: AiVision Explorer — one unified tree over every member](tasks/BT-023-aivision-explorer-unified-tree/README.md)
+  — supersedes the original BT-023 root picker, which is dropped.
 
 Both belong to Persephone's **EPIC-101** (*Structured descriptor access and the AiVision Explorer
-board*); that epic document holds the design and the verified background. BT-022 depends on the
-`$describe` resolver segment landing in `ai-vision` first.
+board*); that epic document holds the design and the verified background. The `$describe` resolver
+segment they depend on shipped in `ai-vision` 1.2.0, so it is no longer a blocker.
 
 ---
 

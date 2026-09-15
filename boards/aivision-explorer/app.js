@@ -24,7 +24,7 @@
     const $ = (id) => document.getElementById(id);
     const refs = {
         boot: $("boot"), bootTitle: $("boot-title"), bootMessage: $("boot-message"), retry: $("retry"),
-        shell: $("app-shell"), tree: $("tree"), treePane: document.querySelector(".tree-pane"), memberOps: $("member-ops"), memberOpsBody: $("member-ops-body"), agentHint: $("agent-hint"), explorerNote: $("explorer-note"), readSelected: $("read-selected"),
+        shell: $("app-shell"), tree: $("tree"), treePane: document.querySelector(".tree-pane"), memberOps: $("member-ops"), memberOpsBody: $("member-ops-body"), agentHint: $("agent-hint"), hintPanel: $("hint-panel"), explorerNote: $("explorer-note"), readSelected: $("read-selected"),
         selectedPath: $("selected-path"), selectedKind: $("selected-kind"), selectedSummary: $("selected-summary"),
         operation: $("operation-status"), returned: $("returned-value"), members: $("members"), memberCount: $("member-count"),
         searchForm: $("search-form"), searchQuery: $("search-query"), searchLimit: $("search-limit"),
@@ -320,7 +320,15 @@
         return parts.join("\n");
     }
 
-    function renderAgentHint(descriptor) {
+    /**
+     * A `$help` row is the one selection with no hint to show. The resolver answers the help
+     * segment ahead of everything else and returns the prose ALONE — its branch returns
+     * `{ path, result }` with no `hint` — and the prose already contains what a hint would
+     * repeat. Rendering one here would be the Explorer inventing something the agent never sees.
+     */
+    function renderAgentHint(descriptor, isHelpRow) {
+        refs.hintPanel.hidden = Boolean(isHelpRow);
+        if (isHelpRow) return;
         refs.agentHint.textContent = buildAgentHint(descriptor);
     }
 
@@ -471,7 +479,7 @@
         refs.selectedSummary.textContent = state.selectedMember
             ? text(state.selectedMember.summary || "No summary supplied.")
             : (descriptor ? text(descriptor.summary || "No summary supplied.") : "Descriptor unavailable for this leaf path.");
-        renderAgentHint(state.selectedMember ? null : descriptor);
+        renderAgentHint(state.selectedMember ? null : descriptor, state.selectedRow && state.selectedRow.source === "help");
         renderExplorerNote(state.selectedMember ? null : descriptor);
         renderResultForSelection();
         renderMemberOps();

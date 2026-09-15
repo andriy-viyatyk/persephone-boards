@@ -1,3 +1,7 @@
+## 1.0.3
+
+- A `$help` node no longer shows a Hint block: the resolver returns help prose alone, with no hint, so showing one was inventing something the agent never sees.
+
 ## 1.0.2
 
 - Reworked the layout: a full-height resizable tree, and a centre column with Agent, Members and contextual Search/Events tabs.

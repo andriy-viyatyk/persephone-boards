@@ -10,6 +10,8 @@
         selectedRow: null,
         selectedMember: null,
         treeRows: new Map(),
+        activeTab: "agent",
+        tabSelectionPath: null,
         autoReadSelection: false,
         descriptors: new Map(),
         expanded: new Set(),
@@ -22,10 +24,9 @@
     const $ = (id) => document.getElementById(id);
     const refs = {
         boot: $("boot"), bootTitle: $("boot-title"), bootMessage: $("boot-message"), retry: $("retry"),
-        shell: $("app-shell"), rootPath: $("root-path"), tree: $("tree"), treeStatus: $("tree-status"),
+        shell: $("app-shell"), tree: $("tree"), treePane: document.querySelector(".tree-pane"), memberOps: $("member-ops"), memberOpsBody: $("member-ops-body"), agentHint: $("agent-hint"), explorerNote: $("explorer-note"), readSelected: $("read-selected"),
         selectedPath: $("selected-path"), selectedKind: $("selected-kind"), selectedSummary: $("selected-summary"),
-        operation: $("operation-status"), returned: $("returned-value"), valueState: $("value-state"),
-        notes: $("descriptor-notes"), members: $("members"), memberCount: $("member-count"),
+        operation: $("operation-status"), returned: $("returned-value"), members: $("members"), memberCount: $("member-count"),
         searchForm: $("search-form"), searchQuery: $("search-query"), searchLimit: $("search-limit"),
         searchStatus: $("search-status"), searchResults: $("search-results"),
         events: $("events"), eventsState: $("events-state"), eventError: $("event-error"),
@@ -148,9 +149,22 @@
         return descriptor;
     }
 
+    /** The `$help` path of a node — the prose an agent reads with `<path>.$help`. */
+    function helpPath(parentPath) {
+        return parentPath ? parentPath + ".$help" : "$help";
+    }
+
     function descriptorRows(descriptor, parentPath) {
         const rows = [];
         const seen = new Set();
+        // `$help` is a real resolvable path, so it is a real row: selecting it reads the same
+        // prose the agent gets. It leads because it describes the node it hangs under.
+        const help = helpPath(parentPath);
+        seen.add(help);
+        rows.push({
+            path: help, label: "$help", memberKind: "help", expandable: false, special: true,
+            summary: "The prose an agent reads at this path.", source: "help", parentPath,
+        });
         (Array.isArray(descriptor && descriptor.children) ? descriptor.children : []).forEach((child) => {
             if (!child || typeof child.path !== "string" || seen.has(child.path)) return;
             seen.add(child.path);
@@ -176,6 +190,7 @@
             rows.push({
                 path,
                 label: member.name,
+                special: Object.prototype.hasOwnProperty.call(SPECIAL_TABS, path),
                 memberKind: member.kind,
                 expandable: member.node === true,
                 writable: member.writable,
@@ -194,11 +209,9 @@
     function renderTree() {
         refs.tree.replaceChildren();
         const rootDescriptor = state.descriptors.get(state.rootPath);
-        if (!rootDescriptor) {
-            refs.treeStatus.textContent = "Loading descriptor graph…";
-            return;
-        }
-        refs.treeStatus.textContent = "Every member is listed; only expandable nodes show a caret.";
+        // The header's operation status already reports loading and errors; the tree pane
+        // itself carries no prose.
+        if (!rootDescriptor) return;
         const renderedPaths = new Set();
         state.treeRows.clear();
 
@@ -219,7 +232,9 @@
             // The caret slot is always rendered so leaf labels line up under their siblings;
             // it is empty for a leaf, which is also what marks the row as not expandable.
             button.append(node("span", "tree-caret", row.expandable ? (expanded ? "▾" : "›") : ""));
-            button.append(node("span", "tree-kind", row.memberKind === "method" ? "ƒ" : "◆"));
+            const glyph = node("span", "tree-kind" + (row.special ? " special" : ""), row.memberKind === "method" ? "ƒ" : "◆");
+            if (row.special) glyph.title = "AiVision-wide — opens its own tab";
+            button.append(glyph);
             button.append(node("span", "tree-label", text(row.label)));
             if (row.restricted || (cached && cached.restricted)) button.append(node("span", "restricted-label", "restricted"));
             if (row.summary) button.title = text(row.summary);
@@ -230,14 +245,18 @@
             }
         }
 
-        const rootButton = node("button", "tree-row" + (state.selectedPath === state.rootPath ? " selected" : ""), "Persephone root");
+        // Built exactly like every other row — same caret glyphs, same order — so the root does
+        // not read as a different kind of thing when collapsed.
+        const rootExpanded = state.expanded.has(state.rootPath);
+        const rootButton = node("button", "tree-row" + (state.selectedPath === state.rootPath ? " selected" : ""));
         rootButton.type = "button";
         rootButton.dataset.path = state.rootPath;
         rootButton.dataset.expandable = "true";
         rootButton.style.paddingLeft = "7px";
         rootButton.title = text(rootDescriptor.summary);
-        rootButton.prepend(node("span", "tree-caret", state.expanded.has(state.rootPath) ? "▾" : "⌄"));
-        rootButton.prepend(node("span", "tree-kind", "◆"));
+        rootButton.append(node("span", "tree-caret", rootExpanded ? "▾" : "›"));
+        rootButton.append(node("span", "tree-kind", "◆"));
+        rootButton.append(node("span", "tree-label", "Persephone root"));
         refs.tree.append(rootButton);
         renderedPaths.add(state.rootPath);
         state.treeRows.set(state.rootPath, { path: state.rootPath, label: "Persephone root", expandable: true, source: "root", parentPath: "" });
@@ -246,46 +265,128 @@
         }
     }
 
-    function renderNotes(descriptor) {
-        refs.notes.replaceChildren();
-        if (!descriptor) return;
-        const addNote = (label, value, extraClass) => {
-            if (value === undefined || value === null || value === "") return;
-            const block = node("div", "note-block" + (extraClass ? " " + extraClass : ""));
-            block.append(node("div", "note-label", label));
-            block.append(node("div", "note-value", typeof value === "string" ? value : formatJson(value)));
-            refs.notes.append(block);
-        };
-        addNote("Overview", descriptor.overview);
-        addNote("Resolved help", descriptor.help);
-        addNote("Identity", descriptor.identity);
-        addNote("Restricted", descriptor.restricted, "restricted-note");
-        const members = Array.isArray(descriptor.members) ? descriptor.members : [];
-        const editorWithoutModel = (descriptor.kind === "BoardEditor" || descriptor.kind === "BrowserEditor")
+    /**
+     * The Explorer's own aside — deliberately NOT part of the agent envelope above it.
+     *
+     * Everything a `call` actually returns is the result and the hint; the descriptor's other
+     * `$describe` fields are already inside the hint (`overview` at the root, `restricted` on
+     * its second line) or are never declared in Persephone (`identity`). The one thing worth
+     * saying that no agent channel carries is that a page has published no model yet.
+     */
+    function renderExplorerNote(descriptor) {
+        const members = descriptor && Array.isArray(descriptor.members) ? descriptor.members : [];
+        const editorWithoutModel = descriptor
+            && (descriptor.kind === "BoardEditor" || descriptor.kind === "BrowserEditor")
             && !members.some((member) => member && member.name === "app");
-        if (editorWithoutModel) {
-            addNote("Model state", "This page has no published model — activate its tab once, then refresh.", "unrendered-page-hint");
-        }
-        if (!refs.notes.childNodes.length) refs.notes.append(node("div", "empty-state", "This descriptor has no additional notes."));
+        refs.explorerNote.hidden = !editorWithoutModel;
+        refs.explorerNote.textContent = editorWithoutModel
+            ? "This page has published no model — activate its tab once, then refresh. Until then it has no app member."
+            : "";
     }
 
-    function showReturned(value, status) {
-        refs.returned.textContent = formatJson(value);
-        refs.valueState.textContent = status || "Returned value";
+
+    /**
+     * Re-render the hint the agent is handed with a result.
+     *
+     * The board bridge deliberately drops it — board-call-command hardcodes hints: "never" and
+     * returns the bare result — so the Explorer rebuilds it from the same `$describe` payload the
+     * host builds it from, in ai-vision's own `buildHint` format. Unlike a real session this is
+     * never deduplicated: a host stops repeating a kind's member list once an agent has seen it,
+     * and here the whole point is to see it every time.
+     */
+    function formatHintMember(member) {
+        const name = member.kind === "method" ? (member.signature || member.name + "()") : member.name;
+        const flags = [];
+        if (member.writable) flags.push("writable");
+        if (member.caution) flags.push("CAUTION: " + member.caution);
+        return "  " + name + " — " + member.summary + (flags.length ? " [" + flags.join("; ") + "]" : "");
+    }
+
+    function buildAgentHint(descriptor) {
+        if (!descriptor) return "No descriptor — this path resolves to a value, so the agent is given the value alone.";
+        const parts = [descriptor.kind + " — " + descriptor.summary];
+        if (descriptor.restricted) parts.push("restricted: " + descriptor.restricted);
+        const children = Array.isArray(descriptor.children) ? descriptor.children : [];
+        if (children.length) {
+            parts.push("children (live):\n" + children.map((child) => {
+                const line = "  " + child.path + " — " + child.kind + ": " + child.summary;
+                return child.restricted ? line + " [restricted: " + child.restricted + "]" : line;
+            }).join("\n"));
+        }
+        if (!descriptor.path && descriptor.overview) parts.push(descriptor.overview);
+        const members = Array.isArray(descriptor.members) ? descriptor.members : [];
+        if (members.length) parts.push("members:\n" + members.map(formatHintMember).join("\n"));
+        parts.push('Details: call with path "' + (descriptor.path ? descriptor.path + ".$help" : "$help") + '".');
+        return parts.join("\n");
+    }
+
+    function renderAgentHint(descriptor) {
+        refs.agentHint.textContent = buildAgentHint(descriptor);
+    }
+
+    /** The Read control is the fallback for a value the Explorer will not fetch on its own —
+     *  in practice only a cautioned member, since everything else reads on selection. */
+    function updateReadControl() {
+        refs.readSelected.hidden = !state.selectedPath || state.values.has(state.selectedPath);
+    }
+
+    // Strings, numbers, true/false/null, and object keys. Written as one pass over the already
+    // formatted text so the highlighter cannot disagree with what JSON.stringify produced, and
+    // built as DOM nodes rather than markup — no innerHTML, so a value containing "<script>"
+    // stays a value.
+    const JSON_TOKEN = /"(?:\\.|[^"\\])*"(\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
+
+    function paintJson(target, source) {
+        target.replaceChildren();
+        let last = 0;
+        let match;
+        JSON_TOKEN.lastIndex = 0;
+        while ((match = JSON_TOKEN.exec(source)) !== null) {
+            if (match.index > last) target.append(document.createTextNode(source.slice(last, match.index)));
+            const token = match[0];
+            if (token[0] === '"' && match[1] !== undefined) {
+                const colon = token.lastIndexOf(":");
+                target.append(node("span", "json-key", token.slice(0, colon)));
+                target.append(document.createTextNode(token.slice(colon)));
+            } else if (token[0] === '"') {
+                target.append(node("span", "json-string", token));
+            } else if (token === "true" || token === "false") {
+                target.append(node("span", "json-boolean", token));
+            } else if (token === "null") {
+                target.append(node("span", "json-null", token));
+            } else {
+                target.append(node("span", "json-number", token));
+            }
+            last = match.index + token.length;
+        }
+        if (last < source.length) target.append(document.createTextNode(source.slice(last)));
+    }
+
+    function showReturned(value) {
+        // A string result is prose ($help, a file's text) — formatJson returns it verbatim and
+        // it is not JSON to colour.
+        if (typeof value === "string" || value === undefined) refs.returned.textContent = formatJson(value);
+        else paintJson(refs.returned, formatJson(value));
+        updateReadControl();
+    }
+
+    /** No value yet: say why in the block itself, since the header no longer carries a state. */
+    function showPending(message) {
+        refs.returned.textContent = message;
+        updateReadControl();
     }
 
     function renderResultForSelection() {
         if (!state.selectedPath) {
-            showReturned(undefined, "Descriptor only");
-            refs.returned.textContent = "The Persephone root has no leaf value; use the descriptor and member controls below.";
+            showPending("The Persephone root has no leaf value; use the tree and the member controls below.");
             return;
         }
-        if (state.values.has(state.selectedPath)) showReturned(state.values.get(state.selectedPath), "Returned value");
-        else if (state.selectedMember && state.selectedMember.kind === "method") {
-            showReturned(undefined, "Not invoked — use Invoke below");
-        } else {
-            showReturned(undefined, state.autoReadSelection ? "No value read" : "Not read — use Read below");
+        if (state.values.has(state.selectedPath)) {
+            showReturned(state.values.get(state.selectedPath));
+            return;
         }
+        const caution = state.selectedRow && state.selectedRow.caution;
+        showPending(caution ? "Not read — " + caution : "Not read yet.");
     }
 
     function renderMember(member, parentPath) {
@@ -333,35 +434,49 @@
         return card;
     }
 
+    /** The Agent tab's operation panel: the controls for the selected leaf member only.
+     *  A node selection has nothing to operate on itself — its operations are its members. */
+    function renderMemberOps() {
+        refs.memberOpsBody.replaceChildren();
+        const member = state.selectedMember;
+        refs.memberOps.hidden = !member;
+        if (!member) return;
+        refs.memberOpsBody.append(renderMember(member, state.selectedRow.parentPath));
+    }
+
+    /** The Members tab: always the whole selected node's member list. For a leaf selection
+     *  that is the parent node's list, which is the descriptor the leaf was read from. */
     function renderMembers(descriptor) {
         refs.members.replaceChildren();
-        if (state.selectedMember) {
-            refs.memberCount.textContent = "1";
-            refs.members.append(renderMember(state.selectedMember, state.selectedRow.parentPath));
-            return;
-        }
         const members = descriptor && Array.isArray(descriptor.members) ? descriptor.members : [];
-        refs.memberCount.textContent = String(members.length);
+        refs.memberCount.textContent = members.length ? " [" + members.length + "]" : "";
         if (!members.length) {
             refs.members.append(node("div", "empty-state", "No members are declared on this descriptor."));
             return;
         }
-        members.forEach((member) => refs.members.append(renderMember(member, state.selectedPath)));
+        const parentPath = state.selectedMember && state.selectedRow ? state.selectedRow.parentPath : state.selectedPath;
+        members.forEach((member) => refs.members.append(renderMember(member, parentPath)));
     }
 
     function renderDescriptor() {
         const descriptor = state.selectedDescriptor;
-        refs.rootPath.textContent = state.rootPath || "Persephone";
-        refs.selectedPath.textContent = state.selectedPath || "\"\" · Persephone root";
+        // The toolbar carries the selected path; a long one ellipsises and keeps the full
+        // value in its tooltip.
+        const shown = state.selectedPath || "\"\" · Persephone root";
+        refs.selectedPath.textContent = shown;
+        refs.selectedPath.title = shown;
         refs.selectedKind.textContent = state.selectedMember
             ? text(state.selectedMember.kind || "member")
             : (descriptor ? text(descriptor.kind || "Node") : "Search result");
         refs.selectedSummary.textContent = state.selectedMember
             ? text(state.selectedMember.summary || "No summary supplied.")
             : (descriptor ? text(descriptor.summary || "No summary supplied.") : "Descriptor unavailable for this leaf path.");
-        renderNotes(state.selectedMember ? null : descriptor);
+        renderAgentHint(state.selectedMember ? null : descriptor);
+        renderExplorerNote(state.selectedMember ? null : descriptor);
         renderResultForSelection();
+        renderMemberOps();
         renderMembers(descriptor);
+        syncTabs();
         renderTree();
     }
 
@@ -370,11 +485,11 @@
         try {
             const result = await bridgeCall(path);
             state.values.set(path, result);
-            showReturned(result, "Returned value");
+            showReturned(result);
             setOperation("Read " + path, "success");
         } catch (error) {
             if (isTrustFailure(error)) return showTrustRequired(error);
-            showReturned("Error: " + errorMessage(error), "Read failed");
+            showReturned("Error: " + errorMessage(error));
             reportError(error);
         }
     }
@@ -443,29 +558,28 @@
             const options = action === "invoke" ? { args: payload } : { value: payload };
             const result = await bridgeCall(path, options);
             state.values.set(path, result);
-            showReturned(result, "Returned value");
+            showReturned(result);
             setOperation((action === "invoke" ? "Invoked " : "Assigned ") + path, "success");
         } catch (error) {
             if (isTrustFailure(error)) return showTrustRequired(error);
-            showReturned("Error: " + errorMessage(error), action === "invoke" ? "Invocation failed" : "Assignment failed");
+            showReturned("Error: " + errorMessage(error));
             reportError(error);
         }
     }
 
     async function readSelectedValue(token) {
         const path = state.selectedPath;
-        if (!path || !state.selectedDescriptor) return;
-        refs.valueState.textContent = "Reading…";
+        if (!path) return;
         try {
             const value = await bridgeCall(path);
             if (token !== state.selectionToken) return;
             state.values.set(path, value);
-            showReturned(value, "Returned value");
+            showReturned(value);
             setOperation("Read " + path, "success");
         } catch (error) {
             if (token !== state.selectionToken) return;
             if (isTrustFailure(error)) return showTrustRequired(error);
-            showReturned("Error: " + errorMessage(error), "Read failed");
+            showReturned("Error: " + errorMessage(error));
             setOperation("Read failed: " + errorMessage(error), "error");
         }
     }
@@ -484,6 +598,10 @@
         if (row && !row.expandable) {
             state.selectedDescriptor = state.descriptors.get(row.parentPath) || null;
             renderDescriptor();
+            // A leaf reads on selection under the same rule as a node: reading is an ordinary
+            // resolve, and reading a METHOD path returns its descriptor rather than calling it.
+            // `caution` is the one thing that withholds the read.
+            if (autoRead || row.source === "help") return readSelectedValue(token);
             setOperation("Ready", "success");
             return;
         }
@@ -529,7 +647,10 @@
         const path = button.dataset.path || "";
         const row = state.treeRows.get(path);
         if (!row) return;
-        await selectPath(path, { autoRead: row.expandable && !row.caution }, row);
+        // Reading never assigns and never invokes, so every row reads on selection — except one
+        // that declares a caution, because a caution on a property is exactly the statement that
+        // reading it acts (pages[i].grouped CREATES a grouped page). Those wait for Read.
+        await selectPath(path, { autoRead: !row.caution }, row);
         await togglePath(path, row);
     });
 
@@ -574,6 +695,12 @@
             setOperation("Search failed: " + errorMessage(error), "error");
         }
     });
+
+    /** "Live" is the expected state and says nothing; anything else is worth showing. */
+    function setEventsState(label) {
+        refs.eventsState.textContent = label;
+        refs.eventsState.hidden = label === "Live";
+    }
 
     function renderEvents() {
         refs.events.replaceChildren();
@@ -623,7 +750,7 @@
     async function eventLoop(generation) {
         if (state.events.waiting) return;
         state.events.waiting = true;
-        refs.eventsState.textContent = "Live";
+        setEventsState("Live");
         try {
             while (generation === state.events.generation) {
                 const result = await bridgeCall("events.wait", { args: [] });
@@ -640,7 +767,7 @@
             if (generation !== state.events.generation) return;
             refs.eventError.hidden = false;
             refs.eventError.textContent = "Live feed paused: " + errorMessage(error);
-            refs.eventsState.textContent = "Paused";
+            setEventsState("Paused — the feed stopped; refresh the board to resume.");
         } finally {
             if (generation === state.events.generation) state.events.waiting = false;
         }
@@ -650,7 +777,7 @@
         const generation = ++state.events.generation;
         state.events.waiting = false;
         refs.eventError.hidden = true;
-        refs.eventsState.textContent = "Loading…";
+        setEventsState("Loading…");
         try {
             const recent = await bridgeCall("events.recent", { args: [50] });
             if (generation !== state.events.generation) return;
@@ -662,7 +789,7 @@
             if (generation !== state.events.generation) return;
             refs.eventError.hidden = false;
             refs.eventError.textContent = "History unavailable: " + errorMessage(error);
-            refs.eventsState.textContent = "Unavailable";
+            setEventsState("Unavailable — the event feed could not be reached.");
             renderEvents();
         }
     }
@@ -673,6 +800,108 @@
         state.expanded.clear();
         await boot();
     });
+
+    // Views over one selection: what the agent sees at this path, and the node's whole member
+    // list. Switching tabs makes no bridge call.
+    const TAB_IDS = ["agent", "members", "search", "events"];
+
+    /**
+     * Two root members do not describe the selection — they ARE AiVision-wide facilities, so
+     * their UI is not repeated under every node. Selecting one reveals its own tab; the tree
+     * marks both rows to say they behave this way.
+     */
+    const SPECIAL_TABS = { helpSearch: "search", events: "events" };
+    const CONTEXTUAL_TABS = ["search", "events"];
+
+    function showTab(name) {
+        const wanted = TAB_IDS.indexOf(name) >= 0 ? name : "agent";
+        const active = $("tab-btn-" + wanted).hidden ? "agent" : wanted;
+        state.activeTab = active;
+        TAB_IDS.forEach((id) => {
+            const button = $("tab-btn-" + id);
+            const panel = $("tab-" + id);
+            const selected = id === active;
+            button.classList.toggle("active", selected);
+            button.setAttribute("aria-selected", selected ? "true" : "false");
+            panel.hidden = !selected;
+        });
+    }
+
+    /** Reveal the selected member's own tab, and open it the first time that selection lands.
+     *  A later click on Agent or Members stays put — only a new selection re-opens it. */
+    function syncTabs() {
+        const special = SPECIAL_TABS[state.selectedPath] || null;
+        CONTEXTUAL_TABS.forEach((id) => { $("tab-btn-" + id).hidden = special !== id; });
+        const changed = state.tabSelectionPath !== state.selectedPath;
+        state.tabSelectionPath = state.selectedPath;
+        showTab(changed && special ? special : state.activeTab);
+    }
+
+    // A node the auto-read rule refuses (any row carrying `caution`) is still readable on
+    // request — that explicit read is what an agent's own call to the path does.
+    $("read-selected").addEventListener("click", async () => {
+        const row = state.selectedRow;
+        const caution = row && row.caution;
+        if (caution && !(await confirmCaution({ caution }, state.selectedPath, "read"))) {
+            setOperation("Cancelled — no bridge call was made.");
+            return;
+        }
+        await readSelectedValue(++state.selectionToken);
+    });
+
+    // Tree pane width: dragged, keyboard-adjustable, and remembered per viewer. localStorage
+    // can throw outright (private windows, blocked site data), so every access is guarded and
+    // the default width is always a working fallback.
+    const PANE_MIN = 180;
+    const PANE_MAX = 720;
+    const PANE_KEY = "aivision-explorer.treeWidth";
+
+    function applyPaneWidth(width, persist) {
+        const clamped = Math.min(PANE_MAX, Math.max(PANE_MIN, Math.round(width)));
+        refs.treePane.style.flexBasis = clamped + "px";
+        if (persist) {
+            try { window.localStorage.setItem(PANE_KEY, String(clamped)); } catch (_) { /* not available */ }
+        }
+        return clamped;
+    }
+
+    (function restorePaneWidth() {
+        let stored = null;
+        try { stored = window.localStorage.getItem(PANE_KEY); } catch (_) { stored = null; }
+        const width = Number(stored);
+        if (Number.isFinite(width) && width > 0) applyPaneWidth(width, false);
+    })();
+
+    (function enablePaneResize() {
+        const handle = $("pane-resizer");
+        handle.addEventListener("pointerdown", (event) => {
+            event.preventDefault();
+            handle.setPointerCapture(event.pointerId);
+            handle.classList.add("dragging");
+            document.body.classList.add("resizing");
+            const origin = refs.treePane.getBoundingClientRect().left;
+            const onMove = (move) => applyPaneWidth(move.clientX - origin, false);
+            const onUp = () => {
+                handle.removeEventListener("pointermove", onMove);
+                handle.removeEventListener("pointerup", onUp);
+                handle.removeEventListener("pointercancel", onUp);
+                handle.classList.remove("dragging");
+                document.body.classList.remove("resizing");
+                applyPaneWidth(refs.treePane.getBoundingClientRect().width, true);
+            };
+            handle.addEventListener("pointermove", onMove);
+            handle.addEventListener("pointerup", onUp);
+            handle.addEventListener("pointercancel", onUp);
+        });
+        handle.addEventListener("keydown", (event) => {
+            const step = event.key === "ArrowLeft" ? -16 : event.key === "ArrowRight" ? 16 : 0;
+            if (!step) return;
+            event.preventDefault();
+            applyPaneWidth(refs.treePane.getBoundingClientRect().width + step, true);
+        });
+    })();
+
+    TAB_IDS.forEach((id) => $("tab-btn-" + id).addEventListener("click", () => showTab(id)));
 
     $("collapse-tree").addEventListener("click", () => {
         state.expanded.clear();

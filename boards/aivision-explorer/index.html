@@ -18,110 +18,104 @@
     </div>
 
     <div id="app-shell" hidden>
-        <header class="topbar p-toolbar">
-            <span class="brand-mark">AV</span>
-            <span class="p-toolbar-title">AiVision Explorer</span>
-            <span class="p-sep"></span>
-            <span class="root-label">Root</span>
-            <code id="root-path" class="path-chip">Persephone</code>
-            <span class="p-spacer"></span>
-            <span id="operation-status" class="operation-status" aria-live="polite">Ready</span>
-            <button id="refresh" class="p-btn" type="button">Refresh</button>
-        </header>
+        <aside class="tree-pane" aria-label="AiVision tree">
+            <div class="tree-toolbar">
+                <button id="collapse-tree" class="p-btn icon" type="button" title="Collapse all">−</button>
+            </div>
+            <nav id="tree" class="tree" aria-label="Model nodes"></nav>
+        </aside>
 
-        <main class="explorer-layout">
-            <aside class="tree-pane" aria-label="AiVision tree">
-                <div class="pane-heading">
-                    <div>
-                        <div class="eyebrow">Descriptor graph</div>
-                        <h2>Model tree</h2>
-                    </div>
-                    <button id="collapse-tree" class="p-btn icon" type="button" title="Collapse all">−</button>
-                </div>
-                <p class="tree-note">Every member is listed. Live children and members marked <code>node: true</code> are expandable.</p>
-                <div id="tree-status" class="inline-status" aria-live="polite"></div>
-                <nav id="tree" class="tree" aria-label="Model nodes"></nav>
-            </aside>
+        <div id="pane-resizer" class="pane-resizer" role="separator" aria-orientation="vertical"
+             tabindex="0" aria-label="Resize the tree panel"></div>
 
-            <section class="detail-pane" aria-label="Selected node details">
-                <div class="detail-header">
-                    <div class="eyebrow">Selected path</div>
-                    <h1 id="selected-path">Persephone root</h1>
-                    <div class="descriptor-line">
-                        <span id="selected-kind" class="kind-badge">Persephone</span>
-                        <span id="selected-summary" class="muted">Loading descriptor…</span>
-                    </div>
-                </div>
+        <div class="center-panel">
+            <header class="topbar p-toolbar">
+                <code id="selected-path" class="path-chip toolbar-path">Persephone root</code>
+                <span class="p-spacer"></span>
+                <span id="operation-status" class="operation-status" aria-live="polite">Ready</span>
+                <button id="refresh" class="p-btn" type="button">Refresh</button>
+            </header>
 
-                <section class="panel search-panel" aria-labelledby="search-title">
-                    <div class="section-heading compact">
-                        <div>
-                            <div class="eyebrow">Find in help</div>
-                            <h2 id="search-title">Help search</h2>
+            <div class="tab-bar" role="tablist" aria-label="Detail views">
+                <button id="tab-btn-agent" class="tab" type="button" role="tab" data-tab="agent" aria-controls="tab-agent" aria-selected="true">Agent</button>
+                <button id="tab-btn-members" class="tab" type="button" role="tab" data-tab="members" aria-controls="tab-members" aria-selected="false">Members<span id="member-count" class="tab-count"></span></button>
+                <button id="tab-btn-search" class="tab special" type="button" role="tab" data-tab="search" aria-controls="tab-search" aria-selected="false" hidden>Search</button>
+                <button id="tab-btn-events" class="tab special" type="button" role="tab" data-tab="events" aria-controls="tab-events" aria-selected="false" hidden>Events</button>
+            </div>
+
+            <main class="detail-pane" aria-label="Selected node details">
+                <section id="tab-agent" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-agent">
+                    <div class="detail-header">
+                        <div class="descriptor-line">
+                            <span id="selected-kind" class="kind-badge">Persephone</span>
+                            <span id="selected-summary" class="muted">Loading descriptor…</span>
                         </div>
                     </div>
-                    <form id="search-form" class="search-form">
-                        <label class="sr-only" for="search-query">Search query</label>
-                        <input id="search-query" class="p-input" type="search" placeholder="Search the live descriptor graph…" autocomplete="off" />
-                        <label class="sr-only" for="search-limit">Result limit</label>
-                        <select id="search-limit" class="p-select">
-                            <option value="10">10</option>
-                            <option value="20" selected>20</option>
-                            <option value="50">50</option>
-                        </select>
-                        <button class="p-btn primary" type="submit">Search</button>
-                    </form>
-                    <div id="search-status" class="inline-status" aria-live="polite"></div>
-                    <div id="search-results" class="search-results"></div>
+
+                    <p id="explorer-note" class="explorer-note" hidden></p>
+
+                    <section id="member-ops" class="panel ops-panel" aria-labelledby="ops-title" hidden>
+                        <div class="panel-bar">
+                            <h2 id="ops-title">Operate on this member</h2>
+                        </div>
+                        <div id="member-ops-body" class="members-list"></div>
+                    </section>
+
+                    <div class="agent-scroll">
+                        <section class="panel result-panel" aria-labelledby="result-title">
+                            <div class="panel-bar">
+                                <h2 id="result-title">Returned value</h2>
+                                <button id="read-selected" class="p-btn md" type="button" hidden>Read</button>
+                            </div>
+                            <pre id="returned-value" class="code-block">No value read yet.</pre>
+                        </section>
+
+                        <section class="panel hint-panel" aria-labelledby="hint-title">
+                            <div class="panel-bar">
+                                <h2 id="hint-title">Hint</h2>
+                            </div>
+                            <pre id="agent-hint" class="code-block hint-block">No descriptor.</pre>
+                        </section>
+
+                    </div>
+
                 </section>
 
-                <div class="detail-grid">
-                    <section class="panel result-panel" aria-labelledby="result-title">
-                        <div class="section-heading">
+                <section id="tab-search" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-search" hidden>
+                    <section class="panel search-panel" aria-labelledby="search-title">
+                        <div class="section-heading compact">
                             <div>
-                                <div class="eyebrow">Explicit read</div>
-                                <h2 id="result-title">Returned value</h2>
-                            </div>
-                            <span id="value-state" class="status-pill">Descriptor only</span>
-                        </div>
-                        <pre id="returned-value" class="code-block">No value read yet.</pre>
-                    </section>
-
-                    <section class="panel help-panel" aria-labelledby="help-title">
-                        <div class="section-heading">
-                            <div>
-                                <div class="eyebrow">Context</div>
-                                <h2 id="help-title">Help &amp; notes</h2>
+                                <div class="eyebrow">Find in help</div>
+                                <h2 id="search-title">Help search</h2>
                             </div>
                         </div>
-                        <div id="descriptor-notes" class="notes-content"></div>
+                        <form id="search-form" class="search-form">
+                            <label class="sr-only" for="search-query">Search query</label>
+                            <input id="search-query" class="p-input" type="search" placeholder="Search the live descriptor graph…" autocomplete="off" />
+                            <label class="sr-only" for="search-limit">Result limit</label>
+                            <select id="search-limit" class="p-select">
+                                <option value="10">10</option>
+                                <option value="20" selected>20</option>
+                                <option value="50">50</option>
+                            </select>
+                            <button class="p-btn primary" type="submit">Search</button>
+                        </form>
+                        <div id="search-status" class="inline-status" aria-live="polite"></div>
+                        <div id="search-results" class="search-results"></div>
                     </section>
-                </div>
+                </section>
 
-                <section class="panel members-panel" aria-labelledby="members-title">
-                    <div class="section-heading">
-                        <div>
-                            <div class="eyebrow">Allow-listed surface</div>
-                            <h2 id="members-title">Members</h2>
-                        </div>
-                        <span id="member-count" class="status-pill">0</span>
-                    </div>
+                <section id="tab-members" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-members" hidden>
                     <div id="members" class="members-list"></div>
                 </section>
 
-                <section class="panel events-panel" aria-labelledby="events-title">
-                    <div class="section-heading">
-                        <div>
-                            <div class="eyebrow">Renderer window</div>
-                            <h2 id="events-title">Events feed</h2>
-                        </div>
-                        <span id="events-state" class="status-pill">Connecting…</span>
-                    </div>
+                <section id="tab-events" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-events" hidden>
+                    <div id="events-state" class="inline-status" hidden></div>
                     <div id="event-error" class="inline-status error-text" hidden></div>
                     <div id="events" class="events-list"></div>
                 </section>
-            </section>
-        </main>
+            </main>
+        </div>
     </div>
 
     <div id="dialog-mount"></div>

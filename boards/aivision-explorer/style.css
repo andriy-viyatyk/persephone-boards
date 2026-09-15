@@ -1,8 +1,28 @@
 /* AiVision Explorer — all visual colours come from Persephone's live --p-* palette. */
 [hidden] { display: none !important; }
 
-:root { color-scheme: dark; }
+:root {
+    color-scheme: dark;
+    /* Persephone sets the --p-font-* tokens inline on <html>, so they cannot be overridden
+       there. Alias them under a different name first (a custom property that referenced
+       itself would be a cycle), then re-declare the real tokens one pixel larger on <body>.
+       Everything inside body inherits the larger values, board-base.css included. */
+    --av-base: var(--p-font-base, 13px);
+    --av-sm: var(--p-font-sm, 12px);
+    --av-md: var(--p-font-md, 13px);
+    --av-lg: var(--p-font-lg, 16px);
+    --av-xl: var(--p-font-xl, 20px);
+    /* One height for both toolbars — the tree pane's and the centre column's — so the
+       tree and the detail pane always start on the same line. */
+    --av-toolbar-height: 30px;
+}
 body {
+    --p-font-base: calc(var(--av-base) + 1px);
+    --p-font-sm: calc(var(--av-sm) + 1px);
+    --p-font-md: calc(var(--av-md) + 1px);
+    --p-font-lg: calc(var(--av-lg) + 1px);
+    --p-font-xl: calc(var(--av-xl) + 1px);
+    font-size: var(--p-font-base);
     margin: 0;
     min-width: 720px;
     height: 100vh;
@@ -28,55 +48,119 @@ code, pre, .path-chip, .member-path { font-family: var(--p-font-mono, ui-monospa
 }
 .boot-card h1 { margin: 8px 0; font-size: var(--p-font-xl); color: var(--p-text-strong); }
 .boot-card p { margin: 0 0 var(--p-space-lg); color: var(--p-text-muted); line-height: 1.5; }
-.topbar { flex: 0 0 30px; }
-.brand-mark {
-    display: grid; place-items: center; width: 22px; height: 22px; margin-right: 4px;
-    border-radius: var(--p-radius-sm); background: var(--p-accent); color: var(--p-accent-text);
-    font-size: 10px; font-weight: 800; letter-spacing: -.06em;
-}
-.root-label { color: var(--p-text-muted); font-size: var(--p-font-sm); }
+.topbar { flex: 0 0 var(--av-toolbar-height); min-height: var(--av-toolbar-height); box-sizing: border-box; }
 .path-chip {
     max-width: min(38vw, 520px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     color: var(--p-text-strong); font-size: var(--p-font-sm);
 }
+.toolbar-path {
+    min-width: 0; max-width: 52vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--p-text-strong);
+}
 .operation-status { max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--p-text-muted); font-size: var(--p-font-sm); }
 .operation-status.error { color: var(--p-error); }
 .operation-status.success { color: var(--p-success); }
-.explorer-layout { display: grid; grid-template-columns: 282px minmax(0, 1fr); height: calc(100vh - 31px); }
-.tree-pane { min-width: 0; overflow: hidden; border-right: 1px solid var(--p-border); background: var(--p-panel); }
-.pane-heading, .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--p-space-md); }
-.pane-heading { padding: var(--p-space-lg) var(--p-space-lg) var(--p-space-sm); }
-.pane-heading h2, .section-heading h2 { margin: 3px 0 0; color: var(--p-text-strong); font-size: var(--p-font-lg); }
-.tree-note { margin: 0; padding: 0 var(--p-space-lg) var(--p-space-md); color: var(--p-text-muted); font-size: var(--p-font-sm); line-height: 1.4; }
-.tree-note code { color: var(--p-accent); }
+/* The tree pane runs the full page height; the toolbar belongs to the centre column only. */
+#app-shell { display: flex; height: 100vh; }
+/* Drag handle between the tree and the centre column. Wider hit area than its visible
+   line, which is the border it sits on. */
+.pane-resizer {
+    flex: 0 0 5px; margin: 0 -2px; z-index: 1; cursor: col-resize; background: transparent;
+}
+.pane-resizer:hover, .pane-resizer.dragging { background: var(--p-accent); }
+.pane-resizer:focus-visible { outline: 2px solid var(--p-accent); outline-offset: -2px; }
+body.resizing { cursor: col-resize; user-select: none; }
+.center-panel { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.tree-pane { flex: 0 0 282px; }
+.tree-pane { display: flex; flex-direction: column; min-width: 0; overflow: hidden; border-right: 1px solid var(--p-border); background: var(--p-bg-dark); }
+.tree-toolbar {
+    display: flex; flex: 0 0 var(--av-toolbar-height); min-height: var(--av-toolbar-height);
+    box-sizing: border-box; align-items: center; justify-content: flex-end; gap: var(--p-space-sm); padding: 0 var(--p-space-sm);
+    border-bottom: 1px solid var(--p-border);
+}
+.section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--p-space-md); }
+.section-heading h2 { margin: 3px 0 0; color: var(--p-text-strong); font-size: var(--p-font-lg); }
 .inline-status { min-height: 18px; color: var(--p-text-muted); font-size: var(--p-font-sm); line-height: 1.4; }
-.tree-status { padding: 0 var(--p-space-lg); }
-.tree { height: calc(100% - 112px); overflow: auto; padding: 0 var(--p-space-sm) var(--p-space-xl); }
+.tree { flex: 1 1 auto; min-height: 0; overflow: auto; padding: var(--p-space-sm) var(--p-space-sm) var(--p-space-xl); }
 .tree-row {
-    display: flex; align-items: center; width: 100%; min-height: 30px; gap: 5px; padding: 4px 7px;
+    display: flex; align-items: center; width: 100%; min-height: 22px; gap: 5px; padding: 1px 7px;
     border: 0; border-radius: var(--p-radius-sm); background: transparent; color: var(--p-text);
     text-align: left; font-size: var(--p-font-sm);
 }
 .tree-row:hover { background: var(--p-hover); }
 .tree-row.selected { background: var(--p-tree-selection); color: var(--p-selection-text); }
-.tree-caret { flex: 0 0 12px; color: var(--p-text-muted); text-align: center; }
-.tree-kind { flex: 0 0 auto; color: var(--p-accent); font-size: 10px; font-weight: 700; }
+.tree-caret { flex: 0 0 14px; color: var(--p-text-muted); font-size: 15px; text-align: center; }
+.tree-kind { flex: 0 0 auto; color: var(--p-accent); font-size: 14px; font-weight: 700; }
 .tree-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tree-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--p-text-muted); font-size: 11px; }
-.restricted-label { color: var(--p-warning); font-size: 10px; }
-.detail-pane { min-width: 0; overflow: auto; padding: var(--p-space-xl); background: var(--p-bg); }
-.detail-header { padding-bottom: var(--p-space-lg); }
-.detail-header h1 { margin: 4px 0 7px; overflow-wrap: anywhere; color: var(--p-text-strong); font-size: clamp(18px, 2vw, 26px); font-weight: 650; }
-.eyebrow { color: var(--p-text-muted); font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.tree-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--p-text-muted); font-size: 12px; }
+.restricted-label { color: var(--p-warning); font-size: 11px; }
+/* The tab bar sits between the toolbar and the centre content; it scrolls with neither. */
+.tab-bar {
+    display: flex; flex: 0 0 auto; align-items: center; gap: 2px;
+    padding: 0 var(--p-space-sm); border-bottom: 1px solid var(--p-border); background: var(--p-bg-dark);
+}
+.tab {
+    padding: 6px 12px; border: 0; border-bottom: 2px solid transparent; border-radius: 0;
+    background: transparent; color: var(--p-text-muted); font-size: var(--p-font-sm);
+}
+.tab:hover { color: var(--p-text); background: var(--p-hover); }
+.tab.active { border-bottom-color: var(--p-accent); color: var(--p-text-strong); }
+/* The two AiVision-wide facilities, marked the same way in the tree and the tab bar. */
+.tab-count { margin-left: 4px; color: var(--p-text-muted); }
+.tab.special { color: var(--p-success); }
+.tab.special.active { border-bottom-color: var(--p-success); }
+.tree-kind.special { color: var(--p-success); }
+.tab-panel {
+    display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; gap: var(--p-space-lg);
+    overflow: auto; padding: var(--p-space-xl);
+}
+/* The events feed is the tab's whole content, so it stretches instead of scrolling the
+   panel under a short, fixed-height box. */
+#tab-events { overflow: hidden; }
+/* align-content keeps the rows at their natural height: a grid taller than its content
+   would otherwise stretch every event card to fill the gap. */
+#tab-events #events { flex: 1 1 auto; min-height: 0; max-height: none; align-content: start; }
+.ops-panel { border-color: var(--p-accent); }
+/* The Explorer's own aside, distinct from the agent envelope below it. */
+.explorer-note {
+    margin: 0; padding: var(--p-space-sm) var(--p-space-md);
+    border-left: 3px solid var(--p-accent); background: var(--p-bg-dark);
+    color: var(--p-accent); font-size: var(--p-font-sm); line-height: 1.45;
+}
+/* A one-line panel header: title on the left, at most one control on the right. */
+/* Pulled out to the panel's edges so the rule spans its full width. */
+.panel-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: var(--p-space-sm);
+    margin: 0; padding: var(--p-space-sm) var(--p-space-lg); border-bottom: 1px solid var(--p-border);
+}
+/* The content area fills the panel under its header: one darker block, no inset, no border
+   of its own — the panel's border is already the outline. */
+.panel > .code-block,
+.panel > .panel > .members-list {
+    margin: 0; border: 0; border-radius: 0; background: var(--p-bg-dark);
+}
+.panel-bar h2 { margin: 0; color: var(--p-text-strong); font-size: var(--p-font-md); font-weight: 650; }
+/* The hint is prose the agent reads, so it keeps its line breaks and wraps. */
+.hint-block { white-space: pre-wrap; }
+/* JSON syntax colours, from the live palette — never literal colours. */
+.json-key { color: var(--p-link); }
+.json-string { color: var(--p-success); }
+.json-number { color: var(--p-warning); }
+.json-boolean, .json-null { color: var(--p-accent); font-weight: 600; }
+.detail-pane { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; min-width: 0; overflow: hidden; background: var(--p-bg); }
+.detail-header { padding-bottom: var(--p-space-sm); }
+.eyebrow { color: var(--p-text-muted); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .descriptor-line { display: flex; align-items: center; flex-wrap: wrap; gap: var(--p-space-sm); }
 .muted { color: var(--p-text-muted); }
 .kind-badge, .status-pill, .member-badge {
     display: inline-flex; align-items: center; border: 1px solid var(--p-border);
-    border-radius: var(--p-radius-sm); color: var(--p-text-muted); font-size: 11px; line-height: 20px;
+    border-radius: var(--p-radius-sm); color: var(--p-text-muted); font-size: 12px; line-height: 20px;
 }
 .kind-badge { padding: 0 7px; border-color: var(--p-accent); color: var(--p-accent); }
 .status-pill { padding: 0 7px; white-space: nowrap; }
-.panel { margin-bottom: var(--p-space-lg); padding: var(--p-space-lg); border: 1px solid var(--p-border); border-radius: var(--p-radius-md); background: var(--p-panel); }
+/* A panel is an outline on the page, not a raised surface: same background as the page,
+   a border, and a rule under its header. */
+.panel { margin-bottom: var(--p-space-lg); border: 1px solid var(--p-border); border-radius: var(--p-radius-md); background: var(--p-bg); overflow: hidden; }
 .section-heading { margin-bottom: var(--p-space-md); }
 .section-heading.compact { margin-bottom: var(--p-space-sm); }
 .search-form { display: flex; gap: var(--p-space-sm); }
@@ -91,37 +175,45 @@ code, pre, .path-chip, .member-path { font-family: var(--p-font-mono, ui-monospa
 .search-result:hover { border-color: var(--p-accent); background: var(--p-hover); }
 .search-result-path { overflow: hidden; color: var(--p-link); text-overflow: ellipsis; white-space: nowrap; }
 .search-result-line { overflow: hidden; color: var(--p-text-muted); text-overflow: ellipsis; white-space: nowrap; }
-.detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--p-space-lg); }
-.detail-grid > .panel { min-width: 0; }
+/* The Agent tab pins the description and the operation block, and scrolls everything
+   below them as one column. The blocks inside are fully expanded — the scroll lives
+   here, not in each block. */
+#tab-agent { overflow: hidden; }
+/* scrollbar-gutter keeps the gap reserved whether or not the bar is showing, so the blocks
+   do not shift sideways as content grows; the padding keeps them clear of the bar. */
+.agent-scroll {
+    flex: 1 1 auto; min-height: 0; min-width: 0; overflow: auto;
+    padding-right: var(--p-space-md); scrollbar-gutter: stable;
+}
+.agent-scroll > .panel:last-child { margin-bottom: 0; }
 .code-block {
-    max-height: 240px; min-height: 76px; margin: 0; overflow: auto; padding: var(--p-space-md);
-    border: 1px solid var(--p-border); border-radius: var(--p-radius-sm); background: var(--p-bg-dark);
+    min-height: 76px; margin: 0; padding: var(--p-space-md);
+    border-radius: var(--p-radius-sm); background: var(--p-bg-dark);
     color: var(--p-text); font-size: var(--p-font-sm); line-height: 1.45; white-space: pre-wrap; word-break: break-word;
 }
-.notes-content { max-height: 240px; overflow: auto; color: var(--p-text); font-size: var(--p-font-sm); line-height: 1.5; white-space: pre-wrap; }
-.notes-content .note-block { margin-bottom: var(--p-space-md); }
-.notes-content .note-label { margin-bottom: 3px; color: var(--p-text-muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.notes-content .restricted-note { padding: var(--p-space-sm); border-left: 3px solid var(--p-warning); background: var(--p-bg-dark); }
-.notes-content .unrendered-page-hint { padding: var(--p-space-sm); border-left: 3px solid var(--p-accent); background: var(--p-bg-dark); color: var(--p-accent); }
 .members-list { display: grid; gap: var(--p-space-sm); }
-.member-card { padding: var(--p-space-md); border: 1px solid var(--p-border); border-radius: var(--p-radius-sm); background: var(--p-bg); }
+.panel > .members-list { padding: var(--p-space-md); }
+.member-card { padding: var(--p-space-md); border: 1px solid var(--p-border); border-radius: var(--p-radius-sm); background: transparent; }
+/* The Agent tab shows exactly one member, already framed by its panel — a card frame
+   inside that frame is a box in a box. The Members tab keeps its cards. */
+#member-ops-body .member-card { padding: 0; border: 0; border-radius: 0; }
 .member-top { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
 .member-name { color: var(--p-text-strong); font-weight: 700; }
-.member-path { overflow-wrap: anywhere; color: var(--p-text-muted); font-size: 11px; }
-.member-badge { padding: 0 5px; border-color: var(--p-border-light); font-size: 10px; line-height: 18px; }
+.member-path { overflow-wrap: anywhere; color: var(--p-text-muted); font-size: 12px; }
+.member-badge { padding: 0 5px; border-color: var(--p-border-light); font-size: 11px; line-height: 18px; }
 .member-badge.writable { border-color: var(--p-success); color: var(--p-success); }
 .member-summary { margin: 5px 0 0; color: var(--p-text-muted); font-size: var(--p-font-sm); line-height: 1.4; }
-.member-signature { margin: 6px 0 0; color: var(--p-accent); font-size: 11px; white-space: pre-wrap; }
-.caution-box { margin-top: 8px; padding: 7px 8px; border-left: 3px solid var(--p-warning); background: var(--p-bg-dark); color: var(--p-warning); font-size: 11px; line-height: 1.4; }
+.member-signature { margin: 6px 0 0; color: var(--p-accent); font-size: 12px; white-space: pre-wrap; }
+.caution-box { margin-top: 8px; padding: 7px 8px; border-left: 3px solid var(--p-warning); background: var(--p-bg-dark); color: var(--p-warning); font-size: 12px; line-height: 1.4; }
 .member-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 5px; margin-top: 9px; }
 .member-actions .p-input { min-width: 160px; flex: 1 1 220px; }
-.form-error { flex-basis: 100%; color: var(--p-error); font-size: 11px; }
+.form-error { flex-basis: 100%; color: var(--p-error); font-size: 12px; }
 .empty-state { padding: var(--p-space-lg) 0; color: var(--p-text-muted); font-size: var(--p-font-sm); }
 .events-list { display: grid; gap: 4px; max-height: 260px; overflow: auto; }
 .event-item { padding: 7px 8px; border-left: 2px solid var(--p-border-light); background: var(--p-bg); }
-.event-meta { display: flex; gap: 8px; margin-bottom: 3px; color: var(--p-text-muted); font-size: 10px; }
+.event-meta { display: flex; gap: 8px; margin-bottom: 3px; color: var(--p-text-muted); font-size: 11px; }
 .event-type { color: var(--p-accent); font-weight: 700; }
-.event-data { margin: 0; color: var(--p-text); font-size: 11px; white-space: pre-wrap; word-break: break-word; }
+.event-data { margin: 0; color: var(--p-text); font-size: 12px; white-space: pre-wrap; word-break: break-word; }
 .error-text { color: var(--p-error); }
 .confirm-overlay {
     position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: var(--p-space-xl);
@@ -129,7 +221,7 @@ code, pre, .path-chip, .member-path { font-family: var(--p-font-mono, ui-monospa
 }
 .confirm-box { width: min(500px, 100%); padding: var(--p-space-xl); border: 1px solid var(--p-warning); border-radius: var(--p-radius-md); background: var(--p-panel); box-shadow: var(--p-shadow); }
 .confirm-title { margin-bottom: var(--p-space-sm); color: var(--p-text-strong); font-size: var(--p-font-lg); font-weight: 700; }
-.confirm-context { margin-bottom: var(--p-space-md); color: var(--p-text-muted); font-size: 11px; }
+.confirm-context { margin-bottom: var(--p-space-md); color: var(--p-text-muted); font-size: 12px; }
 .confirm-caution { padding: var(--p-space-md); border-left: 3px solid var(--p-warning); background: var(--p-bg-dark); color: var(--p-warning); line-height: 1.5; white-space: pre-wrap; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: var(--p-space-sm); margin-top: var(--p-space-lg); }
 .notification-mount { position: fixed; right: var(--p-space-lg); bottom: var(--p-space-lg); z-index: 40; display: grid; gap: 5px; }
@@ -137,7 +229,6 @@ code, pre, .path-chip, .member-path { font-family: var(--p-font-mono, ui-monospa
 .notification.error { border-color: var(--p-error); }
 
 @media (max-width: 900px) {
-    .explorer-layout { grid-template-columns: 235px minmax(0, 1fr); }
-    .detail-pane { padding: var(--p-space-lg); }
-    .detail-grid { grid-template-columns: 1fr; gap: 0; }
+    .tree-pane { flex-basis: 235px; }
+    .tab-panel { padding: var(--p-space-lg); }
 }

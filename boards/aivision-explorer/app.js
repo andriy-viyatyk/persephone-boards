@@ -154,6 +154,24 @@
         return parentPath ? parentPath + ".$help" : "$help";
     }
 
+    /**
+     * Name order for the two places a person SCANS a member list — the tree and the Members tab.
+     *
+     * Deliberately not applied to the Hint block, which is a faithful rebuild of what the agent is
+     * handed and must keep the descriptor's own order: a host lists its members by importance
+     * (`pages` before `boardVars`), and the first lines of a hint are the ones an agent weighs most.
+     * Live children keep descriptor order too — they are often indexed (`[0]`, `[1]`, `[10]`), which
+     * sorts as text into nonsense.
+     */
+    function byName(left, right) {
+        return String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: "base" });
+    }
+
+    function sortedMembers(descriptor) {
+        const members = Array.isArray(descriptor && descriptor.members) ? descriptor.members : [];
+        return members.slice().sort((left, right) => byName(left && left.name, right && right.name));
+    }
+
     function descriptorRows(descriptor, parentPath) {
         const rows = [];
         const seen = new Set();
@@ -182,7 +200,7 @@
                 parentPath,
             });
         });
-        (Array.isArray(descriptor && descriptor.members) ? descriptor.members : []).forEach((member) => {
+        sortedMembers(descriptor).forEach((member) => {
             if (!member) return;
             const path = memberPath(parentPath, member.name);
             if (seen.has(path)) return;
@@ -403,7 +421,6 @@
         const card = node("article", "member-card");
         const top = node("div", "member-top");
         top.append(node("span", "member-name", name));
-        top.append(node("code", "member-path", path));
         top.append(node("span", "member-badge", text(member.kind || "member")));
         if (member.node === true) top.append(node("span", "member-badge", "node"));
         if (member.writable === true) top.append(node("span", "member-badge writable", "writable"));
@@ -427,16 +444,19 @@
             read.type = "button";
             read.addEventListener("click", () => readMember(path));
             actions.append(read);
-            const assignment = node("input", "p-input md");
-            assignment.type = "text";
-            assignment.placeholder = member.writable === true ? "JSON value to assign" : "Read-only property";
-            assignment.disabled = member.writable !== true;
-            assignment.setAttribute("aria-label", name + " value");
-            const assign = node("button", "p-btn md" + (member.caution ? " danger" : " primary"), "Assign");
-            assign.type = "button";
-            assign.disabled = member.writable !== true;
-            assign.addEventListener("click", () => runMemberAction(member, path, "assign", assignment.value, card));
-            actions.append(assignment, assign);
+            // A read-only property has no assignment at all, rather than a disabled box claiming
+            // one: the descriptor already says `writable` is absent, and a permanently dead control
+            // is noise on every row that has it.
+            if (member.writable === true) {
+                const assignment = node("input", "p-input md");
+                assignment.type = "text";
+                assignment.placeholder = "JSON value to assign";
+                assignment.setAttribute("aria-label", name + " value");
+                const assign = node("button", "p-btn md" + (member.caution ? " danger" : " primary"), "Assign");
+                assign.type = "button";
+                assign.addEventListener("click", () => runMemberAction(member, path, "assign", assignment.value, card));
+                actions.append(assignment, assign);
+            }
         }
         card.append(actions);
         return card;
@@ -452,18 +472,27 @@
         refs.memberOpsBody.append(renderMember(member, state.selectedRow.parentPath));
     }
 
-    /** The Members tab: always the whole selected node's member list. For a leaf selection
-     *  that is the parent node's list, which is the descriptor the leaf was read from. */
+    /**
+     * The Members tab: the SELECTED node's member list, and nothing when the selection is not a
+     * node. A leaf (`version`, a method, a `$help` row) owns no descriptor, and showing its
+     * parent's members there made the tab look like it belonged to the selection when it did not —
+     * the count in particular. The leaf's own controls live on the Agent tab.
+     */
+    function ownsDescriptor() {
+        return !state.selectedRow || state.selectedRow.expandable === true;
+    }
+
     function renderMembers(descriptor) {
         refs.members.replaceChildren();
-        const members = descriptor && Array.isArray(descriptor.members) ? descriptor.members : [];
-        refs.memberCount.textContent = members.length ? " [" + members.length + "]" : "";
+        const members = ownsDescriptor() ? sortedMembers(descriptor) : [];
+        refs.memberCount.textContent = " [" + members.length + "]";
         if (!members.length) {
-            refs.members.append(node("div", "empty-state", "No members are declared on this descriptor."));
+            refs.members.append(node("div", "empty-state", ownsDescriptor()
+                ? "No members are declared on this descriptor."
+                : "This path is not a node, so it has no members. Its own controls are on the Agent tab."));
             return;
         }
-        const parentPath = state.selectedMember && state.selectedRow ? state.selectedRow.parentPath : state.selectedPath;
-        members.forEach((member) => refs.members.append(renderMember(member, parentPath)));
+        members.forEach((member) => refs.members.append(renderMember(member, state.selectedPath)));
     }
 
     function renderDescriptor() {

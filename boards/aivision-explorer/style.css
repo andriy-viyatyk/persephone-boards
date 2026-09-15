@@ -33,7 +33,7 @@ body {
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .52; }
-code, pre, .path-chip, .member-path { font-family: var(--p-font-mono, ui-monospace, monospace); }
+code, pre, .path-chip { font-family: var(--p-font-mono, ui-monospace, monospace); }
 .sr-only {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
@@ -191,21 +191,26 @@ body.resizing { cursor: col-resize; user-select: none; }
     border-radius: var(--p-radius-sm); background: var(--p-bg-dark);
     color: var(--p-text); font-size: var(--p-font-sm); line-height: 1.45; white-space: pre-wrap; word-break: break-word;
 }
-.members-list { display: grid; gap: var(--p-space-sm); }
+.members-list { display: grid; gap: 0; }
 .panel > .members-list { padding: var(--p-space-md); }
-.member-card { padding: var(--p-space-md); border: 1px solid var(--p-border); border-radius: var(--p-radius-sm); background: transparent; }
+/* A rule between rows reads as a list; a box around each row reads as a stack of cards, which is
+   heavier than the content deserves. */
+.member-card { padding: var(--p-space-sm) 0; border: 0; border-bottom: 1px solid var(--p-border); border-radius: 0; background: transparent; }
+.member-card:last-child { border-bottom: 0; }
 /* The Agent tab shows exactly one member, already framed by its panel — a card frame
    inside that frame is a box in a box. The Members tab keeps its cards. */
 #member-ops-body .member-card { padding: 0; border: 0; border-radius: 0; }
 .member-top { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
 .member-name { color: var(--p-text-strong); font-weight: 700; }
-.member-path { overflow-wrap: anywhere; color: var(--p-text-muted); font-size: 12px; }
 .member-badge { padding: 0 5px; border-color: var(--p-border-light); font-size: 11px; line-height: 18px; }
 .member-badge.writable { border-color: var(--p-success); color: var(--p-success); }
 .member-summary { margin: 5px 0 0; color: var(--p-text-muted); font-size: var(--p-font-sm); line-height: 1.4; }
 .member-signature { margin: 6px 0 0; color: var(--p-accent); font-size: 12px; white-space: pre-wrap; }
 .caution-box { margin-top: 8px; padding: 7px 8px; border-left: 3px solid var(--p-warning); background: var(--p-bg-dark); color: var(--p-warning); font-size: 12px; line-height: 1.4; }
 .member-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 5px; margin-top: 9px; }
+/* Everything under the name line hangs off it: the name and its badges are the row's heading, and
+   the summary, signature, caution and controls are what that heading is about. */
+.member-card > *:not(.member-top) { margin-left: 16px; }
 .member-actions .p-input { min-width: 160px; flex: 1 1 220px; }
 .form-error { flex-basis: 100%; color: var(--p-error); font-size: 12px; }
 .empty-state { padding: var(--p-space-lg) 0; color: var(--p-text-muted); font-size: var(--p-font-sm); }

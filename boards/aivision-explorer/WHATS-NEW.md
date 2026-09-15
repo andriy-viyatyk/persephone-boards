@@ -1,3 +1,9 @@
+## 1.0.4
+
+- Members tab: a read-only property no longer shows a dead Assign box, the member name is printed once, rows are separated by a rule instead of boxed, and everything under the name line is indented beneath it.
+- Members are listed in name order in the tree and on the Members tab. The Hint keeps the descriptor's own order, because that is what the agent is handed.
+- Selecting a leaf shows `Members [0]` instead of its parent's member list; the leaf's own controls stay on the Agent tab.
+
 ## 1.0.3
 
 - A `$help` node no longer shows a Hint block: the resolver returns help prose alone, with no hint, so showing one was inventing something the agent never sees.

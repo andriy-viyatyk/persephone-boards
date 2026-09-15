@@ -26,6 +26,12 @@ its count on the tab. **Search** and **Events** are contextual: they belong to A
 any node, so their two root members (`helpSearch`, `events`) are marked green in the tree and each
 reveals its own tab when selected.
 
+**The tree and the Members tab sort members by name; the Hint never does.** The two lists a person
+scans are easier to scan sorted, but the hint is a rebuild of what the agent is handed, and a host
+orders its members by importance — `pages` before `boardVars` — which is a ranking an agent reads.
+Live children keep descriptor order in both places: they are often indexed (`[0]`, `[1]`, `[10]`),
+which sorts as text into nonsense.
+
 There are no backend scripts or vendored libraries. The board is fully offline and uses native DOM
 and JSON. Help search calls `helpSearch`; the events panel reads `events.recent()` and then waits
 with the documented `events.wait()` loop. Member assignment and invocation parse JSON locally and

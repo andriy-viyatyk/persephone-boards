@@ -2,11 +2,11 @@
 
 ## Status
 
-**Status:** Implemented — awaiting review
+**Status:** Complete
 **Priority:** High
 **Board id:** `aivision-explorer`
 **Started:** 2026-09-15
-**Completed:** -
+**Completed:** 2026-09-15
 
 > **Supersedes the original BT-023** (a root picker that switched the viewer between Persephone's
 > model, a board's `.app`, and a web page's `.app`). That design is dropped: a picker is

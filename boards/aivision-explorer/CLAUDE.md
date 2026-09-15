@@ -19,8 +19,9 @@ selectable and use their parent member record for the detail editor. `style.css`
 
 The centre has four tabs. **Agent** is the point of the board: it shows what a `call` actually hands
 an agent — the returned value (JSON-highlighted) and the hint, rebuilt from the same `$describe`
-payload in `buildHint`'s format and, unlike a real session, never deduplicated. It also carries the
-operation controls for a selected leaf. **Members** lists the selected node's whole member list, with
+payload in `buildHint`'s format and, unlike a real session, never deduplicated — except on a `$help`
+row, which hides the Hint block entirely, because the resolver answers a help segment with the prose
+alone and attaches no hint to it. It also carries the operation controls for a selected leaf. **Members** lists the selected node's whole member list, with
 its count on the tab. **Search** and **Events** are contextual: they belong to AiVision rather than to
 any node, so their two root members (`helpSearch`, `events`) are marked green in the tree and each
 reveals its own tab when selected.

@@ -3,16 +3,16 @@
   "boards": [
     {
       "id": "aivision-explorer",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "name": "AiVision Explorer",
       "description": "Explore Persephone's live AiVision model with descriptor-safe tree browsing, help, events, and explicit member operations.",
       "standalone": true,
       "minAppVersion": "5.0.3",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/aivision-explorer-v1.0.3/aivision-explorer.zip",
-        "size": 25793,
-        "sha256": "487cab337243df8eb359c58b78a5674e99df1eae9d7c67571d3d4dcf9b8b22fd"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/aivision-explorer-v1.0.4/aivision-explorer.zip",
+        "size": 26897,
+        "sha256": "4008adf3f0ebbffd51c97a67b4f28520649d75d4e3c09bce1c0a49b609b9c72e"
       }
     },
     {

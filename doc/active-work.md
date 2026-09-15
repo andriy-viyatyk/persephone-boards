@@ -9,13 +9,13 @@ Overview of active and planned board work in this repo.
 ## Active
 
 - [ ] [BT-022: AiVision Explorer board — tree, path resolution, help and events](tasks/BT-022-aivision-explorer/README.md)
-  — implemented and verified in the running app (commit `0e022a6`), but **not publishable**:
-  `screenshot.png` is still missing, because a live capture would include the tab strip and status
-  bar of a real session.
+  — implemented and verified in the running app (commit `0e022a6`). `screenshot.png` was captured
+  on 2026-09-15 from the live board with `fs` selected — content area only, no personal paths — so
+  the board is publishable.
 
 - [ ] [BT-023: AiVision Explorer — one unified tree over every member](tasks/BT-023-aivision-explorer-unified-tree/README.md)
-  — supersedes the original BT-023 root picker, which is dropped. Implemented and verified live
-  (board v1.0.1); unreviewed, and publishing is still blocked by BT-022's missing screenshot.
+  — supersedes the original BT-023 root picker, which is dropped. Implemented and verified live,
+  and published as board v1.0.2 together with the shell redesign; still unreviewed.
 
 Both belong to Persephone's **EPIC-101** (*Structured descriptor access and the AiVision Explorer
 board*); that epic document holds the design and the verified background. The `$describe` resolver

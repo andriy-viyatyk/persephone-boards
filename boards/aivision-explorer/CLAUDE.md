@@ -26,6 +26,14 @@ its count on the tab. **Search** and **Events** are contextual: they belong to A
 any node, so their two root members (`helpSearch`, `events`) are marked green in the tree and each
 reveals its own tab when selected.
 
+**A tab's results stay on that tab.** Invoke, Read and Assign on the **Members** tab show what came
+back in a result dialog; only the Agent tab's own **Operate on this member** panel writes into the
+Agent tab's "Returned value" block. `renderMember` builds both lists, so it takes an `origin`
+(`"agent"` / `"members"`) and `deliverResult` routes on it. Writing a Members-tab result into the
+Agent panel coupled two tabs that describe different things — the Agent tab is about the *selected*
+node, the Members tab is a list of that node's members — and put the answer on a tab the user was
+not looking at.
+
 **The tree and the Members tab sort members by name; the Hint never does.** The two lists a person
 scans are easier to scan sorted, but the hint is a rebuild of what the agent is handed, and a host
 orders its members by importance — `pages` before `boardVars` — which is a ranking an agent reads.
@@ -39,7 +47,7 @@ show a fresh in-frame caution dialog whenever descriptor metadata contains `caut
 
 ## Key files
 
-- `board-manifest.json` — public identity, version `1.0.2`, and `minAppVersion` `5.0.3`.
+- `board-manifest.json` — public identity, version `1.0.5`, and `minAppVersion` `5.0.3`.
 - `icon.svg` — the board's tab/tile/sidebar icon. Keep it valid XML: `--` is illegal inside an
   XML comment and silently renders nothing.
 - `index.html` — boot/trust state, tree, descriptor details, search, events, and dialog mounts.

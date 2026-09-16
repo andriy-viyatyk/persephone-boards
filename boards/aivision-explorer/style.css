@@ -229,6 +229,12 @@ body.resizing { cursor: col-resize; user-select: none; }
 .confirm-context { margin-bottom: var(--p-space-md); color: var(--p-text-muted); font-size: 12px; }
 .confirm-caution { padding: var(--p-space-md); border-left: 3px solid var(--p-warning); background: var(--p-bg-dark); color: var(--p-warning); line-height: 1.5; white-space: pre-wrap; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: var(--p-space-sm); margin-top: var(--p-space-lg); }
+/* The result dialog reuses the confirm shell but is informational, so it drops the warning
+   border and is wide enough for a JSON value; the block itself scrolls rather than growing
+   the box past the viewport. */
+.result-box { width: min(760px, 100%); border-color: var(--p-border); }
+.result-box.error { border-color: var(--p-error); }
+.result-code { max-height: min(56vh, 460px); overflow: auto; }
 .notification-mount { position: fixed; right: var(--p-space-lg); bottom: var(--p-space-lg); z-index: 40; display: grid; gap: 5px; }
 .notification { max-width: 360px; padding: 8px 10px; border: 1px solid var(--p-border); border-radius: var(--p-radius-sm); background: var(--p-panel); color: var(--p-text); box-shadow: var(--p-shadow); font-size: var(--p-font-sm); }
 .notification.error { border-color: var(--p-error); }

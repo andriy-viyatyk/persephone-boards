@@ -415,7 +415,7 @@
         showPending(caution ? "Not read — " + caution : "Not read yet.");
     }
 
-    function renderMember(member, parentPath) {
+    function renderMember(member, parentPath, origin) {
         const name = text(member.name);
         const path = memberPath(parentPath, name);
         const card = node("article", "member-card");
@@ -437,12 +437,12 @@
             args.setAttribute("aria-label", name + " arguments");
             const invoke = node("button", "p-btn md" + (member.caution ? " danger" : " primary"), "Invoke");
             invoke.type = "button";
-            invoke.addEventListener("click", () => runMemberAction(member, path, "invoke", args.value, card));
+            invoke.addEventListener("click", () => runMemberAction(member, path, "invoke", args.value, card, origin));
             actions.append(args, invoke);
         } else {
             const read = node("button", "p-btn md", "Read");
             read.type = "button";
-            read.addEventListener("click", () => readMember(path));
+            read.addEventListener("click", () => readMember(path, origin));
             actions.append(read);
             // A read-only property has no assignment at all, rather than a disabled box claiming
             // one: the descriptor already says `writable` is absent, and a permanently dead control
@@ -454,7 +454,7 @@
                 assignment.setAttribute("aria-label", name + " value");
                 const assign = node("button", "p-btn md" + (member.caution ? " danger" : " primary"), "Assign");
                 assign.type = "button";
-                assign.addEventListener("click", () => runMemberAction(member, path, "assign", assignment.value, card));
+                assign.addEventListener("click", () => runMemberAction(member, path, "assign", assignment.value, card, origin));
                 actions.append(assignment, assign);
             }
         }
@@ -469,7 +469,7 @@
         const member = state.selectedMember;
         refs.memberOps.hidden = !member;
         if (!member) return;
-        refs.memberOpsBody.append(renderMember(member, state.selectedRow.parentPath));
+        refs.memberOpsBody.append(renderMember(member, state.selectedRow.parentPath, "agent"));
     }
 
     /**
@@ -492,7 +492,7 @@
                 : "This path is not a node, so it has no members. Its own controls are on the Agent tab."));
             return;
         }
-        members.forEach((member) => refs.members.append(renderMember(member, state.selectedPath)));
+        members.forEach((member) => refs.members.append(renderMember(member, state.selectedPath, "members")));
     }
 
     function renderDescriptor() {
@@ -517,16 +517,16 @@
         renderTree();
     }
 
-    async function readMember(path) {
+    async function readMember(path, origin) {
         setOperation("Reading " + path + "…");
         try {
             const result = await bridgeCall(path);
             state.values.set(path, result);
-            showReturned(result);
+            deliverResult(origin, "Returned value", path, result, false);
             setOperation("Read " + path, "success");
         } catch (error) {
             if (isTrustFailure(error)) return showTrustRequired(error);
-            showReturned("Error: " + errorMessage(error));
+            deliverResult(origin, "Read failed", path, errorMessage(error), true);
             reportError(error);
         }
     }
@@ -543,6 +543,69 @@
         try { parsed = JSON.parse(raw); } catch (_) { throw new Error("Enter valid JSON before continuing."); }
         if (expectsArray && !Array.isArray(parsed)) throw new Error("Method arguments must be a JSON array.");
         return parsed;
+    }
+
+    /**
+     * The Members tab shows its own results HERE, not in the Agent tab's "Returned value"
+     * panel. Those two tabs describe different things — the Agent tab is about the SELECTED
+     * node, the Members tab is a list of that node's members — and writing a member's
+     * result into the Agent panel made an invoke on one tab silently rewrite the other,
+     * where the user could not even see it happen.
+     */
+    function showResultDialog(title, path, value, isError) {
+        const overlay = node("div", "confirm-overlay");
+        const box = node("div", "confirm-box result-box" + (isError ? " error" : ""));
+        box.setAttribute("role", "dialog");
+        box.setAttribute("aria-modal", "true");
+        box.append(node("div", "confirm-title", title));
+        box.append(node("div", "confirm-context", path));
+
+        const body = node("pre", "code-block result-code");
+        // Same rule as showReturned: a string result is prose ($help, a file's text), not JSON
+        // to colour.
+        if (typeof value === "string" || value === undefined) body.textContent = formatJson(value);
+        else paintJson(body, formatJson(value));
+        box.append(body);
+
+        const actions = node("div", "confirm-actions");
+        const copy = node("button", "p-btn md", "Copy");
+        const close = node("button", "p-btn md primary", "Close");
+        copy.type = close.type = "button";
+        copy.addEventListener("click", async () => {
+            try {
+                await navigator.clipboard.writeText(formatJson(value));
+                copy.textContent = "Copied";
+                window.setTimeout(() => { copy.textContent = "Copy"; }, 1400);
+            } catch (error) {
+                notifyInFrame(errorMessage(error), "error");
+            }
+        });
+
+        let settled = false;
+        const finish = () => {
+            if (settled) return;
+            settled = true;
+            document.removeEventListener("keydown", onKey, true);
+            overlay.remove();
+        };
+        const onKey = (event) => {
+            if (event.key === "Escape") { event.preventDefault(); finish(); }
+        };
+        close.addEventListener("click", finish);
+        overlay.addEventListener("mousedown", (event) => { if (event.target === overlay) finish(); });
+        actions.append(copy, close);
+        box.append(actions);
+        overlay.append(box);
+        refs.dialogMount.append(overlay);
+        document.addEventListener("keydown", onKey, true);
+        window.setTimeout(() => close.focus(), 0);
+    }
+
+    /** Where a member action's result goes: the Members tab pops a dialog, the Agent tab's own
+     *  operation panel keeps writing into the panel the user is already looking at. */
+    function deliverResult(origin, title, path, value, isError) {
+        if (origin === "members") showResultDialog(title, path, value, isError);
+        else showReturned(isError ? "Error: " + value : value);
     }
 
     function confirmCaution(member, path, action) {
@@ -581,7 +644,7 @@
         });
     }
 
-    async function runMemberAction(member, path, action, raw, card) {
+    async function runMemberAction(member, path, action, raw, card, origin) {
         let payload;
         try { payload = parseJsonInput(raw, action === "invoke"); }
         catch (error) { formError(card, errorMessage(error)); return; }
@@ -595,11 +658,12 @@
             const options = action === "invoke" ? { args: payload } : { value: payload };
             const result = await bridgeCall(path, options);
             state.values.set(path, result);
-            showReturned(result);
+            deliverResult(origin, action === "invoke" ? "Returned value" : "Assigned value", path, result, false);
             setOperation((action === "invoke" ? "Invoked " : "Assigned ") + path, "success");
         } catch (error) {
             if (isTrustFailure(error)) return showTrustRequired(error);
-            showReturned("Error: " + errorMessage(error));
+            deliverResult(origin, action === "invoke" ? "Invocation failed" : "Assignment failed",
+                path, errorMessage(error), true);
             reportError(error);
         }
     }

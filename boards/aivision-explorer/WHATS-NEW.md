@@ -1,3 +1,7 @@
+## 1.0.5
+
+- Members tab: Invoke, Read and Assign now show their result in a dialog. They used to write it into the Agent tab's **Returned value** panel — a different tab, describing a different thing, where the result was not even visible from where it was asked for. The Agent tab's own **Operate on this member** panel is unchanged.
+
 ## 1.0.4
 
 - Members tab: a read-only property no longer shows a dead Assign box, the member name is printed once, rows are separated by a rule instead of boxed, and everything under the name line is indented beneath it.

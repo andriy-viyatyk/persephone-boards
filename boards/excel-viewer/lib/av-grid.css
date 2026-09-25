@@ -62,6 +62,26 @@
     margin-right: 4px;
 }
 
+/* The column-group band — the top half of the two-row header. Overlay divs, not pooled
+   cells; see src/view/GroupHeader.ts. */
+.avg-grid .avg-group-cell {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    padding: 0 var(--avg-cell-padding-x);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    background-color: var(--avg-header-bg);
+    color: var(--avg-header-text);
+    font-weight: 600;
+    border-bottom: solid 1px var(--avg-grid-line);
+    border-right: solid 1px var(--avg-grid-line);
+    user-select: none;
+    cursor: default;
+}
+
 .avg-grid .avg-flex-space {
     flex: 1 1 auto;
 }
@@ -76,6 +96,14 @@
 
 .avg-grid .avg-header-cell[data-sort] .avg-sort-icon {
     display: inline-flex;
+}
+
+/* The multi-sort position number, shown only when two or more columns sort. */
+.avg-grid .avg-sort-pos {
+    font-size: 9px;
+    line-height: 1;
+    align-self: flex-start;
+    margin-left: -1px;
 }
 
 /* The resize grip: three faint dashes, revealed on hover over the right edge. */
@@ -108,6 +136,18 @@
     background-size: 4px 100%;
     background-position: center;
     background-repeat: no-repeat;
+}
+
+/* A right-pinned header resizes from its LEFT edge — its right edge is anchored to the
+   viewport — so the grip and the padding that clears it both flip sides. */
+.avg-grid .avg-header-cell[data-resizable="true"][data-pinned="right"] {
+    padding-right: var(--avg-cell-padding-x);
+    padding-left: 10px;
+}
+
+.avg-grid .avg-header-cell[data-resizable="true"][data-pinned="right"]::after {
+    inset-inline-end: auto;
+    inset-inline-start: 0;
 }
 
 .avg-grid .avg-header-cell.avg-drag-source {
@@ -168,12 +208,139 @@
     border-left: solid 1px var(--avg-grid-line);
 }
 
-/* .avg-search-text — the wrapper around a marked cell's whole text — deliberately has no rule
-   here. It exists for layout, not appearance: a data cell is inline-flex, and flex discards the
-   whitespace *between* items, so a mark that splits the text rendered "Alan Dijkstra" as
-   "AlanDijkstra"; inside one inline box the space survives. Giving it overflow or a colour would
-   make a marked cell lay out differently from the unmarked cell beside it, which is the one thing
-   a highlight must not do. */
+/*
+ * .avg-cell-text — the wrapper around a text cell's content, plain and matched alike.
+ *
+ * It carries the truncation the cell above cannot. text-overflow applies to block containers, and
+ * a data cell is inline-flex: a bare text node in it becomes an *anonymous flex item*, a generated
+ * block box that inherits neither overflow nor text-overflow, while the overflow: hidden doing the
+ * clipping is one level up on the flex container, which has no line box of its own to truncate. So
+ * the text-overflow: ellipsis above did nothing for years — text was clipped mid-glyph, and in a
+ * right-aligned column the overflow of a nowrap flex line moves to the *start* side, so a long
+ * number silently lost its leading digits. The anonymous item is not reachable from CSS; only a
+ * real element is. This is the same shape .avg-header-title and .avg-cell-select-value already use.
+ *
+ * min-width: 0 is the load-bearing declaration — a flex item will not shrink below its content
+ * width without it, and then there is nothing to ellipsize.
+ *
+ * The wrapper is applied to *both* text shapes, and that is what preserves the older contract it
+ * replaces: it was originally introduced for the matched shape only, for layout rather than
+ * appearance, because flex discards the whitespace *between* items and a mark that split the text
+ * rendered "Alan Dijkstra" as "AlanDijkstra". A marked cell must still lay out exactly like the
+ * unmarked cell beside it — which it does, because now they have the same box. Anything given to
+ * this rule must stay layout-neutral for the same reason: no colour, no padding, no font.
+ */
+.avg-grid .avg-data-cell > .avg-cell-text,
+.avg-grid .avg-tree-content > .avg-cell-text {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------- tree column */
+
+/*
+ * The tree gutter (treeColumn): depth guides, a chevron or stub slot, then the content host
+ * the column's ordinary content renders into. The guide is drawn centred in its indent rather
+ * than on one edge, so it runs under the parent's chevron; the reference drew a left border on
+ * every guide after the first, at a height that resolved to zero — never seen, not ported.
+ * --avg-tree-indent is the default width only; treeColumn.indentSize writes the width inline.
+ */
+.avg-grid .avg-tree-indent {
+    position: relative;
+    flex: 0 0 auto;
+    width: var(--avg-tree-indent, 16px);
+    height: 100%;
+}
+
+.avg-grid .avg-tree-indent::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    border-left: 1px solid var(--avg-tree-guide, var(--avg-grid-line));
+}
+
+.avg-grid .avg-tree-chevron,
+.avg-grid .avg-tree-stub,
+.avg-grid .avg-tree-busy {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    color: var(--avg-tree-chevron, var(--avg-text-muted));
+}
+
+.avg-grid .avg-tree-chevron:not([data-inert]) {
+    cursor: pointer;
+}
+
+.avg-grid .avg-tree-chevron:not([data-inert]):hover {
+    color: var(--avg-text);
+}
+
+.avg-grid .avg-tree-chevron > svg {
+    transition: transform 120ms ease;
+}
+
+.avg-grid .avg-tree-chevron[data-expanded="true"] > svg {
+    transform: rotate(90deg);
+}
+
+/*
+ * The busy slot (task 64): the chevron replaced, in place, while a node's children load. Its own
+ * token falls back to the chevron's, so a host that has themed the chevron gets a matching
+ * spinner without asking.
+ *
+ * steps(10) is not a stylistic choice - the built-in spinner has ten spokes 36 degrees apart, so
+ * one step moves each spoke exactly onto the next one's place and the dial ticks. A custom
+ * spinner is sized and turned by whatever the host returns; this rule only reaches an svg child,
+ * which is what spinnerIcon is.
+ */
+.avg-grid .avg-tree-busy {
+    color: var(--avg-tree-spinner, var(--avg-tree-chevron, var(--avg-text-muted)));
+    cursor: default;
+}
+
+.avg-grid .avg-tree-busy > svg {
+    width: 100%;
+    height: 100%;
+    animation: avg-tree-spin 1.5s steps(10) infinite;
+}
+
+@keyframes avg-tree-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/*
+ * Ten spokes graded 0.1 to 1.0 still read as "working" standing still, which is why the fallback
+ * is simply to stop: there is no second static mark to swap in.
+ */
+@media (prefers-reduced-motion: reduce) {
+    .avg-grid .avg-tree-busy > svg {
+        animation: none;
+    }
+}
+
+/*
+ * The content zone: a flex item that takes the rest of the cell, positioned so an editor's
+ * inset covers it and not the gutter, and clipping so the text wrapper's ellipsis has a box.
+ */
+.avg-grid .avg-tree-content {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+}
 
 /*
  * A word of the active search, inside a cell's text.
@@ -182,12 +349,11 @@
  * on the root — on the root, not on the mark, so choosing a shape costs nothing per cell and
  * changing it repaints nothing at all.
  *
- * The default is the reference's: colour alone. The tint is worth knowing about, though, and
- * "both" is what a dark theme usually wants — the accent is a *line* colour, dark enough to
- * read against a light background, so against pale cell text a coloured match can come out
- * dimmer than the words around it. The tint carries the mark whichever way the theme runs, and
- * stays legible inside a selected cell, where the same accent already covers the whole cell at
- * a lighter 18%.
+ * The default is the reference's: colour alone. Which shape suits a theme turns entirely on its
+ * accent, and this file is the wrong place to guess — a pale accent can read dimmer than the
+ * text around it, where the tint helps, while a saturated one makes the tint a solid block
+ * behind text of nearly its own colour and comes out worse than the default. Both have been
+ * seen. So none of the three is recommended anywhere; the host looks and chooses.
  *
  * No weight change in any of them: bolding reflows the glyphs around the match, so the text
  * would shuffle sideways with every letter typed into the search box.
@@ -449,7 +615,7 @@
  */
 .avg-grid .avg-add-row {
     position: absolute;
-    bottom: 1px;
+    bottom: calc(1px + var(--avg-sticky-bottom, 0px));
     left: 4px;
     display: inline-flex;
     align-items: center;
@@ -472,6 +638,20 @@
 .avg-grid .avg-add-row:hover {
     opacity: 1;
     color: var(--p-text-strong, var(--avg-text));
+}
+
+/* extraElement — one host element after the last row, in the trailing slack.
+   Positioned here, unlike an element a cell renderer returns: there the engine writes top and
+   left and the host only has to add position, but nothing writes anything for this one, so a
+   bare host element would lay out in flow among absolutely positioned cells and land at the
+   top-left behind them — invisible and still hoverable. No colour, size or padding: only the
+   host knows what the grid background is. One more class overrides it. */
+.avg-grid .avg-extra {
+    position: absolute;
+    left: 0;
+    right: 0;
+    /* Above the footer band when there is one — the band overlays the area's bottom edge. */
+    bottom: var(--avg-sticky-bottom, 0px);
 }
 
 .avg-grid .avg-add-column {
@@ -735,12 +915,13 @@
 /* Width stated rather than stretched. An input in a flex column does not fill it: its width:auto
    resolves to the intrinsic size a text field has, so align-items:stretch never applies and the
    box sits at ~120px however wide the popover is. The calc is the two 4px margins. */
-.avg-list-search {
-    flex: 0 0 auto;
+/* One look for every text input a filter popover holds — the checklist's search box and the
+   text filter's input are the same control in two panels, and must read as one. Only layout
+   (width, margin) differs, below. */
+.avg-list-search,
+.avg-text-filter-input {
     box-sizing: border-box;
-    width: calc(100% - 8px);
-    margin: 4px;
-    padding: 1px 6px;
+    padding: 2px 6px;
     /* After the shorthand, which would otherwise reset it. */
     font: inherit;
     line-height: 18px;
@@ -751,12 +932,36 @@
     outline: none;
 }
 
-/* The 1px border is the focus indicator. A host's own :focus-visible ring would sit outside it
-   at whatever width that host chose — 2px on a Persephone board — and a bare .avg-list-search
-   ties with a bare :focus-visible on specificity, so it loses on source order. Scoped to the
-   list to outrank it, and both states named because the host may style either. */
+.avg-list-search {
+    flex: 0 0 auto;
+    width: calc(100% - 8px);
+    margin: 4px;
+}
+
+/* The whole popover width; the body's own padding is the margin. */
+.avg-text-filter-input {
+    width: 100%;
+}
+
+/* Under a text-free operator (is empty / is not empty) the input is read-only and empty: the
+   library's own inert look, so a host need not supply one. Both hooks named — the property on
+   the input, the state class on the popover body around it. */
+.avg-text-filter-text-unused .avg-text-filter-input,
+.avg-text-filter-body .avg-text-filter-input:read-only {
+    color: var(--avg-text-muted);
+    background-color: var(--avg-hover-bg);
+    cursor: default;
+}
+
+/* The 1px border is the focus indicator, for both inputs. A host's own :focus-visible ring
+   would sit outside it at whatever width that host chose — 2px on a Persephone board — and a
+   bare class selector ties with a bare :focus-visible on specificity, so it loses on source
+   order. Scoped to the panel to outrank it, and both states named because the host may style
+   either. */
 .avg-list .avg-list-search:focus,
-.avg-list .avg-list-search:focus-visible {
+.avg-list .avg-list-search:focus-visible,
+.avg-text-filter-body .avg-text-filter-input:focus,
+.avg-text-filter-body .avg-text-filter-input:focus-visible {
     border-color: var(--avg-accent);
     outline: none;
 }
@@ -895,6 +1100,61 @@
     min-height: 0;
     overflow: auto;
     padding: 8px;
+}
+
+/* The built-in text filter: an input over a radio group. Intrinsic size, no grip, so the
+   buttons take the same padding a custom body's do. */
+.avg-text-filter-content > .avg-filter-buttons {
+    padding: 6px;
+}
+
+.avg-text-filter-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+}
+
+/* The input's look is shared with the checklist's search box — see .avg-list-search above:
+   the two popovers must read as one control set. */
+
+/*
+ * The operators: a row of chips under the input, each stretched so they fill its width. The
+ * popover has an intrinsic width, so five chips widen it to one row (~354 px, measured) rather
+ * than wrapping; flex-wrap stays as the safety net under a host max-width, and it is why this is
+ * not space-between, which would spread a two-chip second row to the edges.
+ */
+.avg-text-filter-ops {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.avg-text-filter-op {
+    flex: 1 1 auto;
+    text-align: center;
+    padding: 1px 6px;
+    font: inherit;
+    font-size: 0.85em;
+    white-space: nowrap;
+    color: var(--avg-text-muted);
+    background-color: transparent;
+    border: solid 1px var(--avg-border-color);
+    /* The same rounding as the input and the buttons — the chips are part of one panel. */
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.avg-text-filter-op:hover {
+    background-color: var(--avg-hover-bg);
+}
+
+.avg-text-filter-op-selected,
+.avg-text-filter-op-selected:hover {
+    color: var(--avg-button-primary-text);
+    background-color: var(--avg-button-primary-bg);
+    border-color: var(--avg-button-primary-bg);
 }
 
 .avg-button {

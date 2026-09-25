@@ -3,6 +3,12 @@
 One line per change, newest first. Keep it short. Record pending changes under a heading for
 the **next version** you'll release (the version `board-manifest.json` will be bumped to).
 
+## 1.2.1
+
+- **The grid no longer blinks while you scroll fast or drag the scrollbar.**
+- Brings eleven releases of grid fixes and speed-ups at once — the viewer had been on an
+  old build of the grid it renders with.
+
 ## 1.2.0
 
 - **An AI agent can now read and drive this board directly.** Ask the assistant about the open

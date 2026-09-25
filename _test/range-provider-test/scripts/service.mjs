@@ -1,0 +1,196 @@
+// Range Provider Test — module service.
+//
+// Registers two content providers used to exercise EPIC-113 / US-1474 (a board provider that
+// serves ranged reads through the module service) without a torrent or a real swarm:
+//
+//   test/range   (scheme "rangetest")   — implements readBinary, readRange, stat.
+//   test/norange (scheme "norangetest") — implements only readBinary + stat (no ranging), so the
+//                                         "a provider without ranging behaves exactly as before"
+//                                         case can be exercised.
+//
+// Both providers serve a large SYNTHETIC resource that is generated on demand and never stored
+// on disk or held whole in memory: byte at absolute offset `i` is `genByte(i)`, a pure function of
+// `i`, so any returned range can be checked in isolation against what it should contain — see
+// README.md for the formula and the exact URL/query contract.
+//
+// Deliberately controllable behaviour is driven entirely by the requested link's query string
+// (parsed from `config.url`, which is the full href `createBoardSchemeHooks` puts in the pipe
+// descriptor's provider config — see board-manifest.json's `contentProviders` and
+// custom-editor-registry.ts):
+//
+//   size   - total resource size in bytes (default 4096; capped at 4294967295 = 2^32-1, see
+//            README's note on the 32-bit byte formula).
+//   delay  - milliseconds to wait before answering EVERY read against this URL (default 0, capped
+//            at 30000).
+//   stall  - "1" makes every read against this URL hang forever (never resolves on its own) — used
+//            to exercise EPIC-113 D6 ("a content read waits until the page closes").
+//
+// Call counters (readBinary vs readRange, per provider type) are kept in memory here and exposed
+// to the board frame over `persephone.service.request({ op: "counters" })` — see README.md.
+
+const counters = {
+    "test/range": { readBinary: 0, readRange: 0, lastRanges: [] },
+    "test/norange": { readBinary: 0, readRange: 0, lastRanges: [] },
+};
+
+function recordCall(type, op, range) {
+    const bucket = counters[type];
+    bucket[op] += 1;
+    if (range) {
+        bucket.lastRanges.push({ start: range.start, end: range.end, at: Date.now() });
+        if (bucket.lastRanges.length > 20) bucket.lastRanges.shift();
+    }
+}
+
+function resetCounters() {
+    for (const bucket of Object.values(counters)) {
+        bucket.readBinary = 0;
+        bucket.readRange = 0;
+        bucket.lastRanges.length = 0;
+    }
+}
+
+// Deterministic synthetic byte at absolute offset `i`. Kept to 32-bit-safe bitwise math (see the
+// `size` cap below) so this formula matches exactly between here (Node) and the board frame
+// (browser JS), which re-derives it to verify a fetched range without ever seeing the whole
+// resource.
+function genByte(i) {
+    const lo = i & 0xff;
+    const mid = (i >>> 8) & 0xff;
+    return (lo ^ mid ^ 0xa5) & 0xff;
+}
+
+function generateRange(start, end) {
+    const length = end - start + 1;
+    const data = new Uint8Array(length);
+    for (let k = 0; k < length; k++) data[k] = genByte(start + k);
+    return data;
+}
+
+function parseParams(config) {
+    try {
+        return new URL(String(config && config.url)).searchParams;
+    } catch {
+        return new URLSearchParams();
+    }
+}
+
+function paramInt(params, name, fallback) {
+    const raw = params.get(name);
+    if (raw === null) return fallback;
+    const n = Number(raw);
+    return Number.isFinite(n) ? Math.trunc(n) : fallback;
+}
+
+// Capped below 2^32 so genByte()'s `>>> 8` (a 32-bit unsigned bitwise op in both Node and the
+// browser) never wraps for any offset inside the resource. Still comfortably above
+// MAX_BUFFERED_PIPE_BYTES (256 MiB), so the "resource larger than the buffered ceiling" scenario
+// (EPIC-113 acceptance item 3) is reachable.
+const MAX_SIZE = 4294967295;
+
+function paramSize(params) {
+    return Math.max(0, Math.min(paramInt(params, "size", 4096), MAX_SIZE));
+}
+
+function paramDelayMs(params) {
+    return Math.max(0, Math.min(paramInt(params, "delay", 0), 30_000));
+}
+
+function paramStall(params) {
+    return params.get("stall") === "1";
+}
+
+async function applyControls(params) {
+    if (paramStall(params)) {
+        // Never resolves on its own. With today's per-operation deadline
+        // (SERVICE_REQUEST_DEADLINE_MS, ~10s — US-1518 has not shipped yet) the platform currently
+        // times this out rather than truly waiting forever; see README.md's "Known limitation".
+        return new Promise(() => {});
+    }
+    const delayMs = paramDelayMs(params);
+    if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+function makeImplementation(type, supportsRange) {
+    const implementation = {
+        writable: false,
+        async readBinary(config) {
+            const params = parseParams(config);
+            await applyControls(params);
+            const size = paramSize(params);
+            recordCall(type, "readBinary");
+            return generateRange(0, Math.max(0, size - 1));
+        },
+        async stat(config) {
+            const params = parseParams(config);
+            return { exists: true, size: paramSize(params) };
+        },
+    };
+    if (supportsRange) {
+        implementation.readRange = async (config, range) => {
+            const params = parseParams(config);
+            await applyControls(params);
+            recordCall(type, "readRange", range);
+            return generateRange(range.start, range.end);
+        };
+    }
+    return implementation;
+}
+
+globalThis.persephone.providers.register("test/range", makeImplementation("test/range", true));
+globalThis.persephone.providers.register("test/norange", makeImplementation("test/norange", false));
+
+const parentPort = process.parentPort;
+if (!parentPort) {
+    console.error("Range Provider Test service requires Persephone's module-service host.");
+    process.exit(1);
+}
+
+function postResponse(requestId, result) {
+    parentPort.postMessage({ kind: "response", requestId, result });
+}
+
+async function handleRequest(message) {
+    const request = message && typeof message === "object" ? message : {};
+    switch (request.op) {
+        case "counters":
+            return JSON.parse(JSON.stringify(counters));
+        case "reset-counters":
+            resetCounters();
+            return JSON.parse(JSON.stringify(counters));
+        default:
+            throw new Error(`unknown-operation:${String(request.op)}`);
+    }
+}
+
+function handleMessage(message) {
+    if (!message || typeof message.kind !== "string") return;
+    if (message.kind === "init") {
+        parentPort.postMessage({ kind: "ready", nonce: message.nonce });
+        return;
+    }
+    if (message.kind === "probe") {
+        parentPort.postMessage({ kind: "probe-ack", nonce: message.nonce });
+        return;
+    }
+    if (message.kind === "shutdown") {
+        process.exit(0);
+        return;
+    }
+    if (message.kind !== "request" || typeof message.requestId !== "string") return;
+    void handleRequest(message.message).then(
+        (result) => postResponse(message.requestId, result),
+        (error) => {
+            console.error("Range Provider Test service request failed:", error);
+            parentPort.postMessage({
+                kind: "response",
+                requestId: message.requestId,
+                error: "service-request-failed",
+            });
+        },
+    );
+}
+
+parentPort.on("message", (event) => {
+    handleMessage(event && typeof event === "object" && "data" in event ? event.data : event);
+});

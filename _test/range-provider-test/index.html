@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Range Provider Test</title>
+    <link rel="stylesheet" href="./board-base.css" />
+    <style>
+        body { padding: var(--p-space-xl, 16px); }
+        h1 { font-size: var(--p-font-xl, 20px); margin: 0 0 var(--p-space-sm, 6px); }
+        h2 { font-size: var(--p-font-lg, 16px); margin: var(--p-space-xl, 16px) 0 var(--p-space-sm, 6px); }
+        p, .muted { color: var(--p-text-muted, #9aa0a6); }
+        code { background: var(--p-panel, #252526); padding: 1px 4px; border-radius: 3px; }
+        .row { display: flex; flex-wrap: wrap; gap: var(--p-space-sm, 6px); margin-bottom: var(--p-space-sm, 6px); }
+        button {
+            font: inherit;
+            padding: var(--p-space-sm, 6px) var(--p-space-md, 10px);
+            border: 1px solid var(--p-accent, #0078d4);
+            background: var(--p-accent, #0078d4);
+            color: var(--p-accent-text, #ffffff);
+            border-radius: var(--p-radius-md, 4px);
+            cursor: pointer;
+        }
+        button.secondary {
+            background: transparent;
+            color: var(--p-text, #ccc);
+            border-color: var(--p-border, #3c3c3c);
+        }
+        button:hover { filter: brightness(1.1); }
+        button:active { filter: brightness(0.9); }
+        pre#out, pre#counters-out {
+            margin-top: var(--p-space-sm, 6px);
+            padding: var(--p-space-lg, 12px);
+            background: var(--p-panel, #252526);
+            border: 1px solid var(--p-border, #3c3c3c);
+            border-radius: var(--p-radius-md, 4px);
+            white-space: pre-wrap;
+            word-break: break-word;
+            min-height: 32px;
+            max-height: 340px;
+            overflow: auto;
+        }
+        #stream-page { display: none; }
+    </style>
+</head>
+<body>
+    <!-- ══════════════ Console (opened standalone, e.g. from the Boards panel) ══════════════ -->
+    <div id="console">
+        <h1>Range Provider Test</h1>
+        <p>US-1474 / EPIC-113 fixture. Each button opens a new page through this board's own
+           <code>rangetest:</code> / <code>norangetest:</code> scheme, which this board also claims
+           as a <code>stream-host</code> editor for <code>*.rangefix</code> — so the new page is
+           served by this board again, reading through <code>persephone.host.streamUrl()</code>
+           against the range provider running in this board's declared service. See
+           <code>README.md</code> for the full scenario table and query-parameter contract.</p>
+
+        <h2>Scenarios</h2>
+        <div class="row">
+            <button data-scenario="cold-small">Cold start, small (readRange, no readBinary)</button>
+            <button data-scenario="large">Large resource (&gt; 256 MB, seek near end)</button>
+            <button data-scenario="slow-first-byte">Slow first byte (delay)</button>
+            <button data-scenario="stall">Stall indefinitely (D6)</button>
+            <button data-scenario="no-range">No-range provider (buffered fallback)</button>
+            <button data-scenario="no-range-oversized">No-range provider, over 256 MB (must fail)</button>
+        </div>
+
+        <h2>Counters</h2>
+        <p class="muted">Per-provider call counts kept in this board's service process (in memory;
+           reset when the service restarts). See README.md's counters section.</p>
+        <div class="row">
+            <button id="refresh-counters" class="secondary">Refresh counters</button>
+            <button id="reset-counters" class="secondary">Reset counters</button>
+        </div>
+        <pre id="counters-out">(not yet loaded)</pre>
+    </div>
+
+    <!-- ══════════════ Stream page (opened AS the editor for a rangetest:/norangetest: link) ══ -->
+    <div id="stream-page">
+        <h1>Range probe</h1>
+        <p class="muted">This page's content pipe is the range-test provider running in the
+           board's service. Every fetch below reads through
+           <code>persephone.host.streamUrl()</code> with an explicit <code>Range</code> header.</p>
+        <div class="row">
+            <button id="probe-first">Fetch first 64 bytes</button>
+            <button id="probe-end" disabled>Seek: fetch last 64 bytes</button>
+            <button id="probe-again">Fetch first 64 bytes again</button>
+        </div>
+        <pre id="out">(loading…)</pre>
+    </div>
+
+    <script src="./app.js"></script>
+</body>
+</html>

@@ -1,3 +1,5 @@
+import { promises as fs } from "node:fs";
+
 // Range Provider Test — module service.
 //
 // Registers two content providers used to exercise EPIC-113 / US-1474 (a board provider that
@@ -67,6 +69,28 @@ function generateRange(start, end) {
     return data;
 }
 
+// A `file=<absolute path>` link serves THAT FILE's real bytes instead of the synthetic generator.
+// EPIC-113 acceptance item 5 needs the built-in media player to play a resource served by a BOARD
+// PROVIDER, and synthetic bytes are not decodable media, so the fixture has to be able to hand out
+// something a codec accepts. Ranges still go through readRange, so the ranged path is what carries
+// the playback; nothing is cached and nothing is copied.
+function paramFile(params) {
+    const raw = params.get("file");
+    return raw ? decodeURIComponent(raw) : undefined;
+}
+
+async function readFileRange(filePath, start, end) {
+    const handle = await fs.open(filePath, "r");
+    try {
+        const length = end - start + 1;
+        const buffer = Buffer.alloc(length);
+        const { bytesRead } = await handle.read(buffer, 0, length, start);
+        return new Uint8Array(buffer.subarray(0, bytesRead));
+    } finally {
+        await handle.close();
+    }
+}
+
 function parseParams(config) {
     try {
         return new URL(String(config && config.url)).searchParams;
@@ -117,8 +141,13 @@ function makeImplementation(type, supportsRange) {
         async readBinary(config) {
             const params = parseParams(config);
             await applyControls(params);
-            const size = paramSize(params);
             recordCall(type, "readBinary");
+            const filePath = paramFile(params);
+            if (filePath) {
+                const { size } = await fs.stat(filePath);
+                return readFileRange(filePath, 0, Math.max(0, size - 1));
+            }
+            const size = paramSize(params);
             return generateRange(0, Math.max(0, size - 1));
         },
         async stat(config) {
@@ -128,6 +157,11 @@ function makeImplementation(type, supportsRange) {
             // `persephone.content.open()` (US-1521) resolves size eagerly, so a stall that skipped
             // stat() returned instantly and proved nothing about its `timeoutMs` escape hatch.
             await applyControls(params);
+            const filePath = paramFile(params);
+            if (filePath) {
+                const { size } = await fs.stat(filePath);
+                return { exists: true, size };
+            }
             return { exists: true, size: paramSize(params) };
         },
     };
@@ -136,6 +170,8 @@ function makeImplementation(type, supportsRange) {
             const params = parseParams(config);
             await applyControls(params);
             recordCall(type, "readRange", range);
+            const filePath = paramFile(params);
+            if (filePath) return readFileRange(filePath, range.start, range.end);
             return generateRange(range.start, range.end);
         };
     }

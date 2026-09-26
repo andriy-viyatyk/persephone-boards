@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "description": "EPIC-113/US-1521 test fixture: a deliberately SIMPLE board (no service, no provider, no editorKind) that calls persephone.content.open() - the acceptance criterion the stream-host Range Provider Test board cannot prove.",
+  "author": "",
+  "name": "Content Open Test",
+  "repository": ""
+}

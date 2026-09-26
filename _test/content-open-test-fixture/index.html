@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Content Open Test</title>
+    <style>
+        body { font: 13px/1.5 ui-monospace, Consolas, monospace;
+               background: var(--p-bg, #1f1f1f); color: var(--p-text, #ccc); padding: 16px; }
+        h1 { font-size: 18px; margin: 0 0 4px; }
+        p { color: var(--p-text-muted, #9aa0a6); margin: 0 0 12px; }
+        button { font: inherit; padding: 6px 10px; margin-right: 6px;
+                 border: 1px solid var(--p-accent, #0078d4); background: var(--p-accent, #0078d4);
+                 color: var(--p-accent-text, #fff); border-radius: 4px; cursor: pointer; }
+        pre { margin-top: 10px; padding: 12px; background: var(--p-panel, #252526);
+              border: 1px solid var(--p-border, #3c3c3c); border-radius: 4px;
+              white-space: pre-wrap; word-break: break-word; max-height: 70vh; overflow: auto; }
+    </style>
+</head>
+<body>
+    <h1>content.open() — simple board</h1>
+    <p>This board declares no service, no content provider and no <code>editorKind</code>, so it is
+       <code>simple</code> and <code>persephone.host.streamUrl()</code> rejects for it. Everything
+       below therefore exercises US-1521's ungated path.</p>
+    <button id="run">Run probes</button>
+    <button id="revoke">Re-run after reload (lifetime)</button>
+    <pre id="out">(not yet run)</pre>
+    <script src="./app.js"></script>
+</body>
+</html>

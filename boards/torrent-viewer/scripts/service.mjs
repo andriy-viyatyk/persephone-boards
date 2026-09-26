@@ -5,7 +5,8 @@ const { default: WebTorrent, MemoryChunkStore } = await import("../lib/webtorren
 
 const METADATA_TIMEOUT_MS = 30_000;
 const MAX_RESOLUTION_JOBS = 4;
-const NO_POLL_TIMEOUT_MS = 15_000;
+// Keep the abandoned-job watchdog above D8's metadata bound so it never pre-empts a real resolution.
+const NO_POLL_TIMEOUT_MS = METADATA_TIMEOUT_MS + 15_000;
 const COMPLETED_RESULT_TTL_MS = 60_000;
 const MAX_BOARD_PIPE_CHUNK_BYTES = 1024 * 1024;
 const MAX_BUFFERED_PIPE_BYTES = 256 * 1024 * 1024;
@@ -229,7 +230,24 @@ async function torrentFileForLink(link, signal) {
     return { torrent, file: fileForPath(torrent, link.canonicalPath) };
 }
 
+/** When a read last touched each torrent. `activeReaders` alone is the WRONG signal for "is a
+ *  page using this": the media player opens a bounded read, drains it and closes, so the count is
+ *  zero for most of playback. Measured: removing a torrent under a playing page was accepted with
+ *  `activeReaders: 0`, and the page survived only until its buffer drained. A recent read is the
+ *  honest proxy for a live consumer. */
+const lastReadAt = new WeakMap();
+const RECENT_READ_WINDOW_MS = 30_000;
+
+/** True while a torrent is being read, or was read recently enough that a page is probably still
+ *  consuming it. Used to refuse a removal that would kill a page mid-playback. */
+function isTorrentInUse(torrent) {
+    if ((activeReaderCounts.get(torrent) ?? 0) > 0) return true;
+    const last = lastReadAt.get(torrent);
+    return last !== undefined && Date.now() - last < RECENT_READ_WINDOW_MS;
+}
+
 function beginReader(torrent) {
+    lastReadAt.set(torrent, Date.now());
     const activeReaders = (activeReaderCounts.get(torrent) ?? 0) + 1;
     activeReaderCounts.set(torrent, activeReaders);
     const previous = selectionState.get(torrent);
@@ -241,6 +259,7 @@ function beginReader(torrent) {
 }
 
 function endReader(torrent) {
+    lastReadAt.set(torrent, Date.now());
     const activeReaders = Math.max(0, (activeReaderCounts.get(torrent) ?? 1) - 1);
     if (activeReaders === 0) {
         activeReaderCounts.delete(torrent);
@@ -726,12 +745,6 @@ export function getServiceSnapshot(consumeCompletedMetadata = false) {
 export async function removeTorrent(magnetOrTorrentId) {
     const source = typeof magnetOrTorrentId === "string" ? magnetOrTorrentId.trim() : "";
     const infoHash = extractInfoHash(source);
-    for (const job of resolutionJobs.values()) {
-        if (job.state === "resolving" && (job.source === source || (infoHash && job.infoHash === infoHash))) {
-            cancelJob(job, "torrent-resolution-removed");
-        }
-    }
-
     let torrent = infoHash ? findTorrentByInfoHash(infoHash) : undefined;
     if (!torrent && source) {
         torrent = [...new Set(torrentsByInfoHash.values())].find(
@@ -739,6 +752,18 @@ export async function removeTorrent(magnetOrTorrentId) {
         );
     }
     if (!torrent) return { removed: false };
+    if (isTorrentInUse(torrent)) {
+        return {
+            removed: false,
+            reason: "torrent-removal-active-readers",
+            infoHash: torrent.infoHash ?? null,
+        };
+    }
+    for (const job of resolutionJobs.values()) {
+        if (job.state === "resolving" && (job.source === source || (infoHash && job.infoHash === infoHash))) {
+            cancelJob(job, "torrent-resolution-removed");
+        }
+    }
     forgetTorrent(torrent);
     await destroyTorrent(torrent);
     return { removed: true, infoHash: torrent.infoHash ?? null };

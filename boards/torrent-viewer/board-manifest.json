@@ -6,7 +6,7 @@
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
   "version": "1.1.0",
   "minAppVersion": "5.0.4",
-  "minBridgeVersion": "1.14.0",
+  "minBridgeVersion": "1.15.0",
   "permissions": ["service", "contentProviders"],
   "service": "scripts/service.mjs",
   "contentProviders": [

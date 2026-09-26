@@ -22,7 +22,8 @@ on-demand reads, and the EPIC-114 production two-pane page from US-1525.
 - The board is trusted and scaffolded by Persephone; `board-base.css` and bridge wiring are kept.
 - The service follows `_test/range-provider-test/scripts/service.mjs` for the parent-port
   init/probe/request/shutdown handshake. Board service requests are short, so metadata resolution
-  is exposed as resolve/start plus polled status with a 30-second internal deadline.
+  is exposed as resolve/start plus polled status with a 30-second internal deadline and a
+  45-second no-poll grace period.
 - The provider is registered from the same service module. It restores cold links from their
   embedded magnet, reuses the existing resolver, never calls `file.select()`, and owns a bounded
   `createReadStream` iterator whose selection is destroyed on every completion, error, or abort.
@@ -47,11 +48,17 @@ on-demand reads, and the EPIC-114 production two-pane page from US-1525.
 - [x] Add board-specific `README.md` and `CLAUDE.md` documentation.
 - [x] Run deterministic builds, syntax checks, and the throwaway Sintel resolver check. Live MCP
       verification belongs to the user and the later production tasks.
+- [x] Apply the reviewed US-1526 lifecycle changes: derive the no-poll watchdog from the metadata
+      bound, translate known failure reasons, provide manual retry, refuse removal with active readers,
+      and stop only after an explicit last remove has a fresh empty snapshot.
+- [x] Keep service lifetime independent of page teardown and update the board's bridge requirement and
+      lifecycle documentation.
 
 ## Concerns / Open Questions
 
 - The `magnet` scheme is claimed with the D11-aware bridge: `getSourceUrl()` supplies the raw
-  persisted source without materialization, and the manifest requires bridge `1.14.0`.
+  persisted source without materialization, and the manifest requires bridge `1.15.0` for the added
+  `service.stop()` call.
 - `memory-chunk-store` has no eviction; RSS measurement while streaming belongs to epic acceptance
   and must not be replaced with disk storage here.
 - The board is not publishable until the release documentation pass supplies `guides/` and
@@ -77,6 +84,10 @@ on-demand reads, and the EPIC-114 production two-pane page from US-1525.
 | `doc/tasks/BT-025-torrent-viewer-skeleton/README.md` | This board-repository task record. |
 | `doc/active-work.md` | Active dashboard link. |
 
+The lifecycle follow-up also changes `boards/torrent-viewer/app.js`,
+`boards/torrent-viewer/scripts/service.mjs`, `boards/torrent-viewer/board-manifest.json`,
+`boards/torrent-viewer/WHATS-NEW.md`, and `boards/torrent-viewer/README.md`.
+
 ## Notes
 
 The reviewed implementation plan is `C:/projects/persephone/doc/tasks/US-1523-torrent-board-skeleton/README.md`.
@@ -84,3 +95,5 @@ The live Persephone MCP verification in plan step 5 is intentionally left to the
 The managed shell blocks esbuild's child service with `spawn EPERM`; the pinned native esbuild CLI
 produced the same bundle twice with identical hashes, and the service syntax/direct resolver checks
 passed.
+The US-1526 live lifecycle, RSS, and D6/D8 measurements remain for the user; this change was checked
+out of app as requested.

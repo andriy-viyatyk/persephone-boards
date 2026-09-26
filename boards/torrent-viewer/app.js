@@ -5,6 +5,37 @@ const SNAPSHOT_INTERVAL_MS = 1000;
 const STATUS_INTERVAL_MS = 750;
 const STALLED_SAMPLE_LIMIT = 3;
 
+const KNOWN_FAILURE_MESSAGES = new Map([
+    ["torrent-resolution-no-status-poll", "Resolution was abandoned because this page stopped polling. Retry to start a new attempt."],
+    ["torrent-resolution-cancelled", "Torrent resolution was cancelled. Retry to start a new attempt."],
+    ["torrent-resolution-removed", "Torrent resolution was cancelled because the torrent was removed."],
+    ["torrent-resolution-failed", "The torrent metadata could not be resolved. Retry to start a new attempt."],
+    ["torrent-service-shutting-down", "The torrent service is shutting down. Retry to start a new attempt."],
+    ["service-request-failed", "The torrent service request failed. Retry the operation."],
+    ["torrent-resolution-busy", "Too many torrent resolutions are already running. Wait for one to finish, then retry."],
+    ["torrent-identifier-required", "Enter a magnet link or choose a .torrent file."],
+    ["torrent-removal-active-readers", "This torrent is in use by an open page. Close that page, wait a few seconds, then remove it."],
+    ["torrent-link-invalid", "This torrent link is invalid."],
+    ["torrent-link-invalid-protocol", "This torrent link uses an unsupported protocol."],
+    ["torrent-link-invalid-infohash", "This torrent link has an invalid info hash."],
+    ["torrent-link-path-required", "This torrent link does not identify a file."],
+    ["torrent-link-path-invalid-encoding", "This torrent link has an invalid file path."],
+    ["torrent-link-path-invalid", "This torrent link has an invalid file path."],
+    ["torrent-link-magnet-mismatch", "This torrent link contains a magnet for a different torrent."],
+    ["torrent-magnet-required", "This torrent is no longer loaded. Add it again before opening this file."],
+    ["torrent-unavailable", "This torrent is no longer available. Add it again before opening this file."],
+    ["torrent-file-not-found", "The requested file is not in this torrent."],
+    ["torrent-file-too-large", "This torrent file is too large to read through the board."],
+    ["torrent-range-too-large", "The requested file range is too large for the board."],
+    ["torrent-range-invalid", "The requested file range is invalid."],
+    ["torrent-range-out-of-bounds", "The requested file range is outside the file."],
+    ["torrent-file-size-invalid", "The torrent reported an invalid file size."],
+    ["torrent-file-deselect-unavailable", "The torrent service could not prepare its file metadata. Retry the operation."],
+    ["torrent-read-aborted", "The torrent read was cancelled. Retry the operation if the page is still open."],
+    ["torrent-read-incomplete", "The torrent read ended before the requested bytes arrived. Retry the operation."],
+    ["torrent-read-too-many-bytes", "The torrent returned more bytes than requested. Retry the operation."],
+]);
+
 const sourceInput = document.getElementById("source-input");
 const pageStatus = document.getElementById("page-status");
 const torrentList = document.getElementById("torrent-list");
@@ -23,16 +54,52 @@ let selectedInfoHash;
 let snapshotTimer;
 let snapshotInFlight = false;
 let tearingDown = false;
+let serviceStopped = false;
 
-function messageFrom(error, fallback = "Torrent service request failed.") {
+function rawMessageFrom(error, fallback = "Torrent service request failed.") {
     if (error && typeof error === "object" && typeof error.message === "string") return error.message;
+    if (error && typeof error === "object" && typeof error.code === "string") return error.code;
     if (typeof error === "string" && error.length > 0) return error;
     return fallback;
 }
 
+function messageFrom(error, fallback = "Torrent service request failed.") {
+    const raw = rawMessageFrom(error, fallback);
+    if (raw.startsWith("torrent-metadata-timeout:")) {
+        // Read the bound out of the reason rather than repeating it: the service owns
+        // METADATA_TIMEOUT_MS, and a hardcoded "30 seconds" here would quietly start lying
+        // the moment that constant moves.
+        const ms = Number(raw.slice("torrent-metadata-timeout:".length).replace(/ms$/, ""));
+        const seconds = Number.isFinite(ms) && ms > 0 ? Math.round(ms / 1000) : null;
+        return seconds
+            ? `Torrent metadata was not found within ${seconds} seconds. Retry to start a new attempt.`
+            : "Torrent metadata was not found in time. Retry to start a new attempt.";
+    }
+    const known = KNOWN_FAILURE_MESSAGES.get(raw);
+    if (known) return known;
+    if (/^(?:torrent|service|unknown)-[a-z0-9-]+(?::.*)?$/i.test(raw)) {
+        return `The torrent service reported an unrecognised failure: ${raw}. Retry the operation.`;
+    }
+    return /[.!?]$/.test(raw) ? raw : `${raw}.`;
+}
+
 function setStatus(message, isError = false) {
-    pageStatus.textContent = message;
+    pageStatus.replaceChildren();
+    const text = document.createElement("span");
+    text.textContent = message;
+    pageStatus.append(text);
     pageStatus.classList.toggle("error", isError);
+}
+
+function setStatusWithAction(message, isError, label, action) {
+    setStatus(message, isError);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "p-btn ghost sm";
+    button.textContent = label;
+    button.style.marginLeft = "auto";
+    button.addEventListener("click", () => void action());
+    pageStatus.append(button);
 }
 
 function waitFor(ms) {
@@ -320,7 +387,7 @@ async function waitForResolution(job) {
             continue;
         }
         if (result.state === "completed") return result.torrent;
-        throw new Error(messageFrom(result.error, `Resolution ${result.state}.`));
+        throw new Error(rawMessageFrom(result.error, `Resolution ${result.state}.`));
     }
     throw new Error("Torrent resolution cancelled.");
 }
@@ -328,6 +395,8 @@ async function waitForResolution(job) {
 async function resolveSource(rawSource) {
     const source = typeof rawSource === "string" ? rawSource.trim() : "";
     if (!source || tearingDown) return;
+    serviceStopped = false;
+    if (!snapshotInFlight && !snapshotTimer) void pollSnapshot();
 
     const duplicate = [...activeResolutions.values()].find((job) => job.source === source);
     if (duplicate) await cancelResolution(duplicate);
@@ -348,8 +417,9 @@ async function resolveSource(rawSource) {
         setStatus(`${session.metadata.name} · ${session.files.length} files · metadata only`);
     } catch (error) {
         if (!tearingDown && !job.cancelled) {
-            setStatus(messageFrom(error), true);
-            P.notify(messageFrom(error), "error");
+            const message = messageFrom(error);
+            setStatusWithAction(message, true, "Retry", () => resolveSource(source));
+            P.notify(message, "error");
         }
     } finally {
         if (job.requestId) activeResolutions.delete(job.requestId);
@@ -445,7 +515,24 @@ async function removeTorrent(session) {
                 selectedInfoHash = sessions.keys().next().value;
             }
             renderAll();
-            setStatus("Torrent removed.");
+            try {
+                const snapshot = await P.service.request({ op: "snapshot" });
+                const hasNoTorrents = Array.isArray(snapshot?.torrents) && snapshot.torrents.length === 0;
+                const hasNoActiveResolutionJobs = Array.isArray(snapshot?.activeResolutionJobs)
+                    && snapshot.activeResolutionJobs.length === 0;
+                if (hasNoTorrents && hasNoActiveResolutionJobs) {
+                    await P.service.stop();
+                    serviceStopped = true;
+                    clearTimeout(snapshotTimer);
+                    snapshotTimer = undefined;
+                }
+                setStatus("Torrent removed.");
+            } catch (error) {
+                serviceStopped = false;
+                setStatus(`Torrent removed, but the service could not be stopped: ${messageFrom(error)}`, true);
+            }
+        } else if (result.reason) {
+            setStatus(messageFrom(result.reason), true);
         } else {
             setStatus("No matching torrent is active.", true);
         }
@@ -478,7 +565,7 @@ function updateSessionStats(snapshot) {
 }
 
 async function pollSnapshot() {
-    if (tearingDown || snapshotInFlight) return;
+    if (tearingDown || serviceStopped || snapshotInFlight) return;
     snapshotInFlight = true;
     try {
         const snapshot = await P.service.request({ op: "snapshot" });
@@ -490,7 +577,7 @@ async function pollSnapshot() {
         if (!tearingDown) setStatus(messageFrom(error), true);
     } finally {
         snapshotInFlight = false;
-        if (!tearingDown) snapshotTimer = setTimeout(() => void pollSnapshot(), SNAPSHOT_INTERVAL_MS);
+        if (!tearingDown && !serviceStopped) snapshotTimer = setTimeout(() => void pollSnapshot(), SNAPSHOT_INTERVAL_MS);
     }
 }
 

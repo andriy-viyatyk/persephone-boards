@@ -6,8 +6,8 @@ file, and displays session torrents in a themed two-pane page. Files open throug
 menu item.
 
 The manifest claims the `torrent` and `magnet` schemes, declares the stable `torrent/viewer`
-provider contract, and requires bridge `1.14.0` for the non-materializing `getSourceUrl()` source
-handoff. The `.torrent` file mask is the second D10 entry point.
+provider contract, and requires bridge `1.15.0` for the non-materializing `getSourceUrl()` source
+handoff and explicit service stop. The `.torrent` file mask is the second D10 entry point.
 
 ## Build
 
@@ -29,8 +29,13 @@ dependency. `node_modules/` is development-only and excluded from board publishi
 `scripts/service.mjs` uses Persephone's module-service parent-port handshake (`init`, `probe`,
 `request`, `shutdown`). `resolve` starts a short RPC job and returns a request id; polling
 `status` returns metadata including the canonical magnet URI. Resolution has a 30-second metadata
-deadline, a four-job cap, 15-second no-poll cancellation, and 60-second abandoned-result expiry.
-`cancel`, `remove`, and shutdown destroy incomplete torrents with their memory stores.
+deadline, a four-job cap, a 45-second no-poll grace period, and 60-second abandoned-result expiry.
+`cancel`, `remove`, and shutdown destroy incomplete torrents with their memory stores. The abandoned
+job watchdog is derived as the 30-second metadata deadline plus 15 seconds, so it cannot pre-empt D8;
+the board offers a manual retry after a failed resolution and never retries automatically. Removal is
+refused while an open page is reading a torrent. After an explicit remove, the board takes one fresh
+snapshot and stops the service only when no torrents and no resolution jobs remain; page teardown does
+not stop the service.
 
 The service normalizes WebTorrent's Windows file paths from backslashes to forward slashes and
 registers `torrent/viewer` with `stat`, `readRange`, and `readBinary`. Provider links carry the

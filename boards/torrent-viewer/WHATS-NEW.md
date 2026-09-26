@@ -3,3 +3,4 @@
 ## 1.1.0
 
 - Replaced the proof harness with the EPIC-114 two-pane metadata-only torrent viewer, including D5 links and explicit file actions.
+- Added bounded metadata retry, reader-safe removal, and state-based service stopping after the last explicit remove.

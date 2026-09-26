@@ -4,7 +4,8 @@
 
 `torrent-viewer` is the EPIC-114 metadata-only viewer. Its simple editor association accepts
 `.torrent` paths, and its D11-aware manifest claims both `torrent` and `magnet`. The board exposes
-the stable `torrent/viewer` provider contract and requires bridge `1.14.0` for `getSourceUrl()`.
+the stable `torrent/viewer` provider contract, claims browser `.torrent` downloads, and requires
+bridge `1.15.0` for `getSourceUrl()`.
 
 ## Key files
 
@@ -33,8 +34,10 @@ materialization. After edits, reload the board through `pages[i].editor.reload()
   banner and all four native-module externals are load-bearing D3 requirements.
 - Resolution calls every file's `deselect()` before constructing metadata. No resolver path calls
   `select()`, creates a read stream, writes a file, or downloads content bytes.
-- Rendering never calls `content.open()` or reads a provider range. Download checks the 256 MiB
-  bridge ceiling, opens the save dialog, and only then opens/fetches/writes the selected file.
+- Normal rendering never reads a provider range. A claimed browser `.torrent` source uses
+  `content.open()` and fetches its board-scoped pipe URL into memory before entering the existing
+  resolver. Download checks the 256 MiB bridge ceiling, opens the save dialog, and only then
+  opens/fetches/writes the selected file.
 - WebTorrent may expose Windows paths with `\`; `service.mjs` publishes only forward slashes.
 - The four in-flight-job cap, 30-second metadata timer, 15-second no-poll timer, result expiry,
   and shutdown destruction are deliberate bounds. Do not replace them with an unbounded wait.

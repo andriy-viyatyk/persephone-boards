@@ -1,13 +1,16 @@
 # Torrent Viewer board
 
-This EPIC-114 board resolves a magnet link or a local `.torrent` path to metadata, deselects every
-file, and displays session torrents in a themed two-pane page. Files open through self-contained
-`torrent://` links; the only whole-file action is the explicit, size-guarded Download this file
-menu item.
+This EPIC-114 board resolves a magnet link, a local `.torrent` path, or a claimed HTTP(S)
+`.torrent` download URL to metadata, deselects every file, and displays session torrents in a
+themed two-pane page. URL sources are read through the board content pipe into memory; they are
+never saved to disk. Files open through self-contained `torrent://` links; the only whole-file
+action is the explicit, size-guarded Download this file menu item.
 
 The manifest claims the `torrent` and `magnet` schemes, declares the stable `torrent/viewer`
-provider contract, and requires bridge `1.15.0` for the non-materializing `getSourceUrl()` source
-handoff and explicit service stop. The `.torrent` file mask is the second D10 entry point.
+provider contract, requires bridge `1.15.0` for the non-materializing `getSourceUrl()` source
+handoff and explicit service stop, and claims browser downloads with both whole-URL masks
+`*://*/*.torrent` and `*://*/*.torrent?*`. The `.torrent` file mask is the second D10 entry point;
+the browser URL claim is separate.
 
 ## Build
 
@@ -27,7 +30,9 @@ dependency. `node_modules/` is development-only and excluded from board publishi
 ## Service protocol
 
 `scripts/service.mjs` uses Persephone's module-service parent-port handshake (`init`, `probe`,
-`request`, `shutdown`). `resolve` starts a short RPC job and returns a request id; polling
+`request`, `shutdown`). `resolve` starts a short RPC job and returns a request id; it accepts the
+existing string sources or an in-memory torrent byte buffer produced by the board content pipe.
+Polling
 `status` returns metadata including the canonical magnet URI. Resolution has a 30-second metadata
 deadline, a four-job cap, a 45-second no-poll grace period, and 60-second abandoned-result expiry.
 `cancel`, `remove`, and shutdown destroy incomplete torrents with their memory stores. The abandoned
@@ -44,6 +49,8 @@ encoded path and canonical magnet so they restore without the board page.
 ## UI rules
 
 The page polls one `snapshot` at a time and renders only service metadata. Rendering never selects
-a file, reads a range, or opens content. Open and double-click call `openRawLink`; Copy link uses
-the native clipboard; Download checks the 256 MiB whole-buffer bridge ceiling, opens the save
-dialog, then calls `content.open`, `fetch`, and binary `writeFile` in that order.
+a file or reads a range. Open and double-click call `openRawLink`; Copy link uses the native
+clipboard. A claimed browser `.torrent` source calls `content.open`, fetches the returned pipe URL
+into memory, and enters the same resolver job as a magnet. Download checks the 256 MiB whole-buffer
+bridge ceiling, opens the save dialog, then calls `content.open`, `fetch`, and binary `writeFile` in
+that order for the explicit user action only.

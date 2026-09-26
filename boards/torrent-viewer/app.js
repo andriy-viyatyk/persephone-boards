@@ -1,6 +1,9 @@
 const P = window.persephone;
 
 const MAX_DOWNLOAD_BYTES = 256 * 1024 * 1024;
+// Keep torrent metadata small and separate from D6's 512 MiB service RSS threshold; a bad URL
+// must not consume a large fraction of that budget in the renderer.
+const MAX_TORRENT_FILE_BYTES = 4 * 1024 * 1024;
 const SNAPSHOT_INTERVAL_MS = 1000;
 const STATUS_INTERVAL_MS = 750;
 const STALLED_SAMPLE_LIMIT = 3;
@@ -13,6 +16,9 @@ const KNOWN_FAILURE_MESSAGES = new Map([
     ["torrent-service-shutting-down", "The torrent service is shutting down. Retry to start a new attempt."],
     ["service-request-failed", "The torrent service request failed. Retry the operation."],
     ["torrent-resolution-busy", "Too many torrent resolutions are already running. Wait for one to finish, then retry."],
+    ["torrent-source-fetch-failed", "The torrent URL could not be read. Retry to start a new attempt."],
+    ["torrent-source-too-large", "The URL did not return a torrent-sized file."],
+    ["torrent-source-invalid", "The URL did not return a valid torrent file. Retry to start a new attempt."],
     ["torrent-identifier-required", "Enter a magnet link or choose a .torrent file."],
     ["torrent-removal-active-readers", "This torrent is in use by an open page. Close that page, wait a few seconds, then remove it."],
     ["torrent-link-invalid", "This torrent link is invalid."],
@@ -170,6 +176,40 @@ function stateLabel(session) {
 function sourceLabel(source) {
     if (source.toLowerCase().startsWith("magnet:")) return "magnet link";
     return fileName(source.replaceAll("\\", "/"));
+}
+
+function isHttpTorrentSource(source) {
+    if (typeof source !== "string") return false;
+    try {
+        const url = new URL(source);
+        // This acceptance must stay a superset of browserUrlMasks, or a cancelled download disappears with no page or error.
+        return (url.protocol === "http:" || url.protocol === "https:")
+            && (/\.torrent$/i.test(url.pathname) || /\.torrent$/i.test(url.href));
+    } catch {
+        return false;
+    }
+}
+
+async function readHttpTorrentSource(source) {
+    try {
+        const resource = await P.content.open(source);
+        if (Number.isFinite(resource.size) && resource.size > MAX_TORRENT_FILE_BYTES) {
+            throw new Error("torrent-source-too-large");
+        }
+        const response = await fetch(resource.url);
+        if (!response.ok) throw new Error("torrent-source-fetch-failed");
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        if (bytes.byteLength > MAX_TORRENT_FILE_BYTES) throw new Error("torrent-source-too-large");
+        return bytes;
+    } catch (error) {
+        const reason = error && typeof error === "object" && typeof error.message === "string"
+            ? error.message
+            : "";
+        if (["torrent-source-fetch-failed", "torrent-source-too-large"].includes(reason)) {
+            throw error;
+        }
+        throw new Error("torrent-source-fetch-failed");
+    }
 }
 
 function buildFileLink(torrent, file) {
@@ -405,7 +445,10 @@ async function resolveSource(rawSource) {
     setStatus("Resolving metadata…");
     const job = { source, requestId: undefined, cancelled: false };
     try {
-        const started = await P.service.request({ op: "resolve", magnetOrTorrentId: source });
+        const resolverInput = isHttpTorrentSource(source)
+            ? await readHttpTorrentSource(source)
+            : source;
+        const started = await P.service.request({ op: "resolve", magnetOrTorrentId: resolverInput });
         job.requestId = started.requestId;
         job.infoHash = typeof started.infoHash === "string" ? started.infoHash.toLowerCase() : undefined;
         activeResolutions.set(job.requestId, job);
@@ -462,11 +505,12 @@ async function copyFileLink(session, file) {
     }
 }
 
-/** A source this board can resolve: a magnet URI, one of its own `torrent://` links, or a
- *  `.torrent` path. Anything else is not ours and is ignored rather than reported as an error. */
+/** A source this board can resolve: a magnet URI, one of its own `torrent://` links, a local
+ *  `.torrent` path, or an HTTP(S) `.torrent` URL. Anything else is ignored rather than reported. */
 function isTorrentSource(source) {
     if (typeof source !== "string" || source.length === 0) return false;
     const value = source.trim();
+    if (isHttpTorrentSource(value)) return true;
     return value.startsWith("magnet:")
         || value.startsWith("torrent://")
         || /\.torrent$/i.test(value);

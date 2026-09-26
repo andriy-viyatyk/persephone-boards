@@ -30,6 +30,10 @@ function errorMessage(error, fallback = "Torrent service failed.") {
     return fallback;
 }
 
+function isTorrentBytes(value) {
+    return value instanceof Uint8Array && value.byteLength > 0;
+}
+
 function serializedError(error, code = "torrent-resolution-failed") {
     return { code, message: errorMessage(error) };
 }
@@ -92,7 +96,7 @@ export function findTorrentByInfoHash(infoHash) {
 function rememberTorrent(torrent, source) {
     const infoHash = normalizeInfoHash(torrent.infoHash);
     if (infoHash) torrentsByInfoHash.set(infoHash, torrent);
-    if (source) torrentSources.set(torrent, source);
+    if (typeof source === "string" && source) torrentSources.set(torrent, source);
 }
 
 function forgetTorrent(torrent) {
@@ -484,7 +488,10 @@ async function startResolver(operation) {
         // (webtorrent/lib/torrent.js:155, `_startAsDeselected`); `file.deselect()` only removes that
         // file's own selection and leaves the whole-range one in place. Measured without it: every
         // file reported deselected while the swarm pushed 82 MB in seconds.
-        const torrent = existing ?? getClient().add(operation.source, {
+        const torrentInput = isTorrentBytes(operation.source)
+            ? Buffer.from(operation.source)
+            : operation.source;
+        const torrent = existing ?? getClient().add(torrentInput, {
             store: MemoryChunkStore,
             deselect: true,
         });
@@ -501,19 +508,26 @@ async function startResolver(operation) {
             forgetTorrent(operation.torrent);
             await operation.destroy();
         }
-        operation.reject(error);
+        const failure = isTorrentBytes(operation.source) && !operation.cancelled
+            ? new Error("torrent-source-invalid")
+            : error;
+        operation.reject(failure);
     } finally {
         pendingResolvers.delete(operation);
     }
 }
 
 export function resolveTorrent(magnetOrTorrentId) {
-    if (typeof magnetOrTorrentId !== "string" || magnetOrTorrentId.trim().length === 0) {
+    if (!isTorrentBytes(magnetOrTorrentId)
+        && (typeof magnetOrTorrentId !== "string" || magnetOrTorrentId.trim().length === 0)) {
         return Promise.reject(new Error("torrent-identifier-required"));
     }
     if (shuttingDown) return Promise.reject(new Error("torrent-service-shutting-down"));
 
-    const operation = makeResolver(magnetOrTorrentId.trim());
+    const source = typeof magnetOrTorrentId === "string"
+        ? magnetOrTorrentId.trim()
+        : magnetOrTorrentId;
+    const operation = makeResolver(source);
     void startResolver(operation);
     return operation.promise;
 }
@@ -649,11 +663,16 @@ function startResolutionJob(source) {
     const activeCount = [...resolutionJobs.values()].filter((job) => job.state === "resolving").length;
     if (activeCount >= MAX_RESOLUTION_JOBS) throw new Error("torrent-resolution-busy");
 
-    const operation = makeResolver(source);
+    if (!isTorrentBytes(source)
+        && (typeof source !== "string" || source.trim().length === 0)) {
+        throw new Error("torrent-identifier-required");
+    }
+    const normalizedSource = typeof source === "string" ? source.trim() : source;
+    const operation = makeResolver(normalizedSource);
     const job = {
         requestId: requestId(),
-        source,
-        infoHash: extractInfoHash(source) ?? null,
+        source: normalizedSource,
+        infoHash: extractInfoHash(normalizedSource) ?? null,
         state: "resolving",
         result: undefined,
         error: undefined,

@@ -1,5 +1,9 @@
 # What's New — Torrent Viewer
 
+## 1.2.0
+
+- Claim browser `.torrent` downloads, read their source bytes through the board content pipe, and resolve them in memory without saving a file.
+
 ## 1.1.0
 
 - Replaced the proof harness with the EPIC-114 two-pane metadata-only torrent viewer, including D5 links and explicit file actions.

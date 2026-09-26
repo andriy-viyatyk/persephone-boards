@@ -1,4 +1,4 @@
-# BT-025: Torrent viewer skeleton, provider, and production page
+# BT-025: Torrent viewer skeleton, provider, production page, lifecycle, and browser URL sources
 
 ## Status
 
@@ -53,6 +53,9 @@ on-demand reads, and the EPIC-114 production two-pane page from US-1525.
       and stop only after an explicit last remove has a fresh empty snapshot.
 - [x] Keep service lifetime independent of page teardown and update the board's bridge requirement and
       lifecycle documentation.
+- [x] Add D12's independent browser URL masks, read claimed HTTP(S) `.torrent` sources through the
+      board content pipe into memory, and feed the bytes through the existing resolver with the
+      existing legible reason mapping.
 
 ## Concerns / Open Questions
 
@@ -63,6 +66,8 @@ on-demand reads, and the EPIC-114 production two-pane page from US-1525.
   and must not be replaced with disk storage here.
 - The board is not publishable until the release documentation pass supplies `guides/` and
   `screenshot.png`.
+- `minBridgeVersion` remains `1.15.0`: `browserUrlMasks` is host-consumed manifest metadata, and
+  this change uses the existing `content.open()` and `getSourceUrl()` bridge APIs.
 
 ## Acceptance Criteria
 
@@ -73,14 +78,15 @@ on-demand reads, and the EPIC-114 production two-pane page from US-1525.
       whole-file buffers without disk writes.
 - [ ] Service job limits, timeout, cancellation, result expiry, remove, and shutdown are bounded.
 - [ ] The production page uses only local assets and board bridge/service APIs; no render path
-      selects a file, reads a range, or calls `content.open()`.
+      selects a file or reads a range, and the claimed URL path reads only through the board
+      content pipe.
 - [ ] No Persephone source, root catalog manifest, commit, or unrelated platform change is added.
 
 ## Files Changed
 
 | File | Change |
 |------|--------|
-| `boards/torrent-viewer/` | Manifest, WebTorrent build/runtime, production two-pane page, provider service, and board docs. |
+| `boards/torrent-viewer/` | Manifest, WebTorrent build/runtime, production two-pane page, provider service, browser URL source handling, and board docs. |
 | `doc/tasks/BT-025-torrent-viewer-skeleton/README.md` | This board-repository task record. |
 | `doc/active-work.md` | Active dashboard link. |
 
@@ -96,4 +102,5 @@ The managed shell blocks esbuild's child service with `spawn EPERM`; the pinned 
 produced the same bundle twice with identical hashes, and the service syntax/direct resolver checks
 passed.
 The US-1526 live lifecycle, RSS, and D6/D8 measurements remain for the user; this change was checked
-out of app as requested.
+out of app as requested. The browser-download route was also checked out of app per the task
+request; no commit was created.

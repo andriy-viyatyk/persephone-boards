@@ -102,9 +102,9 @@ function paramStall(params) {
 
 async function applyControls(params) {
     if (paramStall(params)) {
-        // Never resolves on its own. With today's per-operation deadline
-        // (SERVICE_REQUEST_DEADLINE_MS, ~10s — US-1518 has not shipped yet) the platform currently
-        // times this out rather than truly waiting forever; see README.md's "Known limitation".
+        // Never resolves on its own — and since US-1518 shipped, the platform truly waits rather
+        // than timing out at ~10s. A caller that wants a bound supplies one: `content.open()`
+        // takes `timeoutMs` (US-1521); a page read is released by closing the page.
         return new Promise(() => {});
     }
     const delayMs = paramDelayMs(params);
@@ -123,6 +123,11 @@ function makeImplementation(type, supportsRange) {
         },
         async stat(config) {
             const params = parseParams(config);
+            // stat() honours `delay`/`stall` too. It used not to, which made the stall scenario
+            // silently untestable for anything that sizes a resource BEFORE reading it —
+            // `persephone.content.open()` (US-1521) resolves size eagerly, so a stall that skipped
+            // stat() returned instantly and proved nothing about its `timeoutMs` escape hatch.
+            await applyControls(params);
             return { exists: true, size: paramSize(params) };
         },
     };

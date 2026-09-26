@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Torrent Viewer</title>
+    <link rel="stylesheet" href="./board-base.css" />
+    <style>
+        body { padding: var(--p-space-xl, 16px); }
+        main { max-width: 960px; margin: 0 auto; }
+        h1 { margin: 0 0 var(--p-space-lg, 12px); font-size: var(--p-font-xl, 20px); }
+        .toolbar { display: flex; flex-wrap: wrap; gap: var(--p-space-sm, 6px); align-items: center; }
+        .toolbar .p-input { flex: 1 1 420px; min-width: 240px; }
+        .status { min-height: 24px; margin: var(--p-space-md, 8px) 0; color: var(--p-text-muted, #9aa0a6); }
+        .status.error { color: var(--p-error, #f87171); }
+        .panel { padding: var(--p-space-md, 8px); background: var(--p-panel, #252526); border: 1px solid var(--p-border, #3c3c3c); border-radius: var(--p-radius-md, 4px); }
+        .file-list { display: grid; gap: var(--p-space-xs, 4px); margin: 0; padding: 0; list-style: none; }
+        .file-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--p-space-md, 8px); align-items: baseline; padding: var(--p-space-sm, 6px); border-bottom: 1px solid var(--p-border, #3c3c3c); }
+        .file-row:last-child { border-bottom: 0; }
+        .file-path { overflow-wrap: anywhere; }
+        .file-meta, .empty { color: var(--p-text-muted, #9aa0a6); }
+        .file-meta { white-space: nowrap; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>Torrent Viewer</h1>
+        <div class="toolbar">
+            <input id="torrent-input" class="p-input" type="text" placeholder="magnet:?xt=... or a .torrent path" autocomplete="off" />
+            <button id="resolve" class="p-btn primary" type="button">Resolve metadata</button>
+            <button id="remove" class="p-btn ghost" type="button">Remove</button>
+            <button id="refresh" class="p-btn ghost" type="button">Status</button>
+        </div>
+        <div id="status" class="status" role="status">Metadata only. No file content is selected.</div>
+        <section class="panel" aria-label="Torrent files">
+            <ul id="file-list" class="file-list"><li class="empty">No torrent resolved yet.</li></ul>
+        </section>
+    </main>
+    <script src="./app.js"></script>
+</body>
+</html>

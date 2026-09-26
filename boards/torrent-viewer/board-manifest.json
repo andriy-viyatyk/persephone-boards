@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "name": "Torrent Viewer",
+  "description": "Metadata-only torrent viewer skeleton for Persephone.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "5.0.4",
+  "minBridgeVersion": "1.8.0",
+  "permissions": ["service", "contentProviders"],
+  "service": "scripts/service.mjs",
+  "contentProviders": [
+    { "type": "torrent/viewer", "schemes": ["torrent"] }
+  ],
+  "fileMasks": ["*.torrent"],
+  "editorName": "Torrent Viewer",
+  "editorKind": "simple",
+  "editorPriority": 100
+}

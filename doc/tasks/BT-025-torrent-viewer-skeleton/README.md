@@ -1,4 +1,4 @@
-# BT-025: Torrent viewer skeleton and content provider
+# BT-025: Torrent viewer skeleton, provider, and production page
 
 ## Status
 
@@ -10,9 +10,9 @@
 
 ## Goal
 
-Deliver the metadata-only torrent-viewer board skeleton and its `torrent/viewer` content provider:
-the manifest, reproducible WebTorrent bundle, bounded module-service resolver, provider link format,
-and bounded on-demand reads. The production two-pane UI remains US-1525.
+Deliver the torrent-viewer board and its `torrent/viewer` content provider: the manifest,
+reproducible WebTorrent bundle, bounded module-service resolver, provider link format, bounded
+on-demand reads, and the EPIC-114 production two-pane page from US-1525.
 
 ## Background
 
@@ -30,28 +30,32 @@ and bounded on-demand reads. The production two-pane UI remains US-1525.
 ## Implementation Plan
 
 - [x] Fill `boards/torrent-viewer/board-manifest.json` with the service, declaration-only
-      `torrent/viewer` provider contract, `torrent` scheme, `.torrent` mask, simple editor metadata,
-      and catalog identity fields. Do not claim `magnet`, `guides`, or `screenshot`.
+      `torrent/viewer` provider contract, `torrent` and `magnet` schemes, `.torrent` mask, simple
+      editor metadata, catalog identity fields, and the required bridge version.
 - [x] Add the pinned `package.json`, install lockfile, WebTorrent entry, esbuild build script,
       committed bundle, and third-party version/license notices under `lib/`.
 - [x] Implement `scripts/service.mjs` with metadata resolution, deselection, normalized paths,
       four-job admission, 15-second no-poll cancellation, 30-second resolver timeout, result expiry,
       remove, complete shutdown cleanup, and the `torrent/viewer` stat/range/whole-file provider
       with self-contained link parsing, cancellation, active-reader accounting, and D1 cleanup.
-- [x] Replace the starter proof page with an offline `index.html`/`app.js` resolve/status UI that
-      can consume an editor-supplied `.torrent` path without opening or selecting the file.
+- [x] Replace the starter proof page with the themed two-pane `index.html`/`app.js` page: session
+      torrents, metadata-only status dots, sorted files, exact self-contained links, menus, and
+      the explicit save action with its size-first/dialog-first ordering.
+- [x] Extend service metadata with the canonical magnet URI so `.torrent` sources produce D5 links.
+- [x] Update the board README, pending `1.1.0` changelog, bridge requirement, and dashboard
+      record for the production page.
 - [x] Add board-specific `README.md` and `CLAUDE.md` documentation.
 - [x] Run deterministic builds, syntax checks, and the throwaway Sintel resolver check. Live MCP
       verification belongs to the user and the later production tasks.
 
 ## Concerns / Open Questions
 
-- `magnet` remains intentionally unclaimed. EPIC-114 D11 assigns the opaque-link editor routing
-  change and the declaration to US-1525.
+- The `magnet` scheme is claimed with the D11-aware bridge: `getSourceUrl()` supplies the raw
+  persisted source without materialization, and the manifest requires bridge `1.14.0`.
 - `memory-chunk-store` has no eviction; RSS measurement while streaming belongs to epic acceptance
   and must not be replaced with disk storage here.
-- The skeleton is not publishable until US-1525 or US-1527 supplies `WHATS-NEW.md`, `guides/`,
-  and `screenshot.png`.
+- The board is not publishable until the release documentation pass supplies `guides/` and
+  `screenshot.png`.
 
 ## Acceptance Criteria
 
@@ -61,14 +65,15 @@ and bounded on-demand reads. The production two-pane UI remains US-1525.
       files deselected without selecting bytes, while the provider serves exact bounded ranges and
       whole-file buffers without disk writes.
 - [ ] Service job limits, timeout, cancellation, result expiry, remove, and shutdown are bounded.
-- [ ] The proof page uses only local assets and `persephone.service.request()`.
-- [ ] No Persephone source, root catalog manifest, commit, or production torrent UI is added.
+- [ ] The production page uses only local assets and board bridge/service APIs; no render path
+      selects a file, reads a range, or calls `content.open()`.
+- [ ] No Persephone source, root catalog manifest, commit, or unrelated platform change is added.
 
 ## Files Changed
 
 | File | Change |
 |------|--------|
-| `boards/torrent-viewer/` | Manifest, WebTorrent build/runtime, proof page, provider service, and board docs. |
+| `boards/torrent-viewer/` | Manifest, WebTorrent build/runtime, production two-pane page, provider service, and board docs. |
 | `doc/tasks/BT-025-torrent-viewer-skeleton/README.md` | This board-repository task record. |
 | `doc/active-work.md` | Active dashboard link. |
 

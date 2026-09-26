@@ -5,36 +5,221 @@
     <title>Torrent Viewer</title>
     <link rel="stylesheet" href="./board-base.css" />
     <style>
-        body { padding: var(--p-space-xl, 16px); }
-        main { max-width: 960px; margin: 0 auto; }
-        h1 { margin: 0 0 var(--p-space-lg, 12px); font-size: var(--p-font-xl, 20px); }
-        .toolbar { display: flex; flex-wrap: wrap; gap: var(--p-space-sm, 6px); align-items: center; }
-        .toolbar .p-input { flex: 1 1 420px; min-width: 240px; }
-        .status { min-height: 24px; margin: var(--p-space-md, 8px) 0; color: var(--p-text-muted, #9aa0a6); }
-        .status.error { color: var(--p-error, #f87171); }
-        .panel { padding: var(--p-space-md, 8px); background: var(--p-panel, #252526); border: 1px solid var(--p-border, #3c3c3c); border-radius: var(--p-radius-md, 4px); }
-        .file-list { display: grid; gap: var(--p-space-xs, 4px); margin: 0; padding: 0; list-style: none; }
-        .file-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--p-space-md, 8px); align-items: baseline; padding: var(--p-space-sm, 6px); border-bottom: 1px solid var(--p-border, #3c3c3c); }
-        .file-row:last-child { border-bottom: 0; }
-        .file-path { overflow-wrap: anywhere; }
-        .file-meta, .empty { color: var(--p-text-muted, #9aa0a6); }
-        .file-meta { white-space: nowrap; }
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: var(--p-bg);
+        }
+
+        .toolbar { flex-wrap: wrap; }
+        .toolbar .p-input { flex: 1 1 360px; min-width: 220px; }
+
+        .page-status {
+            min-height: 28px;
+            display: flex;
+            align-items: center;
+            padding: var(--p-space-sm) var(--p-space-md);
+            color: var(--p-text-muted);
+            border-bottom: 1px solid var(--p-border);
+            font-size: var(--p-font-sm);
+        }
+        .page-status.error { color: var(--p-error); }
+
+        .workspace {
+            min-height: 0;
+            flex: 1 1 auto;
+            display: grid;
+            grid-template-columns: minmax(240px, 0.8fr) minmax(320px, 1.5fr);
+        }
+
+        .pane {
+            min-width: 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            background: var(--p-bg);
+        }
+        .pane + .pane { border-left: 1px solid var(--p-border); }
+
+        .pane-header {
+            min-height: 42px;
+            display: flex;
+            align-items: baseline;
+            gap: var(--p-space-sm);
+            padding: var(--p-space-md) var(--p-space-lg);
+            background: var(--p-bg-dark);
+            border-bottom: 1px solid var(--p-border);
+        }
+        .pane-title {
+            min-width: 0;
+            margin: 0;
+            overflow: hidden;
+            color: var(--p-text-strong);
+            font-size: var(--p-font-md);
+            font-weight: 650;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .pane-count {
+            flex: 0 0 auto;
+            color: var(--p-text-muted);
+            font-size: var(--p-font-sm);
+        }
+
+        .pane-scroll { min-height: 0; flex: 1 1 auto; overflow: auto; }
+        .torrent-list, .file-list {
+            margin: 0;
+            padding: var(--p-space-sm);
+            list-style: none;
+        }
+
+        .torrent-row, .file-row {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: var(--p-space-md);
+            padding: var(--p-space-md);
+            color: var(--p-text);
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: var(--p-radius-md);
+            font: inherit;
+            text-align: left;
+        }
+        .torrent-row { cursor: pointer; }
+        .torrent-row:hover, .file-row:hover { background: var(--p-panel); }
+        .torrent-row.selected { background: var(--p-panel); border-color: var(--p-accent); }
+
+        .state-dot {
+            flex: 0 0 auto;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--p-text-muted);
+        }
+        .state-dot.streaming { background: var(--p-success); }
+        .state-dot.stalled { background: var(--p-warning); }
+
+        .torrent-details, .file-details { min-width: 0; flex: 1 1 auto; }
+        .torrent-name, .file-name {
+            overflow: hidden;
+            color: var(--p-text-strong);
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .torrent-meta, .file-size, .empty-state, .pane-footer {
+            color: var(--p-text-muted);
+            font-size: var(--p-font-sm);
+        }
+        .torrent-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .file-list { display: grid; gap: var(--p-space-xs); }
+        .file-row { cursor: pointer; }
+        .file-icon {
+            flex: 0 0 28px;
+            color: var(--p-accent);
+            font-size: var(--p-font-lg);
+            text-align: center;
+        }
+        .file-size { flex: 0 0 auto; white-space: nowrap; }
+        .file-open { flex: 0 0 auto; color: var(--p-text-muted); }
+
+        .empty-state { padding: var(--p-space-lg); text-align: center; }
+        .pane-footer {
+            min-height: 32px;
+            padding: var(--p-space-sm) var(--p-space-lg);
+            border-top: 1px solid var(--p-border);
+        }
+
+        .context-menu {
+            position: fixed;
+            z-index: 10;
+            min-width: 170px;
+            margin: 0;
+            padding: var(--p-space-xs);
+            background: var(--p-panel);
+            border: 1px solid var(--p-border-light);
+            border-radius: var(--p-radius-md);
+            box-shadow: var(--p-shadow);
+        }
+        .context-menu button {
+            width: 100%;
+            display: block;
+            padding: var(--p-space-sm) var(--p-space-md);
+            color: var(--p-text);
+            background: transparent;
+            border: 0;
+            border-radius: var(--p-radius-sm);
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+        .context-menu button:hover {
+            color: var(--p-text-strong);
+            background: var(--p-bg-dark);
+        }
+
+        @media (max-width: 700px) {
+            .workspace {
+                grid-template-columns: 1fr;
+                grid-template-rows: minmax(190px, 0.8fr) minmax(260px, 1.5fr);
+            }
+            .pane + .pane {
+                border-top: 1px solid var(--p-border);
+                border-left: 0;
+            }
+        }
     </style>
 </head>
 <body>
-    <main>
-        <h1>Torrent Viewer</h1>
-        <div class="toolbar">
-            <input id="torrent-input" class="p-input" type="text" placeholder="magnet:?xt=... or a .torrent path" autocomplete="off" />
-            <button id="resolve" class="p-btn primary" type="button">Resolve metadata</button>
-            <button id="remove" class="p-btn ghost" type="button">Remove</button>
-            <button id="refresh" class="p-btn ghost" type="button">Status</button>
-        </div>
-        <div id="status" class="status" role="status">Metadata only. No file content is selected.</div>
-        <section class="panel" aria-label="Torrent files">
-            <ul id="file-list" class="file-list"><li class="empty">No torrent resolved yet.</li></ul>
+    <header class="p-toolbar toolbar">
+        <span class="p-toolbar-title">Torrent Viewer</span>
+        <input
+            id="source-input"
+            class="p-input"
+            type="text"
+            placeholder="magnet:?xt=... or a .torrent path"
+            autocomplete="off"
+            aria-label="Magnet link or torrent path"
+        />
+        <button id="add-magnet" class="p-btn primary" type="button">Add magnet</button>
+        <button id="choose-torrent" class="p-btn ghost" type="button">Choose .torrent</button>
+    </header>
+
+    <div id="page-status" class="page-status" role="status" aria-live="polite">
+        Metadata only. No file content is selected.
+    </div>
+
+    <main class="workspace">
+        <section class="pane" aria-labelledby="torrents-title">
+            <header class="pane-header">
+                <h1 id="torrents-title" class="pane-title">Torrents</h1>
+                <span id="torrent-count" class="pane-count">0</span>
+            </header>
+            <div class="pane-scroll">
+                <ul id="torrent-list" class="torrent-list" aria-label="Session torrents">
+                    <li class="empty-state">No torrents added this session.</li>
+                </ul>
+            </div>
+            <footer class="pane-footer">Right-click a torrent to remove it.</footer>
+        </section>
+
+        <section class="pane" aria-labelledby="files-title">
+            <header class="pane-header">
+                <h2 id="files-title" class="pane-title">Files in <span id="selected-torrent">—</span></h2>
+                <span id="file-count" class="pane-count">0</span>
+            </header>
+            <div class="pane-scroll">
+                <ul id="file-list" class="file-list" aria-label="Torrent files">
+                    <li class="empty-state">Select a torrent to see its files.</li>
+                </ul>
+            </div>
+            <footer class="pane-footer">Double-click a file to open it in Persephone.</footer>
         </section>
     </main>
+
+    <div id="context-menu" class="context-menu" role="menu" hidden></div>
     <script src="./app.js"></script>
 </body>
 </html>

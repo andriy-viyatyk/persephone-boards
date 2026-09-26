@@ -124,6 +124,7 @@ function metadataFor(torrent) {
     const files = deselectFiles(torrent);
     return {
         infoHash: torrent.infoHash,
+        magnet: torrent.magnetURI,
         name: torrent.name,
         files: files.map((file, index) => ({
             path: file.path.split("\\").join("/"),

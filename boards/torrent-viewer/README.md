@@ -1,14 +1,13 @@
-# Torrent Viewer board skeleton
+# Torrent Viewer board
 
-This board is the US-1523 foundation for EPIC-114. It resolves a magnet link or a local
-`.torrent` path to torrent metadata, deselects every file, and displays the file names, lengths,
-and indexes in a small proof page. It deliberately does not read content bytes, create streams,
-write files, download files, or register a content-provider implementation.
+This EPIC-114 board resolves a magnet link or a local `.torrent` path to metadata, deselects every
+file, and displays session torrents in a themed two-pane page. Files open through self-contained
+`torrent://` links; the only whole-file action is the explicit, size-guarded Download this file
+menu item.
 
-The manifest declares the future `torrent/viewer` provider contract with `schemes: ["torrent"]`.
-It does not claim `magnet`: the opaque-link editor fallback from EPIC-114 D11 belongs to US-1525.
-The `.torrent` file mask is the second entry point and opens this simple board with
-`persephone.getFilePath()` supplying the path.
+The manifest claims the `torrent` and `magnet` schemes, declares the stable `torrent/viewer`
+provider contract, and requires bridge `1.14.0` for the non-materializing `getSourceUrl()` source
+handoff. The `.torrent` file mask is the second D10 entry point.
 
 ## Build
 
@@ -29,18 +28,17 @@ dependency. `node_modules/` is development-only and excluded from board publishi
 
 `scripts/service.mjs` uses Persephone's module-service parent-port handshake (`init`, `probe`,
 `request`, `shutdown`). `resolve` starts a short RPC job and returns a request id; polling
-`status` returns the metadata result or a serialized failure. Resolution itself has a 30-second
-metadata deadline, a four-job cap, 15-second no-poll cancellation, and 60-second abandoned-result
-expiry. `cancel`, `remove`, and shutdown destroy incomplete torrents with their memory stores.
+`status` returns metadata including the canonical magnet URI. Resolution has a 30-second metadata
+deadline, a four-job cap, 15-second no-poll cancellation, and 60-second abandoned-result expiry.
+`cancel`, `remove`, and shutdown destroy incomplete torrents with their memory stores.
 
-The service normalizes WebTorrent's Windows file paths from backslashes to forward slashes at the
-service boundary. It retains only metadata and never registers `readBinary`, `readRange`, or `stat`;
-US-1524 owns that provider and the self-contained `torrent://...?magnet=...` link.
+The service normalizes WebTorrent's Windows file paths from backslashes to forward slashes and
+registers `torrent/viewer` with `stat`, `readRange`, and `readBinary`. Provider links carry the
+encoded path and canonical magnet so they restore without the board page.
 
-## Scope handoff
+## UI rules
 
-The proof page is intentionally not the production two-pane torrent UI. US-1524 adds the provider
-and bounded reads; US-1525 adds the torrent/file list, open-file actions, download exception, and
-the D11 platform change plus `magnet` declaration. US-1526 owns lifecycle and cold-start restore.
-The board is not publishable until US-1525 or US-1527 supplies `WHATS-NEW.md`, `guides/`, and
-`screenshot.png`.
+The page polls one `snapshot` at a time and renders only service metadata. Rendering never selects
+a file, reads a range, or opens content. Open and double-click call `openRawLink`; Copy link uses
+the native clipboard; Download checks the 256 MiB whole-buffer bridge ceiling, opens the save
+dialog, then calls `content.open`, `fetch`, and binary `writeFile` in that order.

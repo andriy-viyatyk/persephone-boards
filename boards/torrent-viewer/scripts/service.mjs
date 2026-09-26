@@ -7,6 +7,8 @@ const METADATA_TIMEOUT_MS = 30_000;
 const MAX_RESOLUTION_JOBS = 4;
 const NO_POLL_TIMEOUT_MS = 15_000;
 const COMPLETED_RESULT_TTL_MS = 60_000;
+const MAX_BOARD_PIPE_CHUNK_BYTES = 1024 * 1024;
+const MAX_BUFFERED_PIPE_BYTES = 256 * 1024 * 1024;
 
 let client;
 let shuttingDown = false;
@@ -15,6 +17,7 @@ let nextRequestNumber = 1;
 const torrentsByInfoHash = new Map();
 const torrentSources = new WeakMap();
 const selectionState = new WeakMap();
+const activeReaderCounts = new WeakMap();
 const pendingResolvers = new Set();
 const resolutionJobs = new Map();
 
@@ -34,22 +37,33 @@ function normalizeInfoHash(infoHash) {
     return typeof infoHash === "string" ? infoHash.trim().toLowerCase() : "";
 }
 
+function magnetInfoHashes(value) {
+    if (typeof value !== "string") return [];
+    const source = value.trim();
+    if (!source.toLowerCase().startsWith("magnet:")) return [];
+
+    try {
+        const magnet = new URL(source);
+        const hashes = [];
+        for (const extension of magnet.searchParams.getAll("xt")) {
+            const match = extension.match(/^urn:btih:([0-9a-z]+)$/i);
+            if (!match) continue;
+            if (!/^[0-9a-f]{40}$/i.test(match[1])) return [];
+            hashes.push(match[1].toLowerCase());
+        }
+        return hashes;
+    } catch {
+        return [];
+    }
+}
+
 function extractInfoHash(value) {
     if (typeof value !== "string") return undefined;
     const source = value.trim();
     if (/^[0-9a-f]{40}$/i.test(source)) return source.toLowerCase();
-    if (!source.toLowerCase().startsWith("magnet:")) return undefined;
-
-    try {
-        const magnet = new URL(source);
-        for (const extension of magnet.searchParams.getAll("xt")) {
-            const match = extension.match(/^urn:btih:([0-9a-z]+)$/i);
-            if (match && /^[0-9a-f]{40}$/i.test(match[1])) return match[1].toLowerCase();
-        }
-    } catch {
-        return undefined;
-    }
-    return undefined;
+    const hashes = magnetInfoHashes(source);
+    if (hashes.length === 0 || hashes.some((hash) => hash !== hashes[0])) return undefined;
+    return hashes[0];
 }
 
 function getClient() {
@@ -86,18 +100,21 @@ function forgetTorrent(torrent) {
         torrentsByInfoHash.delete(infoHash);
     }
     selectionState.delete(torrent);
+    activeReaderCounts.delete(torrent);
     torrentSources.delete(torrent);
 }
 
 function deselectFiles(torrent) {
     const files = Array.isArray(torrent.files) ? torrent.files : [];
+    const activeReaders = activeReaderCounts.get(torrent) ?? 0;
+    if (activeReaders > 0) return files;
     for (const file of files) {
         if (typeof file.deselect !== "function") {
             throw new Error("torrent-file-deselect-unavailable");
         }
         file.deselect();
     }
-    selectionState.set(torrent, { fileCount: files.length, allDeselected: true });
+    selectionState.set(torrent, { fileCount: files.length, allDeselected: true, activeReaders });
     return files;
 }
 
@@ -114,6 +131,228 @@ function metadataFor(torrent) {
             index,
         })),
     };
+}
+
+function abortError() {
+    const error = new Error("torrent-read-aborted");
+    error.name = "AbortError";
+    return error;
+}
+
+function throwIfAborted(signal) {
+    if (signal?.aborted) throw abortError();
+}
+
+function awaitWithAbort(promise, signal) {
+    throwIfAborted(signal);
+    if (!signal) return promise;
+
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        const cleanup = () => signal.removeEventListener("abort", onAbort);
+        const finish = (callback, value) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            callback(value);
+        };
+        const onAbort = () => finish(reject, abortError());
+
+        signal.addEventListener("abort", onAbort, { once: true });
+        promise.then(
+            (value) => finish(resolve, value),
+            (error) => finish(reject, error),
+        );
+    });
+}
+
+function parseTorrentLink(config) {
+    let url;
+    try {
+        url = new URL(String(config?.url));
+    } catch {
+        throw new Error("torrent-link-invalid");
+    }
+    if (url.protocol !== "torrent:") throw new Error("torrent-link-invalid-protocol");
+
+    const infoHash = normalizeInfoHash(url.hostname);
+    if (!/^[0-9a-f]{40}$/.test(infoHash)) throw new Error("torrent-link-invalid-infohash");
+    if (!url.pathname.startsWith("/")) throw new Error("torrent-link-path-required");
+
+    let canonicalPath;
+    try {
+        canonicalPath = decodeURIComponent(url.pathname.slice(1));
+    } catch {
+        throw new Error("torrent-link-path-invalid-encoding");
+    }
+    if (!canonicalPath || canonicalPath.split("/").some((part) => part === "." || part === "..")) {
+        throw new Error("torrent-link-path-invalid");
+    }
+
+    const magnetValue = url.searchParams.get("magnet");
+    let magnet;
+    if (magnetValue !== null) {
+        const magnetHashes = magnetInfoHashes(magnetValue);
+        if (magnetHashes.length === 0 || magnetHashes.some((hash) => hash !== infoHash)) {
+            throw new Error("torrent-link-magnet-mismatch");
+        }
+        magnet = magnetValue;
+    }
+
+    return { infoHash, canonicalPath, magnet };
+}
+
+function fileForPath(torrent, canonicalPath) {
+    const files = Array.isArray(torrent.files) ? torrent.files : [];
+    return files.find((file) => file.path.split("\\").join("/") === canonicalPath);
+}
+
+async function torrentFileForLink(link, signal) {
+    throwIfAborted(signal);
+    let torrent = findTorrentByInfoHash(link.infoHash);
+    if (!link.magnet && !torrent) {
+        throw new Error("torrent-magnet-required: torrent is no longer loaded");
+    }
+    if (link.magnet) {
+        await awaitWithAbort(resolveTorrent(link.magnet), signal);
+    } else if (!torrent.ready) {
+        await awaitWithAbort(resolveTorrent(link.infoHash), signal);
+    }
+    throwIfAborted(signal);
+
+    torrent = findTorrentByInfoHash(link.infoHash);
+    if (!torrent || torrent.destroyed) throw new Error("torrent-unavailable");
+    if (!torrent.ready) await awaitWithAbort(resolveTorrent(link.infoHash), signal);
+    throwIfAborted(signal);
+
+    return { torrent, file: fileForPath(torrent, link.canonicalPath) };
+}
+
+function beginReader(torrent) {
+    const activeReaders = (activeReaderCounts.get(torrent) ?? 0) + 1;
+    activeReaderCounts.set(torrent, activeReaders);
+    const previous = selectionState.get(torrent);
+    selectionState.set(torrent, {
+        fileCount: Array.isArray(torrent.files) ? torrent.files.length : previous?.fileCount ?? 0,
+        allDeselected: false,
+        activeReaders,
+    });
+}
+
+function endReader(torrent) {
+    const activeReaders = Math.max(0, (activeReaderCounts.get(torrent) ?? 1) - 1);
+    if (activeReaders === 0) {
+        activeReaderCounts.delete(torrent);
+        deselectFiles(torrent);
+        return;
+    }
+    activeReaderCounts.set(torrent, activeReaders);
+    const previous = selectionState.get(torrent);
+    selectionState.set(torrent, {
+        fileCount: previous?.fileCount ?? (Array.isArray(torrent.files) ? torrent.files.length : 0),
+        allDeselected: false,
+        activeReaders,
+    });
+}
+
+async function collectIterator(iterator, stream, expectedLength, signal) {
+    const chunks = [];
+    let totalLength = 0;
+    let aborted = false;
+    const onAbort = () => {
+        aborted = true;
+        try {
+            iterator.destroy?.();
+        } catch {
+            // The cleanup in finally remains authoritative.
+        }
+        try {
+            stream.destroy?.(abortError());
+        } catch {
+            // The cleanup in finally remains authoritative.
+        }
+    };
+
+    try {
+        if (signal?.aborted) {
+            onAbort();
+            throw abortError();
+        }
+        signal?.addEventListener("abort", onAbort, { once: true });
+        while (true) {
+            throwIfAborted(signal);
+            const result = await iterator.next();
+            if (result.done) break;
+            if (signal?.aborted || aborted) throw abortError();
+            const chunk = result.value instanceof Uint8Array ? result.value : new Uint8Array(result.value);
+            totalLength += chunk.byteLength;
+            if (totalLength > expectedLength) throw new Error("torrent-read-too-many-bytes");
+            chunks.push(chunk);
+        }
+        throwIfAborted(signal);
+        if (totalLength !== expectedLength) throw new Error("torrent-read-incomplete");
+
+        const result = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const chunk of chunks) {
+            result.set(chunk, offset);
+            offset += chunk.byteLength;
+        }
+        return result;
+    } catch (error) {
+        if (signal?.aborted || aborted) throw abortError();
+        throw error;
+    } finally {
+        signal?.removeEventListener("abort", onAbort);
+        try {
+            await iterator.return?.();
+        } catch {
+            // The iterator is still explicitly destroyed below.
+        }
+        try {
+            iterator.destroy?.();
+        } catch {
+            // Destroy is idempotent and best effort after a failed read.
+        }
+        if (stream !== iterator) {
+            try {
+                stream.destroy?.();
+            } catch {
+                // Destroy is idempotent and best effort after a failed read.
+            }
+        }
+    }
+}
+
+async function readFileBytes(
+    torrent,
+    file,
+    start,
+    end,
+    signal,
+    maxLength = MAX_BOARD_PIPE_CHUNK_BYTES,
+) {
+    const expectedLength = end - start + 1;
+    if (expectedLength > maxLength) {
+        throw new Error("torrent-range-too-large");
+    }
+    throwIfAborted(signal);
+    beginReader(torrent);
+    let stream;
+    try {
+        throwIfAborted(signal);
+        stream = file.createReadStream({ start, end });
+        const iterator = typeof stream?.[Symbol.asyncIterator] === "function"
+            ? stream[Symbol.asyncIterator]()
+            : stream;
+        return await collectIterator(iterator, stream, expectedLength, signal);
+    } finally {
+        try {
+            stream?.destroy?.();
+        } finally {
+            endReader(torrent);
+        }
+    }
 }
 
 function destroyTorrent(torrent) {
@@ -259,6 +498,73 @@ export function resolveTorrent(magnetOrTorrentId) {
     return operation.promise;
 }
 
+async function statTorrentFile(config, options = {}) {
+    throwIfAborted(options.signal);
+    const link = parseTorrentLink(config);
+    const { file } = await torrentFileForLink(link, options.signal);
+    throwIfAborted(options.signal);
+    if (!file) return { exists: false };
+    if (!Number.isSafeInteger(file.length) || file.length < 0) {
+        throw new Error("torrent-file-size-invalid");
+    }
+    return { exists: true, size: file.length };
+}
+
+function validateRange(file, range) {
+    const start = range?.start;
+    const end = range?.end;
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start) {
+        throw new Error("torrent-range-invalid");
+    }
+    if (end >= file.length) throw new Error("torrent-range-out-of-bounds");
+    const length = end - start + 1;
+    if (length > MAX_BOARD_PIPE_CHUNK_BYTES) throw new Error("torrent-range-too-large");
+    return { start, end };
+}
+
+async function readTorrentRange(config, range, options = {}) {
+    throwIfAborted(options.signal);
+    const link = parseTorrentLink(config);
+    const { torrent, file } = await torrentFileForLink(link, options.signal);
+    if (!file) throw new Error("torrent-file-not-found");
+    const { start, end } = validateRange(file, range);
+    return readFileBytes(torrent, file, start, end, options.signal);
+}
+
+async function readTorrentBinary(config, options = {}) {
+    throwIfAborted(options.signal);
+    const link = parseTorrentLink(config);
+    const { torrent, file } = await torrentFileForLink(link, options.signal);
+    if (!file) throw new Error("torrent-file-not-found");
+    if (!Number.isSafeInteger(file.length) || file.length < 0) {
+        throw new Error("torrent-file-size-invalid");
+    }
+    if (file.length > MAX_BUFFERED_PIPE_BYTES) {
+        throw new Error("torrent-file-too-large");
+    }
+    if (file.length === 0) return new Uint8Array(0);
+    return readFileBytes(
+        torrent,
+        file,
+        0,
+        file.length - 1,
+        options.signal,
+        MAX_BUFFERED_PIPE_BYTES,
+    );
+}
+
+function registerProvider() {
+    const register = globalThis.persephone?.providers?.register;
+    if (typeof register !== "function") return;
+    register.call(globalThis.persephone.providers, "torrent/viewer", {
+        stat: statTorrentFile,
+        readRange: readTorrentRange,
+        readBinary: readTorrentBinary,
+    });
+}
+
+registerProvider();
+
 function requestId() {
     return `torrent-resolution-${Date.now().toString(36)}-${(nextRequestNumber++).toString(36)}`;
 }
@@ -380,6 +686,7 @@ function torrentStatus(torrent) {
         peers: Number.isFinite(torrent.numPeers) ? torrent.numPeers : 0,
         downloadSpeed: Number.isFinite(torrent.downloadSpeed) ? torrent.downloadSpeed : 0,
         downloaded: Number.isFinite(torrent.downloaded) ? torrent.downloaded : 0,
+        activeReaders: activeReaderCounts.get(torrent) ?? 0,
         allFilesDeselected: selection?.allDeselected === true,
     };
 }

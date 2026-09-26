@@ -1,4 +1,4 @@
-# BT-025: Torrent viewer board skeleton
+# BT-025: Torrent viewer skeleton and content provider
 
 ## Status
 
@@ -10,9 +10,9 @@
 
 ## Goal
 
-Deliver the metadata-only torrent-viewer board skeleton: its manifest, reproducible WebTorrent
-bundle, bounded module-service resolver, and a small proof page. The torrent content provider and
-production two-pane UI remain US-1524 and US-1525.
+Deliver the metadata-only torrent-viewer board skeleton and its `torrent/viewer` content provider:
+the manifest, reproducible WebTorrent bundle, bounded module-service resolver, provider link format,
+and bounded on-demand reads. The production two-pane UI remains US-1525.
 
 ## Background
 
@@ -23,6 +23,9 @@ production two-pane UI remain US-1524 and US-1525.
 - The service follows `_test/range-provider-test/scripts/service.mjs` for the parent-port
   init/probe/request/shutdown handshake. Board service requests are short, so metadata resolution
   is exposed as resolve/start plus polled status with a 30-second internal deadline.
+- The provider is registered from the same service module. It restores cold links from their
+  embedded magnet, reuses the existing resolver, never calls `file.select()`, and owns a bounded
+  `createReadStream` iterator whose selection is destroyed on every completion, error, or abort.
 
 ## Implementation Plan
 
@@ -33,7 +36,8 @@ production two-pane UI remain US-1524 and US-1525.
       committed bundle, and third-party version/license notices under `lib/`.
 - [x] Implement `scripts/service.mjs` with metadata resolution, deselection, normalized paths,
       four-job admission, 15-second no-poll cancellation, 30-second resolver timeout, result expiry,
-      remove, and complete shutdown cleanup. Do not register providers or read content streams.
+      remove, complete shutdown cleanup, and the `torrent/viewer` stat/range/whole-file provider
+      with self-contained link parsing, cancellation, active-reader accounting, and D1 cleanup.
 - [x] Replace the starter proof page with an offline `index.html`/`app.js` resolve/status UI that
       can consume an editor-supplied `.torrent` path without opening or selecting the file.
 - [x] Add board-specific `README.md` and `CLAUDE.md` documentation.
@@ -54,17 +58,17 @@ production two-pane UI remain US-1524 and US-1525.
 - [ ] The exact WebTorrent bundle builds twice with identical hashes and includes D3's banner and
       four native-module externals.
 - [ ] The service resolves the public Sintel magnet to metadata, normalizes paths, and reports all
-      files deselected without selecting bytes, streams, providers, or writes.
+      files deselected without selecting bytes, while the provider serves exact bounded ranges and
+      whole-file buffers without disk writes.
 - [ ] Service job limits, timeout, cancellation, result expiry, remove, and shutdown are bounded.
 - [ ] The proof page uses only local assets and `persephone.service.request()`.
-- [ ] No Persephone source, root catalog manifest, commit, provider implementation, or production
-      torrent UI is added.
+- [ ] No Persephone source, root catalog manifest, commit, or production torrent UI is added.
 
 ## Files Changed
 
 | File | Change |
 |------|--------|
-| `boards/torrent-viewer/` | Manifest, WebTorrent build/runtime, proof page, and board docs. |
+| `boards/torrent-viewer/` | Manifest, WebTorrent build/runtime, proof page, provider service, and board docs. |
 | `doc/tasks/BT-025-torrent-viewer-skeleton/README.md` | This board-repository task record. |
 | `doc/active-work.md` | Active dashboard link. |
 

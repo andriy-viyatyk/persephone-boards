@@ -1,14 +1,15 @@
 # Torrent Viewer board
 
 This EPIC-114 board resolves a magnet link, a local `.torrent` path, or a claimed HTTP(S)
-`.torrent` download URL to metadata, deselects every file, and displays session torrents in a
+`.torrent` download URL to metadata, deselects every file, and displays the service-owned torrent
+inventory in a
 themed two-pane page. URL sources are read through the board content pipe into memory; they are
 never saved to disk. Files open through self-contained `torrent://` links; the only whole-file
 action is the explicit, size-guarded Download this file menu item.
 
 The manifest claims the `torrent` and `magnet` schemes, declares the stable `torrent/viewer`
-provider contract, requires bridge `1.15.0` for the non-materializing `getSourceUrl()` source
-handoff and explicit service stop, and claims browser downloads with both whole-URL masks
+provider contract, requires bridge `1.16.0` for the non-materializing `getSourceUrl()`, explicit
+service stop, and read-only service status APIs, and claims browser downloads with both whole-URL masks
 `*://*/*.torrent` and `*://*/*.torrent?*`. The `.torrent` file mask is the second D10 entry point;
 the browser URL claim is separate.
 
@@ -48,8 +49,10 @@ encoded path and canonical magnet so they restore without the board page.
 
 ## UI rules
 
-The page polls one `snapshot` at a time and renders only service metadata. Rendering never selects
-a file or reads a range. Open and double-click call `openRawLink`; Copy link uses the native
+The page reads the service lifecycle through the non-starting `service.status()` call, then polls
+one `snapshot` at a time while the service is running. It renders the shared service inventory,
+active resolution placeholders, and bounded terminal outcomes; page selection and stalled samples
+remain local. Rendering never selects a file or reads a range. Open and double-click call `openRawLink`; Copy link uses the native
 clipboard. A claimed browser `.torrent` source calls `content.open`, fetches the returned pipe URL
 into memory, and enters the same resolver job as a magnet. Download checks the 256 MiB whole-buffer
 bridge ceiling, opens the save dialog, then calls `content.open`, `fetch`, and binary `writeFile` in

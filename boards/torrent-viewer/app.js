@@ -51,16 +51,19 @@ const fileCount = document.getElementById("file-count");
 const fileList = document.getElementById("file-list");
 const contextMenu = document.getElementById("context-menu");
 
-// The UI only owns session metadata. The service remains the owner of torrent instances.
-const sessions = new Map();
+// The service owns the inventory. Page state is enrichment only and must never create a row.
+const serviceTorrents = new Map();
+const pageStateByInfoHash = new Map();
 const activeResolutions = new Map();
 const timers = new Set();
 
 let selectedInfoHash;
 let snapshotTimer;
+let statusTimer;
 let snapshotInFlight = false;
 let tearingDown = false;
 let serviceStopped = false;
+let serviceState = "stopped";
 
 function rawMessageFrom(error, fallback = "Torrent service request failed.") {
     if (error && typeof error === "object" && typeof error.message === "string") return error.message;
@@ -129,6 +132,8 @@ function clearTimers() {
     timers.clear();
     clearTimeout(snapshotTimer);
     snapshotTimer = undefined;
+    clearTimeout(statusTimer);
+    statusTimer = undefined;
 }
 
 function formatBytes(value) {
@@ -166,9 +171,30 @@ function fileIcon(path) {
     return "·";
 }
 
-function stateLabel(session) {
-    if (session.stats?.activeReaders > 0) {
-        return session.stalledSamples >= STALLED_SAMPLE_LIMIT ? "stalled" : "streaming";
+function normalizeInfoHash(infoHash) {
+    return typeof infoHash === "string" ? infoHash.trim().toLowerCase() : "";
+}
+
+function getPageState(infoHash) {
+    let state = pageStateByInfoHash.get(infoHash);
+    if (!state) {
+        state = {
+            selection: { fileIndex: null },
+            previousDownloaded: undefined,
+            stalledSamples: 0,
+        };
+        pageStateByInfoHash.set(infoHash, state);
+    }
+    return state;
+}
+
+function stateLabel(torrent) {
+    if (torrent.state === "resolving") return "resolving";
+    if (torrent.state === "failed") return "failed";
+    if (torrent.state === "cancelled") return "cancelled";
+    const pageState = torrent.infoHash ? pageStateByInfoHash.get(torrent.infoHash) : undefined;
+    if (torrent.stats?.activeReaders > 0) {
+        return pageState?.stalledSamples >= STALLED_SAMPLE_LIMIT ? "stalled" : "streaming";
     }
     return "metadata only";
 }
@@ -213,9 +239,28 @@ async function readHttpTorrentSource(source) {
 }
 
 function buildFileLink(torrent, file) {
-    const link = `torrent://${torrent.infoHash}/${encodeURIComponent(file.path)}`
+    const infoHash = normalizeInfoHash(torrent?.infoHash);
+    if (!/^[0-9a-f]{40}$/.test(infoHash)) {
+        throw new Error("torrent-link-invalid-infohash");
+    }
+    if (typeof torrent?.magnet !== "string" || torrent.magnet.length === 0) {
+        throw new Error("torrent-magnet-required");
+    }
+    let magnet;
+    try {
+        magnet = new URL(torrent.magnet);
+    } catch {
+        throw new Error("torrent-link-magnet-mismatch");
+    }
+    const magnetHashes = magnet.searchParams.getAll("xt")
+        .map((value) => value.match(/^urn:btih:([0-9a-f]{40})$/i)?.[1]?.toLowerCase())
+        .filter(Boolean);
+    if (magnet.protocol !== "magnet:" || magnetHashes.length === 0 || !magnetHashes.includes(infoHash)) {
+        throw new Error("torrent-link-magnet-mismatch");
+    }
+    if (!file || typeof file.path !== "string") throw new Error("torrent-file-not-found");
+    return `torrent://${infoHash}/${encodeURIComponent(file.path)}`
         + `?magnet=${encodeURIComponent(torrent.magnet)}`;
-    return link;
 }
 
 function hideContextMenu() {
@@ -243,46 +288,63 @@ function showContextMenu(x, y, items) {
     contextMenu.style.top = `${Math.max(4, Math.min(y, window.innerHeight - height - 4))}px`;
 }
 
+function compareTorrentRows(left, right) {
+    const leftName = String(left.name ?? "");
+    const rightName = String(right.name ?? "");
+    return leftName.localeCompare(rightName) || left.rowKey.localeCompare(right.rowKey);
+}
+
 function renderTorrentList() {
     torrentList.replaceChildren();
-    const torrents = [...sessions.values()].sort((left, right) => {
-        const byName = String(left.metadata.name).localeCompare(String(right.metadata.name));
-        return byName || left.infoHash.localeCompare(right.infoHash);
-    });
+    const torrents = [...serviceTorrents.values()].sort(compareTorrentRows);
     torrentCount.textContent = String(torrents.length);
 
     if (torrents.length === 0) {
         const empty = document.createElement("li");
         empty.className = "empty-state";
-        empty.textContent = "No torrents added this session.";
+        empty.textContent = "No active torrents.";
         torrentList.append(empty);
         return;
     }
 
-    for (const session of torrents) {
+    for (const torrent of torrents) {
         const item = document.createElement("li");
         const button = document.createElement("button");
         button.type = "button";
         button.className = "torrent-row";
-        button.classList.toggle("selected", session.infoHash === selectedInfoHash);
-        button.setAttribute("aria-pressed", String(session.infoHash === selectedInfoHash));
+        button.classList.toggle("selected", torrent.rowKey === selectedInfoHash);
+        button.setAttribute("aria-pressed", String(torrent.rowKey === selectedInfoHash));
         button.addEventListener("click", () => {
-            selectedInfoHash = session.infoHash;
+            selectedInfoHash = torrent.rowKey;
             renderAll();
         });
-        button.addEventListener("contextmenu", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            showContextMenu(event.clientX, event.clientY, [
-                { label: "Remove", action: () => removeTorrent(session) },
-            ]);
-        });
+
+        const menuItems = [];
+        if (torrent.state === "ready" && torrent.infoHash
+            && (!torrent.requestId || activeResolutions.has(torrent.requestId))) {
+            menuItems.push({ label: "Remove", action: () => removeTorrent(torrent) });
+        } else if (torrent.requestId && activeResolutions.has(torrent.requestId)) {
+            menuItems.push({
+                label: "Cancel",
+                action: () => {
+                    const job = activeResolutions.get(torrent.requestId);
+                    return job ? cancelResolution(job) : undefined;
+                },
+            });
+        }
+        if (menuItems.length > 0) {
+            button.addEventListener("contextmenu", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                showContextMenu(event.clientX, event.clientY, menuItems);
+            });
+        }
 
         const dot = document.createElement("span");
-        const state = stateLabel(session);
+        const state = stateLabel(torrent);
         dot.className = "state-dot";
         dot.classList.toggle("streaming", state === "streaming");
-        dot.classList.toggle("stalled", state === "stalled");
+        dot.classList.toggle("stalled", ["stalled", "failed", "cancelled"].includes(state));
         dot.title = state;
         dot.setAttribute("aria-label", state);
 
@@ -290,13 +352,18 @@ function renderTorrentList() {
         details.className = "torrent-details";
         const name = document.createElement("span");
         name.className = "torrent-name";
-        name.textContent = session.metadata.name;
+        name.textContent = torrent.name
+            || (torrent.state === "resolving" ? "Resolving torrent" : `Resolution ${torrent.state}`);
         const meta = document.createElement("span");
         meta.className = "torrent-meta";
-        if (session.stats) {
-            meta.textContent = `${session.stats.peers} peers · ${formatRate(session.stats.downloadSpeed)} · ${state}`;
+        if (torrent.state === "ready" && torrent.stats) {
+            meta.textContent = `${torrent.stats.peers} peers / ${formatRate(torrent.stats.downloadSpeed)} / ${state}`;
+        } else if (torrent.message) {
+            meta.textContent = torrent.message;
+        } else if (torrent.requestId && activeResolutions.has(torrent.requestId)) {
+            meta.textContent = `Resolving / ${sourceLabel(activeResolutions.get(torrent.requestId).source)}`;
         } else {
-            meta.textContent = `Resolving · ${sourceLabel(session.source)}`;
+            meta.textContent = "Resolving metadata";
         }
         details.append(name, meta);
         button.append(dot, details);
@@ -307,20 +374,27 @@ function renderTorrentList() {
 
 function renderFileList() {
     fileList.replaceChildren();
-    const session = selectedInfoHash ? sessions.get(selectedInfoHash) : undefined;
-    selectedTorrent.textContent = session?.metadata.name ?? "—";
-    const files = session
-        ? [...session.files].sort((left, right) => {
+    const torrent = selectedInfoHash ? serviceTorrents.get(selectedInfoHash) : undefined;
+    selectedTorrent.textContent = torrent?.name ?? "-";
+    const files = torrent?.state === "ready"
+        ? [...torrent.files].sort((left, right) => {
             const bySize = right.length - left.length;
             return bySize || String(left.path).localeCompare(String(right.path)) || left.index - right.index;
         })
         : [];
     fileCount.textContent = String(files.length);
 
-    if (!session) {
+    if (!torrent) {
         const empty = document.createElement("li");
         empty.className = "empty-state";
         empty.textContent = "Select a torrent to see its files.";
+        fileList.append(empty);
+        return;
+    }
+    if (torrent.state !== "ready") {
+        const empty = document.createElement("li");
+        empty.className = "empty-state";
+        empty.textContent = torrent.message || "Metadata is still resolving.";
         fileList.append(empty);
         return;
     }
@@ -337,17 +411,17 @@ function renderFileList() {
         row.type = "button";
         row.className = "file-row";
         row.title = file.path;
-        row.addEventListener("dblclick", () => openFile(session, file));
+        row.addEventListener("dblclick", () => openFile(torrent, file));
         row.addEventListener("keydown", (event) => {
-            if (event.key === "Enter") openFile(session, file);
+            if (event.key === "Enter") openFile(torrent, file);
         });
         row.addEventListener("contextmenu", (event) => {
             event.preventDefault();
             event.stopPropagation();
             showContextMenu(event.clientX, event.clientY, [
-                { label: "Open", action: () => openFile(session, file) },
-                { label: "Copy link", action: () => copyFileLink(session, file) },
-                { label: "Download this file", action: () => downloadFile(session, file) },
+                { label: "Open", action: () => openFile(torrent, file) },
+                { label: "Copy link", action: () => copyFileLink(torrent, file) },
+                { label: "Download this file", action: () => downloadFile(torrent, file) },
             ]);
         });
 
@@ -366,7 +440,7 @@ function renderFileList() {
         size.textContent = formatBytes(file.length);
         const open = document.createElement("span");
         open.className = "file-open";
-        open.textContent = "▸";
+        open.textContent = ">";
         open.setAttribute("aria-hidden", "true");
         row.append(icon, details, size, open);
         fileList.append(row);
@@ -376,37 +450,6 @@ function renderFileList() {
 function renderAll() {
     renderTorrentList();
     renderFileList();
-}
-
-function addSession(torrent, source, requestId) {
-    if (!torrent || typeof torrent.infoHash !== "string" || !Array.isArray(torrent.files)) {
-        throw new Error("Torrent metadata is incomplete.");
-    }
-    if (typeof torrent.magnet !== "string" || torrent.magnet.length === 0) {
-        throw new Error("Torrent metadata did not include its canonical magnet URI.");
-    }
-
-    const infoHash = torrent.infoHash.toLowerCase();
-    const session = sessions.get(infoHash) ?? {
-        infoHash,
-        source,
-        magnet: torrent.magnet,
-        metadata: torrent,
-        files: torrent.files,
-        selection: { fileIndex: null },
-        requestId: undefined,
-        previousDownloaded: undefined,
-        stalledSamples: 0,
-        stats: undefined,
-    };
-    session.source = source;
-    session.magnet = torrent.magnet;
-    session.metadata = torrent;
-    session.files = torrent.files;
-    session.requestId = requestId;
-    sessions.set(infoHash, session);
-    selectedInfoHash = infoHash;
-    return session;
 }
 
 async function cancelResolution(job) {
@@ -436,8 +479,6 @@ async function resolveSource(rawSource) {
     const source = typeof rawSource === "string" ? rawSource.trim() : "";
     if (!source || tearingDown) return;
     serviceStopped = false;
-    if (!snapshotInFlight && !snapshotTimer) void pollSnapshot();
-
     const duplicate = [...activeResolutions.values()].find((job) => job.source === source);
     if (duplicate) await cancelResolution(duplicate);
 
@@ -450,14 +491,23 @@ async function resolveSource(rawSource) {
             : source;
         const started = await P.service.request({ op: "resolve", magnetOrTorrentId: resolverInput });
         job.requestId = started.requestId;
-        job.infoHash = typeof started.infoHash === "string" ? started.infoHash.toLowerCase() : undefined;
+        job.infoHash = normalizeInfoHash(started.infoHash) || undefined;
         activeResolutions.set(job.requestId, job);
+        scheduleServiceStatusPoll(0);
         const torrent = await waitForResolution(job);
         if (tearingDown) return;
-        const session = addSession(torrent, source, job.requestId);
-        session.requestId = undefined;
+        const infoHash = normalizeInfoHash(torrent?.infoHash);
+        if (!/^[0-9a-f]{40}$/.test(infoHash) || !Array.isArray(torrent.files)) {
+            throw new Error("Torrent metadata is incomplete.");
+        }
+        selectedInfoHash = infoHash;
+        await refreshServiceStatus();
+        if (serviceState === "running") {
+            while (snapshotInFlight && !tearingDown) await waitFor(25);
+            await pollSnapshot();
+        }
         renderAll();
-        setStatus(`${session.metadata.name} · ${session.files.length} files · metadata only`);
+        setStatus(`${torrent.name ?? infoHash} / ${torrent.files.length} files / metadata only`);
     } catch (error) {
         if (!tearingDown && !job.cancelled) {
             const message = messageFrom(error);
@@ -491,14 +541,19 @@ async function chooseTorrent() {
     }
 }
 
-function openFile(session, file) {
-    session.selection.fileIndex = file.index;
-    P.openRawLink(buildFileLink(session, file));
+function openFile(torrent, file) {
+    try {
+        const link = buildFileLink(torrent, file);
+        getPageState(torrent.infoHash).selection.fileIndex = file.index;
+        P.openRawLink(link);
+    } catch (error) {
+        if (!tearingDown) setStatus(messageFrom(error), true);
+    }
 }
 
-async function copyFileLink(session, file) {
+async function copyFileLink(torrent, file) {
     try {
-        await P.clipboard.writeText(buildFileLink(session, file));
+        await P.clipboard.writeText(buildFileLink(torrent, file));
         if (!tearingDown) setStatus("Torrent link copied.");
     } catch (error) {
         if (!tearingDown) setStatus(messageFrom(error), true);
@@ -516,7 +571,7 @@ function isTorrentSource(source) {
         || /\.torrent$/i.test(value);
 }
 
-async function downloadFile(session, file) {
+async function downloadFile(torrent, file) {
     if (file.length > MAX_DOWNLOAD_BYTES) {
         const message = "This file is too large to save through the board bridge, which has no streaming write.";
         setStatus(message, true);
@@ -532,7 +587,7 @@ async function downloadFile(session, file) {
         if (!savePath || tearingDown) return;
 
         setStatus(`Reading ${fileName(file.path)}…`);
-        const resource = await P.content.open(buildFileLink(session, file));
+        const resource = await P.content.open(buildFileLink(torrent, file));
         const response = await fetch(resource.url);
         if (!response.ok) throw new Error(`Torrent file read failed (${response.status}).`);
         const bytes = new Uint8Array(await response.arrayBuffer());
@@ -546,83 +601,266 @@ async function downloadFile(session, file) {
     }
 }
 
-async function removeTorrent(session) {
-    const pending = [...activeResolutions.values()].filter(
-        (job) => job.source === session.source || job.infoHash === session.infoHash,
-    );
+function normalizedFiles(files) {
+    if (!Array.isArray(files)) return [];
+    return files
+        .filter((file) => file && typeof file.path === "string")
+        .map((file) => ({
+            path: file.path,
+            length: Number.isSafeInteger(file.length) && file.length >= 0 ? file.length : 0,
+            index: Number.isSafeInteger(file.index) && file.index >= 0 ? file.index : 0,
+        }));
+}
+
+function readyRow(metadata, stats) {
+    const infoHash = normalizeInfoHash(metadata?.infoHash);
+    if (!/^[0-9a-f]{40}$/.test(infoHash)) return undefined;
+    return {
+        rowKey: infoHash,
+        infoHash,
+        name: typeof metadata.name === "string" ? metadata.name : null,
+        magnet: typeof metadata.magnet === "string" ? metadata.magnet : null,
+        files: normalizedFiles(metadata.files),
+        ready: true,
+        state: "ready",
+        stats,
+    };
+}
+
+function clearServiceModel() {
+    serviceTorrents.clear();
+    pageStateByInfoHash.clear();
+    selectedInfoHash = undefined;
+    renderAll();
+}
+
+function reconcileSnapshot(snapshot) {
+    const next = new Map();
+    const snapshotTorrents = Array.isArray(snapshot?.torrents) ? snapshot.torrents : [];
+    for (const torrent of snapshotTorrents) {
+        const infoHash = normalizeInfoHash(torrent?.infoHash);
+        if (!/^[0-9a-f]{40}$/.test(infoHash)) continue;
+        const row = torrent.ready === true
+            ? readyRow({ ...torrent, infoHash }, torrent)
+            : {
+                rowKey: infoHash,
+                infoHash,
+                name: typeof torrent.name === "string" ? torrent.name : null,
+                magnet: null,
+                files: [],
+                ready: false,
+                state: "resolving",
+                stats: torrent,
+            };
+        if (row) next.set(row.rowKey, row);
+    }
+
+    const activeJobs = Array.isArray(snapshot?.activeResolutionJobs)
+        ? snapshot.activeResolutionJobs
+        : [];
+    for (const job of activeJobs) {
+        if (typeof job?.requestId !== "string") continue;
+        const infoHash = normalizeInfoHash(job.infoHash);
+        const rowKey = infoHash && next.has(infoHash) ? infoHash : infoHash || `request:${job.requestId}`;
+        let row = next.get(rowKey);
+        if (!row) {
+            row = {
+                rowKey,
+                infoHash: infoHash || undefined,
+                name: null,
+                magnet: null,
+                files: [],
+                ready: false,
+                state: "resolving",
+                stats: undefined,
+            };
+            next.set(rowKey, row);
+        }
+        if (row.state !== "ready") row.state = "resolving";
+        row.requestId = job.requestId;
+    }
+
+    const completedMetadata = Array.isArray(snapshot?.completedMetadata)
+        ? snapshot.completedMetadata
+        : [];
+    for (const result of completedMetadata) {
+        if (typeof result?.requestId !== "string") continue;
+        if (result.state === "completed") {
+            const row = readyRow(result.torrent);
+            if (row && !next.has(row.rowKey)) next.set(row.rowKey, row);
+            continue;
+        }
+        const state = result.state === "cancelled" ? "cancelled" : "failed";
+        next.set(`request:${result.requestId}`, {
+            rowKey: `request:${result.requestId}`,
+            requestId: result.requestId,
+            infoHash: undefined,
+            name: null,
+            magnet: null,
+            files: [],
+            ready: false,
+            state,
+            stats: undefined,
+            message: messageFrom(result.error, `Resolution ${result.state}.`),
+        });
+    }
+
+    const readyHashes = new Set();
+    for (const row of next.values()) {
+        if (row.state !== "ready" || !row.infoHash) continue;
+        readyHashes.add(row.infoHash);
+        const pageState = getPageState(row.infoHash);
+        const stats = row.stats;
+        if (stats?.activeReaders > 0) {
+            const downloadedDelta = pageState.previousDownloaded === undefined
+                ? 0
+                : stats.downloaded - pageState.previousDownloaded;
+            if (downloadedDelta <= 0 && stats.downloadSpeed <= 0) pageState.stalledSamples += 1;
+            else pageState.stalledSamples = 0;
+        } else {
+            pageState.stalledSamples = 0;
+        }
+        if (stats && Number.isFinite(stats.downloaded)) pageState.previousDownloaded = stats.downloaded;
+    }
+    for (const infoHash of pageStateByInfoHash.keys()) {
+        if (!readyHashes.has(infoHash)) pageStateByInfoHash.delete(infoHash);
+    }
+
+    serviceTorrents.clear();
+    for (const [rowKey, row] of next) serviceTorrents.set(rowKey, row);
+    if (!selectedInfoHash || !serviceTorrents.has(selectedInfoHash)) {
+        selectedInfoHash = [...serviceTorrents.values()]
+            .filter((row) => row.state === "ready")
+            .sort(compareTorrentRows)[0]?.rowKey;
+    }
+}
+
+function stopSnapshotPolling() {
+    clearTimeout(snapshotTimer);
+    snapshotTimer = undefined;
+}
+
+function applyServiceStatus(status) {
+    const nextState = status?.state ?? "stopped";
+    serviceState = nextState;
+    if (nextState !== "running") {
+        stopSnapshotPolling();
+        clearServiceModel();
+    }
+    if (nextState === "stopped") setStatus("No active torrents.");
+    else if (nextState === "starting") setStatus("Torrent service starting...");
+    else if (nextState === "stopping") setStatus("Torrent service stopping...");
+    else if (nextState === "failed") {
+        setStatusWithAction(
+            status?.reason ? `Torrent service unavailable: ${status.reason}` : "Torrent service unavailable.",
+            true,
+            "Add torrent",
+            () => sourceInput.focus(),
+        );
+    } else if (nextState === "running" && !snapshotInFlight && !snapshotTimer) {
+        void pollSnapshot();
+    }
+}
+
+function scheduleServiceStatusPoll(delay = STATUS_INTERVAL_MS) {
+    clearTimeout(statusTimer);
+    if (tearingDown || serviceStopped) return;
+    statusTimer = setTimeout(() => {
+        statusTimer = undefined;
+        void pollServiceStatus();
+    }, delay);
+}
+
+async function refreshServiceStatus() {
+    const status = await P.service.status();
+    if (!tearingDown && !serviceStopped) applyServiceStatus(status);
+    return status;
+}
+
+async function pollServiceStatus() {
+    if (tearingDown || serviceStopped) return;
+    try {
+        await refreshServiceStatus();
+        if (serviceState === "starting" || serviceState === "stopping") scheduleServiceStatusPoll();
+    } catch (error) {
+        if (!tearingDown) {
+            serviceState = "failed";
+            stopSnapshotPolling();
+            clearServiceModel();
+            setStatusWithAction(messageFrom(error), true, "Add torrent", () => sourceInput.focus());
+        }
+    }
+}
+
+async function removeTorrent(torrent) {
+    if (!torrent?.infoHash) return;
+    const pending = [...activeResolutions.values()].filter((job) => job.infoHash === torrent.infoHash);
     await Promise.all(pending.map((job) => cancelResolution(job)));
     try {
-        const result = await P.service.request({ op: "remove", magnetOrTorrentId: session.infoHash });
-        if (result.removed) {
-            sessions.delete(session.infoHash);
-            if (selectedInfoHash === session.infoHash) {
-                selectedInfoHash = sessions.keys().next().value;
+        const result = await P.service.request({ op: "remove", magnetOrTorrentId: torrent.infoHash });
+        if (!result.removed) {
+            setStatus(result.reason ? messageFrom(result.reason) : "No matching torrent is active.", true);
+            return;
+        }
+        serviceTorrents.delete(torrent.rowKey);
+        if (selectedInfoHash === torrent.rowKey) selectedInfoHash = undefined;
+        renderAll();
+        try {
+            while (snapshotInFlight && !tearingDown) await waitFor(25);
+            const snapshot = await P.service.request({ op: "snapshot" });
+            const hasNoTorrents = Array.isArray(snapshot?.torrents) && snapshot.torrents.length === 0;
+            const hasNoActiveResolutionJobs = Array.isArray(snapshot?.activeResolutionJobs)
+                && snapshot.activeResolutionJobs.length === 0;
+            if (hasNoTorrents && hasNoActiveResolutionJobs) {
+                await P.service.stop();
+                serviceStopped = true;
+                serviceState = "stopped";
+                stopSnapshotPolling();
+                clearServiceModel();
+            } else {
+                reconcileSnapshot(snapshot);
+                renderAll();
             }
-            renderAll();
-            try {
-                const snapshot = await P.service.request({ op: "snapshot" });
-                const hasNoTorrents = Array.isArray(snapshot?.torrents) && snapshot.torrents.length === 0;
-                const hasNoActiveResolutionJobs = Array.isArray(snapshot?.activeResolutionJobs)
-                    && snapshot.activeResolutionJobs.length === 0;
-                if (hasNoTorrents && hasNoActiveResolutionJobs) {
-                    await P.service.stop();
-                    serviceStopped = true;
-                    clearTimeout(snapshotTimer);
-                    snapshotTimer = undefined;
-                }
-                setStatus("Torrent removed.");
-            } catch (error) {
-                serviceStopped = false;
-                setStatus(`Torrent removed, but the service could not be stopped: ${messageFrom(error)}`, true);
-            }
-        } else if (result.reason) {
-            setStatus(messageFrom(result.reason), true);
-        } else {
-            setStatus("No matching torrent is active.", true);
+            setStatus("Torrent removed.");
+        } catch (error) {
+            serviceStopped = false;
+            setStatus(`Torrent removed, but the service could not be stopped: ${messageFrom(error)}`, true);
         }
     } catch (error) {
         setStatus(messageFrom(error), true);
     }
 }
 
-function updateSessionStats(snapshot) {
-    const statsByHash = new Map(
-        (Array.isArray(snapshot?.torrents) ? snapshot.torrents : [])
-            .filter((torrent) => typeof torrent.infoHash === "string")
-            .map((torrent) => [torrent.infoHash.toLowerCase(), torrent]),
-    );
-    for (const session of sessions.values()) {
-        const stats = statsByHash.get(session.infoHash);
-        if (!stats) continue;
-        if (stats.activeReaders > 0) {
-            const downloadedDelta = session.previousDownloaded === undefined
-                ? 0
-                : stats.downloaded - session.previousDownloaded;
-            if (downloadedDelta <= 0 && stats.downloadSpeed <= 0) session.stalledSamples += 1;
-            else session.stalledSamples = 0;
-        } else {
-            session.stalledSamples = 0;
-        }
-        session.previousDownloaded = stats.downloaded;
-        session.stats = stats;
-    }
-}
-
 async function pollSnapshot() {
-    if (tearingDown || serviceStopped || snapshotInFlight) return;
+    if (tearingDown || serviceStopped || serviceState !== "running" || snapshotInFlight) return;
     snapshotInFlight = true;
     try {
         const snapshot = await P.service.request({ op: "snapshot" });
         if (!tearingDown) {
-            updateSessionStats(snapshot);
-            renderTorrentList();
+            reconcileSnapshot(snapshot);
+            renderAll();
         }
     } catch (error) {
-        if (!tearingDown) setStatus(messageFrom(error), true);
+        if (!tearingDown) {
+            try {
+                await refreshServiceStatus();
+            } catch {
+                // The request error below is the useful user-facing failure.
+            }
+            if (serviceState === "running") setStatus(messageFrom(error), true);
+        }
     } finally {
         snapshotInFlight = false;
-        if (!tearingDown && !serviceStopped) snapshotTimer = setTimeout(() => void pollSnapshot(), SNAPSHOT_INTERVAL_MS);
+        if (!tearingDown && !serviceStopped && serviceState === "running") {
+            snapshotTimer = setTimeout(() => void pollSnapshot(), SNAPSHOT_INTERVAL_MS);
+        }
     }
+}
+
+async function bootstrapService() {
+    if (tearingDown || serviceStopped) return;
+    setStatus("No active torrents.");
+    await pollServiceStatus();
 }
 
 async function loadOpenedSource() {
@@ -664,5 +902,5 @@ window.addEventListener("pagehide", teardown, { once: true });
 window.addEventListener("beforeunload", teardown, { once: true });
 
 renderAll();
-void pollSnapshot();
+void bootstrapService();
 void loadOpenedSource();

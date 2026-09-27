@@ -12,7 +12,8 @@
 
 Deliver the torrent-viewer board and its `torrent/viewer` content provider: the manifest,
 reproducible WebTorrent bundle, bounded module-service resolver, provider link format, bounded
-on-demand reads, and the EPIC-114 production two-pane page from US-1525.
+on-demand reads, shared service snapshot inventory, and the EPIC-114 production two-pane page from
+US-1525.
 
 ## Background
 
@@ -20,6 +21,8 @@ on-demand reads, and the EPIC-114 production two-pane page from US-1525.
   class-based store, TCP-only optional-native handling, forward-slash paths, and no `magnet`
   scheme claim until US-1525 lands D11.
 - The board is trusted and scaffolded by Persephone; `board-base.css` and bridge wiring are kept.
+- US-1529 extends the board-frame bridge with read-only `persephone.service.status()`; this board
+  requires bridge `1.16.0` and uses status before snapshot polling.
 - The service follows `_test/range-provider-test/scripts/service.mjs` for the parent-port
   init/probe/request/shutdown handshake. Board service requests are short, so metadata resolution
   is exposed as resolve/start plus polled status with a 30-second internal deadline and a
@@ -36,10 +39,10 @@ on-demand reads, and the EPIC-114 production two-pane page from US-1525.
 - [x] Add the pinned `package.json`, install lockfile, WebTorrent entry, esbuild build script,
       committed bundle, and third-party version/license notices under `lib/`.
 - [x] Implement `scripts/service.mjs` with metadata resolution, deselection, normalized paths,
-      four-job admission, 15-second no-poll cancellation, 30-second resolver timeout, result expiry,
+      four-job admission, 45-second no-poll cancellation, 30-second resolver timeout, result expiry,
       remove, complete shutdown cleanup, and the `torrent/viewer` stat/range/whole-file provider
       with self-contained link parsing, cancellation, active-reader accounting, and D1 cleanup.
-- [x] Replace the starter proof page with the themed two-pane `index.html`/`app.js` page: session
+- [x] Replace the starter proof page with the themed two-pane `index.html`/`app.js` page: shared
       torrents, metadata-only status dots, sorted files, exact self-contained links, menus, and
       the explicit save action with its size-first/dialog-first ordering.
 - [x] Extend service metadata with the canonical magnet URI so `.torrent` sources produce D5 links.
@@ -56,18 +59,22 @@ on-demand reads, and the EPIC-114 production two-pane page from US-1525.
 - [x] Add D12's independent browser URL masks, read claimed HTTP(S) `.torrent` sources through the
       board content pipe into memory, and feed the bytes through the existing resolver with the
       existing legible reason mapping.
+- [x] Apply US-1529's shared service snapshot model: ready metadata includes only canonical magnet
+      and normalized `{ path, length, index }` file descriptors; active and TTL-retained terminal
+      jobs reconcile into rows; page-local selection/stall state and own-job notification ownership
+      remain local.
 
 ## Concerns / Open Questions
 
 - The `magnet` scheme is claimed with the D11-aware bridge: `getSourceUrl()` supplies the raw
-  persisted source without materialization, and the manifest requires bridge `1.15.0` for the added
+  persisted source without materialization, and the manifest requires bridge `1.16.0` for the added
   `service.stop()` call.
 - `memory-chunk-store` has no eviction; RSS measurement while streaming belongs to epic acceptance
   and must not be replaced with disk storage here.
 - The board is not publishable until the release documentation pass supplies `guides/` and
   `screenshot.png`.
-- `minBridgeVersion` remains `1.15.0`: `browserUrlMasks` is host-consumed manifest metadata, and
-  this change uses the existing `content.open()` and `getSourceUrl()` bridge APIs.
+- `minBridgeVersion` is now `1.16.0`: the board uses the read-only service status API to avoid
+  starting a stopped service merely to render an empty list.
 
 ## Acceptance Criteria
 

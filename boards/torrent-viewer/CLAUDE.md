@@ -5,12 +5,12 @@
 `torrent-viewer` is the EPIC-114 metadata-only viewer. Its simple editor association accepts
 `.torrent` paths, and its D11-aware manifest claims both `torrent` and `magnet`. The board exposes
 the stable `torrent/viewer` provider contract, claims browser `.torrent` downloads, and requires
-bridge `1.15.0` for `getSourceUrl()`.
+bridge `1.16.0` for `getSourceUrl()` and read-only service status.
 
 ## Key files
 
 - `board-manifest.json` — service, provider declaration, `.torrent` association, and identity.
-- `index.html` / `app.js` — themed two-pane session torrent/file page; render paths consume metadata
+- `index.html` / `app.js` — themed two-pane service-inventory torrent/file page; render paths consume metadata
   only and explicit file actions own opening, copying, and saving.
 - `scripts/service.mjs` — parent-port service, WebTorrent resolver, job limits, and teardown.
 - `scripts/webtorrent-entry.mjs` — bundle entry exporting WebTorrent and the memory-store class.
@@ -39,9 +39,14 @@ materialization. After edits, reload the board through `pages[i].editor.reload()
   resolver. Download checks the 256 MiB bridge ceiling, opens the save dialog, and only then
   opens/fetches/writes the selected file.
 - WebTorrent may expose Windows paths with `\`; `service.mjs` publishes only forward slashes.
-- The four in-flight-job cap, 30-second metadata timer, 15-second no-poll timer, result expiry,
+- The four in-flight-job cap, 30-second metadata timer, 45-second no-poll timer, result expiry,
   and shutdown destruction are deliberate bounds. Do not replace them with an unbounded wait.
 - This task does not register providers. US-1524 owns `readBinary`, `readRange`, `stat`, piece
   prioritisation, and the self-contained torrent link; US-1525 owns D11 and the `magnet` claim.
+- `persephone.service.status()` is read-only and must be used before snapshot polling so an empty
+  stopped board does not start the service merely to render.
+- Ready snapshots carry only the canonical magnet and normalized `{ path, length, index }` file
+  descriptors. Terminal job outcomes remain readable until their bounded TTL and must not trigger a
+  notification on pages that did not start the job.
 
 The canonical bridge reference is Persephone's `persephone://guides/boards` guide.

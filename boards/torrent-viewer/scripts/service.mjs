@@ -123,20 +123,25 @@ function deselectFiles(torrent) {
     return files;
 }
 
-function metadataFor(torrent) {
+function metadataProjection(torrent) {
     // WebTorrent exposes backslashes for this path on Windows. Normalize at this service
-    // boundary so the future torrent:// provider never has to guess which separator it got.
-    const files = deselectFiles(torrent);
+    // boundary so the torrent:// provider never has to guess which separator it got. This
+    // projection is deliberately metadata-only: do not add file buffers, streams, or handles.
     return {
         infoHash: torrent.infoHash,
         magnet: torrent.magnetURI,
         name: torrent.name,
-        files: files.map((file, index) => ({
+        files: (Array.isArray(torrent.files) ? torrent.files : []).map((file, index) => ({
             path: file.path.split("\\").join("/"),
             length: file.length,
             index,
         })),
     };
+}
+
+function metadataFor(torrent) {
+    deselectFiles(torrent);
+    return metadataProjection(torrent);
 }
 
 function abortError() {
@@ -707,8 +712,6 @@ function readResolutionStatus(requestIdValue) {
         return { state: "resolving", requestId: job.requestId, infoHash: job.infoHash };
     }
 
-    clearJobTimers(job);
-    resolutionJobs.delete(job.requestId);
     if (job.state === "completed") {
         return { state: "completed", requestId: job.requestId, torrent: job.result };
     }
@@ -717,9 +720,14 @@ function readResolutionStatus(requestIdValue) {
 
 function torrentStatus(torrent) {
     const selection = selectionState.get(torrent);
+    const metadata = torrent.ready === true ? metadataProjection(torrent) : undefined;
     return {
-        infoHash: torrent.infoHash ?? null,
-        name: torrent.name ?? null,
+        ...(metadata ?? {
+            infoHash: torrent.infoHash ?? null,
+            name: torrent.name ?? null,
+            files: [],
+            magnet: null,
+        }),
         ready: torrent.ready === true,
         fileCount: Array.isArray(torrent.files) ? torrent.files.length : 0,
         peers: Number.isFinite(torrent.numPeers) ? torrent.numPeers : 0,
@@ -730,7 +738,7 @@ function torrentStatus(torrent) {
     };
 }
 
-export function getServiceSnapshot(consumeCompletedMetadata = false) {
+export function getServiceSnapshot() {
     const jobs = [...resolutionJobs.values()];
     const snapshot = {
         client: client
@@ -753,11 +761,6 @@ export function getServiceSnapshot(consumeCompletedMetadata = false) {
                 error: job.error,
             })),
     };
-    if (consumeCompletedMetadata) {
-        for (const job of jobs) {
-            if (job.state !== "resolving") expireJob(job);
-        }
-    }
     return snapshot;
 }
 
@@ -828,7 +831,7 @@ async function handleRequest(request) {
         case "status":
             return typeof message.requestId === "string"
                 ? readResolutionStatus(message.requestId)
-                : getServiceSnapshot(true);
+                : getServiceSnapshot();
         case "snapshot":
             return getServiceSnapshot();
         case "cancel": {

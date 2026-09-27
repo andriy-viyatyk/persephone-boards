@@ -1,5 +1,9 @@
 # What's New — Torrent Viewer
 
+## 1.3.0
+
+- Render the shared service inventory, including retained resolution outcomes, across board pages without moving torrent payload bytes.
+
 ## 1.2.0
 
 - Claim browser `.torrent` downloads, read their source bytes through the board content pipe, and resolve them in memory without saving a file.

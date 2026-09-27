@@ -8,6 +8,8 @@ const SNAPSHOT_INTERVAL_MS = 1000;
 const STATUS_INTERVAL_MS = 750;
 const STALLED_SAMPLE_LIMIT = 3;
 
+P.state.init({ acceptedSources: [] }, { restorableKeys: ["acceptedSources"] });
+
 const KNOWN_FAILURE_MESSAGES = new Map([
     ["torrent-resolution-no-status-poll", "Resolution was abandoned because this page stopped polling. Retry to start a new attempt."],
     ["torrent-resolution-cancelled", "Torrent resolution was cancelled. Retry to start a new attempt."],
@@ -55,6 +57,9 @@ const contextMenu = document.getElementById("context-menu");
 const serviceTorrents = new Map();
 const pageStateByInfoHash = new Map();
 const activeResolutions = new Map();
+const pendingResolveKeys = new Set();
+const acceptedSources = new Set();
+const sourceInfoHashes = new Map();
 const timers = new Set();
 
 let selectedInfoHash;
@@ -64,6 +69,13 @@ let snapshotInFlight = false;
 let tearingDown = false;
 let serviceStopped = false;
 let serviceState = "stopped";
+let serviceInstanceKey;
+let serviceResetPending = true;
+let serviceRestoreNeeded = false;
+let observedSnapshotInfoHashes = new Set();
+let unsubscribeSource;
+let acceptedSourcesLoaded = false;
+let sourceRestorePromise;
 
 function rawMessageFrom(error, fallback = "Torrent service request failed.") {
     if (error && typeof error === "object" && typeof error.message === "string") return error.message;
@@ -173,6 +185,75 @@ function fileIcon(path) {
 
 function normalizeInfoHash(infoHash) {
     return typeof infoHash === "string" ? infoHash.trim().toLowerCase() : "";
+}
+
+function canonicalSource(rawSource) {
+    return typeof rawSource === "string" ? rawSource.trim() : "";
+}
+
+function sourceInfoHash(source) {
+    const canonical = canonicalSource(source);
+    const remembered = normalizeInfoHash(sourceInfoHashes.get(canonical));
+    if (/^[0-9a-f]{40}$/.test(remembered)) return remembered;
+    if (/^[0-9a-f]{40}$/.test(canonical)) return canonical.toLowerCase();
+
+    if (canonical.toLowerCase().startsWith("torrent://")) {
+        const match = canonical.match(/^torrent:\/\/([0-9a-f]{40})(?:\/|$)/i);
+        if (match) return match[1].toLowerCase();
+    }
+
+    if (!canonical.toLowerCase().startsWith("magnet:")) return "";
+    try {
+        const hashes = new URL(canonical).searchParams.getAll("xt")
+            .map((value) => value.match(/^urn:btih:([0-9a-f]{40})$/i)?.[1]?.toLowerCase())
+            .filter(Boolean);
+        return hashes.length > 0 && hashes.every((hash) => hash === hashes[0]) ? hashes[0] : "";
+    } catch {
+        return "";
+    }
+}
+
+function persistAcceptedSources() {
+    P.state.merge({ acceptedSources: [...acceptedSources] });
+}
+
+function rememberAcceptedSource(rawSource) {
+    const source = canonicalSource(rawSource);
+    if (!source || !isTorrentSource(source)) return "";
+    const infoHash = sourceInfoHash(source);
+    if (infoHash) sourceInfoHashes.set(source, infoHash);
+    if (acceptedSources.has(source)) return source;
+    acceptedSources.add(source);
+    persistAcceptedSources();
+    return source;
+}
+
+function restoreAcceptedSources(state) {
+    const runtimeSources = [...acceptedSources];
+    const runtimeInfoHashes = new Map(sourceInfoHashes);
+    acceptedSources.clear();
+    sourceInfoHashes.clear();
+    const restored = Array.isArray(state?.acceptedSources) ? state.acceptedSources : [];
+    for (const source of [...restored, ...runtimeSources]) {
+        const canonical = canonicalSource(source);
+        if (!canonical || !isTorrentSource(canonical)) continue;
+        acceptedSources.add(canonical);
+        const infoHash = normalizeInfoHash(runtimeInfoHashes.get(canonical)) || sourceInfoHash(canonical);
+        if (infoHash) sourceInfoHashes.set(canonical, infoHash);
+    }
+}
+
+function removeAcceptedSourcesForInfoHash(infoHash) {
+    const normalized = normalizeInfoHash(infoHash);
+    if (!normalized) return;
+    let changed = false;
+    for (const source of acceptedSources) {
+        if (sourceInfoHash(source) !== normalized) continue;
+        acceptedSources.delete(source);
+        sourceInfoHashes.delete(source);
+        changed = true;
+    }
+    if (changed) persistAcceptedSources();
 }
 
 function getPageState(infoHash) {
@@ -476,12 +557,26 @@ async function waitForResolution(job) {
 }
 
 async function resolveSource(rawSource) {
-    const source = typeof rawSource === "string" ? rawSource.trim() : "";
+    const source = rememberAcceptedSource(rawSource);
     if (!source || tearingDown) return;
-    serviceStopped = false;
-    const duplicate = [...activeResolutions.values()].find((job) => job.source === source);
-    if (duplicate) await cancelResolution(duplicate);
+    const infoHash = sourceInfoHash(source);
+    if (hasActiveResolution(infoHash, source) || hasKnownTorrent(infoHash)) {
+        if (infoHash && serviceTorrents.has(infoHash)) selectedInfoHash = infoHash;
+        renderAll();
+        return;
+    }
+    const pendingKey = infoHash ? `hash:${infoHash}` : `source:${source}`;
+    if (pendingResolveKeys.has(pendingKey)) return;
+    pendingResolveKeys.add(pendingKey);
+    try {
+        await resolveSourceInternal(source);
+    } finally {
+        pendingResolveKeys.delete(pendingKey);
+    }
+}
 
+async function resolveSourceInternal(source) {
+    serviceStopped = false;
     sourceInput.value = source;
     setStatus("Resolving metadata…");
     const job = { source, requestId: undefined, cancelled: false };
@@ -500,6 +595,7 @@ async function resolveSource(rawSource) {
         if (!/^[0-9a-f]{40}$/.test(infoHash) || !Array.isArray(torrent.files)) {
             throw new Error("Torrent metadata is incomplete.");
         }
+        sourceInfoHashes.set(source, infoHash);
         selectedInfoHash = infoHash;
         await refreshServiceStatus();
         if (serviceState === "running") {
@@ -569,6 +665,38 @@ function isTorrentSource(source) {
     return value.startsWith("magnet:")
         || value.startsWith("torrent://")
         || /\.torrent$/i.test(value);
+}
+
+function serviceInstance(status) {
+    if (status?.state !== "running") return undefined;
+    return [status.pid ?? "", status.startedAt ?? "", status.restartCount ?? ""].join(":");
+}
+
+function updateServiceInstance(status) {
+    const nextInstance = serviceInstance(status);
+    const changed = Boolean(serviceInstanceKey && nextInstance && serviceInstanceKey !== nextInstance);
+    if (!nextInstance) {
+        if (serviceInstanceKey) serviceRestoreNeeded = true;
+        serviceResetPending = true;
+    } else if (serviceInstanceKey && serviceInstanceKey !== nextInstance) {
+        serviceResetPending = true;
+        serviceRestoreNeeded = true;
+    }
+    serviceInstanceKey = nextInstance;
+    return changed;
+}
+
+function hasActiveResolution(infoHash, source) {
+    const normalized = normalizeInfoHash(infoHash);
+    return [...activeResolutions.values()].some((job) =>
+        job.source === source || (normalized && normalizeInfoHash(job.infoHash) === normalized));
+}
+
+function hasKnownTorrent(infoHash) {
+    const normalized = normalizeInfoHash(infoHash);
+    if (!normalized) return false;
+    if (serviceTorrents.has(normalized)) return true;
+    return hasActiveResolution(normalized);
 }
 
 async function downloadFile(torrent, file) {
@@ -726,6 +854,20 @@ function reconcileSnapshot(snapshot) {
         if (!readyHashes.has(infoHash)) pageStateByInfoHash.delete(infoHash);
     }
 
+    // Only a torrent that was READY and then vanished was removed. A resolving row also carries the
+    // magnet's infoHash, but a failed resolve drops it; counting resolving rows would silently forget
+    // a source the page still shows as failed-with-Retry, and the next restart would lose it.
+    const currentReadyInfoHashes = new Set(
+        [...readyHashes].map((infoHash) => normalizeInfoHash(infoHash)).filter(Boolean),
+    );
+    if (!serviceResetPending) {
+        for (const infoHash of observedSnapshotInfoHashes) {
+            if (!currentReadyInfoHashes.has(infoHash)) removeAcceptedSourcesForInfoHash(infoHash);
+        }
+    }
+    observedSnapshotInfoHashes = currentReadyInfoHashes;
+    serviceResetPending = false;
+
     serviceTorrents.clear();
     for (const [rowKey, row] of next) serviceTorrents.set(rowKey, row);
     if (!selectedInfoHash || !serviceTorrents.has(selectedInfoHash)) {
@@ -741,8 +883,10 @@ function stopSnapshotPolling() {
 }
 
 function applyServiceStatus(status) {
+    const instanceChanged = updateServiceInstance(status);
     const nextState = status?.state ?? "stopped";
     serviceState = nextState;
+    if (instanceChanged) clearServiceModel();
     if (nextState !== "running") {
         stopSnapshotPolling();
         clearServiceModel();
@@ -759,6 +903,10 @@ function applyServiceStatus(status) {
         );
     } else if (nextState === "running" && !snapshotInFlight && !snapshotTimer) {
         void pollSnapshot();
+    }
+    if (nextState === "running" && serviceRestoreNeeded && acceptedSourcesLoaded) {
+        serviceRestoreNeeded = false;
+        restoreSourcesAfterServiceReset();
     }
 }
 
@@ -802,6 +950,7 @@ async function removeTorrent(torrent) {
             setStatus(result.reason ? messageFrom(result.reason) : "No matching torrent is active.", true);
             return;
         }
+        removeAcceptedSourcesForInfoHash(result.infoHash || torrent.infoHash);
         serviceTorrents.delete(torrent.rowKey);
         if (selectedInfoHash === torrent.rowKey) selectedInfoHash = undefined;
         renderAll();
@@ -835,6 +984,12 @@ async function pollSnapshot() {
     if (tearingDown || serviceStopped || serviceState !== "running" || snapshotInFlight) return;
     snapshotInFlight = true;
     try {
+        const status = await P.service.status();
+        if (!status || status.state !== "running") {
+            if (!tearingDown) applyServiceStatus(status);
+            return;
+        }
+        if (serviceStopped) return;
         const snapshot = await P.service.request({ op: "snapshot" });
         if (!tearingDown) {
             reconcileSnapshot(snapshot);
@@ -863,13 +1018,54 @@ async function bootstrapService() {
     await pollServiceStatus();
 }
 
-async function loadOpenedSource() {
+async function refreshSnapshotForRestore() {
+    if (tearingDown || serviceStopped) return;
+    while (snapshotInFlight && !tearingDown) await waitFor(25);
+    if (!tearingDown && serviceState === "running") await pollSnapshot();
+}
+
+async function resolveAcceptedSources(sources) {
+    const restoredInfoHashes = new Set();
+    for (const source of new Set(sources.map(canonicalSource))) {
+        if (tearingDown || !source) return;
+        const infoHash = sourceInfoHash(source);
+        if (infoHash && restoredInfoHashes.has(infoHash)) continue;
+        if (infoHash) restoredInfoHashes.add(infoHash);
+        if (hasKnownTorrent(infoHash)) {
+            if (infoHash && serviceTorrents.has(infoHash)) selectedInfoHash = infoHash;
+            renderAll();
+            continue;
+        }
+        await resolveSource(source);
+        // A local .torrent path or an HTTP URL carries no info hash. Resolve it serially and
+        // refresh the authoritative snapshot before considering the next source equivalent.
+        if (!infoHash) await refreshSnapshotForRestore();
+    }
+}
+
+function restoreSourcesAfterServiceReset() {
+    if (!acceptedSourcesLoaded || sourceRestorePromise || tearingDown) return;
+    sourceRestorePromise = resolveAcceptedSources([...acceptedSources]).finally(() => {
+        sourceRestorePromise = undefined;
+    });
+}
+
+async function loadOpenedSources() {
     try {
+        const state = await P.state.get();
+        restoreAcceptedSources(state);
+        acceptedSourcesLoaded = true;
+
         const source = await P.getSourceUrl();
         // Only resolve a source this board can actually own. A plain open hands back the board's
         // own address, and a future caller could hand back anything at all; feeding that to the
         // resolver raises "Invalid torrent identifier" on a page the user simply opened.
-        if (source && isTorrentSource(source) && !tearingDown) await resolveSource(source);
+        const initialSource = source && isTorrentSource(source) ? rememberAcceptedSource(source) : "";
+        const sources = initialSource ? [initialSource, ...acceptedSources] : [...acceptedSources];
+        sourceRestorePromise = resolveAcceptedSources(sources).finally(() => {
+            sourceRestorePromise = undefined;
+        });
+        await sourceRestorePromise;
     } catch (error) {
         if (!tearingDown) setStatus(messageFrom(error), true);
     }
@@ -878,6 +1074,7 @@ async function loadOpenedSource() {
 function teardown() {
     if (tearingDown) return;
     tearingDown = true;
+    unsubscribeSource?.();
     clearTimers();
     for (const job of activeResolutions.values()) void cancelResolution(job);
     activeResolutions.clear();
@@ -901,6 +1098,11 @@ window.addEventListener("resize", hideContextMenu);
 window.addEventListener("pagehide", teardown, { once: true });
 window.addEventListener("beforeunload", teardown, { once: true });
 
+unsubscribeSource = P.source.onOpen(({ url, sourceUrl }) => {
+    const source = url ?? sourceUrl;
+    if (isTorrentSource(source) && !tearingDown) void resolveSource(source);
+});
+
 renderAll();
 void bootstrapService();
-void loadOpenedSource();
+void loadOpenedSources();

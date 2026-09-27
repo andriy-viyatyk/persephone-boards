@@ -5,7 +5,9 @@
 `torrent-viewer` is the EPIC-114 metadata-only viewer. Its simple editor association accepts
 `.torrent` paths, and its D11-aware manifest claims both `torrent` and `magnet`. The board exposes
 the stable `torrent/viewer` provider contract, claims browser `.torrent` downloads, and requires
-bridge `1.16.0` for `getSourceUrl()` and read-only service status.
+bridge `1.17.0` for singleton source delivery, `getSourceUrl()`, and read-only service status.
+It owns one page per window; all claimed sources are delivered through `source.onOpen()` and the
+app-wide service snapshot remains shared across windows.
 
 ## Key files
 
@@ -45,6 +47,10 @@ materialization. After edits, reload the board through `pages[i].editor.reload()
   prioritisation, and the self-contained torrent link; US-1525 owns D11 and the `magnet` claim.
 - `persephone.service.status()` is read-only and must be used before snapshot polling so an empty
   stopped board does not start the service merely to render.
+- Restorable shared state contains only accepted source strings. Prune a source only when its info
+  hash disappears during the same service instance; a changed instance or non-running status is a
+  service reset, so retain and re-resolve persisted sources. An explicit remove from this page
+  prunes its source immediately.
 - Ready snapshots carry only the canonical magnet and normalized `{ path, length, index }` file
   descriptors. Terminal job outcomes remain readable until their bounded TTL and must not trigger a
   notification on pages that did not start the job.

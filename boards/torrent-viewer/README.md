@@ -8,8 +8,13 @@ never saved to disk. Files open through self-contained `torrent://` links; the o
 action is the explicit, size-guarded Download this file menu item.
 
 The manifest claims the `torrent` and `magnet` schemes, declares the stable `torrent/viewer`
-provider contract, requires bridge `1.16.0` for the non-materializing `getSourceUrl()`, explicit
-service stop, and read-only service status APIs, and claims browser downloads with both whole-URL masks
+provider contract, and is a single-instance board: one Torrent Viewer page receives all claimed
+sources in a window, while pages in different windows render the same app-wide service snapshot
+(D14). New sources arrive through `persephone.source.onOpen()` without reloading the page. The
+board persists only accepted source hrefs and magnets in restorable shared state, so the page can
+re-resolve them after restart; it never persists metadata, files, buffers, or snapshots. The
+manifest requires bridge `1.17.0` for source delivery, `getSourceUrl()`, explicit service stop,
+and read-only service status APIs, and claims browser downloads with both whole-URL masks
 `*://*/*.torrent` and `*://*/*.torrent?*`. The `.torrent` file mask is the second D10 entry point;
 the browser URL claim is separate.
 
@@ -56,4 +61,7 @@ remain local. Rendering never selects a file or reads a range. Open and double-c
 clipboard. A claimed browser `.torrent` source calls `content.open`, fetches the returned pipe URL
 into memory, and enters the same resolver job as a magnet. Download checks the 256 MiB whole-buffer
 bridge ceiling, opens the save dialog, then calls `content.open`, `fetch`, and binary `writeFile` in
-that order for the explicit user action only.
+that order for the explicit user action only. A source is pruned after a same-instance authoritative
+snapshot shows its info hash gone; a changed service instance or any non-running status is treated as
+a reset, so persisted sources are retained and re-resolved. Explicit removal from this page prunes
+its source immediately.

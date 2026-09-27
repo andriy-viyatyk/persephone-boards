@@ -1,5 +1,9 @@
 # What's New — Torrent Viewer
 
+## 1.4.0
+
+- Route claimed sources to one page per window and persist accepted source links for restart restore.
+
 ## 1.3.0
 
 - Render the shared service inventory, including retained resolution outcomes, across board pages without moving torrent payload bytes.

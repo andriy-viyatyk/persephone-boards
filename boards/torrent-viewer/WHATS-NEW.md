@@ -1,5 +1,9 @@
 # What's New — Torrent Viewer
 
+## 1.4.1
+
+- A failed or cancelled resolve no longer destroys a torrent that another page is still resolving or already lists.
+
 ## 1.4.0
 
 - Route claimed sources to one page per window and persist accepted source links for restart restore.

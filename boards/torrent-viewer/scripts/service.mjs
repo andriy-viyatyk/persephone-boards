@@ -401,6 +401,14 @@ function destroyTorrent(torrent) {
     });
 }
 
+function isTorrentClaimedByAnother(operation) {
+    for (const other of pendingResolvers) {
+        if (other === operation || other.torrent !== operation.torrent) continue;
+        if (!other.cancelled && !other.failed) return true;
+    }
+    return false;
+}
+
 function makeResolver(source) {
     const operation = {
         source,
@@ -408,7 +416,10 @@ function makeResolver(source) {
         destroyPromise: undefined,
         cancelWait: undefined,
         cancelled: false,
+        failed: false,
         completed: false,
+        // False when this operation joined a torrent that was already listed: it may never destroy it.
+        ownsTorrent: true,
         resolve: undefined,
         reject: undefined,
         promise: undefined,
@@ -420,7 +431,14 @@ function makeResolver(source) {
     operation.destroy = () => {
         if (!operation.torrent) return Promise.resolve();
         if (!operation.destroyPromise) {
-            operation.destroyPromise = destroyTorrent(operation.torrent);
+            // Two pages can resolve the same torrent at once and share it. A failed or cancelled
+            // attempt releases only its own claim; the torrent dies with the last live claimant.
+            if (!operation.ownsTorrent || isTorrentClaimedByAnother(operation)) {
+                operation.destroyPromise = Promise.resolve();
+            } else {
+                forgetTorrent(operation.torrent);
+                operation.destroyPromise = destroyTorrent(operation.torrent);
+            }
         }
         return operation.destroyPromise;
     };
@@ -453,6 +471,7 @@ function waitForMetadata(torrent, operation) {
             callback(value);
         };
         const fail = (error) => {
+            operation.failed = true;
             void operation.destroy();
             finish(reject, error);
         };
@@ -501,6 +520,7 @@ async function startResolver(operation) {
             deselect: true,
         });
         operation.torrent = torrent;
+        operation.ownsTorrent = !existing?.ready;
         if (!existing) rememberTorrent(torrent, operation.source);
 
         const metadata = await waitForMetadata(torrent, operation);
@@ -510,7 +530,7 @@ async function startResolver(operation) {
         operation.resolve(metadata);
     } catch (error) {
         if (!operation.completed) {
-            forgetTorrent(operation.torrent);
+            operation.failed = true;
             await operation.destroy();
         }
         const failure = isTorrentBytes(operation.source) && !operation.cancelled

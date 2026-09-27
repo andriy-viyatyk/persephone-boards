@@ -70,6 +70,9 @@ let tearingDown = false;
 let serviceState = "stopped";
 /** requestId → source, for this page's failed resolves: what the row's Retry re-resolves. */
 const failedSources = new Map();
+/** File name → Persephone's icon for it (a `data:` URL); names in flight are in fileIconRequests. */
+const fileIcons = new Map();
+const fileIconRequests = new Set();
 let serviceInstanceKey;
 let serviceResetPending = true;
 let serviceRestoreNeeded = false;
@@ -202,8 +205,15 @@ function sourceInfoHash(source) {
     }
 }
 
+/** Saved with the sources: a local .torrent path carries no info hash of its own, and without the
+ *  saved one every reload would resolve the path again to learn it is a torrent already listed. */
 function persistAcceptedSources() {
-    P.state.merge({ acceptedSources: [...acceptedSources] });
+    const infoHashes = {};
+    for (const source of acceptedSources) {
+        const infoHash = sourceInfoHashes.get(source);
+        if (infoHash) infoHashes[source] = infoHash;
+    }
+    P.state.merge({ acceptedSources: [...acceptedSources], sourceInfoHashes: infoHashes });
 }
 
 function rememberAcceptedSource(rawSource) {
@@ -230,6 +240,9 @@ function restoreAcceptedSources(state) {
     acceptedSources.clear();
     sourceInfoHashes.clear();
     const restored = Array.isArray(state?.acceptedSources) ? state.acceptedSources : [];
+    const savedInfoHashes = state?.sourceInfoHashes && typeof state.sourceInfoHashes === "object"
+        ? state.sourceInfoHashes
+        : {};
     for (const source of [...restored, ...runtimeSources]) {
         const canonical = canonicalSource(source);
         if (!canonical || !isTorrentSource(canonical)) continue;
@@ -238,7 +251,10 @@ function restoreAcceptedSources(state) {
             continue;
         }
         acceptedSources.add(canonical);
-        const infoHash = normalizeInfoHash(runtimeInfoHashes.get(canonical)) || sourceInfoHash(canonical);
+        const saved = normalizeInfoHash(savedInfoHashes[canonical]);
+        const infoHash = normalizeInfoHash(runtimeInfoHashes.get(canonical))
+            || (/^[0-9a-f]{40}$/.test(saved) ? saved : "")
+            || sourceInfoHash(canonical);
         if (infoHash) sourceInfoHashes.set(canonical, infoHash);
     }
     persistAcceptedSources();
@@ -541,17 +557,48 @@ function renderFileRow(row, { torrent, file }) {
     row.setAttribute("aria-selected", String(selected));
     row.title = file.path;
     const [icon, label, badge] = row.children;
-    if (!icon.firstChild) icon.innerHTML = GLYPHS.file;
+    renderFileIcon(icon, fileName(file.path));
     setIfChanged(label, "textContent", fileName(file.path));
     const downloaded = fileDownloaded(torrent, file);
     const size = escapeHtml(formatBytes(file.length));
     setIfChanged(badge, "innerHTML", downloaded > 0 ? `${percent(downloaded, file.length)}% · ${size}` : size);
 }
 
+/** Persephone's icon for the name once known, the generic file glyph until then. */
+function renderFileIcon(icon, name) {
+    const url = fileIcons.get(name);
+    if (!url) {
+        if (!icon.firstChild || icon.firstChild.nodeName === "IMG") icon.innerHTML = GLYPHS.file;
+        return;
+    }
+    if (icon.firstChild?.nodeName === "IMG" && icon.firstChild.getAttribute("src") === url) return;
+    const image = document.createElement("img");
+    image.alt = "";
+    image.src = url;
+    icon.replaceChildren(image);
+}
+
+/** Ask Persephone once for the icons of names not seen yet; the list re-renders when they land. */
+function requestFileIcons(files) {
+    const names = [...new Set(files.map((file) => fileName(file.path)))]
+        .filter((name) => !fileIcons.has(name) && !fileIconRequests.has(name));
+    if (!names.length) return;
+    for (const name of names) fileIconRequests.add(name);
+    P.icons.forFiles(names).then((icons) => {
+        for (const [name, url] of Object.entries(icons)) fileIcons.set(name, url);
+        if (!tearingDown) renderFileList();
+    }).catch(() => {
+        // Keep the generic glyph; the icons are decoration.
+    }).finally(() => {
+        for (const name of names) fileIconRequests.delete(name);
+    });
+}
+
 function renderFileList() {
     const torrent = selectedTorrentRow();
     selectedTorrent.textContent = torrent ? torrentLabel(torrent) : "-";
     const files = sortedFiles(torrent);
+    requestFileIcons(files);
     fileCount.textContent = String(files.length);
     let emptyText = "The torrent has no files.";
     if (!torrent) emptyText = "Select a torrent to see its files.";
@@ -588,9 +635,9 @@ function torrentMenuItems(torrent) {
     }
     if (torrent.state === "failed" && torrent.requestId) {
         const items = [];
-        const source = failedSources.get(torrent.requestId);
-        if (source) items.push({ label: "Retry", action: () => retryFailed(torrent.requestId, source) });
-        items.push({ label: "Remove", action: () => dismissFailed(torrent.requestId) });
+        const source = failedSourceOf(torrent);
+        if (source) items.push({ label: "Retry", action: () => retryFailed(torrent, source) });
+        items.push({ label: "Remove", action: () => dismissFailed(torrent) });
         return items;
     }
     return [];
@@ -872,11 +919,22 @@ async function cancelByUser(job, rowKey) {
     setStatus("Resolution cancelled.");
 }
 
+/** A failed row's source: this page's own record first, else the one the service reported, which
+ *  also covers an attempt started by an earlier instance of the page (before a Reload board). */
+function failedSourceOf(row) {
+    return failedSources.get(row.requestId) ?? row.source ?? undefined;
+}
+
 /** Drop a failed row now instead of when the service's result expires. */
-async function dismissFailed(requestId, { keepSource = false } = {}) {
-    const source = failedSources.get(requestId);
+async function dismissFailed(row, { keepSource = false } = {}) {
+    const { requestId } = row;
+    const source = failedSourceOf(row);
     failedSources.delete(requestId);
-    if (source && !keepSource) forgetAcceptedSource(source);
+    if (!keepSource) {
+        if (source) forgetAcceptedSource(source);
+        // An equivalent magnet (other trackers or name) for the same torrent goes too.
+        if (row.failedInfoHash) removeAcceptedSourcesForInfoHash(row.failedInfoHash);
+    }
     try {
         await P.service.request({ op: "dismiss", requestId });
     } catch {
@@ -887,8 +945,8 @@ async function dismissFailed(requestId, { keepSource = false } = {}) {
     if (!keepSource) setStatus("Removed.");
 }
 
-async function retryFailed(requestId, source) {
-    await dismissFailed(requestId, { keepSource: true });
+async function retryFailed(row, source) {
+    await dismissFailed(row, { keepSource: true });
     await resolveSource(source);
 }
 
@@ -970,6 +1028,7 @@ async function resolveSourceInternal(source) {
             const alreadySaved = [...acceptedSources].some((other) => other !== source
                 && (sourceInfoHashes.get(other) || sourceInfoHash(other)) === infoHash);
             if (alreadySaved) forgetAcceptedSource(source);
+            else persistAcceptedSources();
         }
         renderAll();
         setStatus(`${torrent.name ?? infoHash} / ${torrent.files.length} files / metadata only`);
@@ -979,7 +1038,7 @@ async function resolveSourceInternal(source) {
             const { requestId } = job;
             if (requestId) failedSources.set(requestId, source);
             setStatusWithAction(message, true, "Retry", () => (requestId
-                ? retryFailed(requestId, source)
+                ? retryFailed({ requestId }, source)
                 : resolveSource(source)));
             // No toast: the status bar carries the message and the row's "failed" badge marks it.
         }
@@ -1075,6 +1134,14 @@ async function copyFileLink(torrent, file) {
 
 /** A source this board can resolve: a magnet URI, one of its own `torrent://` links, a local
  *  `.torrent` path, or an HTTP(S) `.torrent` URL. Anything else is ignored rather than reported. */
+/** A .torrent file on disk: it resolves from the file with no network, so it gets no placeholder row. */
+function isLocalTorrentPath(source) {
+    if (typeof source !== "string") return false;
+    const value = source.trim();
+    return /\.torrent$/i.test(value) && !value.startsWith("magnet:") && !value.startsWith("torrent://")
+        && !isHttpTorrentSource(value);
+}
+
 function isTorrentSource(source) {
     if (typeof source !== "string" || source.length === 0) return false;
     const value = source.trim();
@@ -1206,6 +1273,9 @@ function reconcileSnapshot(snapshot) {
     for (const job of activeJobs) {
         if (typeof job?.requestId !== "string") continue;
         const infoHash = normalizeInfoHash(job.infoHash);
+        const jobSource = typeof job.source === "string" ? job.source : activeResolutions.get(job.requestId)?.source;
+        // A local .torrent parses in well under a second: a "Resolving" row would only flash.
+        if (!infoHash && isLocalTorrentPath(jobSource)) continue;
         const rowKey = infoHash && next.has(infoHash) ? infoHash : infoHash || `request:${job.requestId}`;
         let row = next.get(rowKey);
         if (!row) {
@@ -1228,9 +1298,10 @@ function reconcileSnapshot(snapshot) {
     const completedMetadata = Array.isArray(snapshot?.completedMetadata)
         ? snapshot.completedMetadata
         : [];
-    // One failed row per torrent, and none while another attempt at it is still running: a board
-    // reload mid-resolve leaves the old page's attempt to fail beside the new page's attempt.
-    const failedInfoHashes = new Set();
+    // One failed row per torrent (or per source, for a path that failed before its info hash was
+    // known), and none while another attempt at it is still running: a board reload mid-resolve
+    // leaves the old page's attempt to fail beside the new page's attempt.
+    const failedKeys = new Set();
     for (const result of [...completedMetadata].reverse()) {
         if (typeof result?.requestId !== "string") continue;
         if (result.state === "completed") {
@@ -1241,15 +1312,20 @@ function reconcileSnapshot(snapshot) {
         // A cancelled outcome is not shown: the user cancelled it, or a Remove did.
         if (result.state === "cancelled") continue;
         const failedInfoHash = normalizeInfoHash(result.infoHash);
-        if (failedInfoHash) {
-            if (next.has(failedInfoHash) || failedInfoHashes.has(failedInfoHash)) continue;
-            failedInfoHashes.add(failedInfoHash);
+        const failedSource = typeof result.source === "string" ? result.source : null;
+        if (failedInfoHash && next.has(failedInfoHash)) continue;
+        const failedKey = failedInfoHash ?? (failedSource ? `source:${canonicalSource(failedSource)}` : null);
+        if (failedKey) {
+            if (failedKeys.has(failedKey)) continue;
+            failedKeys.add(failedKey);
         }
         const state = "failed";
         next.set(`request:${result.requestId}`, {
             rowKey: `request:${result.requestId}`,
             requestId: result.requestId,
             infoHash: undefined,
+            failedInfoHash,
+            source: failedSource,
             name: null,
             magnet: null,
             files: [],
@@ -1434,7 +1510,8 @@ async function pollSnapshot() {
 
 async function bootstrapService() {
     if (tearingDown) return;
-    setStatus("No active torrents.");
+    // No status text here: the torrent list shows its own empty state, and a restore that finds
+    // every saved torrent already listed would leave "No active torrents." beside them.
     await pollServiceStatus();
 }
 
@@ -1472,6 +1549,10 @@ function restoreSourcesAfterServiceReset() {
 
 async function loadOpenedSources() {
     try {
+        // Know what the running service already holds before restoring, so a saved source for a
+        // listed torrent is recognised instead of resolved again.
+        await serviceBootstrap;
+        await refreshSnapshotForRestore();
         const state = await P.state.get();
         const transientSources = restoreAcceptedSources(state);
         acceptedSourcesLoaded = true;
@@ -1500,6 +1581,7 @@ function teardown() {
     tearingDown = true;
     unsubscribeSource?.();
     unsubscribeToolbar?.();
+    unsubscribeTheme?.();
     clearTimers();
     for (const job of activeResolutions.values()) void cancelResolution(job);
     activeResolutions.clear();
@@ -1507,13 +1589,15 @@ function teardown() {
 
 document.getElementById("add-magnet").addEventListener("click", () => void addMagnetFromInput());
 // "Open .torrent" lives on Persephone's page toolbar; a reloaded frame must declare it again.
-// Declared on `load`, not at script start: the host clears toolbar controls when the frame's
-// load event fires, which wipes anything declared while the document was still parsing.
-window.addEventListener("load", () => {
-    P.toolbar.set([
-        { id: "open-torrent", type: "button", title: "Open .torrent", icon: { name: "open-file" } },
-    ]);
-}, { once: true });
+P.toolbar.set([
+    { id: "open-torrent", type: "button", title: "Open .torrent", icon: { name: "open-file" } },
+]);
+// Single-colour file icons are drawn in the theme's icon colour: fetch them again on a switch.
+const unsubscribeTheme = P.onThemeChange(() => {
+    if (!fileIcons.size) return;
+    fileIcons.clear();
+    renderFileList();
+});
 const unsubscribeToolbar = P.toolbar.onAction(({ id }) => {
     if (id === "open-torrent") void chooseTorrent();
 });
@@ -1558,5 +1642,5 @@ unsubscribeSource = P.source.onOpen(({ url, sourceUrl }) => {
 });
 
 renderAll();
-void bootstrapService();
+const serviceBootstrap = bootstrapService();
 void loadOpenedSources();

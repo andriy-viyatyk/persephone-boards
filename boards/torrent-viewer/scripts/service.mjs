@@ -826,6 +826,7 @@ export function getServiceSnapshot() {
             .map((job) => ({
                 requestId: job.requestId,
                 infoHash: job.infoHash,
+                source: typeof job.source === "string" ? job.source : null,
                 lastPollAt: job.lastPollAt,
             })),
         completedMetadata: jobs
@@ -833,6 +834,9 @@ export function getServiceSnapshot() {
             .map((job) => ({
                 requestId: job.requestId,
                 infoHash: job.infoHash,
+                // The magnet or path string the page saved (never .torrent bytes): it lets any page
+                // instance retry or forget a failed row, not only the one that started the attempt.
+                source: typeof job.source === "string" ? job.source : null,
                 state: job.state,
                 torrent: job.result,
                 error: job.error,
@@ -934,7 +938,9 @@ async function handleRequest(request) {
             if (job && job.state !== "resolving") {
                 for (const other of [...resolutionJobs.values()]) {
                     if (other.state === "resolving" || other.state === "completed") continue;
-                    if (other === job || (job.infoHash && other.infoHash === job.infoHash)) expireJob(other);
+                    const sameInfoHash = job.infoHash && other.infoHash === job.infoHash;
+                    const sameSource = typeof job.source === "string" && other.source === job.source;
+                    if (other === job || sameInfoHash || sameSource) expireJob(other);
                 }
             }
             return { dismissed: true, requestId: message.requestId };

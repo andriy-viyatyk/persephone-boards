@@ -49,7 +49,10 @@ the board offers a manual retry after a failed resolution and never retries auto
 right-click menu has Copy magnet link, Copy info hash, Save .torrent (the `torrentFile` op returns
 WebTorrent's re-encoded `.torrent` as base64), and Remove. A failed
 row's right-click menu has Retry and Remove; Remove (the `dismiss` op) drops the retained outcome
-at once. A cancelled outcome is never shown: `cancel` drops the job immediately, and the page forgets
+at once, and forgets the saved source. The snapshot's failed outcomes carry their `source` string
+(a magnet or path, never `.torrent` bytes), so this works on a row whose attempt an earlier
+instance of the page started, before a Reload board. One failed row is shown per info hash, or per
+source for a path that failed before its info hash was known. A cancelled outcome is never shown: `cancel` drops the job immediately, and the page forgets
 the cancelled source. `remove` also drops the torrent's retained completed results, which would
 otherwise put the row back until they expired. Remove takes
 effect at once, even while an open page is reading the torrent: the service marks the info hash as
@@ -68,8 +71,10 @@ encoded path and canonical magnet so they restore without the board page.
 Layout: a Torrents pane and a Files pane separated by a draggable splitter (the width is a
 per-viewer `localStorage` convenience), one status bar at the bottom, and the magnet input with
 **Add** under the torrent list. **Open .torrent** is a host toolbar button declared with
-`persephone.toolbar.set` on the window `load` event: the host clears toolbar controls when the
-frame's load event fires, so a declaration made while the document is still parsing is lost. Rows
+`persephone.toolbar.set` at script start (Persephone 5.0.4 holds a declaration made while the
+document is still parsing until it has loaded). File rows show Persephone's own icon for each
+name through `persephone.icons.forFiles` (bridge 1.18.0), with a generic glyph until it arrives;
+the icons are fetched again on a theme change. Rows
 follow the Explorer tree: 22px, the tree's selection colours, and arrow/Home/End keys (Enter opens a
 file). Each row has a right-aligned badge: download speed and peers for a torrent ("resolving..."
 while resolving), and size plus download percentage for a file. Hovering a badge shows a tooltip

@@ -8,6 +8,7 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
+- [ ] [BT-027: Torrent Viewer — Remove on a failed row deletes its saved source for good](tasks/BT-027-torrent-viewer-failed-row-remove/README.md) — implemented in Torrent Viewer 1.7.0 (with the Persephone file icons from US-1533)
 - [ ] [BT-025: Torrent viewer board, provider, lifecycle, browser URL sources, and shared service snapshot](tasks/BT-025-torrent-viewer-skeleton/README.md)
 - [ ] [BT-026: Torrent viewer single-instance source routing and restart persistence](tasks/BT-026-torrent-viewer-single-instance/README.md)
 

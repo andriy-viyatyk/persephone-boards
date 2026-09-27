@@ -1,5 +1,12 @@
 # What's New — Torrent Viewer
 
+## 1.7.0
+
+- File rows show the same icons as Persephone's Explorer panel. Requires Persephone 5.0.4 (bridge 1.18.0).
+- Remove on a failed row also forgets its saved source when the failed attempt was started before a Reload board, so the source no longer resolves again on the next reload. Retry is offered on those rows too.
+- A `.torrent` path that fails before its metadata arrives shows one failed row across reloads, not one per reload.
+- Reload board and app restart no longer flash a "Resolving torrent" row for a saved `.torrent` file. A reload recognises the file as a torrent already listed instead of reading it again, and a local file never gets a placeholder row (it parses in well under a second).
+
 ## 1.6.0
 
 - New board icon (the µTorrent logo) on the tab, the main-editor tile, and the sidebar.

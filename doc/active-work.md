@@ -9,10 +9,9 @@ Overview of active and planned board work in this repo.
 ## Active
 
 - [ ] [BT-025: Torrent viewer board, provider, lifecycle, browser URL sources, and shared service snapshot](tasks/BT-025-torrent-viewer-skeleton/README.md)
+- [ ] [BT-026: Torrent viewer single-instance source routing and restart persistence](tasks/BT-026-torrent-viewer-single-instance/README.md)
 
 ## Planned
-
-- [ ] [BT-026: Torrent viewer single-instance source routing and restart persistence](tasks/BT-026-torrent-viewer-single-instance/README.md)
 
 Board work for Persephone's **EPIC-101** (*Structured descriptor access and the AiVision Explorer
 board*) is finished: BT-022 and BT-023 shipped as `aivision-explorer` v1.0.2, published

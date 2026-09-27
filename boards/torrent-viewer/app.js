@@ -220,6 +220,12 @@ function persistAcceptedSources() {
 function rememberAcceptedSource(rawSource) {
     const source = canonicalSource(rawSource);
     if (!source || !isTorrentSource(source)) return "";
+    if (isHttpTorrentSource(source)) {
+        const removed = acceptedSources.delete(source);
+        const infoHashRemoved = sourceInfoHashes.delete(source);
+        if (removed || infoHashRemoved) persistAcceptedSources();
+        return source;
+    }
     const infoHash = sourceInfoHash(source);
     if (infoHash) sourceInfoHashes.set(source, infoHash);
     if (acceptedSources.has(source)) return source;
@@ -231,16 +237,37 @@ function rememberAcceptedSource(rawSource) {
 function restoreAcceptedSources(state) {
     const runtimeSources = [...acceptedSources];
     const runtimeInfoHashes = new Map(sourceInfoHashes);
+    const transientSources = [];
     acceptedSources.clear();
     sourceInfoHashes.clear();
     const restored = Array.isArray(state?.acceptedSources) ? state.acceptedSources : [];
     for (const source of [...restored, ...runtimeSources]) {
         const canonical = canonicalSource(source);
         if (!canonical || !isTorrentSource(canonical)) continue;
+        if (isHttpTorrentSource(canonical)) {
+            transientSources.push(canonical);
+            continue;
+        }
         acceptedSources.add(canonical);
         const infoHash = normalizeInfoHash(runtimeInfoHashes.get(canonical)) || sourceInfoHash(canonical);
         if (infoHash) sourceInfoHashes.set(canonical, infoHash);
     }
+    persistAcceptedSources();
+    return transientSources;
+}
+
+function replaceHttpSourceWithMagnet(source, magnet, infoHash) {
+    const canonicalMagnet = canonicalSource(magnet);
+    const normalizedInfoHash = normalizeInfoHash(infoHash);
+    if (!isHttpTorrentSource(source) || !canonicalMagnet.toLowerCase().startsWith("magnet:")) return false;
+    if (sourceInfoHash(canonicalMagnet) !== normalizedInfoHash) return false;
+
+    acceptedSources.delete(source);
+    sourceInfoHashes.delete(source);
+    acceptedSources.add(canonicalMagnet);
+    sourceInfoHashes.set(canonicalMagnet, normalizedInfoHash);
+    persistAcceptedSources();
+    return true;
 }
 
 function removeAcceptedSourcesForInfoHash(infoHash) {
@@ -557,11 +584,21 @@ async function waitForResolution(job) {
 }
 
 async function resolveSource(rawSource) {
-    const source = rememberAcceptedSource(rawSource);
+    const rawCanonical = canonicalSource(rawSource);
+    const rememberedInfoHash = sourceInfoHash(rawCanonical);
+    const source = rememberAcceptedSource(rawCanonical);
     if (!source || tearingDown) return;
-    const infoHash = sourceInfoHash(source);
-    if (hasActiveResolution(infoHash, source) || hasKnownTorrent(infoHash)) {
+    const infoHash = rememberedInfoHash || sourceInfoHash(source);
+    if (hasActiveResolution(infoHash, source)) {
+        renderAll();
+        return;
+    }
+    if (hasKnownTorrent(infoHash)) {
         if (infoHash && serviceTorrents.has(infoHash)) selectedInfoHash = infoHash;
+        if (isHttpTorrentSource(source) && infoHash) {
+            const row = serviceTorrents.get(infoHash);
+            if (row?.state === "ready") replaceHttpSourceWithMagnet(source, row.magnet, infoHash);
+        }
         renderAll();
         return;
     }
@@ -595,12 +632,20 @@ async function resolveSourceInternal(source) {
         if (!/^[0-9a-f]{40}$/.test(infoHash) || !Array.isArray(torrent.files)) {
             throw new Error("Torrent metadata is incomplete.");
         }
-        sourceInfoHashes.set(source, infoHash);
         selectedInfoHash = infoHash;
         await refreshServiceStatus();
         if (serviceState === "running") {
             while (snapshotInFlight && !tearingDown) await waitFor(25);
             await pollSnapshot();
+        }
+        const resolvedRow = serviceTorrents.get(infoHash);
+        if (isHttpTorrentSource(source)) {
+            if (resolvedRow?.state !== "ready"
+                || !replaceHttpSourceWithMagnet(source, resolvedRow.magnet, infoHash)) {
+                throw new Error("The torrent service did not return a canonical magnet.");
+            }
+        } else {
+            sourceInfoHashes.set(source, infoHash);
         }
         renderAll();
         setStatus(`${torrent.name ?? infoHash} / ${torrent.files.length} files / metadata only`);
@@ -1053,7 +1098,7 @@ function restoreSourcesAfterServiceReset() {
 async function loadOpenedSources() {
     try {
         const state = await P.state.get();
-        restoreAcceptedSources(state);
+        const transientSources = restoreAcceptedSources(state);
         acceptedSourcesLoaded = true;
 
         const source = await P.getSourceUrl();
@@ -1061,7 +1106,11 @@ async function loadOpenedSources() {
         // own address, and a future caller could hand back anything at all; feeding that to the
         // resolver raises "Invalid torrent identifier" on a page the user simply opened.
         const initialSource = source && isTorrentSource(source) ? rememberAcceptedSource(source) : "";
-        const sources = initialSource ? [initialSource, ...acceptedSources] : [...acceptedSources];
+        const sources = [
+            ...transientSources,
+            ...(initialSource ? [initialSource] : []),
+            ...acceptedSources,
+        ];
         sourceRestorePromise = resolveAcceptedSources(sources).finally(() => {
             sourceRestorePromise = undefined;
         });

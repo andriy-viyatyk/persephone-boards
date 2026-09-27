@@ -11,8 +11,10 @@ The manifest claims the `torrent` and `magnet` schemes, declares the stable `tor
 provider contract, and is a single-instance board: one Torrent Viewer page receives all claimed
 sources in a window, while pages in different windows render the same app-wide service snapshot
 (D14). New sources arrive through `persephone.source.onOpen()` without reloading the page. The
-board persists only accepted source hrefs and magnets in restorable shared state, so the page can
-re-resolve them after restart; it never persists metadata, files, buffers, or snapshots. The
+board persists accepted source hrefs and canonical magnets in restorable shared state, replacing
+resolved HTTP(S) `.torrent` URLs with the service snapshot's magnet and never persisting unresolved
+or failed HTTP sources. The page can re-resolve persisted sources after restart; it never persists
+metadata, files, buffers, or snapshots. The
 manifest requires bridge `1.17.0` for source delivery, `getSourceUrl()`, explicit service stop,
 and read-only service status APIs, and claims browser downloads with both whole-URL masks
 `*://*/*.torrent` and `*://*/*.torrent?*`. The `.torrent` file mask is the second D10 entry point;

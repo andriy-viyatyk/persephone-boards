@@ -1,5 +1,9 @@
 # What's New — Torrent Viewer
 
+## 1.5.0
+
+- Resolved HTTP(S) `.torrent` sources are persisted as canonical magnets; unresolved and failed URLs are not persisted.
+
 ## 1.4.1
 
 - A failed or cancelled resolve no longer destroys a torrent that another page is still resolving or already lists.

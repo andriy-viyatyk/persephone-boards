@@ -2,7 +2,7 @@
 
 ## Status
 
-**Status:** Planned
+**Status:** In Progress
 **Priority:** High
 **Board id:** `torrent-viewer`
 **Epic:** EPIC-114
@@ -11,8 +11,9 @@
 ## Goal
 
 Make Torrent Viewer a single-instance board per Persephone window and deliver later claimed
-sources into the existing page. Persist only accepted source strings so the viewer can re-resolve
-its torrents after restart without storing torrent metadata or content.
+sources into the existing page. Persist only accepted source strings, replacing resolved HTTP(S)
+`.torrent` sources with canonical magnets, so the viewer can re-resolve its torrents after restart
+without storing torrent metadata or content.
 
 ## Background
 
@@ -29,12 +30,15 @@ its torrents after restart without storing torrent metadata or content.
 ## Implementation Plan
 
 - [ ] Opt `board-manifest.json` into `singleInstance`, require bridge `1.17.0`, and bump the board
-      version to `1.4.0`.
+      version for the single-instance release.
 - [ ] Initialize restorable `acceptedSources`, subscribe to `source.onOpen()` before startup
       loading, and route all accepted source strings through the existing resolver.
 - [ ] Restore `getSourceUrl()` plus persisted sources with canonical-string and info-hash
       deduplication; serialize unknown-hash restores and refresh the authoritative snapshot before
       comparing the next source.
+- [x] Keep HTTP(S) `.torrent` sources transient until resolution succeeds, then replace them with
+      the canonical magnet from the authoritative service snapshot; never persist unresolved or
+      failed HTTP sources.
 - [ ] Prune sources only when their info hash disappears within the same service instance. A
       changed `pid`/`startedAt`/`restartCount` identity or any non-running status is a service
       reset: retain the persisted sources and re-resolve them. Explicit removal from this page
@@ -51,8 +55,8 @@ its torrents after restart without storing torrent metadata or content.
 
 ## Acceptance Criteria
 
-- [ ] The manifest declares `singleInstance: true`, `minBridgeVersion: "1.17.0"`, and version
-      `1.4.0`.
+- [ ] The manifest declares `singleInstance: true`, `minBridgeVersion: "1.17.0"`, and the current
+      board release is version `1.5.0`.
 - [ ] Multiple claimed sources in one window reach one page through `source.onOpen()` without a
       reload, while different windows continue to share the service snapshot.
 - [ ] Restorable state contains only canonical source strings and restores the initial source plus
@@ -71,7 +75,7 @@ its torrents after restart without storing torrent metadata or content.
 | `boards/torrent-viewer/WHATS-NEW.md` | Add the 1.4.0 entry. |
 | `boards/torrent-viewer/README.md` | Document D14, source delivery, persistence, and reset handling. |
 | `boards/torrent-viewer/CLAUDE.md` | Keep board author notes aligned with the new bridge and lifecycle. |
-| `doc/active-work.md` | Add the BT-026 dashboard entry under Planned. |
+| `doc/active-work.md` | Keep the BT-026 dashboard entry under Active while this work is in progress. |
 
 ## Notes
 

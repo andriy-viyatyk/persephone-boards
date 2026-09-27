@@ -45,16 +45,38 @@ Polling
 deadline, a four-job cap, a 45-second no-poll grace period, and 60-second abandoned-result expiry.
 `cancel`, `remove`, and shutdown destroy incomplete torrents with their memory stores. The abandoned
 job watchdog is derived as the 30-second metadata deadline plus 15 seconds, so it cannot pre-empt D8;
-the board offers a manual retry after a failed resolution and never retries automatically. Removal is
-refused while an open page is reading a torrent. After an explicit remove, the board takes one fresh
-snapshot and stops the service only when no torrents and no resolution jobs remain; page teardown does
-not stop the service.
+the board offers a manual retry after a failed resolution and never retries automatically. A ready torrent's
+right-click menu has Copy magnet link, Copy info hash, Save .torrent (the `torrentFile` op returns
+WebTorrent's re-encoded `.torrent` as base64), and Remove. A failed
+row's right-click menu has Retry and Remove; Remove (the `dismiss` op) drops the retained outcome
+at once. A cancelled outcome is never shown: `cancel` drops the job immediately, and the page forgets
+the cancelled source. `remove` also drops the torrent's retained completed results, which would
+otherwise put the row back until they expired. Remove takes
+effect at once, even while an open page is reading the torrent: the service marks the info hash as
+removed, so that page's next read fails with `torrent-removed` instead of re-adding the torrent from
+its link's magnet. Adding the torrent again from the board clears the mark. The service keeps running
+after the list empties, because a stopped service would restart without the marks. It destroys its
+WebTorrent client instead, releasing the DHT and tracker sockets. Page teardown does not stop the
+service either.
 
 The service normalizes WebTorrent's Windows file paths from backslashes to forward slashes and
 registers `torrent/viewer` with `stat`, `readRange`, and `readBinary`. Provider links carry the
 encoded path and canonical magnet so they restore without the board page.
 
 ## UI rules
+
+Layout: a Torrents pane and a Files pane separated by a draggable splitter (the width is a
+per-viewer `localStorage` convenience), one status bar at the bottom, and the magnet input with
+**Add** under the torrent list. **Open .torrent** is a host toolbar button declared with
+`persephone.toolbar.set` on the window `load` event: the host clears toolbar controls when the
+frame's load event fires, so a declaration made while the document is still parsing is lost. Rows
+follow the Explorer tree: 22px, the tree's selection colours, and arrow/Home/End keys (Enter opens a
+file). Each row has a right-aligned badge: download speed and peers for a torrent ("resolving..."
+while resolving), and size plus download percentage for a file. Hovering a badge shows a tooltip
+with the rest of the figures. Rows are updated in place (keyed by info hash or file index), so hover
+and double-click survive the 1-second snapshot poll. The snapshot carries `uploadSpeed`, `uploaded`,
+`length`, `progress`, and `fileProgress` (per-file verified bytes, or `null` until anything has
+been downloaded from the torrent).
 
 The page reads the service lifecycle through the non-starting `service.status()` call, then polls
 one `snapshot` at a time while the service is running. It renders the shared service inventory,

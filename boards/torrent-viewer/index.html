@@ -5,34 +5,22 @@
     <title>Torrent Viewer</title>
     <link rel="stylesheet" href="./board-base.css" />
     <style>
+        html, body { height: 100%; }
+        /* An author `display` beats the UA rule for [hidden]; keep hidden elements hidden. */
+        [hidden] { display: none !important; }
         body {
-            min-height: 100vh;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
             background: var(--p-bg);
         }
 
-        .toolbar { flex-wrap: wrap; }
-        .toolbar .p-input { flex: 1 1 360px; min-width: 220px; }
-
-        .page-status {
-            min-height: 28px;
-            display: flex;
-            align-items: center;
-            padding: var(--p-space-sm) var(--p-space-md);
-            color: var(--p-text-muted);
-            border-bottom: 1px solid var(--p-border);
-            font-size: var(--p-font-sm);
-        }
-        .page-status.error { color: var(--p-error); }
-
+        /* ── Workspace: torrents | splitter | files ─────────────────────────────── */
         .workspace {
             min-height: 0;
             flex: 1 1 auto;
-            display: grid;
-            grid-template-columns: minmax(240px, 0.8fr) minmax(320px, 1.5fr);
+            display: flex;
         }
-
         .pane {
             min-width: 0;
             min-height: 0;
@@ -40,14 +28,30 @@
             flex-direction: column;
             background: var(--p-bg);
         }
-        .pane + .pane { border-left: 1px solid var(--p-border); }
+        .torrents-pane { flex: 0 0 var(--torrents-width, 320px); min-width: 160px; }
+        .files-pane { flex: 1 1 auto; min-width: 200px; }
 
+        /* A 5px grab area over a 1px rule; the rule thickens to the accent while hovered or dragged. */
+        .splitter {
+            flex: 0 0 auto;
+            width: 5px;
+            margin: 0 -2px;
+            z-index: 1;
+            cursor: col-resize;
+            background: linear-gradient(to right, transparent 2px, var(--p-border) 2px, var(--p-border) 3px, transparent 3px);
+        }
+        .splitter:hover, .splitter.dragging {
+            background: linear-gradient(to right, transparent 1px, var(--p-accent-hover) 1px, var(--p-accent-hover) 4px, transparent 4px);
+        }
+
+        /* Pane header: the app's 30px toolbar metrics. */
         .pane-header {
-            min-height: 42px;
+            height: 30px;
+            flex: 0 0 auto;
             display: flex;
-            align-items: baseline;
+            align-items: center;
             gap: var(--p-space-sm);
-            padding: var(--p-space-md) var(--p-space-lg);
+            padding: 0 var(--p-space-md);
             background: var(--p-bg-dark);
             border-bottom: 1px solid var(--p-border);
         }
@@ -55,170 +59,254 @@
             min-width: 0;
             margin: 0;
             overflow: hidden;
-            color: var(--p-text-strong);
-            font-size: var(--p-font-md);
-            font-weight: 650;
+            color: var(--p-text);
+            font-size: var(--p-font-sm);
+            font-weight: 600;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        .pane-count {
-            flex: 0 0 auto;
-            color: var(--p-text-muted);
-            font-size: var(--p-font-sm);
-        }
+        .pane-count { flex: 0 0 auto; color: var(--p-text-muted); font-size: var(--p-font-sm); }
 
-        .pane-scroll { min-height: 0; flex: 1 1 auto; overflow: auto; }
-        .torrent-list, .file-list {
+        /* ── Lists: Explorer-tree rows (22px, tree selection colours) ────────────── */
+        .list {
+            min-height: 0;
+            flex: 1 1 auto;
             margin: 0;
-            padding: var(--p-space-sm);
+            padding: 0;
+            overflow: auto;
             list-style: none;
+            outline: none;
         }
-
-        .torrent-row, .file-row {
-            width: 100%;
+        .row {
+            height: 22px;
             display: flex;
             align-items: center;
-            gap: var(--p-space-md);
-            padding: var(--p-space-md);
+            gap: var(--p-space-sm);
+            padding: 0 var(--p-space-sm) 0 var(--p-space-md);
             color: var(--p-text);
-            background: transparent;
-            border: 1px solid transparent;
-            border-radius: var(--p-radius-md);
-            font: inherit;
-            text-align: left;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
         }
-        .torrent-row { cursor: pointer; }
-        .torrent-row:hover, .file-row:hover { background: var(--p-panel); }
-        .torrent-row.selected { background: var(--p-panel); border-color: var(--p-accent); }
+        .row:hover { background: var(--p-hover); }
+        .row.selected { background: var(--p-panel); }
+        /* Focused list: the tree's selection fill with an outline, as in the Explorer panel. */
+        .list:focus-within .row.selected {
+            background: var(--p-tree-selection);
+            color: var(--p-accent-text);
+            outline: 1px solid var(--p-accent-hover);
+            outline-offset: -1px;
+        }
+        .row-icon {
+            flex: 0 0 16px;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--p-text-muted);
+        }
+        .row-icon > img, .row-icon > svg { width: 16px; height: 16px; }
+        .row-label { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+        .row.failed .row-label { color: var(--p-error); }
+        .list:focus-within .row.selected .row-label { color: inherit; }
 
-        .state-dot {
+        /* Badge: right-aligned stats pill; hovering it shows the stats tooltip. */
+        .badge {
             flex: 0 0 auto;
-            width: 9px;
-            height: 9px;
-            border-radius: 50%;
-            background: var(--p-text-muted);
+            display: inline-flex;
+            align-items: center;
+            gap: var(--p-space-sm);
+            height: 16px;
+            padding: 0 var(--p-space-sm);
+            color: var(--p-text-muted);
+            background: var(--p-bg-dark);
+            border: 1px solid var(--p-border);
+            border-radius: 8px;
+            font-size: 11px;
+            line-height: 1;
+            cursor: default;
         }
-        .state-dot.streaming { background: var(--p-success); }
-        .state-dot.stalled { background: var(--p-warning); }
+        .badge:empty { display: none; }
+        .badge-item { display: inline-flex; align-items: center; gap: 2px; }
+        .badge svg { width: 11px; height: 11px; flex: 0 0 auto; }
+        .badge.streaming { color: var(--p-success); border-color: var(--p-success); }
+        .badge.stalled { color: var(--p-warning); border-color: var(--p-warning); }
+        .badge.failed { color: var(--p-error); border-color: var(--p-error); }
+        .list:focus-within .row.selected .badge {
+            color: var(--p-accent-text);
+            background: transparent;
+            border-color: var(--p-accent-text);
+        }
 
-        .torrent-details, .file-details { min-width: 0; flex: 1 1 auto; }
-        .torrent-name, .file-name {
+        .empty-state {
+            padding: var(--p-space-lg);
+            color: var(--p-text-muted);
+            font-size: var(--p-font-sm);
+            text-align: center;
+            cursor: default;
+        }
+
+        /* The add row under the torrent list. */
+        .add-row {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: var(--p-space-xs);
+            padding: var(--p-space-xs) var(--p-space-sm);
+            border-top: 1px solid var(--p-border);
+        }
+        .add-row .p-input {
+            min-width: 0;
+            flex: 1 1 auto;
+            height: var(--p-size-control-sm, 24px);
+            font-size: var(--p-font-sm);
+        }
+
+        /* ── Status bar ──────────────────────────────────────────────────────────── */
+        .status-bar {
+            height: 24px;
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: var(--p-space-sm);
+            padding: 0 var(--p-space-md);
+            overflow: hidden;
+            color: var(--p-text-muted);
+            background: var(--p-bg-dark);
+            border-top: 1px solid var(--p-border);
+            font-size: var(--p-font-sm);
+            white-space: nowrap;
+        }
+        .status-bar > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        .status-bar.error { color: var(--p-error); }
+        .status-bar .p-btn { margin-left: auto; height: 18px; }
+
+        /* ── Tooltip ─────────────────────────────────────────────────────────────── */
+        .tooltip {
+            position: fixed;
+            z-index: 20;
+            /* max-content: sized by its content, never squeezed by where it last sat. */
+            width: max-content;
+            max-width: min(420px, calc(100vw - 8px));
+            padding: var(--p-space-sm) var(--p-space-md);
+            color: var(--p-text);
+            background: var(--p-panel);
+            border: 1px solid var(--p-border);
+            border-radius: var(--p-radius-md);
+            /* --p-shadow is a colour, not a box-shadow value. */
+            box-shadow: 0 4px 12px var(--p-shadow);
+            font-size: var(--p-font-sm);
+            pointer-events: none;
+        }
+        .tooltip-title {
+            margin-bottom: var(--p-space-xs);
             overflow: hidden;
             color: var(--p-text-strong);
+            font-weight: 600;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        .torrent-meta, .file-size, .empty-state, .pane-footer {
-            color: var(--p-text-muted);
-            font-size: var(--p-font-sm);
+        .tooltip-grid {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: 1px var(--p-space-lg);
+            margin: 0;
         }
-        .torrent-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-        .file-list { display: grid; gap: var(--p-space-xs); }
-        .file-row { cursor: pointer; }
-        .file-icon {
-            flex: 0 0 28px;
-            color: var(--p-accent);
-            font-size: var(--p-font-lg);
-            text-align: center;
-        }
-        .file-size { flex: 0 0 auto; white-space: nowrap; }
-        .file-open { flex: 0 0 auto; color: var(--p-text-muted); }
-
-        .empty-state { padding: var(--p-space-lg); text-align: center; }
-        .pane-footer {
-            min-height: 32px;
-            padding: var(--p-space-sm) var(--p-space-lg);
-            border-top: 1px solid var(--p-border);
+        .tooltip-grid dt { color: var(--p-text-muted); white-space: nowrap; }
+        .tooltip-grid dd {
+            min-width: 0;
+            margin: 0;
+            overflow: hidden;
+            text-align: right;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
+        /* ── Context menu: Persephone's Menu in a Popover shell ──────────────────── */
         .context-menu {
             position: fixed;
             z-index: 10;
-            min-width: 170px;
+            min-width: 140px;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
             margin: 0;
-            padding: var(--p-space-xs);
-            background: var(--p-panel);
-            border: 1px solid var(--p-border-light);
-            border-radius: var(--p-radius-md);
-            box-shadow: var(--p-shadow);
+            padding: var(--p-space-xs) 0;
+            overflow: hidden;
+            background: var(--p-bg);
+            border: 1px solid var(--p-border);
+            border-radius: var(--p-radius-lg, 6px);
+            /* --p-shadow is a colour, not a box-shadow value. */
+            box-shadow: 0 2px 8px var(--p-shadow);
+            outline: none;
         }
         .context-menu button {
-            width: 100%;
-            display: block;
-            padding: var(--p-space-sm) var(--p-space-md);
+            height: 26px;
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            padding: 0 var(--p-space-md);
             color: var(--p-text);
             background: transparent;
             border: 0;
-            border-radius: var(--p-radius-sm);
+            border-radius: 0;
             font: inherit;
+            font-size: var(--p-font-base);
             text-align: left;
+            white-space: nowrap;
             cursor: pointer;
+            user-select: none;
+            outline: none;
         }
-        .context-menu button:hover {
-            color: var(--p-text-strong);
-            background: var(--p-bg-dark);
+        .context-menu button.hovered:not(:disabled) {
+            color: var(--p-accent-text);
+            background: var(--p-accent);
         }
-
-        @media (max-width: 700px) {
-            .workspace {
-                grid-template-columns: 1fr;
-                grid-template-rows: minmax(190px, 0.8fr) minmax(260px, 1.5fr);
-            }
-            .pane + .pane {
-                border-top: 1px solid var(--p-border);
-                border-left: 0;
-            }
+        .context-menu button:disabled { color: var(--p-text-muted); cursor: default; }
+        .context-menu button.start-group {
+            margin-top: var(--p-space-xs);
+            border-top: 1px solid var(--p-border);
         }
     </style>
 </head>
 <body>
-    <header class="p-toolbar toolbar">
-        <span class="p-toolbar-title">Torrent Viewer</span>
-        <input
-            id="source-input"
-            class="p-input"
-            type="text"
-            placeholder="magnet:?xt=... or a .torrent path"
-            autocomplete="off"
-            aria-label="Magnet link or torrent path"
-        />
-        <button id="add-magnet" class="p-btn primary" type="button">Add magnet</button>
-        <button id="choose-torrent" class="p-btn ghost" type="button">Choose .torrent</button>
-    </header>
-
-    <div id="page-status" class="page-status" role="status" aria-live="polite">
-        Metadata only. No file content is selected.
-    </div>
-
     <main class="workspace">
-        <section class="pane" aria-labelledby="torrents-title">
+        <section class="pane torrents-pane" aria-labelledby="torrents-title">
             <header class="pane-header">
                 <h1 id="torrents-title" class="pane-title">Torrents</h1>
                 <span id="torrent-count" class="pane-count">0</span>
             </header>
-            <div class="pane-scroll">
-                <ul id="torrent-list" class="torrent-list" aria-label="Session torrents">
-                    <li class="empty-state">No torrents added this session.</li>
-                </ul>
+            <ul id="torrent-list" class="list" tabindex="0" role="listbox" aria-label="Session torrents"></ul>
+            <div class="add-row">
+                <input
+                    id="source-input"
+                    class="p-input"
+                    type="text"
+                    placeholder="magnet:?xt=... or a .torrent path"
+                    autocomplete="off"
+                    aria-label="Magnet link or torrent path"
+                />
+                <button id="add-magnet" class="p-btn primary sm" type="button">Add</button>
             </div>
-            <footer class="pane-footer">Right-click a torrent to remove it.</footer>
         </section>
 
-        <section class="pane" aria-labelledby="files-title">
+        <div id="splitter" class="splitter" role="separator" aria-orientation="vertical" aria-label="Resize torrent list"></div>
+
+        <section class="pane files-pane" aria-labelledby="files-title">
             <header class="pane-header">
-                <h2 id="files-title" class="pane-title">Files in <span id="selected-torrent">—</span></h2>
+                <h2 id="files-title" class="pane-title">Files in <span id="selected-torrent">-</span></h2>
                 <span id="file-count" class="pane-count">0</span>
             </header>
-            <div class="pane-scroll">
-                <ul id="file-list" class="file-list" aria-label="Torrent files">
-                    <li class="empty-state">Select a torrent to see its files.</li>
-                </ul>
-            </div>
-            <footer class="pane-footer">Double-click a file to open it in Persephone.</footer>
+            <ul id="file-list" class="list" tabindex="0" role="listbox" aria-label="Torrent files"></ul>
         </section>
     </main>
 
+    <footer id="page-status" class="status-bar" role="status" aria-live="polite">
+        <span>Metadata only. No file content is selected.</span>
+    </footer>
+
+    <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
     <div id="context-menu" class="context-menu" role="menu" hidden></div>
     <script src="./app.js"></script>
 </body>

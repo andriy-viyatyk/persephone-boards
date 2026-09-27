@@ -12,7 +12,7 @@ app-wide service snapshot remains shared across windows.
 ## Key files
 
 - `board-manifest.json` — service, provider declaration, `.torrent` association, and identity.
-- `index.html` / `app.js` — themed two-pane service-inventory torrent/file page; render paths consume metadata
+- `index.html` / `app.js` — themed two-pane (splitter) service-inventory torrent/file page with Explorer-style rows, stats badges, and a status bar; render paths consume metadata
   only and explicit file actions own opening, copying, and saving.
 - `scripts/service.mjs` — parent-port service, WebTorrent resolver, job limits, and teardown.
 - `scripts/webtorrent-entry.mjs` — bundle entry exporting WebTorrent and the memory-store class.
@@ -51,6 +51,9 @@ materialization. After edits, reload the board through `pages[i].editor.reload()
   hash disappears during the same service instance; a changed instance or non-running status is a
   service reset, so retain and re-resolve persisted sources. An explicit remove from this page
   prunes its source immediately.
+- Remove never checks whether a page is reading the torrent. `removedInfoHashes` makes later reads
+  fail, and it lives only in the service process, so the page must not stop the service after a
+  remove: a request would restart it without the marks, and the reader would re-add the torrent.
 - Ready snapshots carry only the canonical magnet and normalized `{ path, length, index }` file
   descriptors. Terminal job outcomes remain readable until their bounded TTL and must not trigger a
   notification on pages that did not start the job.

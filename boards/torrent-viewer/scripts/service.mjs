@@ -220,6 +220,9 @@ function fileForPath(torrent, canonicalPath) {
 
 async function torrentFileForLink(link, signal) {
     throwIfAborted(signal);
+    if (removedInfoHashes.has(link.infoHash)) {
+        throw new Error("torrent-removed: this torrent was removed from the Torrent Viewer");
+    }
     let torrent = findTorrentByInfoHash(link.infoHash);
     if (!link.magnet && !torrent) {
         throw new Error("torrent-magnet-required: torrent is no longer loaded");
@@ -239,24 +242,13 @@ async function torrentFileForLink(link, signal) {
     return { torrent, file: fileForPath(torrent, link.canonicalPath) };
 }
 
-/** When a read last touched each torrent. `activeReaders` alone is the WRONG signal for "is a
- *  page using this": the media player opens a bounded read, drains it and closes, so the count is
- *  zero for most of playback. Measured: removing a torrent under a playing page was accepted with
- *  `activeReaders: 0`, and the page survived only until its buffer drained. A recent read is the
- *  honest proxy for a live consumer. */
-const lastReadAt = new WeakMap();
-const RECENT_READ_WINDOW_MS = 30_000;
-
-/** True while a torrent is being read, or was read recently enough that a page is probably still
- *  consuming it. Used to refuse a removal that would kill a page mid-playback. */
-function isTorrentInUse(torrent) {
-    if ((activeReaderCounts.get(torrent) ?? 0) > 0) return true;
-    const last = lastReadAt.get(torrent);
-    return last !== undefined && Date.now() - last < RECENT_READ_WINDOW_MS;
-}
+/** Info hashes the user removed during this service instance. A file link carries its magnet, so
+ *  without this a page still reading a removed torrent (a player, say) would silently add it back.
+ *  Removal is the user's call and takes effect at once: those reads fail instead. Adding the torrent
+ *  again from the board clears the mark. */
+const removedInfoHashes = new Set();
 
 function beginReader(torrent) {
-    lastReadAt.set(torrent, Date.now());
     const activeReaders = (activeReaderCounts.get(torrent) ?? 0) + 1;
     activeReaderCounts.set(torrent, activeReaders);
     const previous = selectionState.get(torrent);
@@ -268,7 +260,6 @@ function beginReader(torrent) {
 }
 
 function endReader(torrent) {
-    lastReadAt.set(torrent, Date.now());
     const activeReaders = Math.max(0, (activeReaderCounts.get(torrent) ?? 1) - 1);
     if (activeReaders === 0) {
         activeReaderCounts.delete(torrent);
@@ -499,13 +490,25 @@ function waitForMetadata(torrent, operation) {
     });
 }
 
+/** A torrent another attempt is still resolving. WebTorrent sets a magnet's infoHash only after
+ *  its async parse, so `torrentsByInfoHash` can miss it, and a second `client.add` of the same
+ *  magnet (a board reload mid-resolve) fails with "Cannot add duplicate torrent". */
+function pendingTorrentFor(infoHash, operation) {
+    for (const other of pendingResolvers) {
+        if (other === operation || !other.torrent || other.torrent.destroyed) continue;
+        if (other.cancelled || other.failed) continue;
+        if (extractInfoHash(other.source) === infoHash) return other.torrent;
+    }
+    return undefined;
+}
+
 async function startResolver(operation) {
     pendingResolvers.add(operation);
     try {
         if (operation.cancelled) throw new Error("torrent-resolution-cancelled");
 
         const infoHash = extractInfoHash(operation.source);
-        const existing = infoHash ? findTorrentByInfoHash(infoHash) : undefined;
+        const existing = infoHash ? findTorrentByInfoHash(infoHash) ?? pendingTorrentFor(infoHash, operation) : undefined;
         // `deselect: true` is what actually makes this board a VIEWER (EPIC-114 D1), and it is NOT
         // the same thing as deselecting every file afterwards. WebTorrent creates a torrent-level
         // selection over the WHOLE piece range at metadata time unless this option is set
@@ -515,17 +518,39 @@ async function startResolver(operation) {
         const torrentInput = isTorrentBytes(operation.source)
             ? Buffer.from(operation.source)
             : operation.source;
-        const torrent = existing ?? getClient().add(torrentInput, {
+        // A local path or .torrent bytes carry no visible info hash, so a torrent already loaded
+        // (from its magnet, say) is only found by WebTorrent itself: it destroys the new copy with
+        // "Cannot add duplicate torrent" and hands the loaded one to this callback.
+        let loadedDuplicate;
+        const added = existing ? undefined : getClient().add(torrentInput, {
             store: MemoryChunkStore,
             deselect: true,
+        }, (ready) => {
+            if (ready !== added) loadedDuplicate = ready;
         });
+        const torrent = existing ?? added;
         operation.torrent = torrent;
         operation.ownsTorrent = !existing?.ready;
         if (!existing) rememberTorrent(torrent, operation.source);
 
-        const metadata = await waitForMetadata(torrent, operation);
+        let metadata;
+        try {
+            metadata = await waitForMetadata(torrent, operation);
+        } catch (error) {
+            if (!loadedDuplicate || loadedDuplicate.destroyed || operation.cancelled) throw error;
+            // Join the loaded torrent instead of failing. The copy WebTorrent destroyed was never
+            // indexed under its info hash, so forgetting it left the loaded torrent's entry alone.
+            operation.failed = false;
+            operation.destroyPromise = undefined;
+            operation.torrent = loadedDuplicate;
+            operation.ownsTorrent = !loadedDuplicate.ready;
+            metadata = await waitForMetadata(loadedDuplicate, operation);
+        }
         if (operation.cancelled) throw new Error("torrent-resolution-cancelled");
-        rememberTorrent(torrent, operation.source);
+        // operation.torrent, not `torrent`: after a duplicate join `torrent` is the destroyed copy.
+        // A joined torrent keeps the source it was first added from.
+        if (operation.torrent === torrent) rememberTorrent(torrent, operation.source);
+        else rememberTorrent(operation.torrent);
         operation.completed = true;
         operation.resolve(metadata);
     } catch (error) {
@@ -693,6 +718,16 @@ function startResolutionJob(source) {
         throw new Error("torrent-identifier-required");
     }
     const normalizedSource = typeof source === "string" ? source.trim() : source;
+    const sourceInfoHash = extractInfoHash(normalizedSource);
+    if (sourceInfoHash) removedInfoHashes.delete(sourceInfoHash);
+    // A new attempt supersedes earlier failed outcomes for the same torrent. Without this every
+    // board reload that re-resolves a saved source adds another "Resolution failed" row for the TTL.
+    for (const previous of [...resolutionJobs.values()]) {
+        if (previous.state !== "failed" && previous.state !== "cancelled") continue;
+        const sameSource = typeof normalizedSource === "string" && previous.source === normalizedSource;
+        const sameInfoHash = sourceInfoHash && previous.infoHash === sourceInfoHash;
+        if (sameSource || sameInfoHash) expireJob(previous);
+    }
     const operation = makeResolver(normalizedSource);
     const job = {
         requestId: requestId(),
@@ -714,7 +749,12 @@ function startResolutionJob(source) {
     // always completed the job with `torrent: undefined`, and never failed it at all.
     void startResolver(operation);
     operation.promise.then(
-        (result) => completeJob(job, result),
+        (result) => {
+            // A `.torrent` file or URL only learns its info hash here.
+            const resolvedInfoHash = normalizeInfoHash(result?.infoHash);
+            if (resolvedInfoHash) removedInfoHashes.delete(resolvedInfoHash);
+            completeJob(job, result);
+        },
         (error) => failJob(job, error),
     );
     return {
@@ -738,6 +778,17 @@ function readResolutionStatus(requestIdValue) {
     return { state: job.state, requestId: job.requestId, error: job.error };
 }
 
+function finiteOrZero(value) {
+    return Number.isFinite(value) ? value : 0;
+}
+
+/** Each file's verified bytes, index-aligned with `files`. Walking the piece map costs something
+ *  per file, so a torrent nothing has been read from (the metadata-only common case) reports null. */
+function fileProgressOf(torrent) {
+    if (torrent.ready !== true || !(torrent.downloaded > 0) || !Array.isArray(torrent.files)) return null;
+    return torrent.files.map((file) => finiteOrZero(file.downloaded));
+}
+
 function torrentStatus(torrent) {
     const selection = selectionState.get(torrent);
     const metadata = torrent.ready === true ? metadataProjection(torrent) : undefined;
@@ -751,8 +802,13 @@ function torrentStatus(torrent) {
         ready: torrent.ready === true,
         fileCount: Array.isArray(torrent.files) ? torrent.files.length : 0,
         peers: Number.isFinite(torrent.numPeers) ? torrent.numPeers : 0,
-        downloadSpeed: Number.isFinite(torrent.downloadSpeed) ? torrent.downloadSpeed : 0,
-        downloaded: Number.isFinite(torrent.downloaded) ? torrent.downloaded : 0,
+        downloadSpeed: finiteOrZero(torrent.downloadSpeed),
+        uploadSpeed: finiteOrZero(torrent.uploadSpeed),
+        downloaded: finiteOrZero(torrent.downloaded),
+        uploaded: finiteOrZero(torrent.uploaded),
+        length: finiteOrZero(torrent.length),
+        progress: finiteOrZero(torrent.progress),
+        fileProgress: fileProgressOf(torrent),
         activeReaders: activeReaderCounts.get(torrent) ?? 0,
         allFilesDeselected: selection?.allDeselected === true,
     };
@@ -776,6 +832,7 @@ export function getServiceSnapshot() {
             .filter((job) => job.state !== "resolving")
             .map((job) => ({
                 requestId: job.requestId,
+                infoHash: job.infoHash,
                 state: job.state,
                 torrent: job.result,
                 error: job.error,
@@ -794,20 +851,26 @@ export async function removeTorrent(magnetOrTorrentId) {
         );
     }
     if (!torrent) return { removed: false };
-    if (isTorrentInUse(torrent)) {
-        return {
-            removed: false,
-            reason: "torrent-removal-active-readers",
-            infoHash: torrent.infoHash ?? null,
-        };
-    }
+    // No in-use check: a page still reading this torrent fails its next read (see removedInfoHashes).
+    const removedInfoHash = normalizeInfoHash(torrent.infoHash);
+    if (removedInfoHash) removedInfoHashes.add(removedInfoHash);
     for (const job of resolutionJobs.values()) {
         if (job.state === "resolving" && (job.source === source || (infoHash && job.infoHash === infoHash))) {
             cancelJob(job, "torrent-resolution-removed");
+        } else if (job.state === "completed" && removedInfoHash
+            && normalizeInfoHash(job.result?.infoHash) === removedInfoHash) {
+            // A retained result would put the row back on every page's next snapshot until it expired.
+            expireJob(job);
         }
     }
     forgetTorrent(torrent);
     await destroyTorrent(torrent);
+    // An empty service stays running (it holds the removal marks) but releases the client's DHT and
+    // tracker sockets; the next resolve creates a new client.
+    const idle = torrentsByInfoHash.size === 0
+        && pendingResolvers.size === 0
+        && ![...resolutionJobs.values()].some((job) => job.state === "resolving");
+    if (idle) await destroyClient();
     return { removed: true, infoHash: torrent.infoHash ?? null };
 }
 
@@ -855,12 +918,36 @@ async function handleRequest(request) {
         case "snapshot":
             return getServiceSnapshot();
         case "cancel": {
+            // The cancelling page stops polling first, so nothing needs the outcome: drop it at once
+            // rather than keep a cancelled row on every page for the result TTL.
             const job = resolutionJobs.get(message.requestId);
-            if (job) cancelJob(job, "torrent-resolution-cancelled");
+            if (job) {
+                cancelJob(job, "torrent-resolution-cancelled");
+                expireJob(job);
+            }
             return { state: "cancelled", requestId: message.requestId };
+        }
+        case "dismiss": {
+            // Drop a finished outcome (a failed row) before its TTL. A resolving job is left alone.
+            // The page shows one failed row per torrent, so dismiss every failed outcome for it.
+            const job = resolutionJobs.get(message.requestId);
+            if (job && job.state !== "resolving") {
+                for (const other of [...resolutionJobs.values()]) {
+                    if (other.state === "resolving" || other.state === "completed") continue;
+                    if (other === job || (job.infoHash && other.infoHash === job.infoHash)) expireJob(other);
+                }
+            }
+            return { dismissed: true, requestId: message.requestId };
         }
         case "remove":
             return removeTorrent(message.magnetOrTorrentId);
+        case "torrentFile": {
+            // WebTorrent re-encodes the .torrent from the metadata whatever the source was, so a
+            // magnet-resolved torrent can be saved too. Base64: the reply crosses the main process.
+            const torrent = findTorrentByInfoHash(message.infoHash);
+            if (!torrent?.ready || !torrent.torrentFile) throw new Error("torrent-file-unavailable");
+            return { name: torrent.name ?? null, base64: Buffer.from(torrent.torrentFile).toString("base64") };
+        }
         default:
             throw new Error(`unknown-operation:${String(message.op)}`);
     }

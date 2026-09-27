@@ -11,6 +11,7 @@ const STALLED_SAMPLE_LIMIT = 3;
 P.state.init({ acceptedSources: [] }, { restorableKeys: ["acceptedSources"] });
 
 const KNOWN_FAILURE_MESSAGES = new Map([
+    ["torrent-file-unavailable", "The .torrent is not available: the torrent is no longer loaded. Open it again, then retry."],
     ["torrent-resolution-no-status-poll", "Resolution was abandoned because this page stopped polling. Retry to start a new attempt."],
     ["torrent-resolution-cancelled", "Torrent resolution was cancelled. Retry to start a new attempt."],
     ["torrent-resolution-removed", "Torrent resolution was cancelled because the torrent was removed."],
@@ -22,7 +23,6 @@ const KNOWN_FAILURE_MESSAGES = new Map([
     ["torrent-source-too-large", "The URL did not return a torrent-sized file."],
     ["torrent-source-invalid", "The URL did not return a valid torrent file. Retry to start a new attempt."],
     ["torrent-identifier-required", "Enter a magnet link or choose a .torrent file."],
-    ["torrent-removal-active-readers", "This torrent is in use by an open page. Close that page, wait a few seconds, then remove it."],
     ["torrent-link-invalid", "This torrent link is invalid."],
     ["torrent-link-invalid-protocol", "This torrent link uses an unsupported protocol."],
     ["torrent-link-invalid-infohash", "This torrent link has an invalid info hash."],
@@ -67,8 +67,9 @@ let snapshotTimer;
 let statusTimer;
 let snapshotInFlight = false;
 let tearingDown = false;
-let serviceStopped = false;
 let serviceState = "stopped";
+/** requestId → source, for this page's failed resolves: what the row's Retry re-resolves. */
+const failedSources = new Map();
 let serviceInstanceKey;
 let serviceResetPending = true;
 let serviceRestoreNeeded = false;
@@ -171,18 +172,6 @@ function fileName(path) {
     return parts[parts.length - 1] || path;
 }
 
-function fileIcon(path) {
-    const extension = fileName(path).split(".").pop()?.toLowerCase() ?? "";
-    if (["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "ico"].includes(extension)) return "▧";
-    if (["mp4", "mkv", "webm", "mov", "avi", "wmv"].includes(extension)) return "▶";
-    if (["mp3", "flac", "wav", "ogg", "m4a", "aac"].includes(extension)) return "♫";
-    if (["zip", "7z", "rar", "tar", "gz", "bz2"].includes(extension)) return "◈";
-    if (["js", "mjs", "ts", "tsx", "jsx", "json", "css", "html", "xml", "md", "txt", "srt"].includes(extension)) {
-        return "≡";
-    }
-    return "·";
-}
-
 function normalizeInfoHash(infoHash) {
     return typeof infoHash === "string" ? infoHash.trim().toLowerCase() : "";
 }
@@ -268,6 +257,13 @@ function replaceHttpSourceWithMagnet(source, magnet, infoHash) {
     sourceInfoHashes.set(canonicalMagnet, normalizedInfoHash);
     persistAcceptedSources();
     return true;
+}
+
+function forgetAcceptedSource(source) {
+    const canonical = canonicalSource(source);
+    const removed = acceptedSources.delete(canonical);
+    const infoHashRemoved = sourceInfoHashes.delete(canonical);
+    if (removed || infoHashRemoved) persistAcceptedSources();
 }
 
 function removeAcceptedSourcesForInfoHash(infoHash) {
@@ -376,6 +372,19 @@ function hideContextMenu() {
     contextMenu.replaceChildren();
 }
 
+/** Mouse and arrow keys share one hovered row, as in Persephone's Menu. */
+function setHoveredMenuItem(button) {
+    for (const item of contextMenu.children) item.classList.toggle("hovered", item === button);
+}
+
+function moveMenuHover(step) {
+    const items = [...contextMenu.children];
+    if (items.length === 0) return;
+    const index = items.findIndex((item) => item.classList.contains("hovered"));
+    const next = index < 0 ? (step > 0 ? 0 : items.length - 1) : (index + step + items.length) % items.length;
+    setHoveredMenuItem(items[next]);
+}
+
 function showContextMenu(x, y, items) {
     contextMenu.replaceChildren();
     for (const item of items) {
@@ -383,6 +392,10 @@ function showContextMenu(x, y, items) {
         button.type = "button";
         button.setAttribute("role", "menuitem");
         button.textContent = item.label;
+        button.disabled = item.disabled === true;
+        button.classList.toggle("start-group", item.startGroup === true);
+        button.addEventListener("mouseenter", () => setHoveredMenuItem(button));
+        button.addEventListener("mouseleave", () => setHoveredMenuItem(undefined));
         button.addEventListener("click", () => {
             hideContextMenu();
             void item.action();
@@ -402,162 +415,441 @@ function compareTorrentRows(left, right) {
     return leftName.localeCompare(rightName) || left.rowKey.localeCompare(right.rowKey);
 }
 
-function renderTorrentList() {
-    torrentList.replaceChildren();
-    const torrents = [...serviceTorrents.values()].sort(compareTorrentRows);
-    torrentCount.textContent = String(torrents.length);
+// Inline glyphs for the badges and the generic file icon. Constant markup, never user data.
+const GLYPHS = {
+    down: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v10M3.5 8.5 8 13l4.5-4.5"/></svg>',
+    peers: '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="5.5" cy="5" r="2.5"/><path d="M1 13.5c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5z"/><circle cx="11.5" cy="5.5" r="2"/><path d="M10.6 9.2c.3-.1.6-.2.9-.2 2 0 3.5 1.7 3.5 3.8v.7h-4c0-1.7-.2-3.2-.4-4.3z"/></svg>',
+    file: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M4 1.5h5.5L13 5v9.5H4z"/><path d="M9.5 1.5V5H13"/></svg>',
+};
 
-    if (torrents.length === 0) {
-        const empty = document.createElement("li");
-        empty.className = "empty-state";
-        empty.textContent = "No active torrents.";
-        torrentList.append(empty);
-        return;
-    }
-
-    for (const torrent of torrents) {
-        const item = document.createElement("li");
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "torrent-row";
-        button.classList.toggle("selected", torrent.rowKey === selectedInfoHash);
-        button.setAttribute("aria-pressed", String(torrent.rowKey === selectedInfoHash));
-        button.addEventListener("click", () => {
-            selectedInfoHash = torrent.rowKey;
-            renderAll();
-        });
-
-        const menuItems = [];
-        if (torrent.state === "ready" && torrent.infoHash
-            && (!torrent.requestId || activeResolutions.has(torrent.requestId))) {
-            menuItems.push({ label: "Remove", action: () => removeTorrent(torrent) });
-        } else if (torrent.requestId && activeResolutions.has(torrent.requestId)) {
-            menuItems.push({
-                label: "Cancel",
-                action: () => {
-                    const job = activeResolutions.get(torrent.requestId);
-                    return job ? cancelResolution(job) : undefined;
-                },
-            });
-        }
-        if (menuItems.length > 0) {
-            button.addEventListener("contextmenu", (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                showContextMenu(event.clientX, event.clientY, menuItems);
-            });
-        }
-
-        const dot = document.createElement("span");
-        const state = stateLabel(torrent);
-        dot.className = "state-dot";
-        dot.classList.toggle("streaming", state === "streaming");
-        dot.classList.toggle("stalled", ["stalled", "failed", "cancelled"].includes(state));
-        dot.title = state;
-        dot.setAttribute("aria-label", state);
-
-        const details = document.createElement("span");
-        details.className = "torrent-details";
-        const name = document.createElement("span");
-        name.className = "torrent-name";
-        name.textContent = torrent.name
-            || (torrent.state === "resolving" ? "Resolving torrent" : `Resolution ${torrent.state}`);
-        const meta = document.createElement("span");
-        meta.className = "torrent-meta";
-        if (torrent.state === "ready" && torrent.stats) {
-            meta.textContent = `${torrent.stats.peers} peers / ${formatRate(torrent.stats.downloadSpeed)} / ${state}`;
-        } else if (torrent.message) {
-            meta.textContent = torrent.message;
-        } else if (torrent.requestId && activeResolutions.has(torrent.requestId)) {
-            meta.textContent = `Resolving / ${sourceLabel(activeResolutions.get(torrent.requestId).source)}`;
-        } else {
-            meta.textContent = "Resolving metadata";
-        }
-        details.append(name, meta);
-        button.append(dot, details);
-        item.append(button);
-        torrentList.append(item);
-    }
+function glyphItem(glyph, text) {
+    return `<span class="badge-item">${GLYPHS[glyph]}${escapeHtml(text)}</span>`;
 }
 
-function renderFileList() {
-    fileList.replaceChildren();
-    const torrent = selectedInfoHash ? serviceTorrents.get(selectedInfoHash) : undefined;
-    selectedTorrent.textContent = torrent?.name ?? "-";
-    const files = torrent?.state === "ready"
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
+}
+
+function setIfChanged(element, property, value) {
+    if (element[property] !== value) element[property] = value;
+}
+
+/** Keyed update: rows keep their DOM identity across the 1 s snapshot poll, so hover, a
+ *  double-click in progress, and the open tooltip survive a refresh. */
+function syncRows(list, items, keyOf, renderRow, emptyText) {
+    if (items.length === 0) {
+        const empty = list.firstElementChild;
+        if (!empty?.classList.contains("empty-state") || list.children.length !== 1) {
+            const item = document.createElement("li");
+            item.className = "empty-state";
+            list.replaceChildren(item);
+        }
+        setIfChanged(list.firstElementChild, "textContent", emptyText);
+        return;
+    }
+    const existing = new Map();
+    for (const child of [...list.children]) {
+        if (child.dataset.key) existing.set(child.dataset.key, child);
+        else child.remove();
+    }
+    items.forEach((item, index) => {
+        const key = keyOf(item);
+        let row = existing.get(key);
+        existing.delete(key);
+        if (!row) {
+            row = document.createElement("li");
+            row.className = "row";
+            row.dataset.key = key;
+            row.setAttribute("role", "option");
+            row.innerHTML = '<span class="row-icon"></span><span class="row-label"></span><span class="badge"></span>';
+        }
+        renderRow(row, item);
+        if (list.children[index] !== row) list.insertBefore(row, list.children[index] ?? null);
+    });
+    for (const row of existing.values()) row.remove();
+}
+
+function sortedTorrents() {
+    return [...serviceTorrents.values()].sort(compareTorrentRows);
+}
+
+function torrentLabel(torrent) {
+    return torrent.name
+        || (torrent.state === "resolving" ? "Resolving torrent" : `Resolution ${torrent.state}`);
+}
+
+function torrentBadge(torrent) {
+    if (torrent.state === "resolving") return { html: "resolving…", tone: "" };
+    if (torrent.state === "failed") return { html: "failed", tone: "failed" };
+    const stats = torrent.stats ?? {};
+    const state = stateLabel(torrent);
+    return {
+        html: glyphItem("down", formatRate(stats.downloadSpeed)) + glyphItem("peers", String(stats.peers ?? 0)),
+        tone: state === "streaming" || state === "stalled" ? state : "",
+    };
+}
+
+function renderTorrentRow(row, torrent) {
+    const selected = torrent.rowKey === selectedInfoHash;
+    row.classList.toggle("selected", selected);
+    row.classList.toggle("failed", torrent.state === "failed");
+    row.setAttribute("aria-selected", String(selected));
+    const [icon, label, badge] = row.children;
+    if (!icon.firstChild) icon.innerHTML = '<img src="./icon.svg" alt="" />';
+    setIfChanged(label, "textContent", torrentLabel(torrent));
+    const { html, tone } = torrentBadge(torrent);
+    setIfChanged(badge, "innerHTML", html);
+    badge.classList.toggle("streaming", tone === "streaming");
+    badge.classList.toggle("stalled", tone === "stalled");
+    badge.classList.toggle("failed", tone === "failed");
+}
+
+function renderTorrentList() {
+    const torrents = sortedTorrents();
+    torrentCount.textContent = String(torrents.length);
+    syncRows(torrentList, torrents, (torrent) => torrent.rowKey, renderTorrentRow, "No active torrents.");
+}
+
+function selectedTorrentRow() {
+    return selectedInfoHash ? serviceTorrents.get(selectedInfoHash) : undefined;
+}
+
+function sortedFiles(torrent) {
+    return torrent?.state === "ready"
         ? [...torrent.files].sort((left, right) => {
             const bySize = right.length - left.length;
             return bySize || String(left.path).localeCompare(String(right.path)) || left.index - right.index;
         })
         : [];
-    fileCount.textContent = String(files.length);
-
-    if (!torrent) {
-        const empty = document.createElement("li");
-        empty.className = "empty-state";
-        empty.textContent = "Select a torrent to see its files.";
-        fileList.append(empty);
-        return;
-    }
-    if (torrent.state !== "ready") {
-        const empty = document.createElement("li");
-        empty.className = "empty-state";
-        empty.textContent = torrent.message || "Metadata is still resolving.";
-        fileList.append(empty);
-        return;
-    }
-    if (files.length === 0) {
-        const empty = document.createElement("li");
-        empty.className = "empty-state";
-        empty.textContent = "The torrent has no files.";
-        fileList.append(empty);
-        return;
-    }
-
-    for (const file of files) {
-        const row = document.createElement("button");
-        row.type = "button";
-        row.className = "file-row";
-        row.title = file.path;
-        row.addEventListener("dblclick", () => openFile(torrent, file));
-        row.addEventListener("keydown", (event) => {
-            if (event.key === "Enter") openFile(torrent, file);
-        });
-        row.addEventListener("contextmenu", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            showContextMenu(event.clientX, event.clientY, [
-                { label: "Open", action: () => openFile(torrent, file) },
-                { label: "Copy link", action: () => copyFileLink(torrent, file) },
-                { label: "Download this file", action: () => downloadFile(torrent, file) },
-            ]);
-        });
-
-        const icon = document.createElement("span");
-        icon.className = "file-icon";
-        icon.textContent = fileIcon(file.path);
-        icon.setAttribute("aria-hidden", "true");
-        const details = document.createElement("span");
-        details.className = "file-details";
-        const name = document.createElement("span");
-        name.className = "file-name";
-        name.textContent = fileName(file.path);
-        details.append(name);
-        const size = document.createElement("span");
-        size.className = "file-size";
-        size.textContent = formatBytes(file.length);
-        const open = document.createElement("span");
-        open.className = "file-open";
-        open.textContent = ">";
-        open.setAttribute("aria-hidden", "true");
-        row.append(icon, details, size, open);
-        fileList.append(row);
-    }
 }
+
+/** Verified bytes of one file, or 0 while nothing has been read from the torrent. */
+function fileDownloaded(torrent, file) {
+    const bytes = torrent.stats?.fileProgress?.[file.index];
+    return Number.isFinite(bytes) ? Math.min(bytes, file.length) : 0;
+}
+
+function percent(part, whole) {
+    if (!(whole > 0)) return 0;
+    const value = (part / whole) * 100;
+    return value >= 99.95 ? 100 : value < 10 ? Math.round(value * 10) / 10 : Math.round(value);
+}
+
+function renderFileRow(row, { torrent, file }) {
+    const selected = getPageState(torrent.infoHash).selection.fileIndex === file.index;
+    row.classList.toggle("selected", selected);
+    row.setAttribute("aria-selected", String(selected));
+    row.title = file.path;
+    const [icon, label, badge] = row.children;
+    if (!icon.firstChild) icon.innerHTML = GLYPHS.file;
+    setIfChanged(label, "textContent", fileName(file.path));
+    const downloaded = fileDownloaded(torrent, file);
+    const size = escapeHtml(formatBytes(file.length));
+    setIfChanged(badge, "innerHTML", downloaded > 0 ? `${percent(downloaded, file.length)}% · ${size}` : size);
+}
+
+function renderFileList() {
+    const torrent = selectedTorrentRow();
+    selectedTorrent.textContent = torrent ? torrentLabel(torrent) : "-";
+    const files = sortedFiles(torrent);
+    fileCount.textContent = String(files.length);
+    let emptyText = "The torrent has no files.";
+    if (!torrent) emptyText = "Select a torrent to see its files.";
+    else if (torrent.state !== "ready") emptyText = torrent.message || "Metadata is still resolving.";
+    syncRows(
+        fileList,
+        files.map((file) => ({ torrent, file })),
+        ({ file }) => String(file.index),
+        renderFileRow,
+        emptyText,
+    );
+}
+
+// ── Row interaction (delegated: rows are reused, so listeners live on the lists) ──────────
+
+function torrentMenuItems(torrent) {
+    if (torrent.state === "ready" && torrent.infoHash
+        && (!torrent.requestId || activeResolutions.has(torrent.requestId))) {
+        return [
+            { label: "Copy magnet link", action: () => copyText(torrent.magnet, "Magnet link copied."), disabled: !torrent.magnet },
+            { label: "Copy info hash", action: () => copyText(torrent.infoHash, "Info hash copied.") },
+            { label: "Save .torrent…", action: () => saveTorrentFile(torrent) },
+            { label: "Remove", action: () => removeTorrent(torrent), startGroup: true },
+        ];
+    }
+    if (torrent.requestId && activeResolutions.has(torrent.requestId)) {
+        return [{
+            label: "Cancel",
+            action: () => {
+                const job = activeResolutions.get(torrent.requestId);
+                return job ? cancelByUser(job, torrent.rowKey) : undefined;
+            },
+        }];
+    }
+    if (torrent.state === "failed" && torrent.requestId) {
+        const items = [];
+        const source = failedSources.get(torrent.requestId);
+        if (source) items.push({ label: "Retry", action: () => retryFailed(torrent.requestId, source) });
+        items.push({ label: "Remove", action: () => dismissFailed(torrent.requestId) });
+        return items;
+    }
+    return [];
+}
+
+function fileMenuItems(torrent, file) {
+    return [
+        { label: "Open", action: () => openFile(torrent, file) },
+        { label: "Copy link", action: () => copyFileLink(torrent, file) },
+        { label: "Download this file", action: () => downloadFile(torrent, file) },
+    ];
+}
+
+function rowKeyOf(event) {
+    return event.target.closest?.(".row")?.dataset.key;
+}
+
+function selectTorrent(rowKey) {
+    if (!rowKey || rowKey === selectedInfoHash) return;
+    selectedInfoHash = rowKey;
+    renderAll();
+}
+
+function fileForKey(torrent, key) {
+    return torrent?.state === "ready" ? torrent.files.find((file) => String(file.index) === key) : undefined;
+}
+
+function selectFile(torrent, file) {
+    if (!torrent?.infoHash || !file) return;
+    getPageState(torrent.infoHash).selection.fileIndex = file.index;
+    renderFileList();
+}
+
+/** Arrow/Home/End over a list's current order; returns the new key or undefined. */
+function steppedKey(list, currentKey, key) {
+    const keys = [...list.children].map((row) => row.dataset.key).filter(Boolean);
+    if (keys.length === 0) return undefined;
+    const index = keys.indexOf(currentKey);
+    if (key === "Home") return keys[0];
+    if (key === "End") return keys[keys.length - 1];
+    if (key === "ArrowDown") return keys[Math.min(keys.length - 1, index + 1)];
+    if (key === "ArrowUp") return keys[index <= 0 ? 0 : index - 1];
+    return undefined;
+}
+
+function revealRow(list, key) {
+    list.querySelector(`.row[data-key="${CSS.escape(key)}"]`)?.scrollIntoView({ block: "nearest" });
+}
+
+torrentList.addEventListener("click", (event) => selectTorrent(rowKeyOf(event)));
+torrentList.addEventListener("contextmenu", (event) => {
+    const torrent = serviceTorrents.get(rowKeyOf(event));
+    if (!torrent) return;
+    event.preventDefault();
+    event.stopPropagation();
+    selectTorrent(torrent.rowKey);
+    const items = torrentMenuItems(torrent);
+    if (items.length > 0) showContextMenu(event.clientX, event.clientY, items);
+    else hideContextMenu();
+});
+torrentList.addEventListener("keydown", (event) => {
+    const next = steppedKey(torrentList, selectedInfoHash, event.key);
+    if (next === undefined) return;
+    event.preventDefault();
+    selectTorrent(next);
+    revealRow(torrentList, next);
+});
+
+fileList.addEventListener("click", (event) => {
+    const torrent = selectedTorrentRow();
+    selectFile(torrent, fileForKey(torrent, rowKeyOf(event)));
+});
+fileList.addEventListener("dblclick", (event) => {
+    const torrent = selectedTorrentRow();
+    const file = fileForKey(torrent, rowKeyOf(event));
+    if (file) void openFile(torrent, file);
+});
+fileList.addEventListener("contextmenu", (event) => {
+    const torrent = selectedTorrentRow();
+    const file = fileForKey(torrent, rowKeyOf(event));
+    if (!file) return;
+    event.preventDefault();
+    event.stopPropagation();
+    selectFile(torrent, file);
+    showContextMenu(event.clientX, event.clientY, fileMenuItems(torrent, file));
+});
+fileList.addEventListener("keydown", (event) => {
+    const torrent = selectedTorrentRow();
+    if (!torrent?.infoHash) return;
+    const currentKey = String(getPageState(torrent.infoHash).selection.fileIndex ?? "");
+    if (event.key === "Enter") {
+        const file = fileForKey(torrent, currentKey);
+        if (file) void openFile(torrent, file);
+        return;
+    }
+    const next = steppedKey(fileList, currentKey, event.key);
+    if (next === undefined) return;
+    event.preventDefault();
+    selectFile(torrent, fileForKey(torrent, next));
+    revealRow(fileList, next);
+});
+
+// ── Badge tooltip ─────────────────────────────────────────────────────────────────────────
+
+const tooltip = document.getElementById("tooltip");
+let tooltipTarget;
+
+function tooltipRows(pairs) {
+    return `<dl class="tooltip-grid">${pairs
+        .filter(([, value]) => value !== undefined && value !== null && value !== "")
+        .map(([name, value]) => `<dt>${escapeHtml(name)}</dt><dd>${escapeHtml(value)}</dd>`)
+        .join("")}</dl>`;
+}
+
+function torrentTooltip(torrent) {
+    const title = `<div class="tooltip-title">${escapeHtml(torrentLabel(torrent))}</div>`;
+    if (torrent.state === "failed") return title + tooltipRows([["Error", torrent.message]]);
+    if (torrent.state !== "ready") {
+        const job = torrent.requestId ? activeResolutions.get(torrent.requestId) : undefined;
+        return title + tooltipRows([
+            ["State", "resolving metadata"],
+            ["Source", job ? sourceLabel(job.source) : undefined],
+            ["Peers", torrent.stats ? String(torrent.stats.peers ?? 0) : undefined],
+        ]);
+    }
+    const stats = torrent.stats ?? {};
+    const size = stats.length > 0 ? stats.length : torrent.files.reduce((sum, file) => sum + file.length, 0);
+    const verified = Math.min(size, Math.round((stats.progress ?? 0) * size));
+    return title + tooltipRows([
+        ["State", stateLabel(torrent)],
+        ["Download speed", formatRate(stats.downloadSpeed)],
+        ["Upload speed", formatRate(stats.uploadSpeed)],
+        ["Peers", String(stats.peers ?? 0)],
+        ["Size", formatBytes(size)],
+        ["Downloaded", `${formatBytes(verified)} (${percent(verified, size)}%)`],
+        ["Remaining", formatBytes(size - verified)],
+        ["Received", formatBytes(stats.downloaded)],
+        ["Uploaded", formatBytes(stats.uploaded)],
+        ["Files", String(torrent.files.length)],
+        ["Info hash", torrent.infoHash],
+    ]);
+}
+
+function fileTooltip(torrent, file) {
+    const downloaded = fileDownloaded(torrent, file);
+    return `<div class="tooltip-title">${escapeHtml(file.path)}</div>` + tooltipRows([
+        ["Size", formatBytes(file.length)],
+        ["Downloaded", `${formatBytes(downloaded)} (${percent(downloaded, file.length)}%)`],
+        ["Remaining", formatBytes(file.length - downloaded)],
+    ]);
+}
+
+function hideTooltip() {
+    tooltipTarget = undefined;
+    tooltip.hidden = true;
+}
+
+/** Re-render the open tooltip from current data; called on hover and after every render. */
+function refreshTooltip() {
+    if (!tooltipTarget) return;
+    const { list, key } = tooltipTarget;
+    const badge = list.querySelector(`.row[data-key="${CSS.escape(key)}"] .badge`);
+    let html;
+    if (badge && list === torrentList) {
+        const torrent = serviceTorrents.get(key);
+        if (torrent) html = torrentTooltip(torrent);
+    } else if (badge) {
+        const torrent = selectedTorrentRow();
+        const file = fileForKey(torrent, key);
+        if (file) html = fileTooltip(torrent, file);
+    }
+    if (!html) {
+        hideTooltip();
+        return;
+    }
+    setIfChanged(tooltip, "innerHTML", html);
+    tooltip.hidden = false;
+    // Measure at the origin: at its old position the box would be squeezed by the viewport edge.
+    tooltip.style.left = "0px";
+    tooltip.style.top = "0px";
+    const anchor = badge.getBoundingClientRect();
+    const width = tooltip.offsetWidth;
+    const height = tooltip.offsetHeight;
+    const below = anchor.bottom + 4;
+    const top = below + height <= window.innerHeight - 4 ? below : Math.max(4, anchor.top - height - 4);
+    tooltip.style.left = `${Math.max(4, Math.min(anchor.right - width, window.innerWidth - width - 4))}px`;
+    tooltip.style.top = `${top}px`;
+}
+
+for (const list of [torrentList, fileList]) {
+    list.addEventListener("mouseover", (event) => {
+        const badge = event.target.closest?.(".badge");
+        const key = badge?.closest(".row")?.dataset.key;
+        if (!key) return;
+        tooltipTarget = { list, key };
+        refreshTooltip();
+    });
+    list.addEventListener("mouseout", (event) => {
+        if (!event.target.closest?.(".badge")) return;
+        if (event.relatedTarget?.closest?.(".badge") === event.target.closest(".badge")) return;
+        hideTooltip();
+    });
+    list.addEventListener("scroll", hideTooltip);
+}
+
+// ── Splitter ──────────────────────────────────────────────────────────────────────────────
+
+const workspace = document.querySelector(".workspace");
+const splitter = document.getElementById("splitter");
+const TORRENTS_WIDTH_KEY = "torrent-viewer.torrentsWidth";
+const MIN_TORRENTS_WIDTH = 160;
+const MIN_FILES_WIDTH = 200;
+
+function applyTorrentsWidth(width) {
+    const max = Math.max(MIN_TORRENTS_WIDTH, workspace.clientWidth - MIN_FILES_WIDTH);
+    const clamped = Math.round(Math.min(max, Math.max(MIN_TORRENTS_WIDTH, width)));
+    workspace.style.setProperty("--torrents-width", `${clamped}px`);
+    return clamped;
+}
+
+try {
+    const saved = Number(localStorage.getItem(TORRENTS_WIDTH_KEY));
+    if (saved > 0) applyTorrentsWidth(saved);
+} catch {
+    // Storage can be unavailable; the default width applies.
+}
+
+splitter.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    splitter.setPointerCapture(event.pointerId);
+    splitter.classList.add("dragging");
+    hideTooltip();
+    const origin = workspace.getBoundingClientRect().left;
+    let width;
+    const onMove = (moveEvent) => {
+        width = applyTorrentsWidth(moveEvent.clientX - origin);
+    };
+    const onUp = () => {
+        splitter.classList.remove("dragging");
+        splitter.removeEventListener("pointermove", onMove);
+        splitter.removeEventListener("pointerup", onUp);
+        splitter.removeEventListener("pointercancel", onUp);
+        if (width === undefined) return;
+        try {
+            localStorage.setItem(TORRENTS_WIDTH_KEY, String(width));
+        } catch {
+            // Not persisted; the width still applies for this page.
+        }
+    };
+    splitter.addEventListener("pointermove", onMove);
+    splitter.addEventListener("pointerup", onUp);
+    splitter.addEventListener("pointercancel", onUp);
+});
 
 function renderAll() {
     renderTorrentList();
     renderFileList();
+    refreshTooltip();
 }
 
 async function cancelResolution(job) {
@@ -568,6 +860,36 @@ async function cancelResolution(job) {
     } catch {
         // Teardown and an already-expired result are both safe to ignore.
     }
+}
+
+/** The user cancelled a resolve from its row: the row and its saved source go at once. */
+async function cancelByUser(job, rowKey) {
+    forgetAcceptedSource(job.source);
+    // Cancel first: the service drops the job at once, so the next snapshot cannot bring the row back.
+    await cancelResolution(job);
+    serviceTorrents.delete(rowKey);
+    renderAll();
+    setStatus("Resolution cancelled.");
+}
+
+/** Drop a failed row now instead of when the service's result expires. */
+async function dismissFailed(requestId, { keepSource = false } = {}) {
+    const source = failedSources.get(requestId);
+    failedSources.delete(requestId);
+    if (source && !keepSource) forgetAcceptedSource(source);
+    try {
+        await P.service.request({ op: "dismiss", requestId });
+    } catch {
+        // The result expires on its own.
+    }
+    serviceTorrents.delete(`request:${requestId}`);
+    renderAll();
+    if (!keepSource) setStatus("Removed.");
+}
+
+async function retryFailed(requestId, source) {
+    await dismissFailed(requestId, { keepSource: true });
+    await resolveSource(source);
 }
 
 async function waitForResolution(job) {
@@ -613,8 +935,6 @@ async function resolveSource(rawSource) {
 }
 
 async function resolveSourceInternal(source) {
-    serviceStopped = false;
-    sourceInput.value = source;
     setStatus("Resolving metadata…");
     const job = { source, requestId: undefined, cancelled: false };
     try {
@@ -646,14 +966,22 @@ async function resolveSourceInternal(source) {
             }
         } else {
             sourceInfoHashes.set(source, infoHash);
+            // A .torrent path for a torrent already saved (by its magnet, say) adds nothing to restore.
+            const alreadySaved = [...acceptedSources].some((other) => other !== source
+                && (sourceInfoHashes.get(other) || sourceInfoHash(other)) === infoHash);
+            if (alreadySaved) forgetAcceptedSource(source);
         }
         renderAll();
         setStatus(`${torrent.name ?? infoHash} / ${torrent.files.length} files / metadata only`);
     } catch (error) {
         if (!tearingDown && !job.cancelled) {
             const message = messageFrom(error);
-            setStatusWithAction(message, true, "Retry", () => resolveSource(source));
-            P.notify(message, "error");
+            const { requestId } = job;
+            if (requestId) failedSources.set(requestId, source);
+            setStatusWithAction(message, true, "Retry", () => (requestId
+                ? retryFailed(requestId, source)
+                : resolveSource(source)));
+            // No toast: the status bar carries the message and the row's "failed" badge marks it.
         }
     } finally {
         if (job.requestId) activeResolutions.delete(job.requestId);
@@ -666,6 +994,8 @@ async function addMagnetFromInput() {
         setStatus("Enter a magnet link or choose a .torrent file.", true);
         return;
     }
+    // Cleared so the next paste does not append to this source.
+    sourceInput.value = "";
     await resolveSource(source);
 }
 
@@ -689,6 +1019,48 @@ function openFile(torrent, file) {
         P.openRawLink(link);
     } catch (error) {
         if (!tearingDown) setStatus(messageFrom(error), true);
+    }
+}
+
+async function copyText(text, doneMessage) {
+    if (!text) return;
+    try {
+        await P.clipboard.writeText(text);
+        if (!tearingDown) setStatus(doneMessage);
+    } catch (error) {
+        if (!tearingDown) setStatus(messageFrom(error), true);
+    }
+}
+
+function base64ToBytes(base64) {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return bytes;
+}
+
+/** A file name from the torrent name: Windows-reserved characters become "_". */
+function torrentFileName(torrent) {
+    const base = String(torrent.name || torrent.infoHash).replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").trim();
+    return `${base || torrent.infoHash}.torrent`;
+}
+
+async function saveTorrentFile(torrent) {
+    try {
+        const savePath = await P.saveFileDialog({
+            title: "Save .torrent",
+            defaultPath: torrentFileName(torrent),
+            filters: [{ name: "Torrent files", extensions: ["torrent"] }],
+        });
+        if (!savePath || tearingDown) return;
+        const result = await P.service.request({ op: "torrentFile", infoHash: torrent.infoHash });
+        await P.writeFile(savePath, base64ToBytes(result.base64), { encoding: "binary" });
+        if (!tearingDown) setStatus(`Saved ${fileName(savePath.replaceAll("\\", "/"))}.`);
+    } catch (error) {
+        if (!tearingDown) {
+            setStatus(messageFrom(error, "Could not save the .torrent file."), true);
+            P.notify(messageFrom(error, "Could not save the .torrent file."), "error");
+        }
     }
 }
 
@@ -856,14 +1228,24 @@ function reconcileSnapshot(snapshot) {
     const completedMetadata = Array.isArray(snapshot?.completedMetadata)
         ? snapshot.completedMetadata
         : [];
-    for (const result of completedMetadata) {
+    // One failed row per torrent, and none while another attempt at it is still running: a board
+    // reload mid-resolve leaves the old page's attempt to fail beside the new page's attempt.
+    const failedInfoHashes = new Set();
+    for (const result of [...completedMetadata].reverse()) {
         if (typeof result?.requestId !== "string") continue;
         if (result.state === "completed") {
             const row = readyRow(result.torrent);
             if (row && !next.has(row.rowKey)) next.set(row.rowKey, row);
             continue;
         }
-        const state = result.state === "cancelled" ? "cancelled" : "failed";
+        // A cancelled outcome is not shown: the user cancelled it, or a Remove did.
+        if (result.state === "cancelled") continue;
+        const failedInfoHash = normalizeInfoHash(result.infoHash);
+        if (failedInfoHash) {
+            if (next.has(failedInfoHash) || failedInfoHashes.has(failedInfoHash)) continue;
+            failedInfoHashes.add(failedInfoHash);
+        }
+        const state = "failed";
         next.set(`request:${result.requestId}`, {
             rowKey: `request:${result.requestId}`,
             requestId: result.requestId,
@@ -913,6 +1295,9 @@ function reconcileSnapshot(snapshot) {
     observedSnapshotInfoHashes = currentReadyInfoHashes;
     serviceResetPending = false;
 
+    for (const requestId of failedSources.keys()) {
+        if (!next.has(`request:${requestId}`)) failedSources.delete(requestId);
+    }
     serviceTorrents.clear();
     for (const [rowKey, row] of next) serviceTorrents.set(rowKey, row);
     if (!selectedInfoHash || !serviceTorrents.has(selectedInfoHash)) {
@@ -957,7 +1342,7 @@ function applyServiceStatus(status) {
 
 function scheduleServiceStatusPoll(delay = STATUS_INTERVAL_MS) {
     clearTimeout(statusTimer);
-    if (tearingDown || serviceStopped) return;
+    if (tearingDown) return;
     statusTimer = setTimeout(() => {
         statusTimer = undefined;
         void pollServiceStatus();
@@ -966,12 +1351,12 @@ function scheduleServiceStatusPoll(delay = STATUS_INTERVAL_MS) {
 
 async function refreshServiceStatus() {
     const status = await P.service.status();
-    if (!tearingDown && !serviceStopped) applyServiceStatus(status);
+    if (!tearingDown) applyServiceStatus(status);
     return status;
 }
 
 async function pollServiceStatus() {
-    if (tearingDown || serviceStopped) return;
+    if (tearingDown) return;
     try {
         await refreshServiceStatus();
         if (serviceState === "starting" || serviceState === "stopping") scheduleServiceStatusPoll();
@@ -999,26 +1384,17 @@ async function removeTorrent(torrent) {
         serviceTorrents.delete(torrent.rowKey);
         if (selectedInfoHash === torrent.rowKey) selectedInfoHash = undefined;
         renderAll();
+        // The service is NOT stopped when the list empties: it holds the removal marks that make a
+        // page still reading this torrent fail instead of adding it back, and a request would restart
+        // a stopped service without them. The service drops its WebTorrent client once it is empty.
+        setStatus("Torrent removed.");
         try {
             while (snapshotInFlight && !tearingDown) await waitFor(25);
             const snapshot = await P.service.request({ op: "snapshot" });
-            const hasNoTorrents = Array.isArray(snapshot?.torrents) && snapshot.torrents.length === 0;
-            const hasNoActiveResolutionJobs = Array.isArray(snapshot?.activeResolutionJobs)
-                && snapshot.activeResolutionJobs.length === 0;
-            if (hasNoTorrents && hasNoActiveResolutionJobs) {
-                await P.service.stop();
-                serviceStopped = true;
-                serviceState = "stopped";
-                stopSnapshotPolling();
-                clearServiceModel();
-            } else {
-                reconcileSnapshot(snapshot);
-                renderAll();
-            }
-            setStatus("Torrent removed.");
-        } catch (error) {
-            serviceStopped = false;
-            setStatus(`Torrent removed, but the service could not be stopped: ${messageFrom(error)}`, true);
+            reconcileSnapshot(snapshot);
+            renderAll();
+        } catch {
+            // The next snapshot poll reconciles the list.
         }
     } catch (error) {
         setStatus(messageFrom(error), true);
@@ -1026,7 +1402,7 @@ async function removeTorrent(torrent) {
 }
 
 async function pollSnapshot() {
-    if (tearingDown || serviceStopped || serviceState !== "running" || snapshotInFlight) return;
+    if (tearingDown || serviceState !== "running" || snapshotInFlight) return;
     snapshotInFlight = true;
     try {
         const status = await P.service.status();
@@ -1034,7 +1410,6 @@ async function pollSnapshot() {
             if (!tearingDown) applyServiceStatus(status);
             return;
         }
-        if (serviceStopped) return;
         const snapshot = await P.service.request({ op: "snapshot" });
         if (!tearingDown) {
             reconcileSnapshot(snapshot);
@@ -1051,20 +1426,20 @@ async function pollSnapshot() {
         }
     } finally {
         snapshotInFlight = false;
-        if (!tearingDown && !serviceStopped && serviceState === "running") {
+        if (!tearingDown && serviceState === "running") {
             snapshotTimer = setTimeout(() => void pollSnapshot(), SNAPSHOT_INTERVAL_MS);
         }
     }
 }
 
 async function bootstrapService() {
-    if (tearingDown || serviceStopped) return;
+    if (tearingDown) return;
     setStatus("No active torrents.");
     await pollServiceStatus();
 }
 
 async function refreshSnapshotForRestore() {
-    if (tearingDown || serviceStopped) return;
+    if (tearingDown) return;
     while (snapshotInFlight && !tearingDown) await waitFor(25);
     if (!tearingDown && serviceState === "running") await pollSnapshot();
 }
@@ -1124,13 +1499,24 @@ function teardown() {
     if (tearingDown) return;
     tearingDown = true;
     unsubscribeSource?.();
+    unsubscribeToolbar?.();
     clearTimers();
     for (const job of activeResolutions.values()) void cancelResolution(job);
     activeResolutions.clear();
 }
 
 document.getElementById("add-magnet").addEventListener("click", () => void addMagnetFromInput());
-document.getElementById("choose-torrent").addEventListener("click", () => void chooseTorrent());
+// "Open .torrent" lives on Persephone's page toolbar; a reloaded frame must declare it again.
+// Declared on `load`, not at script start: the host clears toolbar controls when the frame's
+// load event fires, which wipes anything declared while the document was still parsing.
+window.addEventListener("load", () => {
+    P.toolbar.set([
+        { id: "open-torrent", type: "button", title: "Open .torrent", icon: { name: "open-file" } },
+    ]);
+}, { once: true });
+const unsubscribeToolbar = P.toolbar.onAction(({ id }) => {
+    if (id === "open-torrent") void chooseTorrent();
+});
 sourceInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") void addMagnetFromInput();
 });
@@ -1138,12 +1524,31 @@ document.addEventListener("click", (event) => {
     if (!contextMenu.contains(event.target)) hideContextMenu();
 });
 document.addEventListener("contextmenu", (event) => {
-    if (!event.target.closest(".torrent-row, .file-row, .context-menu")) hideContextMenu();
+    if (!event.target.closest(".row, .context-menu")) hideContextMenu();
 });
 document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") hideContextMenu();
+    if (contextMenu.hidden) return;
+    // While the menu is open it owns the arrows and Enter, not the list underneath.
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        moveMenuHover(event.key === "ArrowDown" ? 1 : -1);
+    } else if (event.key === "Enter") {
+        const hovered = contextMenu.querySelector("button.hovered");
+        if (!hovered) return;
+        event.preventDefault();
+        event.stopPropagation();
+        hovered.click();
+    }
+}, true);
+window.addEventListener("resize", () => {
+    hideContextMenu();
+    hideTooltip();
+    applyTorrentsWidth(workspace.style.getPropertyValue("--torrents-width")
+        ? parseFloat(workspace.style.getPropertyValue("--torrents-width"))
+        : torrentList.closest(".pane").offsetWidth);
 });
-window.addEventListener("resize", hideContextMenu);
 window.addEventListener("pagehide", teardown, { once: true });
 window.addEventListener("beforeunload", teardown, { once: true });
 

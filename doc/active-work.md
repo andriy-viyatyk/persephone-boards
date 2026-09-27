@@ -8,8 +8,7 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-- [ ] [BT-025: Torrent viewer board, provider, lifecycle, browser URL sources, and shared service snapshot](tasks/BT-025-torrent-viewer-skeleton/README.md)
-- [ ] [BT-026: Torrent viewer single-instance source routing and restart persistence](tasks/BT-026-torrent-viewer-single-instance/README.md)
+*(nothing active)*
 
 ## Planned
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-**Status:** In Progress
+**Status:** Completed (2026-09-27, with EPIC-114)
 **Priority:** High
 **Board id:** `torrent-viewer`
 **Epic:** EPIC-114

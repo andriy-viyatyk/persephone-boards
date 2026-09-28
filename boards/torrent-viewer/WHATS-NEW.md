@@ -1,5 +1,9 @@
 # What's New — Torrent Viewer
 
+## 1.7.2
+
+- The board itself now warns that the swarm connection is not anonymous when a torrent opens from a private or Tor browser session. Needs Persephone bridge 1.24.0; older hosts keep showing their own notice.
+
 ## 1.7.1
 
 - Migrated service lifecycle handling to Persephone's host-managed API (bridge 1.22.0).

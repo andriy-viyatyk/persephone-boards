@@ -1562,6 +1562,7 @@ async function loadOpenedSources() {
         // own address, and a future caller could hand back anything at all; feeding that to the
         // resolver raises "Invalid torrent identifier" on a page the user simply opened.
         const initialSource = source && isTorrentSource(source) ? rememberAcceptedSource(source) : "";
+        if (initialSource && P.source.initialSourcePrivateSession) notifyPrivateSession();
         const sources = [
             ...transientSources,
             ...(initialSource ? [initialSource] : []),
@@ -1636,9 +1637,18 @@ window.addEventListener("resize", () => {
 window.addEventListener("pagehide", teardown, { once: true });
 window.addEventListener("beforeunload", teardown, { once: true });
 
-unsubscribeSource = P.source.onOpen(({ url, sourceUrl }) => {
+// Persephone (bridge 1.24.0+) reports that a claimed download came from a private browser
+// session; the board, not the host, says what that means for a torrent. Older hosts show their
+// own notice and leave the flag unset.
+function notifyPrivateSession() {
+    P.notify("The metadata was fetched privately, but the swarm connection is not anonymous.", "info");
+}
+
+unsubscribeSource = P.source.onOpen(({ url, sourceUrl, privateSession }) => {
     const source = url ?? sourceUrl;
-    if (isTorrentSource(source) && !tearingDown) void resolveSource(source);
+    if (!isTorrentSource(source) || tearingDown) return;
+    if (privateSession) notifyPrivateSession();
+    void resolveSource(source);
 });
 
 renderAll();

@@ -959,49 +959,21 @@ async function handleRequest(request) {
     }
 }
 
-const parentPort = process.parentPort;
-
-function postResponse(requestIdValue, result) {
-    parentPort.postMessage({ kind: "response", requestId: requestIdValue, result });
-}
-
-function postError(requestIdValue, error) {
-    parentPort.postMessage({
-        kind: "response",
-        requestId: requestIdValue,
-        error: serializedError(error, "service-request-failed"),
-    });
-}
-
-function handleMessage(message) {
-    if (!message || typeof message.kind !== "string") return;
-    if (message.kind === "init") {
-        parentPort.postMessage({ kind: "ready", nonce: message.nonce });
-        return;
+persephone.service.onRequest(async (message) => {
+    try {
+        return await handleRequest(message);
+    } catch (error) {
+        const requestError = new Error(errorMessage(error));
+        requestError.code = "service-request-failed";
+        throw requestError;
     }
-    if (message.kind === "probe") {
-        parentPort.postMessage({ kind: "probe-ack", nonce: message.nonce });
-        return;
-    }
-    if (message.kind === "shutdown") {
-        void shutdownService().then(
-            () => process.exit(0),
-            (error) => {
-                console.error("Torrent service shutdown failed:", errorMessage(error));
-                process.exit(1);
-            },
-        );
-        return;
-    }
-    if (message.kind !== "request" || typeof message.requestId !== "string") return;
-    void handleRequest(message.message).then(
-        (result) => postResponse(message.requestId, result),
-        (error) => postError(message.requestId, error),
-    );
-}
+});
 
-if (parentPort) {
-    parentPort.on("message", (event) => {
-        handleMessage(event && typeof event === "object" && "data" in event ? event.data : event);
-    });
-}
+persephone.service.onShutdown(async () => {
+    try {
+        await shutdownService();
+    } catch (error) {
+        console.error("Torrent service shutdown failed:", errorMessage(error));
+        throw error;
+    }
+});

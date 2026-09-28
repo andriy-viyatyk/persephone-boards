@@ -1,5 +1,9 @@
 # What's New — Torrent Viewer
 
+## 1.7.1
+
+- Migrated service lifecycle handling to Persephone's host-managed API (bridge 1.22.0).
+
 ## 1.7.0
 
 - File rows show the same icons as Persephone's Explorer panel. Requires Persephone 5.0.4 (bridge 1.18.0).

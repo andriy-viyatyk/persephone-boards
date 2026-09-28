@@ -181,16 +181,6 @@ function makeImplementation(type, supportsRange) {
 globalThis.persephone.providers.register("test/range", makeImplementation("test/range", true));
 globalThis.persephone.providers.register("test/norange", makeImplementation("test/norange", false));
 
-const parentPort = process.parentPort;
-if (!parentPort) {
-    console.error("Range Provider Test service requires Persephone's module-service host.");
-    process.exit(1);
-}
-
-function postResponse(requestId, result) {
-    parentPort.postMessage({ kind: "response", requestId, result });
-}
-
 async function handleRequest(message) {
     const request = message && typeof message === "object" ? message : {};
     switch (request.op) {
@@ -204,34 +194,11 @@ async function handleRequest(message) {
     }
 }
 
-function handleMessage(message) {
-    if (!message || typeof message.kind !== "string") return;
-    if (message.kind === "init") {
-        parentPort.postMessage({ kind: "ready", nonce: message.nonce });
-        return;
+persephone.service.onRequest(async (message) => {
+    try {
+        return await handleRequest(message);
+    } catch (error) {
+        console.error("Range Provider Test service request failed:", error);
+        throw Object.assign(new Error("service-request-failed"), { code: "service-error" });
     }
-    if (message.kind === "probe") {
-        parentPort.postMessage({ kind: "probe-ack", nonce: message.nonce });
-        return;
-    }
-    if (message.kind === "shutdown") {
-        process.exit(0);
-        return;
-    }
-    if (message.kind !== "request" || typeof message.requestId !== "string") return;
-    void handleRequest(message.message).then(
-        (result) => postResponse(message.requestId, result),
-        (error) => {
-            console.error("Range Provider Test service request failed:", error);
-            parentPort.postMessage({
-                kind: "response",
-                requestId: message.requestId,
-                error: "service-request-failed",
-            });
-        },
-    );
-}
-
-parentPort.on("message", (event) => {
-    handleMessage(event && typeof event === "object" && "data" in event ? event.data : event);
 });

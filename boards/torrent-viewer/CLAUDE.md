@@ -5,7 +5,8 @@
 `torrent-viewer` is the EPIC-114 metadata-only viewer. Its simple editor association accepts
 `.torrent` paths, and its D11-aware manifest claims both `torrent` and `magnet`. The board exposes
 the stable `torrent/viewer` provider contract, claims browser `.torrent` downloads, and requires
-bridge `1.17.0` for singleton source delivery, `getSourceUrl()`, and read-only service status.
+bridge `1.26.0` for singleton source delivery, `getSourceUrl()`, and service-backed provider
+status.
 It owns one page per window; all claimed sources are delivered through `source.onOpen()` and the
 app-wide service snapshot remains shared across windows.
 
@@ -14,7 +15,8 @@ app-wide service snapshot remains shared across windows.
 - `board-manifest.json` — service, provider declaration, `.torrent` association, and identity.
 - `index.html` / `app.js` — themed two-pane (splitter) service-inventory torrent/file page with Explorer-style rows, stats badges, and a status bar; render paths consume metadata
   only and explicit file actions own opening, copying, and saving.
-- `scripts/service.mjs` — parent-port service, WebTorrent resolver, job limits, and teardown.
+- `scripts/service.mjs` — parent-port service, WebTorrent resolver, observe-only provider status,
+  job limits, and teardown.
 - `scripts/webtorrent-entry.mjs` — bundle entry exporting WebTorrent and the memory-store class.
 - `scripts/build-webtorrent.mjs` — reproducible esbuild command for `lib/webtorrent.bundle.mjs`.
 - `lib/` — committed runtime bundle plus third-party notices; `node_modules/` is not shipped.
@@ -23,10 +25,11 @@ app-wide service snapshot remains shared across windows.
 ## Run and test
 
 From `boards/torrent-viewer/`, run `npm install` and `npm run build`. Open the trusted board in
-Persephone and add the public Sintel magnet from EPIC-114, or open a `.torrent` editor page. The
-page starts a service job and polls it instead of holding one service RPC for the 30-second
-metadata deadline; an opened source arrives through `persephone.getSourceUrl()` without
-materialization. After edits, reload the board through `pages[i].editor.reload()`.
+Persephone to inspect its UI. Automated provider-status checks must use a controlled fake/no-network
+producer; do not open a real torrent or join a swarm during autonomous verification. The user runs
+any real-torrent check. The page starts a service job and polls it instead of holding one service
+RPC for the 30-second metadata deadline; an opened source arrives through `persephone.getSourceUrl()`
+without materialization. After edits, reload the board through `pages[i].editor.reload()`.
 
 ## Gotchas
 
@@ -43,8 +46,14 @@ materialization. After edits, reload the board through `pages[i].editor.reload()
 - WebTorrent may expose Windows paths with `\`; `service.mjs` publishes only forward slashes.
 - The four in-flight-job cap, 30-second metadata timer, 45-second no-poll timer, result expiry,
   and shutdown destruction are deliberate bounds. Do not replace them with an unbounded wait.
-- This task does not register providers. US-1524 owns `readBinary`, `readRange`, `stat`, piece
-  prioritisation, and the self-contained torrent link; US-1525 owns D11 and the `magnet` claim.
+- The `torrent/viewer` provider implements `readBinary`, `readRange`, `stat`, and
+  `status(config, emit)`. Status only looks up an already-indexed info hash; it must not resolve a
+  magnet, create a WebTorrent client, add a torrent, or read file content. With no indexed torrent
+  it emits nothing and retries the lookup each second. For an indexed torrent it reports metadata
+  connection, then changed peer count, download speed, and requested-file byte progress; it emits
+  one final `done` when that file completes. Its disposer clears the timer and torrent error
+  listener. US-1524 owns the read operations, piece prioritisation, and self-contained torrent
+  link; US-1525 owns D11 and the `magnet` claim.
 - `persephone.service.status()` is read-only and must be used before snapshot polling so an empty
   stopped board does not start the service merely to render.
 - Restorable shared state contains only accepted source strings. Prune a source only when its info

@@ -1,5 +1,9 @@
 # What's New — Torrent Viewer
 
+## 1.7.3
+
+- Provider status reports metadata connection, peer count, download speed, and requested-file progress without starting a torrent.
+
 ## 1.7.2
 
 - The board itself now warns that the swarm connection is not anonymous when a torrent opens from a private or Tor browser session. Needs Persephone bridge 1.24.0; older hosts keep showing their own notice.

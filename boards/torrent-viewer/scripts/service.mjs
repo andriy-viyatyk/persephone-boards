@@ -594,6 +594,125 @@ async function statTorrentFile(config, options = {}) {
     return { exists: true, size: file.length };
 }
 
+function formatDownloadRate(bytesPerSecond) {
+    if (bytesPerSecond < 1024) return `${Math.round(bytesPerSecond)} B/s`;
+    if (bytesPerSecond < 1024 * 1024) {
+        const rate = bytesPerSecond / 1024;
+        return rate > 9999 ? ">9999 KB/s" : `${rate.toFixed(1)} KB/s`;
+    }
+    const rate = bytesPerSecond / (1024 * 1024);
+    return rate > 9999 ? ">9999 MB/s" : `${rate.toFixed(1)} MB/s`;
+}
+
+function statusTorrentFile(config, emit) {
+    let disposed = false;
+    let timer;
+    let observedTorrent;
+    let lastStatus;
+    let terminal = false;
+    let errorListener;
+
+    const detachTorrentListener = () => {
+        if (observedTorrent && errorListener) observedTorrent.removeListener("error", errorListener);
+        errorListener = undefined;
+    };
+    const stopSampling = () => {
+        clearTimeout(timer);
+        timer = undefined;
+        detachTorrentListener();
+    };
+    const dispose = () => {
+        if (disposed) return;
+        disposed = true;
+        stopSampling();
+    };
+    const report = (status, isTerminal = false) => {
+        if (disposed || terminal) return;
+        const snapshot = JSON.stringify(status);
+        if (snapshot !== lastStatus) {
+            lastStatus = snapshot;
+            emit(status);
+        }
+        if (isTerminal) {
+            terminal = true;
+            stopSampling();
+        }
+    };
+    const reportError = (error) => {
+        const detail = errorMessage(error, "Torrent status failed.").slice(0, 512);
+        report({ state: "error", text: "Torrent status unavailable", detail }, true);
+    };
+
+    let link;
+    try {
+        link = parseTorrentLink(config);
+    } catch (error) {
+        reportError(error);
+        return dispose;
+    }
+
+    const sample = () => {
+        timer = undefined;
+        if (disposed || terminal) return;
+        try {
+            const torrent = findTorrentByInfoHash(link.infoHash);
+            if (!torrent) {
+                if (observedTorrent) throw new Error("torrent-unavailable");
+                return;
+            }
+            if (torrent.destroyed) throw new Error("torrent-unavailable");
+
+            if (observedTorrent !== torrent) {
+                detachTorrentListener();
+                observedTorrent = torrent;
+                errorListener = (error) => reportError(error);
+                torrent.on("error", errorListener);
+            }
+
+            if (torrent.ready !== true) {
+                report({ state: "connecting", text: "Waiting for torrent metadata" });
+                return;
+            }
+
+            const file = fileForPath(torrent, link.canonicalPath);
+            if (!file) throw new Error("torrent-file-not-found");
+            if (!Number.isSafeInteger(file.length) || file.length < 0) {
+                throw new Error("torrent-file-size-invalid");
+            }
+
+            const peers = Number.isFinite(torrent.numPeers) ? Math.max(0, Math.floor(torrent.numPeers)) : 0;
+            const downloadSpeed = Number.isFinite(torrent.downloadSpeed)
+                ? Math.max(0, torrent.downloadSpeed)
+                : 0;
+            const downloaded = Number.isFinite(file.downloaded) ? Math.max(0, file.downloaded) : 0;
+            const loaded = Math.min(downloaded, file.length);
+            const progress = { loaded, total: file.length };
+            if (loaded >= file.length) {
+                report({
+                    state: "done",
+                    text: `File complete · ${peers} peers · ${formatDownloadRate(downloadSpeed)}`,
+                    progress,
+                    rate: downloadSpeed,
+                }, true);
+                return;
+            }
+            report({
+                state: "active",
+                text: `${peers} peers · ${formatDownloadRate(downloadSpeed)}`,
+                progress,
+                rate: downloadSpeed,
+            });
+        } catch (error) {
+            reportError(error);
+        } finally {
+            if (!disposed && !terminal) timer = setTimeout(sample, 1000);
+        }
+    };
+
+    sample();
+    return dispose;
+}
+
 function validateRange(file, range) {
     const start = range?.start;
     const end = range?.end;
@@ -644,6 +763,7 @@ function registerProvider() {
         stat: statTorrentFile,
         readRange: readTorrentRange,
         readBinary: readTorrentBinary,
+        status: statusTorrentFile,
     });
 }
 

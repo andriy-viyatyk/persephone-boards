@@ -15,8 +15,9 @@ board persists accepted source hrefs and canonical magnets in restorable shared 
 resolved HTTP(S) `.torrent` URLs with the service snapshot's magnet and never persisting unresolved
 or failed HTTP sources. The page can re-resolve persisted sources after restart; it never persists
 metadata, files, buffers, or snapshots. The
-manifest requires bridge `1.17.0` for source delivery, `getSourceUrl()`, explicit service stop,
-and read-only service status APIs, and claims browser downloads with both whole-URL masks
+manifest requires bridge `1.26.0` for provider status reporting, in addition to its existing
+source delivery, `getSourceUrl()`, explicit service stop, and read-only service status APIs. It
+claims browser downloads with both whole-URL masks
 `*://*/*.torrent` and `*://*/*.torrent?*`. The `.torrent` file mask is the second D10 entry point;
 the browser URL claim is separate.
 
@@ -63,8 +64,13 @@ WebTorrent client instead, releasing the DHT and tracker sockets. Page teardown 
 service either.
 
 The service normalizes WebTorrent's Windows file paths from backslashes to forward slashes and
-registers `torrent/viewer` with `stat`, `readRange`, and `readBinary`. Provider links carry the
-encoded path and canonical magnet so they restore without the board page.
+registers `torrent/viewer` with `stat`, `readRange`, `readBinary`, and `status(config, emit)`.
+Provider status is observational: it only looks up torrents already in the service's info-hash
+index, emits nothing while one is absent, and never resolves a link, adds a torrent, or reads file
+content. Once an independent stat or read has added it, status samples metadata and the requested
+file once per second, reports changed peer, download-rate, and file-progress snapshots, then emits
+one final `done`. Unsubscribing disposes the sampler and its torrent error listener. Provider links
+carry the encoded path and canonical magnet so they restore without the board page.
 
 ## UI rules
 

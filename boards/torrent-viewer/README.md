@@ -16,8 +16,8 @@ board persists accepted source hrefs and canonical magnets in restorable shared 
 resolved HTTP(S) `.torrent` URLs with the service snapshot's magnet and never persisting unresolved
 or failed HTTP sources. The page can re-resolve persisted sources after restart; it never persists
 metadata, files, buffers, or snapshots. The
-manifest requires bridge `1.26.0` for provider status reporting, in addition to its existing
-source delivery, `getSourceUrl()`, explicit service stop, and read-only service status APIs. It
+manifest requires bridge `1.27.0` for status-bar items and provider status reporting, in addition
+to its existing source delivery, `getSourceUrl()`, explicit service stop, and read-only service status APIs. It
 claims browser downloads with both whole-URL masks
 `*://*/*.torrent` and `*://*/*.torrent?*`. The `.torrent` file mask is the second D10 entry point;
 the browser URL claim is separate.
@@ -120,7 +120,7 @@ Service ops:
 - `testNetwork` probes a candidate setting: the SOCKS5 greeting, the login, and UDP ASSOCIATE,
   sending nothing past the proxy. It returns `{ reachable, auth, udp, udpError?, error? }`.
 
-The status bar's right-hand indicator (`#network-state`) shows `Direct`,
+Persephone's status bar shows the network indicator at the right edge as `Direct`,
 `SOCKS5 host:port`, or `Network setting invalid`, and opens the Network dialog. Saving while
 torrents are listed asks for a second click (**Save and restart**). A Torrent Viewer page in
 another window re-reads the setting when it sees the service restart.
@@ -128,7 +128,8 @@ another window re-reads the setting when it sees the service restart.
 ## UI rules
 
 Layout: a Torrents pane and a Files pane separated by a draggable splitter (the width is a
-per-viewer `localStorage` convenience), one status bar at the bottom, and the magnet input with
+per-viewer `localStorage` convenience), Persephone's shared status bar for messages and actions,
+and the magnet input with
 **Add** under the torrent list. **Open .torrent** is a host toolbar button declared with
 `persephone.toolbar.set` at script start (Persephone 5.0.4 holds a declaration made while the
 document is still parsing until it has loaded). File rows show Persephone's own icon for each

@@ -45,8 +45,6 @@ const KNOWN_FAILURE_MESSAGES = new Map([
 ]);
 
 const sourceInput = document.getElementById("source-input");
-const pageStatus = document.getElementById("page-status");
-const statusMessage = document.getElementById("status-message");
 const torrentList = document.getElementById("torrent-list");
 const torrentCount = document.getElementById("torrent-count");
 const removeAllButton = document.getElementById("remove-all");
@@ -83,6 +81,7 @@ let observedSnapshotInfoHashes = new Set();
 let unsubscribeSource;
 let acceptedSourcesLoaded = false;
 let sourceRestorePromise;
+let statusAction;
 /** The saved network setting (BT-028), validated as the service validates it. */
 let networkSetting = { mode: "direct" };
 let networkApplyInFlight = false;
@@ -123,21 +122,15 @@ function messageFrom(error, fallback = "Torrent service request failed.") {
 }
 
 function setStatus(message, isError = false) {
-    statusMessage.replaceChildren();
-    const text = document.createElement("span");
-    text.textContent = message;
-    statusMessage.append(text);
-    pageStatus.classList.toggle("error", isError);
+    statusAction = undefined;
+    P.statusBar.update("status", { text: message, tone: isError ? "error" : "muted" });
+    P.statusBar.update("status-action", { hidden: true });
 }
 
 function setStatusWithAction(message, isError, label, action) {
     setStatus(message, isError);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "p-btn ghost sm";
-    button.textContent = label;
-    button.addEventListener("click", () => void action());
-    statusMessage.append(button);
+    statusAction = action;
+    P.statusBar.update("status-action", { text: label, hidden: false });
 }
 
 function waitFor(ms) {
@@ -1636,7 +1629,6 @@ async function loadOpenedSources() {
 // The setting lives in persephone.storage, where the service reads it once at start; a change
 // applies by restarting the service. scripts/network.mjs holds the authoritative rules.
 const NETWORK_STORAGE_KEY = "network";
-const networkState = document.getElementById("network-state");
 const networkDialog = document.getElementById("network-dialog");
 const networkMode = document.getElementById("network-mode");
 const networkHost = document.getElementById("network-host");
@@ -1671,16 +1663,24 @@ function sameNetworkSetting(left, right) {
 }
 
 function renderNetworkState() {
-    networkState.dataset.mode = networkSetting.mode;
     if (networkSetting.mode === "socks5") {
-        networkState.textContent = `SOCKS5 ${networkSetting.host}:${networkSetting.port}`;
-        networkState.title = "Trackers, peers, and web seeds go through this SOCKS5 proxy. Click to change.";
+        P.statusBar.update("network", {
+            text: `SOCKS5 ${networkSetting.host}:${networkSetting.port}`,
+            title: "Trackers, peers, and web seeds go through this SOCKS5 proxy. Click to change.",
+            tone: "accent",
+        });
     } else if (networkSetting.mode === "invalid") {
-        networkState.textContent = "Network setting invalid";
-        networkState.title = `Nothing connects until this is fixed: ${networkSetting.error}. Click to change.`;
+        P.statusBar.update("network", {
+            text: "Network setting invalid",
+            title: `Nothing connects until this is fixed: ${networkSetting.error}. Click to change.`,
+            tone: "error",
+        });
     } else {
-        networkState.textContent = "Direct";
-        networkState.title = "Trackers and peers are reached directly. Click to use a SOCKS5 proxy.";
+        P.statusBar.update("network", {
+            text: "Direct",
+            title: "Trackers and peers are reached directly. Click to use a SOCKS5 proxy.",
+            tone: "muted",
+        });
     }
 }
 
@@ -1807,7 +1807,6 @@ async function applyNetworkSetting(value) {
     }
 }
 
-networkState.addEventListener("click", openNetworkDialog);
 networkMode.addEventListener("change", () => {
     syncNetworkFields();
     onNetworkFormEdited();
@@ -1839,6 +1838,7 @@ function teardown() {
     tearingDown = true;
     unsubscribeSource?.();
     unsubscribeToolbar?.();
+    unsubscribeStatusBar?.();
     unsubscribeTheme?.();
     clearTimers();
     for (const job of activeResolutions.values()) void cancelResolution(job);
@@ -1851,6 +1851,11 @@ removeAllButton.addEventListener("click", () => void removeAllTorrents());
 P.toolbar.set([
     { id: "open-torrent", type: "button", title: "Open .torrent", icon: { name: "open-file" } },
 ]);
+P.statusBar.set([
+    { id: "status", type: "text", text: "Metadata only. No file content is selected.", tone: "muted" },
+    { id: "status-action", type: "button", text: "", hidden: true },
+    { id: "network", type: "button", text: "Direct", tone: "muted", align: "end", title: "Network settings" },
+]);
 // Single-colour file icons are drawn in the theme's icon colour: fetch them again on a switch.
 const unsubscribeTheme = P.onThemeChange(() => {
     if (!fileIcons.size) return;
@@ -1859,6 +1864,10 @@ const unsubscribeTheme = P.onThemeChange(() => {
 });
 const unsubscribeToolbar = P.toolbar.onAction(({ id }) => {
     if (id === "open-torrent") void chooseTorrent();
+});
+const unsubscribeStatusBar = P.statusBar.onAction(({ id }) => {
+    if (id === "network") openNetworkDialog();
+    else if (id === "status-action") void statusAction?.();
 });
 sourceInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") void addMagnetFromInput();

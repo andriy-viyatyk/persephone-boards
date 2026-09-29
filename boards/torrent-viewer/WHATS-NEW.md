@@ -1,5 +1,9 @@
 # What's New — Torrent Viewer
 
+## 1.9.0
+
+- Moved status messages, retry actions, and the network indicator into Persephone's shared status bar.
+
 ## 1.8.0
 
 - **SOCKS5 proxy.** The network indicator at the right of the status bar opens a Network dialog: choose Direct or a SOCKS5 proxy (host, port, optional login), **Test** it, and Save. Through a proxy, trackers, peers, and web seeds all connect via the proxy, and nothing falls back to a direct connection if it fails. DHT, uTP, local peer discovery, UPnP/NAT-PMP, and incoming peers are off, so magnet links without trackers may not load. UDP trackers work when the proxy relays UDP; **Test** says whether it does.

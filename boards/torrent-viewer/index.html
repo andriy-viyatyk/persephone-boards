@@ -166,36 +166,7 @@
         }
 
         /* ── Status bar ──────────────────────────────────────────────────────────── */
-        .status-bar {
-            height: 24px;
-            flex: 0 0 auto;
-            display: flex;
-            align-items: center;
-            gap: var(--p-space-sm);
-            padding: 0 var(--p-space-md);
-            overflow: hidden;
-            color: var(--p-text-muted);
-            background: var(--p-bg-dark);
-            border-top: 1px solid var(--p-border);
-            font-size: var(--p-font-sm);
-            white-space: nowrap;
-        }
-        .status-message {
-            min-width: 0;
-            flex: 1 1 auto;
-            display: flex;
-            align-items: center;
-            gap: var(--p-space-sm);
-        }
-        .status-message > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-        .status-bar.error .status-message { color: var(--p-error); }
-        .status-bar .p-btn { height: 18px; }
-        .status-message .p-btn { margin-left: auto; }
-
         /* ── Network (BT-028): the status-bar indicator and its dialog ─────────────── */
-        .network-state { flex: 0 0 auto; color: var(--p-text-muted); }
-        .network-state[data-mode="socks5"] { color: var(--p-accent-hover, var(--p-accent)); }
-        .network-state[data-mode="invalid"] { color: var(--p-error); }
         #network-dialog { width: min(440px, 92vw); }
         .network-form { display: grid; grid-template-columns: max-content 1fr; gap: var(--p-space-sm) var(--p-space-md); align-items: center; }
         .network-form label { color: var(--p-text-muted); }
@@ -325,13 +296,6 @@
             <ul id="file-list" class="list" tabindex="0" role="listbox" aria-label="Torrent files"></ul>
         </section>
     </main>
-
-    <footer id="page-status" class="status-bar">
-        <span id="status-message" class="status-message" role="status" aria-live="polite">
-            <span>Metadata only. No file content is selected.</span>
-        </span>
-        <button id="network-state" class="p-btn ghost sm network-state" type="button" data-mode="direct" title="Network settings">Direct</button>
-    </footer>
 
     <dialog id="network-dialog" aria-labelledby="network-dialog-title">
         <form id="network-form" method="dialog">

@@ -5,15 +5,15 @@
 `torrent-viewer` is the EPIC-114 metadata-only viewer. Its simple editor association accepts
 `.torrent` paths, and its D11-aware manifest claims both `torrent` and `magnet`. The board exposes
 the stable `torrent/viewer` provider contract, claims browser `.torrent` downloads, and requires
-bridge `1.26.0` for singleton source delivery, `getSourceUrl()`, and service-backed provider
-status.
+bridge `1.27.0` for singleton source delivery, `getSourceUrl()`, service-backed provider
+status, and status-bar items.
 It owns one page per window; all claimed sources are delivered through `source.onOpen()` and the
 app-wide service snapshot remains shared across windows.
 
 ## Key files
 
 - `board-manifest.json` — service, provider declaration, `.torrent` association, and identity.
-- `index.html` / `app.js` — themed two-pane (splitter) service-inventory torrent/file page with Explorer-style rows, stats badges, and a status bar; render paths consume metadata
+- `index.html` / `app.js` — themed two-pane (splitter) service-inventory torrent/file page with Explorer-style rows, stats badges, and Persephone status-bar items; render paths consume metadata
   only and explicit file actions own opening, copying, and saving.
 - `scripts/service.mjs` — parent-port service, WebTorrent resolver, observe-only provider status,
   job limits, and teardown.

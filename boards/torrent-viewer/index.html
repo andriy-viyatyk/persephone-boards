@@ -66,6 +66,7 @@
             white-space: nowrap;
         }
         .pane-count { flex: 0 0 auto; color: var(--p-text-muted); font-size: var(--p-font-sm); }
+        .pane-action { flex: 0 0 auto; margin-left: auto; }
 
         /* ── Lists: Explorer-tree rows (22px, tree selection colours) ────────────── */
         .list {
@@ -276,6 +277,7 @@
             <header class="pane-header">
                 <h1 id="torrents-title" class="pane-title">Torrents</h1>
                 <span id="torrent-count" class="pane-count">0</span>
+                <button id="remove-all" class="p-btn ghost sm pane-action" type="button" title="Remove every torrent from the board" disabled>Remove all</button>
             </header>
             <ul id="torrent-list" class="list" tabindex="0" role="listbox" aria-label="Session torrents"></ul>
             <div class="add-row">
@@ -283,9 +285,9 @@
                     id="source-input"
                     class="p-input"
                     type="text"
-                    placeholder="magnet:?xt=... or a .torrent path"
+                    placeholder="magnet:?xt=..., an info hash, or a .torrent path"
                     autocomplete="off"
-                    aria-label="Magnet link or torrent path"
+                    aria-label="Magnet link, info hash, or torrent path"
                 />
                 <button id="add-magnet" class="p-btn primary sm" type="button">Add</button>
             </div>

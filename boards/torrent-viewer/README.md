@@ -1,7 +1,8 @@
 # Torrent Viewer board
 
 This EPIC-114 board resolves a magnet link, a local `.torrent` path, or a claimed HTTP(S)
-`.torrent` download URL to metadata, deselects every file, and displays the service-owned torrent
+`.torrent` download URL (the add field also takes a bare v1 info hash, 40 hex or 32 base32
+characters, and turns it into a tracker-less magnet link) to metadata, deselects every file, and displays the service-owned torrent
 inventory in a
 themed two-pane page. URL sources are read through the board content pipe into memory; they are
 never saved to disk. Files open through self-contained `torrent://` links; the only whole-file
@@ -50,7 +51,8 @@ the board offers a manual retry after a failed resolution and never retries auto
 right-click menu has Copy magnet link, Copy info hash, Save .torrent (the `torrentFile` op returns
 WebTorrent's re-encoded `.torrent` as base64), and Remove. A failed
 row's right-click menu has Retry and Remove; Remove (the `dismiss` op) drops the retained outcome
-at once, and forgets the saved source. The snapshot's failed outcomes carry their `source` string
+at once, and forgets the saved source. **Remove all** in the Torrents header applies the row's own
+action to every row in turn (Remove, Cancel for a resolving row, or dismiss). The snapshot's failed outcomes carry their `source` string
 (a magnet or path, never `.torrent` bytes), so this works on a row whose attempt an earlier
 instance of the page started, before a Reload board. One failed row is shown per info hash, or per
 source for a path that failed before its info hash was known. A cancelled outcome is never shown: `cancel` drops the job immediately, and the page forgets

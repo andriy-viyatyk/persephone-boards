@@ -1,5 +1,10 @@
 # What's New — Torrent Viewer
 
+## 1.7.4
+
+- The add field also accepts a bare info hash (40 hex characters, or the 32-character base32 form). The board builds a magnet link from it; with no trackers in that link, peers are found through DHT.
+- **Remove all** in the Torrents header removes every torrent: ready ones leave the service, resolving ones are cancelled, and failed ones are dismissed.
+
 ## 1.7.3
 
 - Provider status reports metadata connection, peer count, download speed, and requested-file progress without starting a torrent.

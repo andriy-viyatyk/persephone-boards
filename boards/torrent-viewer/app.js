@@ -22,7 +22,7 @@ const KNOWN_FAILURE_MESSAGES = new Map([
     ["torrent-source-fetch-failed", "The torrent URL could not be read. Retry to start a new attempt."],
     ["torrent-source-too-large", "The URL did not return a torrent-sized file."],
     ["torrent-source-invalid", "The URL did not return a valid torrent file. Retry to start a new attempt."],
-    ["torrent-identifier-required", "Enter a magnet link or choose a .torrent file."],
+    ["torrent-identifier-required", "Enter a magnet link, an info hash, or choose a .torrent file."],
     ["torrent-link-invalid", "This torrent link is invalid."],
     ["torrent-link-invalid-protocol", "This torrent link uses an unsupported protocol."],
     ["torrent-link-invalid-infohash", "This torrent link has an invalid info hash."],
@@ -48,6 +48,8 @@ const sourceInput = document.getElementById("source-input");
 const pageStatus = document.getElementById("page-status");
 const torrentList = document.getElementById("torrent-list");
 const torrentCount = document.getElementById("torrent-count");
+const removeAllButton = document.getElementById("remove-all");
+let removeAllInFlight = false;
 const selectedTorrent = document.getElementById("selected-torrent");
 const fileCount = document.getElementById("file-count");
 const fileList = document.getElementById("file-list");
@@ -523,6 +525,7 @@ function renderTorrentRow(row, torrent) {
 function renderTorrentList() {
     const torrents = sortedTorrents();
     torrentCount.textContent = String(torrents.length);
+    removeAllButton.disabled = removeAllInFlight || torrents.length === 0;
     syncRows(torrentList, torrents, (torrent) => torrent.rowKey, renderTorrentRow, "No active torrents.");
 }
 
@@ -1047,12 +1050,23 @@ async function resolveSourceInternal(source) {
     }
 }
 
+/** A bare BitTorrent v1 info hash typed or pasted into the add field: 40 hex characters, or the
+ *  32-character base32 form some sites show. Returns the magnet link built from it, or "" when the
+ *  text is not an info hash. The magnet carries no trackers, so peers are found through DHT. */
+function magnetFromInfoHash(text) {
+    const value = text.replace(/^urn:btih:/i, "");
+    if (/^[0-9a-f]{40}$/i.test(value)) return `magnet:?xt=urn:btih:${value.toLowerCase()}`;
+    if (/^[a-z2-7]{32}$/i.test(value)) return `magnet:?xt=urn:btih:${value.toUpperCase()}`;
+    return "";
+}
+
 async function addMagnetFromInput() {
-    const source = sourceInput.value.trim();
-    if (!source) {
-        setStatus("Enter a magnet link or choose a .torrent file.", true);
+    const input = sourceInput.value.trim();
+    if (!input) {
+        setStatus("Enter a magnet link, an info hash, or choose a .torrent file.", true);
         return;
     }
+    const source = magnetFromInfoHash(input) || input;
     // Cleared so the next paste does not append to this source.
     sourceInput.value = "";
     await resolveSource(source);
@@ -1477,6 +1491,34 @@ async function removeTorrent(torrent) {
     }
 }
 
+/** Header "Remove all": every row goes the way its own menu would take it — a ready torrent is
+ *  removed from the service, a resolving one is cancelled, a failed one is dismissed. Rows are
+ *  handled one at a time so each removal reconciles before the next. */
+async function removeAllTorrents() {
+    if (removeAllInFlight) return;
+    removeAllInFlight = true;
+    renderTorrentList();
+    try {
+        for (const torrent of sortedTorrents()) {
+            if (tearingDown) return;
+            if (torrent.state === "ready" && torrent.infoHash) {
+                await removeTorrent(torrent);
+            } else if (torrent.requestId && activeResolutions.has(torrent.requestId)) {
+                await cancelByUser(activeResolutions.get(torrent.requestId), torrent.rowKey);
+            } else if (torrent.state === "failed" && torrent.requestId) {
+                await dismissFailed(torrent);
+            }
+        }
+        if (!tearingDown) {
+            const left = serviceTorrents.size;
+            setStatus(left === 0 ? "All torrents removed." : "Some torrents could not be removed.", left !== 0);
+        }
+    } finally {
+        removeAllInFlight = false;
+        if (!tearingDown) renderTorrentList();
+    }
+}
+
 async function pollSnapshot() {
     if (tearingDown || serviceState !== "running" || snapshotInFlight) return;
     snapshotInFlight = true;
@@ -1589,6 +1631,7 @@ function teardown() {
 }
 
 document.getElementById("add-magnet").addEventListener("click", () => void addMagnetFromInput());
+removeAllButton.addEventListener("click", () => void removeAllTorrents());
 // "Open .torrent" lives on Persephone's page toolbar; a reloaded frame must declare it again.
 P.toolbar.set([
     { id: "open-torrent", type: "button", title: "Open .torrent", icon: { name: "open-file" } },

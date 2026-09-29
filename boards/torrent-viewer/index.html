@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <title>Torrent Viewer</title>
     <link rel="stylesheet" href="./board-base.css" />
+    <link rel="stylesheet" href="./dialog.css" />
     <style>
         html, body { height: 100%; }
         /* An author `display` beats the UA rule for [hidden]; keep hidden elements hidden. */
@@ -179,9 +180,30 @@
             font-size: var(--p-font-sm);
             white-space: nowrap;
         }
-        .status-bar > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-        .status-bar.error { color: var(--p-error); }
-        .status-bar .p-btn { margin-left: auto; height: 18px; }
+        .status-message {
+            min-width: 0;
+            flex: 1 1 auto;
+            display: flex;
+            align-items: center;
+            gap: var(--p-space-sm);
+        }
+        .status-message > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        .status-bar.error .status-message { color: var(--p-error); }
+        .status-bar .p-btn { height: 18px; }
+        .status-message .p-btn { margin-left: auto; }
+
+        /* ── Network (BT-028): the status-bar indicator and its dialog ─────────────── */
+        .network-state { flex: 0 0 auto; color: var(--p-text-muted); }
+        .network-state[data-mode="socks5"] { color: var(--p-accent-hover, var(--p-accent)); }
+        .network-state[data-mode="invalid"] { color: var(--p-error); }
+        #network-dialog { width: min(440px, 92vw); }
+        .network-form { display: grid; grid-template-columns: max-content 1fr; gap: var(--p-space-sm) var(--p-space-md); align-items: center; }
+        .network-form label { color: var(--p-text-muted); }
+        .network-form .p-input, .network-form .p-select { width: 100%; min-width: 0; box-sizing: border-box; }
+        .network-note { grid-column: 1 / -1; margin: 0; color: var(--p-text-muted); font-size: var(--p-font-sm); }
+        .network-result { margin: var(--p-space-md) 0 0; min-height: 1.4em; font-size: var(--p-font-sm); white-space: normal; }
+        .network-result.error { color: var(--p-error); }
+        .dialog-footer .network-test { margin-right: auto; }
 
         /* ── Tooltip ─────────────────────────────────────────────────────────────── */
         .tooltip {
@@ -304,9 +326,50 @@
         </section>
     </main>
 
-    <footer id="page-status" class="status-bar" role="status" aria-live="polite">
-        <span>Metadata only. No file content is selected.</span>
+    <footer id="page-status" class="status-bar">
+        <span id="status-message" class="status-message" role="status" aria-live="polite">
+            <span>Metadata only. No file content is selected.</span>
+        </span>
+        <button id="network-state" class="p-btn ghost sm network-state" type="button" data-mode="direct" title="Network settings">Direct</button>
     </footer>
+
+    <dialog id="network-dialog" aria-labelledby="network-dialog-title">
+        <form id="network-form" method="dialog">
+            <div class="dialog-header">
+                <span id="network-dialog-title">Network</span>
+                <button class="dialog-close" type="button" data-close aria-label="Close">✕</button>
+            </div>
+            <div class="dialog-body">
+                <div class="network-form">
+                    <label for="network-mode">Connection</label>
+                    <select id="network-mode" class="p-select">
+                        <option value="direct">Direct</option>
+                        <option value="socks5">SOCKS5 proxy</option>
+                    </select>
+                    <label class="proxy-field" for="network-host">Host</label>
+                    <input id="network-host" class="p-input proxy-field" type="text" autocomplete="off" spellcheck="false" placeholder="127.0.0.1" />
+                    <label class="proxy-field" for="network-port">Port</label>
+                    <input id="network-port" class="p-input proxy-field" type="number" min="1" max="65535" placeholder="1080" />
+                    <label class="proxy-field" for="network-username">Username</label>
+                    <input id="network-username" class="p-input proxy-field" type="text" autocomplete="off" spellcheck="false" placeholder="optional" />
+                    <label class="proxy-field" for="network-password">Password</label>
+                    <input id="network-password" class="p-input proxy-field" type="password" autocomplete="off" placeholder="optional" />
+                    <p class="network-note proxy-field">The username and password are stored in plain text in this board's storage.</p>
+                    <p class="network-note proxy-field">Every tracker, peer, and web-seed connection goes through the proxy, and nothing
+                        connects directly if it fails. DHT, uTP, local discovery, and incoming peers are off, so magnet
+                        links without trackers may not load, and downloads find fewer peers. UDP trackers need a proxy
+                        that relays UDP.</p>
+                    <p class="network-note direct-field">Trackers and peers are reached directly: the swarm sees your IP address.</p>
+                </div>
+                <p id="network-result" class="network-result" role="status" aria-live="polite"></p>
+            </div>
+            <div class="dialog-footer">
+                <button id="network-test" class="network-test proxy-field" type="button">Test</button>
+                <button type="button" data-close>Cancel</button>
+                <button id="network-save" class="primary" type="submit">Save</button>
+            </div>
+        </form>
+    </dialog>
 
     <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
     <div id="context-menu" class="context-menu" role="menu" hidden></div>

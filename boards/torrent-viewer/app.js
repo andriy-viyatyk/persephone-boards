@@ -46,6 +46,7 @@ const KNOWN_FAILURE_MESSAGES = new Map([
 
 const sourceInput = document.getElementById("source-input");
 const pageStatus = document.getElementById("page-status");
+const statusMessage = document.getElementById("status-message");
 const torrentList = document.getElementById("torrent-list");
 const torrentCount = document.getElementById("torrent-count");
 const removeAllButton = document.getElementById("remove-all");
@@ -82,6 +83,9 @@ let observedSnapshotInfoHashes = new Set();
 let unsubscribeSource;
 let acceptedSourcesLoaded = false;
 let sourceRestorePromise;
+/** The saved network setting (BT-028), validated as the service validates it. */
+let networkSetting = { mode: "direct" };
+let networkApplyInFlight = false;
 
 function rawMessageFrom(error, fallback = "Torrent service request failed.") {
     if (error && typeof error === "object" && typeof error.message === "string") return error.message;
@@ -92,15 +96,23 @@ function rawMessageFrom(error, fallback = "Torrent service request failed.") {
 
 function messageFrom(error, fallback = "Torrent service request failed.") {
     const raw = rawMessageFrom(error, fallback);
+    if (raw.startsWith("torrent-network-invalid:")) {
+        return `The network setting is invalid: ${raw.slice("torrent-network-invalid:".length)}. `
+            + "Nothing connects until it is fixed: click the network indicator in the status bar.";
+    }
     if (raw.startsWith("torrent-metadata-timeout:")) {
         // Read the bound out of the reason rather than repeating it: the service owns
         // METADATA_TIMEOUT_MS, and a hardcoded "30 seconds" here would quietly start lying
         // the moment that constant moves.
         const ms = Number(raw.slice("torrent-metadata-timeout:".length).replace(/ms$/, ""));
         const seconds = Number.isFinite(ms) && ms > 0 ? Math.round(ms / 1000) : null;
-        return seconds
+        const message = seconds
             ? `Torrent metadata was not found within ${seconds} seconds. Retry to start a new attempt.`
             : "Torrent metadata was not found in time. Retry to start a new attempt.";
+        // Through a proxy, an unreachable proxy looks exactly like an empty swarm.
+        return networkSetting.mode === "socks5"
+            ? `${message} If this keeps happening, test the proxy from the network indicator in the status bar.`
+            : message;
     }
     const known = KNOWN_FAILURE_MESSAGES.get(raw);
     if (known) return known;
@@ -111,10 +123,10 @@ function messageFrom(error, fallback = "Torrent service request failed.") {
 }
 
 function setStatus(message, isError = false) {
-    pageStatus.replaceChildren();
+    statusMessage.replaceChildren();
     const text = document.createElement("span");
     text.textContent = message;
-    pageStatus.append(text);
+    statusMessage.append(text);
     pageStatus.classList.toggle("error", isError);
 }
 
@@ -124,9 +136,8 @@ function setStatusWithAction(message, isError, label, action) {
     button.type = "button";
     button.className = "p-btn ghost sm";
     button.textContent = label;
-    button.style.marginLeft = "auto";
     button.addEventListener("click", () => void action());
-    pageStatus.append(button);
+    statusMessage.append(button);
 }
 
 function waitFor(ms) {
@@ -1584,6 +1595,8 @@ async function resolveAcceptedSources(sources) {
 
 function restoreSourcesAfterServiceReset() {
     if (!acceptedSourcesLoaded || sourceRestorePromise || tearingDown) return;
+    // A restart may be another window applying a new network setting.
+    void loadNetworkSetting();
     sourceRestorePromise = resolveAcceptedSources([...acceptedSources]).finally(() => {
         sourceRestorePromise = undefined;
     });
@@ -1618,6 +1631,208 @@ async function loadOpenedSources() {
         if (!tearingDown) setStatus(messageFrom(error), true);
     }
 }
+
+// ── Network (BT-028) ─────────────────────────────────────────────────────────────────────────
+// The setting lives in persephone.storage, where the service reads it once at start; a change
+// applies by restarting the service. scripts/network.mjs holds the authoritative rules.
+const NETWORK_STORAGE_KEY = "network";
+const networkState = document.getElementById("network-state");
+const networkDialog = document.getElementById("network-dialog");
+const networkMode = document.getElementById("network-mode");
+const networkHost = document.getElementById("network-host");
+const networkPort = document.getElementById("network-port");
+const networkUsername = document.getElementById("network-username");
+const networkPassword = document.getElementById("network-password");
+const networkResult = document.getElementById("network-result");
+const networkTestButton = document.getElementById("network-test");
+const networkSaveButton = document.getElementById("network-save");
+/** Set after a Save that needs confirming; cleared by any edit. */
+let networkSaveConfirming = false;
+
+/** Mirrors validateNetwork() in scripts/network.mjs. */
+function validateNetworkSetting(value) {
+    if (value === undefined || value === null) return { mode: "direct" };
+    if (typeof value !== "object" || Array.isArray(value)) return { mode: "invalid", error: "the setting is not an object" };
+    if (value.mode === "direct") return { mode: "direct" };
+    if (value.mode !== "socks5") return { mode: "invalid", error: `unknown mode "${String(value.mode)}"` };
+    const host = typeof value.host === "string" ? value.host.trim() : "";
+    if (!host || /\s/.test(host)) return { mode: "invalid", error: "the proxy host is missing or contains spaces" };
+    const port = Number(value.port);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) return { mode: "invalid", error: "the proxy port must be 1-65535" };
+    const username = typeof value.username === "string" ? value.username : "";
+    const password = typeof value.password === "string" ? value.password : "";
+    if (!username && password) return { mode: "invalid", error: "a password needs a username" };
+    return username ? { mode: "socks5", host, port, username, password } : { mode: "socks5", host, port };
+}
+
+function sameNetworkSetting(left, right) {
+    return left.mode === right.mode && left.host === right.host && left.port === right.port
+        && (left.username ?? "") === (right.username ?? "") && (left.password ?? "") === (right.password ?? "");
+}
+
+function renderNetworkState() {
+    networkState.dataset.mode = networkSetting.mode;
+    if (networkSetting.mode === "socks5") {
+        networkState.textContent = `SOCKS5 ${networkSetting.host}:${networkSetting.port}`;
+        networkState.title = "Trackers, peers, and web seeds go through this SOCKS5 proxy. Click to change.";
+    } else if (networkSetting.mode === "invalid") {
+        networkState.textContent = "Network setting invalid";
+        networkState.title = `Nothing connects until this is fixed: ${networkSetting.error}. Click to change.`;
+    } else {
+        networkState.textContent = "Direct";
+        networkState.title = "Trackers and peers are reached directly. Click to use a SOCKS5 proxy.";
+    }
+}
+
+async function loadNetworkSetting() {
+    try {
+        networkSetting = validateNetworkSetting(await P.storage.get(NETWORK_STORAGE_KEY));
+    } catch (error) {
+        networkSetting = { mode: "invalid", error: `the setting could not be read (${rawMessageFrom(error)})` };
+    }
+    if (!tearingDown) renderNetworkState();
+}
+
+function setNetworkResult(message, isError = false) {
+    networkResult.textContent = message;
+    networkResult.classList.toggle("error", isError);
+}
+
+function syncNetworkFields() {
+    const proxy = networkMode.value === "socks5";
+    for (const element of networkDialog.querySelectorAll(".proxy-field")) element.hidden = !proxy;
+    for (const element of networkDialog.querySelectorAll(".direct-field")) element.hidden = proxy;
+}
+
+function readNetworkForm() {
+    if (networkMode.value !== "socks5") return { mode: "direct" };
+    const value = { mode: "socks5", host: networkHost.value, port: networkPort.valueAsNumber };
+    if (networkUsername.value || networkPassword.value) {
+        value.username = networkUsername.value;
+        value.password = networkPassword.value;
+    }
+    return value;
+}
+
+function onNetworkFormEdited() {
+    networkSaveConfirming = false;
+    networkSaveButton.textContent = "Save";
+    setNetworkResult("");
+}
+
+function openNetworkDialog() {
+    const current = networkSetting.mode === "socks5" ? networkSetting : undefined;
+    networkMode.value = current ? "socks5" : "direct";
+    networkHost.value = current?.host ?? "";
+    networkPort.value = current ? String(current.port) : "";
+    networkUsername.value = current?.username ?? "";
+    networkPassword.value = current?.password ?? "";
+    onNetworkFormEdited();
+    if (networkSetting.mode === "invalid") setNetworkResult(`The saved setting is invalid: ${networkSetting.error}.`, true);
+    syncNetworkFields();
+    networkDialog.showModal();
+}
+
+function describeNetworkTest(result) {
+    if (result.direct) return { message: "Direct connection: there is no proxy to test." };
+    if (!result.reachable) return { message: `The proxy could not be reached: ${result.error ?? "no answer"}.`, isError: true };
+    if (result.error) return { message: `The proxy answered, but ${result.error}.`, isError: true };
+    const login = result.auth === "ok" ? ", login accepted" : "";
+    return result.udp
+        ? { message: `Proxy reachable${login}. It relays UDP, so UDP trackers work too.` }
+        : { message: `Proxy reachable${login}. It does not relay UDP (${result.udpError ?? "not supported"}): UDP trackers will not work; HTTP trackers and peers will.` };
+}
+
+async function testNetworkForm() {
+    const candidate = validateNetworkSetting(readNetworkForm());
+    if (candidate.mode === "invalid") {
+        setNetworkResult(`Fix the setting first: ${candidate.error}.`, true);
+        return;
+    }
+    networkTestButton.disabled = true;
+    setNetworkResult("Testing the proxy...");
+    try {
+        const { message, isError } = describeNetworkTest(await P.service.request({ op: "testNetwork", network: candidate }));
+        setNetworkResult(message, isError);
+    } catch (error) {
+        setNetworkResult(`The test could not run: ${messageFrom(error)}`, true);
+    } finally {
+        networkTestButton.disabled = false;
+    }
+}
+
+async function saveNetworkForm() {
+    const candidate = validateNetworkSetting(readNetworkForm());
+    if (candidate.mode === "invalid") {
+        setNetworkResult(`Fix the setting first: ${candidate.error}.`, true);
+        return;
+    }
+    if (sameNetworkSetting(candidate, networkSetting)) {
+        networkDialog.close("cancel");
+        return;
+    }
+    if (serviceTorrents.size > 0 && !networkSaveConfirming) {
+        networkSaveConfirming = true;
+        networkSaveButton.textContent = "Save and restart";
+        setNetworkResult("Saving restarts the torrent service: files playing from these torrents stop and reconnect.");
+        return;
+    }
+    networkDialog.close("save");
+    await applyNetworkSetting(candidate);
+}
+
+/** Save, then restart the service so it reads the new setting, and list the saved torrents again. */
+async function applyNetworkSetting(value) {
+    if (networkApplyInFlight) return;
+    networkApplyInFlight = true;
+    setStatus("Applying the network setting...");
+    try {
+        await P.storage.set(NETWORK_STORAGE_KEY, value);
+        networkSetting = value;
+        renderNetworkState();
+        const status = await P.service.status();
+        if (status?.state && status.state !== "stopped") await P.service.stop();
+        await refreshServiceStatus();
+        // status() never starts the service; the restore's resolve requests do, and the new
+        // instance reads the new setting before anything connects.
+        serviceRestoreNeeded = false;
+        restoreSourcesAfterServiceReset();
+        setStatus(value.mode === "socks5"
+            ? `Now connecting through SOCKS5 ${value.host}:${value.port}.`
+            : "Now connecting directly.");
+    } catch (error) {
+        setStatus(`The network setting could not be applied: ${messageFrom(error)}`, true);
+    } finally {
+        networkApplyInFlight = false;
+    }
+}
+
+networkState.addEventListener("click", openNetworkDialog);
+networkMode.addEventListener("change", () => {
+    syncNetworkFields();
+    onNetworkFormEdited();
+});
+for (const input of [networkHost, networkPort, networkUsername, networkPassword]) {
+    input.addEventListener("input", onNetworkFormEdited);
+}
+networkTestButton.addEventListener("click", () => void testNetworkForm());
+// Save is the form's submit button, so Enter in a field saves too.
+document.getElementById("network-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    void saveNetworkForm();
+});
+for (const button of networkDialog.querySelectorAll("[data-close]")) {
+    button.addEventListener("click", () => networkDialog.close("cancel"));
+}
+// The native <dialog> has no backdrop close: a click that lands on the <dialog> itself, outside
+// its box, is on the backdrop.
+networkDialog.addEventListener("click", (event) => {
+    if (event.target !== networkDialog) return;
+    const box = networkDialog.getBoundingClientRect();
+    const inside = event.clientX >= box.left && event.clientX <= box.right
+        && event.clientY >= box.top && event.clientY <= box.bottom;
+    if (!inside) networkDialog.close("cancel");
+});
 
 function teardown() {
     if (tearingDown) return;
@@ -1684,7 +1899,9 @@ window.addEventListener("beforeunload", teardown, { once: true });
 // session; the board, not the host, says what that means for a torrent. Older hosts show their
 // own notice and leave the flag unset.
 function notifyPrivateSession() {
-    P.notify("The metadata was fetched privately, but the swarm connection is not anonymous.", "info");
+    P.notify(networkSetting.mode === "socks5"
+        ? "The metadata was fetched privately; the swarm connection goes through your SOCKS5 proxy, not that session."
+        : "The metadata was fetched privately, but the swarm connection is not anonymous.", "info");
 }
 
 unsubscribeSource = P.source.onOpen(({ url, sourceUrl, privateSession }) => {
@@ -1695,5 +1912,6 @@ unsubscribeSource = P.source.onOpen(({ url, sourceUrl, privateSession }) => {
 });
 
 renderAll();
+void loadNetworkSetting();
 const serviceBootstrap = bootstrapService();
 void loadOpenedSources();

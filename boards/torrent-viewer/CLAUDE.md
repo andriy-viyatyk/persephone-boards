@@ -17,7 +17,13 @@ app-wide service snapshot remains shared across windows.
   only and explicit file actions own opening, copying, and saving.
 - `scripts/service.mjs` — parent-port service, WebTorrent resolver, observe-only provider status,
   job limits, and teardown.
-- `scripts/webtorrent-entry.mjs` — bundle entry exporting WebTorrent and the memory-store class.
+- `scripts/webtorrent-entry.mjs` — bundle entry exporting WebTorrent, the memory-store class, and
+  the proxy setters.
+- `scripts/network.mjs` — the network setting (BT-028): validation, proxy-mode client options,
+  the public view, and the `testNetwork` SOCKS5 probe.
+- `scripts/proxy-net.mjs`, `scripts/proxy-fetch.mjs`, `scripts/socks-v1-compat.mjs` — bundle-time
+  stand-ins for `net` (WebTorrent peers), `cross-fetch-ponyfill` (all fetches), and `socks` (UDP
+  trackers) that route through the SOCKS5 proxy.
 - `scripts/build-webtorrent.mjs` — reproducible esbuild command for `lib/webtorrent.bundle.mjs`.
 - `lib/` — committed runtime bundle plus third-party notices; `node_modules/` is not shipped.
 - `board-base.css` — scaffolded themed base stylesheet; keep it linked first.
@@ -66,5 +72,19 @@ without materialization. After edits, reload the board through `pages[i].editor.
 - Ready snapshots carry only the canonical magnet and normalized `{ path, length, index }` file
   descriptors. Terminal job outcomes remain readable until their bounded TTL and must not trigger a
   notification on pages that did not start the job.
+
+- Proxy mode must **fail closed**. An unreadable or invalid `network` setting makes `getClient()`
+  throw, and no shim may fall back to a direct socket or the built-in fetch while a proxy is set.
+  Treating anything unknown as direct would leak the user's IP to the swarm.
+- The `net` and `socks` aliases in `build-webtorrent.mjs` are importer-scoped on purpose. Aliasing
+  `net` for `socks` itself would route the proxy's own connection through the proxy. After a
+  rebuild, check that `peer.conn = proxy_net_default.connect(opts)` and
+  `socks_v1_compat_default.createConnection(proxyOpts, onGotConnection)` are in the bundle.
+- `bittorrent-tracker`'s UDP proxy path is written for socks v1. Without
+  `socks-v1-compat.mjs`, UDP trackers never use the proxy.
+- The service reads the network setting only at start. Apply a change by storing it and stopping
+  the service, never by patching a running client.
+- The setting lives in `persephone.storage`, not `persephone.settings`: the service can run with
+  no page open and cannot read board settings.
 
 The canonical bridge reference is Persephone's `persephone://guides/boards` guide.

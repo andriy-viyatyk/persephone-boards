@@ -4,7 +4,7 @@
   "description": "Browse a torrent's files and open them in Persephone, streamed from the swarm. Metadata only until you open something.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.7.4",
+  "version": "1.8.0",
   "minAppVersion": "5.0.4",
   "minBridgeVersion": "1.26.0",
   "singleInstance": true,

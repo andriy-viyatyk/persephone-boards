@@ -1,7 +1,20 @@
 process.env.WS_NO_BUFFER_UTIL = "1";
 process.env.WS_NO_UTF_8_VALIDATE = "1";
 
-const { default: WebTorrent, MemoryChunkStore } = await import("../lib/webtorrent.bundle.mjs");
+const {
+    default: WebTorrent,
+    MemoryChunkStore,
+    setPeerProxy,
+    setFetchProxy,
+} = await import("../lib/webtorrent.bundle.mjs");
+const {
+    NETWORK_STORAGE_KEY,
+    proxyClientOptions,
+    publicNetwork,
+    socksProxyOptions,
+    testNetwork,
+    validateNetwork,
+} = await import("./network.mjs");
 
 const METADATA_TIMEOUT_MS = 30_000;
 const MAX_RESOLUTION_JOBS = 4;
@@ -13,6 +26,9 @@ const MAX_BUFFERED_PIPE_BYTES = 256 * 1024 * 1024;
 
 let client;
 let shuttingDown = false;
+// Read once, before the provider registers or any request runs: a setting that cannot be read
+// is invalid, and an invalid setting connects nowhere rather than directly (BT-028).
+const network = await loadNetwork();
 let nextRequestNumber = 1;
 
 const torrentsByInfoHash = new Map();
@@ -71,10 +87,24 @@ function extractInfoHash(value) {
     return hashes[0];
 }
 
+async function loadNetwork() {
+    let loaded;
+    try {
+        loaded = validateNetwork(await persephone.storage.get(NETWORK_STORAGE_KEY));
+    } catch (error) {
+        loaded = { mode: "invalid", error: `the setting could not be read (${errorMessage(error)})` };
+    }
+    const proxy = loaded.mode === "socks5" ? socksProxyOptions(loaded) : null;
+    setPeerProxy(proxy);
+    setFetchProxy(proxy);
+    return loaded;
+}
+
 function getClient() {
     if (shuttingDown) throw new Error("torrent-service-shutting-down");
+    if (network.mode === "invalid") throw new Error(`torrent-network-invalid:${network.error}`);
     if (!client) {
-        client = new WebTorrent();
+        client = new WebTorrent(network.mode === "socks5" ? proxyClientOptions(network) : undefined);
         client.on("error", (error) => {
             console.error("WebTorrent client error:", errorMessage(error));
         });
@@ -937,6 +967,7 @@ function torrentStatus(torrent) {
 export function getServiceSnapshot() {
     const jobs = [...resolutionJobs.values()];
     const snapshot = {
+        network: publicNetwork(network),
         client: client
             ? { destroyed: client.destroyed === true, torrentCount: torrentsByInfoHash.size }
             : null,
@@ -1067,6 +1098,10 @@ async function handleRequest(request) {
         }
         case "remove":
             return removeTorrent(message.magnetOrTorrentId);
+        case "network":
+            return publicNetwork(network);
+        case "testNetwork":
+            return testNetwork(message.network);
         case "torrentFile": {
             // WebTorrent re-encodes the .torrent from the metadata whatever the source was, so a
             // magnet-resolved torrent can be saved too. Base64: the reply crosses the main process.

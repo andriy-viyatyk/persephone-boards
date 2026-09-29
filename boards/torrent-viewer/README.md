@@ -31,11 +31,23 @@ npm install
 npm run build
 ```
 
-The build vendors WebTorrent **3.0.21** and `memory-chunk-store` **1.3.5** into
-`lib/webtorrent.bundle.mjs` using esbuild **0.28.1**. The bundle passes the memory store as a
+The build vendors WebTorrent **3.0.21**, `memory-chunk-store` **1.3.5**, `socks` **2.8.10**,
+`undici` **7.30.0**, and `fetch-socks` **1.3.3** into `lib/webtorrent.bundle.mjs` using esbuild
+**0.28.1**. The bundle passes the memory store as a
 class to WebTorrent, leaves `bufferutil`, `utf-8-validate`, `node-datachannel`, and `utp-native`
 external, and carries the `createRequire` banner required by WebTorrent's dynamic filesystem
 dependency. `node_modules/` is development-only and excluded from board publishing.
+
+Three build aliases make proxy mode possible (see *Network* below):
+
+- `net`, **only** for WebTorrent's `lib/torrent.js` and `lib/conn-pool.js`, resolves to
+  `scripts/proxy-net.mjs`. The `socks` library keeps the real `net`, which it needs to reach the
+  proxy.
+- `cross-fetch-ponyfill`, for every importer, resolves to `scripts/proxy-fetch.mjs`. HTTP(S)
+  trackers, web seeds, and a magnet's `xs=` source all fetch through it.
+- `socks`, **only** for `bittorrent-tracker/lib/client/udp-tracker.js`, resolves to
+  `scripts/socks-v1-compat.mjs`. That file still calls the socks v1 API, and every one of those
+  calls fails against socks v2.
 
 ## Service protocol
 
@@ -73,6 +85,45 @@ content. Once an independent stat or read has added it, status samples metadata 
 file once per second, reports changed peer, download-rate, and file-progress snapshots, then emits
 one final `done`. Unsubscribing disposes the sampler and its torrent error listener. Provider links
 carry the encoded path and canonical magnet so they restore without the board page.
+
+## Network
+
+The network setting is the `persephone.storage` key `network`: `{ mode: "direct" }` (the
+default when absent) or `{ mode: "socks5", host, port, username?, password? }`.
+`scripts/network.mjs` validates it.
+
+The service reads it **once, at start**, before the provider registers. A page stores a new
+value, stops the service, and re-resolves its saved sources, which starts the service again.
+A value that cannot be read or does not validate is `invalid`: the service then refuses to
+create a WebTorrent client (`torrent-network-invalid:<reason>`), so nothing connects. It is
+never treated as direct.
+
+In SOCKS5 mode:
+
+- the client is created with `dht`, `lsd`, `utp`, `natUpnp`, `natPmp` off and
+  `tracker.wrtc: false`, which also skips WebSocket trackers;
+- outgoing peers connect through SOCKS5 CONNECT, and a proxy failure is a connection error, not
+  a fallback;
+- the incoming-peer listener binds `127.0.0.1` only;
+- fetches use undici with a SOCKS dispatcher, which passes hostnames to the proxy unresolved;
+- UDP trackers use SOCKS5 UDP ASSOCIATE. They fail with a warning, and never go direct, when
+  the proxy does not relay UDP.
+
+The setting is not a Persephone board setting on purpose. Only a page can read those, and the
+service can start with no Torrent Viewer page open (a `torrent://` read from another tab), so it
+must read the setting itself.
+
+Service ops:
+
+- `network` returns the public view `{ mode, endpoint, authenticated }`, which never includes the
+  credentials. The snapshot carries the same object as `network`.
+- `testNetwork` probes a candidate setting: the SOCKS5 greeting, the login, and UDP ASSOCIATE,
+  sending nothing past the proxy. It returns `{ reachable, auth, udp, udpError?, error? }`.
+
+The status bar's right-hand indicator (`#network-state`) shows `Direct`,
+`SOCKS5 host:port`, or `Network setting invalid`, and opens the Network dialog. Saving while
+torrents are listed asks for a second click (**Save and restart**). A Torrent Viewer page in
+another window re-reads the setting when it sees the service restart.
 
 ## UI rules
 

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "name": "Range Provider Test",
+  "description": "EPIC-113/US-1474 test fixture: a synthetic ranged-read board provider used to verify board-provider ranged reads without a torrent or a real swarm.",
+  "author": "Persephone",
+  "minAppVersion": "5.0.4",
+  "minBridgeVersion": "1.22.0",
+  "permissions": ["service", "contentProviders"],
+  "service": "scripts/service.mjs",
+  "contentProviders": [
+    { "type": "test/range", "schemes": ["rangetest"] },
+    { "type": "test/norange", "schemes": ["norangetest"] }
+  ],
+  "fileMasks": ["*.rangefix"],
+  "editorName": "Range Provider Test",
+  "editorKind": "stream-host",
+  "editorPriority": 100
+}

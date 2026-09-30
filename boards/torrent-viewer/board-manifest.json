@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "name": "Torrent Viewer",
+  "description": "Browse a torrent's files and open them in Persephone, streamed from the swarm. Metadata only until you open something.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.9.0",
+  "minAppVersion": "5.0.4",
+  "minBridgeVersion": "1.27.0",
+  "singleInstance": true,
+  "permissions": ["service", "contentProviders"],
+  "service": "scripts/service.mjs",
+  "contentProviders": [
+    { "type": "torrent/viewer", "schemes": ["torrent", "magnet"] }
+  ],
+  "fileMasks": ["*.torrent"],
+  "browserUrlMasks": ["*://*/*.torrent", "*://*/*.torrent?*"],
+  "editorName": "Torrent Viewer",
+  "editorKind": "simple",
+  "editorPriority": 100
+}

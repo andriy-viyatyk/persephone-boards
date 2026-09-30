@@ -10,6 +10,8 @@ Overview of active and planned board work in this repo.
 
 *(nothing active)*
 
+## Planned
+
 Board work for Persephone's **EPIC-101** (*Structured descriptor access and the AiVision Explorer
 board*) is finished: BT-022 and BT-023 shipped as `aivision-explorer` v1.0.2, published
 2026-09-15. See [`tasks/completed.md`](tasks/completed.md).

@@ -1,0 +1,9 @@
+WebTorrent 3.0.21
+memory-chunk-store 1.3.5
+socks 2.8.10
+undici 7.30.0
+fetch-socks 1.3.3
+esbuild 0.28.1 (build-time only)
+
+The bundle was produced from the exact versions above. Optional native modules are externalized
+and are not part of the board release.

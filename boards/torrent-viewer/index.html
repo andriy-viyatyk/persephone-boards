@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Torrent Viewer</title>
+    <link rel="stylesheet" href="./board-base.css" />
+    <link rel="stylesheet" href="./dialog.css" />
+    <style>
+        html, body { height: 100%; }
+        /* An author `display` beats the UA rule for [hidden]; keep hidden elements hidden. */
+        [hidden] { display: none !important; }
+        body {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--p-bg);
+        }
+
+        /* ── Workspace: torrents | splitter | files ─────────────────────────────── */
+        .workspace {
+            min-height: 0;
+            flex: 1 1 auto;
+            display: flex;
+        }
+        .pane {
+            min-width: 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            background: var(--p-bg);
+        }
+        .torrents-pane { flex: 0 0 var(--torrents-width, 320px); min-width: 160px; }
+        .files-pane { flex: 1 1 auto; min-width: 200px; }
+
+        /* A 5px grab area over a 1px rule; the rule thickens to the accent while hovered or dragged. */
+        .splitter {
+            flex: 0 0 auto;
+            width: 5px;
+            margin: 0 -2px;
+            z-index: 1;
+            cursor: col-resize;
+            background: linear-gradient(to right, transparent 2px, var(--p-border) 2px, var(--p-border) 3px, transparent 3px);
+        }
+        .splitter:hover, .splitter.dragging {
+            background: linear-gradient(to right, transparent 1px, var(--p-accent-hover) 1px, var(--p-accent-hover) 4px, transparent 4px);
+        }
+
+        /* Pane header: the app's 30px toolbar metrics. */
+        .pane-header {
+            height: 30px;
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: var(--p-space-sm);
+            padding: 0 var(--p-space-md);
+            background: var(--p-bg-dark);
+            border-bottom: 1px solid var(--p-border);
+        }
+        .pane-title {
+            min-width: 0;
+            margin: 0;
+            overflow: hidden;
+            color: var(--p-text);
+            font-size: var(--p-font-sm);
+            font-weight: 600;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .pane-count { flex: 0 0 auto; color: var(--p-text-muted); font-size: var(--p-font-sm); }
+        .pane-action { flex: 0 0 auto; margin-left: auto; }
+
+        /* ── Lists: Explorer-tree rows (22px, tree selection colours) ────────────── */
+        .list {
+            min-height: 0;
+            flex: 1 1 auto;
+            margin: 0;
+            padding: 0;
+            overflow: auto;
+            list-style: none;
+            outline: none;
+        }
+        .row {
+            height: 22px;
+            display: flex;
+            align-items: center;
+            gap: var(--p-space-sm);
+            padding: 0 var(--p-space-sm) 0 var(--p-space-md);
+            color: var(--p-text);
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        .row:hover { background: var(--p-hover); }
+        .row.selected { background: var(--p-panel); }
+        /* Focused list: the tree's selection fill with an outline, as in the Explorer panel. */
+        .list:focus-within .row.selected {
+            background: var(--p-tree-selection);
+            color: var(--p-accent-text);
+            outline: 1px solid var(--p-accent-hover);
+            outline-offset: -1px;
+        }
+        .row-icon {
+            flex: 0 0 16px;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--p-text-muted);
+        }
+        .row-icon > img, .row-icon > svg { width: 16px; height: 16px; }
+        .row-label { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+        .row.failed .row-label { color: var(--p-error); }
+        .list:focus-within .row.selected .row-label { color: inherit; }
+
+        /* Badge: right-aligned stats pill; hovering it shows the stats tooltip. */
+        .badge {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            gap: var(--p-space-sm);
+            height: 16px;
+            padding: 0 var(--p-space-sm);
+            color: var(--p-text-muted);
+            background: var(--p-bg-dark);
+            border: 1px solid var(--p-border);
+            border-radius: 8px;
+            font-size: 11px;
+            line-height: 1;
+            cursor: default;
+        }
+        .badge:empty { display: none; }
+        .badge-item { display: inline-flex; align-items: center; gap: 2px; }
+        .badge svg { width: 11px; height: 11px; flex: 0 0 auto; }
+        .badge.streaming { color: var(--p-success); border-color: var(--p-success); }
+        .badge.stalled { color: var(--p-warning); border-color: var(--p-warning); }
+        .badge.failed { color: var(--p-error); border-color: var(--p-error); }
+        .list:focus-within .row.selected .badge {
+            color: var(--p-accent-text);
+            background: transparent;
+            border-color: var(--p-accent-text);
+        }
+
+        .empty-state {
+            padding: var(--p-space-lg);
+            color: var(--p-text-muted);
+            font-size: var(--p-font-sm);
+            text-align: center;
+            cursor: default;
+        }
+
+        /* The add row under the torrent list. */
+        .add-row {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: var(--p-space-xs);
+            padding: var(--p-space-xs) var(--p-space-sm);
+            border-top: 1px solid var(--p-border);
+        }
+        .add-row .p-input {
+            min-width: 0;
+            flex: 1 1 auto;
+            height: var(--p-size-control-sm, 24px);
+            font-size: var(--p-font-sm);
+        }
+
+        /* ── Status bar ──────────────────────────────────────────────────────────── */
+        /* ── Network (BT-028): the status-bar indicator and its dialog ─────────────── */
+        #network-dialog { width: min(440px, 92vw); }
+        .network-form { display: grid; grid-template-columns: max-content 1fr; gap: var(--p-space-sm) var(--p-space-md); align-items: center; }
+        .network-form label { color: var(--p-text-muted); }
+        .network-form .p-input, .network-form .p-select { width: 100%; min-width: 0; box-sizing: border-box; }
+        .network-note { grid-column: 1 / -1; margin: 0; color: var(--p-text-muted); font-size: var(--p-font-sm); }
+        .network-result { margin: var(--p-space-md) 0 0; min-height: 1.4em; font-size: var(--p-font-sm); white-space: normal; }
+        .network-result.error { color: var(--p-error); }
+        .dialog-footer .network-test { margin-right: auto; }
+
+        /* ── Tooltip ─────────────────────────────────────────────────────────────── */
+        .tooltip {
+            position: fixed;
+            z-index: 20;
+            /* max-content: sized by its content, never squeezed by where it last sat. */
+            width: max-content;
+            max-width: min(420px, calc(100vw - 8px));
+            padding: var(--p-space-sm) var(--p-space-md);
+            color: var(--p-text);
+            background: var(--p-panel);
+            border: 1px solid var(--p-border);
+            border-radius: var(--p-radius-md);
+            /* --p-shadow is a colour, not a box-shadow value. */
+            box-shadow: 0 4px 12px var(--p-shadow);
+            font-size: var(--p-font-sm);
+            pointer-events: none;
+        }
+        .tooltip-title {
+            margin-bottom: var(--p-space-xs);
+            overflow: hidden;
+            color: var(--p-text-strong);
+            font-weight: 600;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .tooltip-grid {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: 1px var(--p-space-lg);
+            margin: 0;
+        }
+        .tooltip-grid dt { color: var(--p-text-muted); white-space: nowrap; }
+        .tooltip-grid dd {
+            min-width: 0;
+            margin: 0;
+            overflow: hidden;
+            text-align: right;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ── Context menu: Persephone's Menu in a Popover shell ──────────────────── */
+        .context-menu {
+            position: fixed;
+            z-index: 10;
+            min-width: 140px;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+            padding: var(--p-space-xs) 0;
+            overflow: hidden;
+            background: var(--p-bg);
+            border: 1px solid var(--p-border);
+            border-radius: var(--p-radius-lg, 6px);
+            /* --p-shadow is a colour, not a box-shadow value. */
+            box-shadow: 0 2px 8px var(--p-shadow);
+            outline: none;
+        }
+        .context-menu button {
+            height: 26px;
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            padding: 0 var(--p-space-md);
+            color: var(--p-text);
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+            font: inherit;
+            font-size: var(--p-font-base);
+            text-align: left;
+            white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+            outline: none;
+        }
+        .context-menu button.hovered:not(:disabled) {
+            color: var(--p-accent-text);
+            background: var(--p-accent);
+        }
+        .context-menu button:disabled { color: var(--p-text-muted); cursor: default; }
+        .context-menu button.start-group {
+            margin-top: var(--p-space-xs);
+            border-top: 1px solid var(--p-border);
+        }
+    </style>
+</head>
+<body>
+    <main class="workspace">
+        <section class="pane torrents-pane" aria-labelledby="torrents-title">
+            <header class="pane-header">
+                <h1 id="torrents-title" class="pane-title">Torrents</h1>
+                <span id="torrent-count" class="pane-count">0</span>
+                <button id="remove-all" class="p-btn ghost sm pane-action" type="button" title="Remove every torrent from the board" disabled>Remove all</button>
+            </header>
+            <ul id="torrent-list" class="list" tabindex="0" role="listbox" aria-label="Session torrents"></ul>
+            <div class="add-row">
+                <input
+                    id="source-input"
+                    class="p-input"
+                    type="text"
+                    placeholder="magnet:?xt=..., an info hash, or a .torrent path"
+                    autocomplete="off"
+                    aria-label="Magnet link, info hash, or torrent path"
+                />
+                <button id="add-magnet" class="p-btn primary sm" type="button">Add</button>
+            </div>
+        </section>
+
+        <div id="splitter" class="splitter" role="separator" aria-orientation="vertical" aria-label="Resize torrent list"></div>
+
+        <section class="pane files-pane" aria-labelledby="files-title">
+            <header class="pane-header">
+                <h2 id="files-title" class="pane-title">Files in <span id="selected-torrent">-</span></h2>
+                <span id="file-count" class="pane-count">0</span>
+            </header>
+            <ul id="file-list" class="list" tabindex="0" role="listbox" aria-label="Torrent files"></ul>
+        </section>
+    </main>
+
+    <dialog id="network-dialog" aria-labelledby="network-dialog-title">
+        <form id="network-form" method="dialog">
+            <div class="dialog-header">
+                <span id="network-dialog-title">Network</span>
+                <button class="dialog-close" type="button" data-close aria-label="Close">✕</button>
+            </div>
+            <div class="dialog-body">
+                <div class="network-form">
+                    <label for="network-mode">Connection</label>
+                    <select id="network-mode" class="p-select">
+                        <option value="direct">Direct</option>
+                        <option value="socks5">SOCKS5 proxy</option>
+                    </select>
+                    <label class="proxy-field" for="network-host">Host</label>
+                    <input id="network-host" class="p-input proxy-field" type="text" autocomplete="off" spellcheck="false" placeholder="127.0.0.1" />
+                    <label class="proxy-field" for="network-port">Port</label>
+                    <input id="network-port" class="p-input proxy-field" type="number" min="1" max="65535" placeholder="1080" />
+                    <label class="proxy-field" for="network-username">Username</label>
+                    <input id="network-username" class="p-input proxy-field" type="text" autocomplete="off" spellcheck="false" placeholder="optional" />
+                    <label class="proxy-field" for="network-password">Password</label>
+                    <input id="network-password" class="p-input proxy-field" type="password" autocomplete="off" placeholder="optional" />
+                    <p class="network-note proxy-field">The username and password are stored in plain text in this board's storage.</p>
+                    <p class="network-note proxy-field">Every tracker, peer, and web-seed connection goes through the proxy, and nothing
+                        connects directly if it fails. DHT, uTP, local discovery, and incoming peers are off, so magnet
+                        links without trackers may not load, and downloads find fewer peers. UDP trackers need a proxy
+                        that relays UDP.</p>
+                    <p class="network-note direct-field">Trackers and peers are reached directly: the swarm sees your IP address.</p>
+                </div>
+                <p id="network-result" class="network-result" role="status" aria-live="polite"></p>
+            </div>
+            <div class="dialog-footer">
+                <button id="network-test" class="network-test proxy-field" type="button">Test</button>
+                <button type="button" data-close>Cancel</button>
+                <button id="network-save" class="primary" type="submit">Save</button>
+            </div>
+        </form>
+    </dialog>
+
+    <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+    <div id="context-menu" class="context-menu" role="menu" hidden></div>
+    <script src="./app.js"></script>
+</body>
+</html>

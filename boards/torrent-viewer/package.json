@@ -1,0 +1,16 @@
+{
+  "name": "persephone-torrent-viewer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-webtorrent.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1",
+    "fetch-socks": "1.3.3",
+    "memory-chunk-store": "1.3.5",
+    "socks": "2.8.10",
+    "undici": "7.30.0",
+    "webtorrent": "3.0.21"
+  }
+}

@@ -7,8 +7,15 @@ node_modules/
 # Board runtime log (written by the board bridge while a board runs)
 ui.log
 
-# Local dev sample files — never published, kept out of the repo
-_test/
+# Local dev sample files - never published, kept out of the repo.
+# _test/* rather than _test/ so a tracked fixture BOARD can be re-included below; git cannot
+# re-include anything whose parent directory is excluded.
+_test/*
+
+# Test fixture boards ARE source: they are what make a platform epic verifiable, so they belong in
+# the repo. publish-board.mjs scans only boards/, so these still cannot reach the catalog.
+!_test/range-provider-test/
+!_test/content-open-test-fixture/
 
 # OS junk
 .DS_Store

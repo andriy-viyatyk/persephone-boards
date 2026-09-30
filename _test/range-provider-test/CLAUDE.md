@@ -1,0 +1,1259 @@
+# Board — authoring guide
+
+This folder is a **Persephone Board**: a small web app whose UI you own as a
+plain HTML page, backed by scripts you write in any language. Persephone hosts the
+page in a locked-down, cross-origin `<iframe>` and injects a single bridge object,
+`window.persephone`.
+
+The board bridge is version **1.13.0** in this build. Check `persephone.version` before using a
+bridge member that may not exist in an older app. Bridge `1.13.0` adds
+`persephone.settings.get(id)` and `persephone.settings.onChange(cb)`, which read the settings your
+board declares in its manifest; `1.12.0` added `persephone.clipboard.writeImage(data)` and
+`persephone.clipboard.writeText(text)` for native OS clipboard writes; the preceding `1.11.0`
+release added transient page-toolbar text. These additions are backward-compatible with existing
+boards.
+
+**Board settings need a stable identity.** Persephone honours a manifest's `settings` block only
+when the manifest carries **both** `author` and `name` — they form the `author/name` key the values
+are stored under, which is what lets them survive the board folder moving. Without both, the block
+is dropped with a registration issue and `persephone.settings.get()` rejects with an error naming
+the missing field. Changing `author` or `name` later moves the key and orphans anything already
+stored under the old one, including board variables.
+
+## Host-rendered board toolbar
+
+Trusted and bundled boards may call `persephone.toolbar.set(controls)` with the complete ordered
+catalog and `persephone.toolbar.update(partial)` to patch existing ids. The catalog is capped at
+eight rendered controls; malformed, duplicate, unknown-update, and over-cap entries are ignored
+with a warning in `ui.log`. The fixed types are `button`, `toggle`, `menu`, `select`, and `input`.
+Values are host-owned and uncontrolled.
+
+```js
+persephone.toolbar.set([
+  { id: "refresh", type: "button", title: "Refresh", icon: { name: "refresh" } },
+  { id: "enabled", type: "toggle", label: "Enabled", value: true },
+  { id: "mode", type: "select", options: [{ value: "all", label: "All" }], value: "all" },
+  { id: "query", type: "input", placeholder: "Filter", value: "" },
+]);
+const off = persephone.toolbar.onAction(({ id, type, value }) => {
+  // button has no value; toggle is boolean; menu/select/input are strings
+});
+```
+
+Inputs send one string event after 500 ms of quiet time; menus send their item id, selects their
+option value, and toggles their new boolean. Every live control is addressed by
+`data-name="board-toolbar-control-${id}"` in `BoardEditor.elements`, while host/window automation
+is the correct way to operate it (the board iframe methods target iframe content).
+
+Icons accept exactly `{ name }`, `{ svg, preserveColors? }`, or board-root-relative
+`{ file, preserveColors? }`. Names use the registered icon set. Relative files reject absolute,
+`..`, and escaping paths. SVG is size-capped, parsed with `DOMParser`, rebuilt against an explicit
+allowlist, and rejects scripts, styles, foreign objects, images, uses, event attributes, and
+external links; normal SVG fill/stroke is forced to `currentColor`. `preserveColors: true` and
+raster files render through `<img>`. This is rendering hygiene for trusted content and does not
+replace the existing trust gate.
+
+The catalog is transient main-frame state: reload, navigation, disposal, or loss of trust clears
+the controls and their dynamic element declarations, and a new frame must call `set()` again.
+
+## Board page-toolbar text
+
+The main view may call `persephone.toolbar.setText(text)` to replace the wide middle toolbar label
+temporarily. The slot is blank until the board supplies text; `persephone.toolbar.setText("")` clears
+it rather than restoring the board root path. While board text is shown, the label's native tooltip
+carries that full path. The value is not persisted and
+is cleared when the frame reloads, errors, is disposed, loses trust, or is navigated away from, so
+the replacement frame must set it again.
+
+> ## 📌 Agent: rewrite this file once the board is built
+>
+> **This is the generic authoring guide, copied into every new board. When you finish
+> implementing (or substantially changing) the board, REPLACE this file with documentation
+> of _this_ board** — so a future agent asked to fix or extend it has instant context
+> instead of re-reading all the code. The full generic reference below stays available any
+> time via the **`persephone://guides/boards`** MCP resource and the bundled Demo board, so it's safe
+> to trim it out of this per-board file.
+>
+> Keep the rewritten file **short and board-specific**:
+> - **Purpose** — what the board does, and (if it's a custom editor) which files it opens.
+> - **How it works** — the frontend (`index.html` / `app.js` + the main UI pieces), the
+>   backend scripts under `scripts/` (one line each), and any vendored libraries in `lib/`
+>   (name + version + why).
+> - **Key files** — a one-line map of the files that matter.
+> - **Run & test** — how to open it, how to reload after edits (`pages[i].editor.reload()`), and any
+>   manual test steps or sample inputs.
+> - **Gotchas** — non-obvious decisions and constraints (CSP/offline workarounds, library
+>   quirks, why something is done a certain way) — the things that would trip up the next agent.
+> - **Reference** — keep a short pointer to the canonical Persephone board docs (below /
+>   `persephone://guides/boards`) for the `persephone.*` bridge API; don't re-document it here.
+
+## Board identity: `board-manifest.json`
+
+This folder is recognized as a board because it contains **`board-manifest.json`** —
+that file's presence is what makes Persephone treat the folder as a board. It holds the
+schema version plus optional **descriptive metadata** and, optionally, the **Custom Editor**
+fields that let the board act as a file editor:
+
+The non-empty trimmed pair `author` + `name` is also the board's stable identity for portable
+board-variable namespaces. This generic template keeps those fields empty; Persephone's board
+scaffold fills `name` from the requested board name and `author` from `boards.default-author`
+(or `""` when unset). A missing or empty author therefore leaves the board on its root-path
+fallback and is a valid creation state. If either identity field changes after variables exist,
+the namespace changes and the old values are orphaned. Persephone performs no automatic
+migration, copying, merging, or pruning; any deliberate migration is the user's responsibility.
+
+```json
+{
+  "schemaVersion": 1,
+  "name": "My Board",
+  "description": "What this board does.",
+  "author": "you",
+  "repository": "https://github.com/you/your-board",
+  "minBridgeVersion": "1.11.0",
+  "permissions": ["service", "contentProviders"],
+  "service": "scripts/service.mjs",
+  "contentProviders": [
+    { "type": "acme/mem", "schemes": ["mem"] }
+  ],
+
+  "fileMasks": ["*.drawio"],
+  "editorPriority": 100,
+  "editorName": "DrawIO"
+}
+```
+
+- `name` (optional) — display name; defaults to the **folder name** when omitted or empty. The
+  generic template's empty value is filled by Persephone's scaffold.
+- `description` / `author` / `repository` (optional) — metadata for humans/agents. `author` and
+  `name` together are the stable identity described above.
+- `minBridgeVersion` (optional) — the bridge version required by the board. A board above the
+  shipped bridge is listed as incompatible and does not register its editors.
+- `permissions` (optional) — an ordered list of requested surfaces shown during trust and in Board
+  Info. This is **disclosure and lifecycle hygiene, not a security boundary**: trust already lets
+  a board run arbitrary renderer and Node code, so `"service"` is not a privilege grant or sandbox.
+- `service` (optional) — a board-relative ESM entry for a platform-owned module service. A board
+  with only this field is still a valid service board even when it has no editor association.
+
+### Capability handlers
+
+A board that can answer named requests declares handlers in the `capabilities` array. The array is
+the functional registration axis; add `"capabilities"` to `permissions` to disclose the surface in
+trust and Board Info. As with the other board permissions, this is disclosure and lifecycle
+hygiene, not a security boundary or a grant.
+
+```json
+{
+  "minBridgeVersion": "1.11.0",
+  "permissions": ["capabilities"],
+  "capabilities": [
+    {
+      "id": "acme.convert",
+      "version": 1,
+      "priority": 60,
+      "title": "Convert a document",
+      "accepts": ["text/markdown"],
+      "payloadSchema": { "type": "object" },
+      "headless": false
+    }
+  ]
+}
+```
+
+`id` is non-empty, contains no whitespace or `@`, and should use a vendor prefix for board-owned
+names. `version` is an integer major version (default 1); `priority` is numeric (default 50), with
+platform handlers winning exact ties. Multiple trusted boards may declare the same id and compete
+by priority; losing registrations remain visible through discovery. `accepts` is an optional MIME
+filter, `payloadSchema` is descriptive (the handler validates its own payload), and `title` is
+display metadata. `headless` is preserved for discovery, but a winning headless declaration is
+outside the page-backed intent channel and settles as `no-handler`. A capability is resolved in
+the caller's window: an already-open winning handler page is reused, otherwise Persephone opens
+that board there.
+
+### In-memory intents: `persephone.intent.*`
+
+The winning board receives a request as a structured value:
+
+```js
+function handleRequest(request) {
+    if (handled.has(request.requestId)) return;
+    handled.add(request.requestId);
+    const { name } = request.payload;
+    request.resolve({ greeting: `Hello, ${name}`, requestId: request.requestId });
+}
+
+const handled = new Set();
+persephone.intent.onRequest(handleRequest);
+const initial = persephone.intent.get();
+if (initial) handleRequest(initial); // page opened for this request
+```
+
+`persephone.intent.get()` returns the current request, if this page was opened or reused for one;
+`persephone.intent.onRequest(callback)` registers a callback and returns an unsubscribe function;
+`persephone.intent.resolve(value)` settles the current request successfully; and
+`persephone.intent.reject(reason)` settles it with the `rejected` failure code. Prefer the
+request-bound `request.resolve` and `request.reject` methods in callbacks. A handler **must**
+settle every request. A handler that never
+settles hangs its caller until the deadline; Persephone then sends a best-effort cancel, but cannot
+stop work already running in the board.
+
+Intent payloads are structured-cloned, kept in broker memory, and delivered once. They never enter
+page state or disk, and a restored page does not receive the old payload again. This is a broker
+policy, not an OS guarantee: memory can be paged and Chromium may keep its own caches. Delivery is
+at-most-once; Persephone never re-delivers an intent. A timeout stops the platform waiting and sends
+cancel; it does not stop the handler. Agents may retry, so work that needs idempotency must key on
+`requestId`.
+
+### Discovering and invoking capabilities
+
+`persephone.capabilities.list()` returns the registrations visible in this renderer without opening
+a handler. Each entry includes `handlerKey`, which distinguishes handlers that share one id:
+
+```js
+const available = await persephone.capabilities.list();
+// [{ id: "acme.convert", version: 1, priority: 60,
+//    handlerKey: "board:/work/acme", origin: "board", title: "Convert a document" }]
+```
+
+Call `persephone.capabilities.invoke(id, payload, { version, deadlineMs })` to resolve by id rather
+than naming a handler. A board-originated result has `{ pageId, result }`; `pageId` is optional for
+handlers that resolve without opening a page. The ten typed rejection codes are:
+
+| Code | Meaning to the caller |
+|---|---|
+| `no-handler` | No declaration matches the id, pinned version, or filter; a headless winner is out of scope. |
+| `untrusted` | The handler board was untrusted before or during the request. |
+| `handler-closed` | The handler page/frame closed before settlement. |
+| `crashed` | The handler frame errored or reloaded during the request. |
+| `cancelled` | The caller cancelled, its page closed, or the renderer is tearing down. |
+| `timeout` | The deadline elapsed; the platform stopped waiting and sent best-effort cancel. |
+| `cycle` | Resolution would re-enter a handler already in the request chain or exceed the depth limit. |
+| `payload-too-large` | A board-bound structured payload exceeds the inline 8 MiB cap. |
+| `busy` | The selected handler has reached its outstanding-request limit. |
+| `rejected` | The handler rejected the request, the payload could not be structured-cloned, or the transport failed without another typed code. |
+
+Handle these errors rather than assuming an invocation succeeded:
+
+```js
+try {
+    const reply = await persephone.capabilities.invoke("acme.convert", { source });
+    render(reply.result);
+} catch (error) {
+    showError(`${error.code}: ${error.message}`);
+}
+```
+
+### Content providers
+
+Declare a provider in `contentProviders` and give it one or more URL schemes:
+
+```json
+{
+  "permissions": ["service", "contentProviders"],
+  "service": "scripts/service.mjs",
+  "contentProviders": [{ "type": "acme/mem", "schemes": ["mem"] }]
+}
+```
+
+The provider `type` **must contain `/`**. Un-namespaced types are reserved for the platform
+(`file`, `cache`, `http`, `data`, `mneme`, and `guide`). A type is a persisted contract in page
+state: renaming it does not migrate old descriptors and orphans pages that still name the old
+type. Provider types and schemes have one owner. Among trusted boards, the first registration
+wins; a later board loses and the refusal, including the current owner where applicable, is kept
+in Board Info. A board cannot claim the reserved schemes `http`, `https`, `file`, `data`, `blob`,
+`mneme`, or any scheme beginning with `persephone-`. `contentProviders` in `permissions` is
+disclosure and lifecycle hygiene; the provider declaration itself is the functional registration
+axis, unlike the service declaration's service-permission gate.
+
+**Custom Editor fields (optional)** — only honored when the board is **trusted**:
+
+- `fileMasks` (optional) — glob masks (matched against the file **name**) this board edits,
+  e.g. `["*.drawio"]` or `["*.grid.json"]`. `*` = any run of chars, `?` = one char; a bare
+  extension (`"drawio"` / `".drawio"`) is accepted and treated as `*.drawio`. A wildcard-free
+  mask with a dot **inside** it is an exact **file name**, not an extension — `["DASHBOARD.md"]`
+  claims files named exactly that (pair it with `folderMasks` to scope where). When set, the
+  board appears in the editor **switch** for matching files.
+- `folderMasks` (optional) — narrows `fileMasks` to files sitting in matching **folders**, e.g.
+  `"fileMasks": ["DASHBOARD.md"], "folderMasks": ["*/tasks"]` claims `…/dev/tasks/DASHBOARD.md`
+  but leaves every other `DASHBOARD.md` to its built-in editor. Omit for "any folder" (the default). Matched
+  against the file's **parent folder**, case-insensitively, with either separator, and anchored
+  at the **end** of the path — a mask is a folder-path *suffix*, so it need not spell out the
+  drive. `*` and `?` stop at a separator, `**` crosses them: `*/tasks` = exactly one segment
+  above `tasks`, `tasks` = a folder of that name at any depth, `**/dev/tasks` = `dev/tasks`
+  anywhere, `c:/projects/acme/**` = anything *under* that tree (the tree root itself is not
+  matched — add it as a second mask if you need it). Narrowing only: `folderMasks` with no
+  `fileMasks` registers nothing. One exception, by design — the **file icon** ignores
+  `folderMasks` (icon lookups have only a file name, no path), so every name-matching file
+  shows this board's icon even outside the folder scope; only the editor that actually *opens*
+  the file respects the scope.
+- `contentMasks` (optional) — **regex** sources tested against the page's text **content**, so a
+  board can claim a page that has no file name at all. `fileMasks` can only match a name; an
+  **untitled, in-memory** page (an agent-generated document, a script's output, pasted JSON) has
+  none, and content detection is how the built-in editors handle exactly that case. Declare the
+  marker your format always carries, e.g.
+  `"contentMasks": ["\"type\"\s*:\s*\"force-graph\""]`, and the board appears in the editor
+  **switch** for any page whose content matches. Matching is case-insensitive, tested against the
+  first 64 KB of the page, and a mask that is not a valid regex is silently ignored — so keep the
+  pattern a short, distinctive marker rather than a full-document grammar.
+  **Switch-option scope only:** content never decides which editor *opens a file*, so
+  `editorPriority` does not apply here and a content match can never take a file away from its
+  built-in editor. Independent of `fileMasks` — a board may declare `contentMasks` alone (and
+  then claims no file names at all), or both.
+- `editorPriority` (optional) — number; makes the board the **default** editor for its masks
+  when it **strictly outranks** the built-in editor that also claims the file. Omit or `0` → the
+  board is a switch option only and the built-in editor stays the default. The built-in ladder:
+  Monaco `0` (the catch-all floor), Markdown Preview `10` (`.md` & friends), compound-name
+  editors `20` (`*.grid.json`, `*.note.json`, `*.rest.json`, …), Drawing `50`, image /
+  archive / video viewers `100`. So `1` is enough to beat Monaco on a plain text file, but a
+  board claiming `DASHBOARD.md` needs **more than 10** to win over Markdown Preview — ties go
+  to the built-in. When in doubt, `100` beats everything except the media viewers, and `200`
+  beats those too.
+- `editorName` (optional) — label shown on the editor-switch widget (falls back to `name`).
+- `editorKind` (optional) — how Persephone backs this editor. Omit or `"simple"` (default) → the
+  board gets the file path via `persephone.getFilePath()` and reads/writes it directly with
+  `persephone.readFile()` / `writeFile()`. `"content-host"` → Persephone owns the file (pipe,
+  encoding, encryption, auto-save, dirty tracking) and the board works through
+  `persephone.host.getContent()` / `setContent()` instead. `"stream-host"` also lets Persephone
+  own the pipe, but hands the board a URL through `persephone.host.streamUrl()` for ranged media
+  or binary reads instead of text. It does not materialize a file or write a cache for this page.
+  That is a broker policy, not an OS guarantee: memory can be paged and Chromium keeps its own
+  caches, as roadmap §3.1a explains. Content-host and stream-host boards also edit non-local files
+  (`https://`, inside archives, encrypted).
+- `editorSources` (optional) — `"local"` (default) or `"any"`. Persephone opens more than plain
+  local files: a file inside an archive (`archive.zip!doc.pdf`), an `http(s)` URL, an encrypted
+  file. By default a **simple** board is offered only for a real local file, because the common
+  shape — `readFile(await getFilePath())` — would break on a source with no readable path. Set
+  `"any"` when your board can handle every source; `getFilePath()` then still hands you a readable
+  **local** path (Persephone materializes the source into a cache file first), so you need **no
+  source-specific code** — see *Opened as a custom editor* below for the two consequences you must
+  handle. Ignored for `"content-host"` and `"stream-host"` boards, which always get every source.
+
+**Direct-folder editor example:**
+
+```json
+{
+  "folderEditorMasks": ["*/projects/*"],
+  "folderEditorPriority": 200
+}
+```
+
+`folderEditorMasks` claims the folder itself, not files inside it. When this board opens from a
+matching Explorer folder, `boardRoot` is the board app's installed root, while `folderPath` is the
+absolute directory the board claims and operates on. Await `persephone.getFolderPath()` for that
+directory. Folder mode always leaves `getFilePath()` undefined; `editorKind: "content-host"` applies
+only to the board's file association and does not create a content host for a folder claim.
+
+Don't put secrets or trust flags here — a board is trusted by the user inside Persephone,
+never by the manifest. (The board icon is **not** set here; see *Board icon* below.)
+
+**Documentation field (optional)** — also only honored when the board is **trusted**:
+
+- `guides` (optional) — a board-relative folder holding this board's own Markdown documentation,
+  conventionally `"guides"`. Persephone mounts every `.md` under it into its guide system at
+  `installed-boards/<board-folder-name>/…`, so the pages appear in the About guide tree under the
+  top-level **installed-boards** branch, answer `F1` from the board's own pages, turn up in guide
+  search, and are readable by an agent at `guides["installed-boards/<board>/<page>"]`. See
+  *Ship your own documentation* below. An absolute path, a drive letter or a `..` segment is
+  rejected — the folder must live inside the board.
+
+## Mental model: frontend + backend + the `execute()` channel
+
+- **Frontend** — `index.html` + `app.js` (+ any CSS/assets you add). Owns *all* UI
+  and *all* state. This is what renders in the iframe.
+- **Backend** — the scripts under `scripts/` (`.js`, `.py`, `.ps1`, `.sh`, …). They
+  run as real OS processes with your privileges, and talk to the page over stdout.
+- **Channel** — `persephone.execute(commandLine)`. The page calls a script, the
+  script prints JSON to stdout, the page parses it and renders. That's the whole loop.
+
+Persephone owns no board state and no board UI — it just wires the channel and shows
+the page. Persistence (if you want any) is your choice: write a script that reads/
+writes a file via `execute()`.
+
+## The one method: `persephone.execute()`
+
+```js
+const handle = persephone.execute(commandLine, { cwd, env, shell });
+```
+
+`cwd` defaults to **this board folder**, so relative paths like `scripts/hello.js`
+just work (and a script behaves the same if you run it standalone from here).
+
+Consume the handle **one of two ways** (mixing them on one handle throws):
+
+- **Buffered** — `await handle.getText()` / `getJson()` / `getBytes()`.
+  `getJson()` rejects on a non-zero exit or a JSON parse error (the error carries
+  `exitCode` and captured `stderr`).
+- **Streaming** — `handle.on("stdout" | "stderr", chunk => …)`, `handle.on("exit", info => …)`,
+  `handle.on("error", err => …)`. Plus `handle.write(...)`, `handle.endStdin()`, `handle.kill()`.
+
+**Convention:** a backend script prints a single JSON document to stdout; the page
+reads it with `getJson()`. See `app.js`'s `boardScript()` helper and `scripts/hello.js`.
+
+### Returning data reliably when a script calls other tools
+
+A bare `getJson()` assumes stdout contains **only** your JSON. That breaks as soon as
+your script shells out to another tool that prints its own output (progress, banners,
+its own JSON) — the mixed stream won't parse. Two complementary habits fix this:
+
+1. **Logs → stderr, result → stdout.** Send any diagnostics to stderr (a separate
+   stream, surfaced via `handle.on("stderr", …)`), and where you can, *capture* a
+   sub-tool's output instead of letting it flow through (`out=$(tool)` in shell,
+   `subprocess.run(..., capture_output=True)` in Python, `execSync(cmd)` in node).
+
+2. **Wrap the result in a marker** and let `getJson(pattern)` extract it. Emit the
+   final JSON with a unique tag from the backend script:
+
+   ```js
+   console.log("@@RESULT@@" + JSON.stringify(result));          // node
+   ```
+   ```python
+   print("@@RESULT@@" + json.dumps(result))                    # python
+   ```
+   ```sh
+   echo "@@RESULT@@$json"                                       # shell
+   ```
+
+   Then pass that marker to `getJson()` on the page — it extracts the match (the
+   **last** one, capture group 1) before parsing, and **still rejects on a non-zero
+   exit with the captured stderr**:
+
+   ```js
+   const result = await persephone.execute(cmd).getJson(/@@RESULT@@(.*)/);
+   ```
+
+   For pretty-printed (multi-line) JSON, use an open/close pair with a dot-all regex:
+   `getJson(/@@RESULT@@([\s\S]*?)@@END@@/)`. Pick your own tag and keep it identical on
+   both sides. `getJson()` with no argument still parses the whole stdout (fine for
+   scripts that print only JSON).
+
+## Guaranteed Node runtime: `persephone.executeNode()`
+
+`persephone.execute("node script.js")` only works if the **user** has Node installed —
+a published board can't rely on that. `executeNode` runs a script on **Persephone's own
+bundled Node runtime**, so it works on any machine with zero dependencies:
+
+```js
+const handle = persephone.executeNode(script, args?, { cwd, env, name });
+```
+
+- `script` — a path relative to the board folder (or absolute). Prefer **`.mjs`** for
+  explicit ESM (boards ship no `package.json`).
+- `args` — a `string[]` passed argv-style: **no shell**, so no quoting hazards (a value
+  like `"a b"` arrives as one argument). The `shell` option is ignored.
+- Returns the **same handle** as `execute()` — buffered getters, streaming,
+  `write`/`endStdin`/`kill`, and `name`-based `getJobs()` re-association all work
+  identically.
+- The runtime is **Node 24** with **`node:sqlite` built in** (incl. FTS5) — no npm
+  install needed for SQLite. A missing script fires the handle's `error` event.
+
+## Declared module services: `manifest.service`
+
+A declared service is the platform-owned counterpart to a page-owned Node job. The choice is:
+
+```text
+executeNode(): board-page child process; page-started; frame-lifetime by default.
+service: platform-started utility process; lazy; supervised; usable with no page open.
+```
+
+Use `executeNode()` for work initiated by the visible board page. Use `service` for background or
+platform-owned work that must survive a page reload, serve requests with no board page open, or
+have supervised lifecycle status. The declaration is board-relative and must point to an ESM entry,
+for example `"service": "scripts/service.mjs"`; the service starts with the board root as its
+current working directory, resolves imports and `node_modules` from that board root, and runs in
+Persephone's bundled utility-process Node runtime.
+
+The service can use standard Node built-ins, including filesystem, networking, streams, crypto,
+workers, and timers. It does not receive `electron`, `app`, `BrowserWindow`, `webContents`, or
+`ipcMain`. Its environment is sanitized to Persephone's runtime allowlist plus
+`PERSEPHONE_SERVICE=1` and `PERSEPHONE_BOARD_ROOT`; do not assume arbitrary shell/user variables.
+The static service host injects `persephone.storage`, so use that adapter for the shared per-board
+JSON store instead of opening `store.json` or inventing a persistence path. The frame uses the same
+store through `persephone.storage`.
+
+The frame reaches the service through structured-clone request/reply messages:
+
+```js
+const result = await persephone.service.request({ op: "refresh", value });
+await persephone.storage.set("last-result", result);
+```
+
+Requests start the service lazily and may reject with readable lifecycle errors such as
+`untrusted`, `service-not-declared`, `permission-denied`, `service-busy`, `service-timeout`,
+`service-exited`, or `service-failed`; catch them and render a useful result. A service's stdout
+and stderr are captured in `<boardRoot>/ui.log`, which is the first place to inspect when an ESM
+import, handshake, request, or dependency fails. Service status is visible in `app.boards.list()`
+as `service.state`, `reason`, `pid`, `startedAt`, and `restartCount`. The host starts, supervises,
+restart-budgets, and stops the process on untrust; the service must not restart itself.
+
+### Service-only provider registration
+
+`persephone.providers.register(type, implementation)` is available only inside the declared
+module service. Provider implementations contain functions; those functions cannot cross the
+board frame's structured-clone RPC, so registering them from page JavaScript is rejected. The
+service implementation has this shape:
+
+```js
+persephone.providers.register("acme/mem", {
+  writable: false,
+  readBinary: async (config) => new Uint8Array(/* bounded bytes */),
+  writeBinary: async (config, data) => {},       // only when writable is true
+  stat: async (config) => ({ exists: true, size: 0, mtime: "..." }),
+  watch: (config, onChange) => () => {},
+});
+```
+
+`readBinary(config)` returns `Uint8Array`; `writeBinary(config, data)` receives bytes;
+`stat(config)` returns `{ exists, size?, mtime? }`; and `watch(config, onChange)` returns a
+disposer. Omit unsupported optional methods. Read and write payloads are bounded by the platform
+(currently 256 MiB); this API is whole-resource buffered I/O. In particular, `ProxyProvider`
+does not implement `createReadStream`, so a `Range` request for a board provider falls back to a
+buffered read.
+
+### Resident backend server (the key pattern)
+
+Because the handle keeps stdin streaming, spawn **one** long-lived script per session and
+feed it jobs as JSON lines instead of paying a spawn per operation:
+
+```js
+const srv = persephone.executeNode("scripts/db-server.js", [dbPath], { name: "db" });
+srv.on("stdout", chunk => handleJsonLine(chunk));   // {id, columns, rows} | {id, error}
+srv.write(JSON.stringify({ id: 1, sql }) + "\n");   // per query — no spawn, db stays open
+```
+
+One ~150 ms spawn when the board opens; afterwards each operation costs only its own work
+(e.g. the SQLite query against a warm page cache). Pair with `setBoardBusy(true)` so the
+server survives a board reload, and re-attach by `name` via `getJobs()` (see below). Board
+close reaps the child.
+
+## Integration tier (in-app effects `execute()` can't express)
+
+### Navigation returns
+
+When a third-party site must return to this board, mint one opaque URL and pass that exact value to
+the site's return/redirect option. There is no pattern argument and no way for a board to claim an
+arbitrary real origin:
+
+```js
+const returnUrl = await persephone.navigation.createReturnUrl();
+const stop = persephone.navigation.onReturn(({ url, query, hash }) => {
+    const selected = query.item?.[0];
+    const library = hash.addLibrary?.[0];
+    console.log({ url, selected, library });
+});
+thirdParty.start({ returnUrl });
+// stop(); // unsubscribe when the board no longer needs returns
+```
+
+`url` is the complete returned URL. `query` and `hash` are plain records with array values;
+duplicate keys are preserved in order, a key without a value is `""`, and percent-encoding is
+decoded once. This API requires bridge `1.11.0` or newer (`minBridgeVersion: "1.11.0"`) and is
+available to trusted or bundled boards. Claims belong to the current board frame: disposing or
+reloading the frame invalidates them, so a reloaded document must mint a new URL. A late return is
+consumed and the browser navigation is restored when possible, but it is never delivered to a
+replacement board or frame.
+
+**The site must open the return URL in a new tab or window** (Excalidraw does this by asking for
+`?target=_blank`, so the library site calls `window.open(returnUrl)`). The minted host is under the
+reserved `.invalid` suffix and can never resolve, so a site that navigates to it *in place* dies at
+DNS before Persephone sees anything: the return is lost and that tab is left on a browser error
+page. Persephone closes the tab the return created and leaves the tab the user was reading alone.
+
+### `persephone.call(path, options?)`
+
+Trusted Boards can read and update the AiVision tree through the page that hosts the Board. The
+hosting page is stable even if the user activates another tab. Calls always use `hints: "never"`,
+return a JSON-safe shaped value, and reject `Error` on resolver, transport, timeout, serialization,
+or trust failures. Existing descriptor restrictions still apply, including private browser pages.
+The bridge exposes the renderer-side page/app tree only; process-wide `main.*` and `windows[i].*`
+are MCP call-tool paths and are not available through `persephone.call()`. The `boards` namespace
+provides local board inventory and lifecycle operations; `tools` provides registered Agent Tools.
+Tool execution runs with the user's privileges and exposes environment-variable names only. Trust,
+board registration, and toolset registration remain user-mediated, so a call can request those flows
+but never silently grants them.
+
+```js
+const source = await persephone.call("page.grouped.content");
+const matches = [...source.matchAll(new RegExp(pattern, flags))]
+    .map((match) => ({ match: match[0], index: match.index }));
+await persephone.call("page.grouped.content", {
+    value: JSON.stringify(matches, null, 2),
+});
+```
+
+Pass `args` to invoke the final method, `value` to assign a writable property, or `maxLength` to
+bound string shaping. Programmatic board calls are unbounded by default so binary/data strings are
+not silently clipped; an explicit `maxLength` is still honored. `args` and `value` cannot be combined. See the bundled regex verification
+Board under `assets/board-call-regex/` for a complete Run/Write example.
+
+Append `.$describe` to a node path when a program needs the descriptor as data rather than prose:
+`{ path, kind, summary, members[], children[], overview?, help?, identity?, restricted? }`.
+It follows the same walk as `$help`, must be the final segment, and describes a restricted node
+itself while still blocking its descendants. `$help` remains the better path for agent prose;
+`$describe` is for a tree view, generated client, or test harness. Describe a node, not a leaf
+value: `page.editor.$describe` works, while `page.content.$describe` does not.
+
+- `persephone.openContent({ editor, language, title, content })` → `Promise<string>` — create a
+  **new in-memory, untitled Persephone page in another editor** and resolve to its page id. This is
+  the board equivalent of the script API's `pages.addEditorPage(...)`, and the right call whenever
+  the content lives in the board's memory rather than in a file `openRawLink` could point at (a
+  rendered Markdown summary, an extracted subgraph, a table to open in the JSON grid). `editor` is a
+  registered editor id (`"md-view"`, `"grid-json"`, `"monaco"`, `"mermaid-view"`, …);
+  `language` defaults to `"plaintext"`, `title` to `"untitled"`.
+  ```js
+  const pageId = await persephone.openContent({
+      editor: "md-view", language: "markdown", title: "Node report", content: markdown,
+  });
+  ```
+  It **rejects** with a readable message for an unknown editor id or language, a standalone editor
+  that cannot be built this way, another board's id, or content over 16 M characters — handle the
+  rejection, don't fire and forget. It is **create-only**: the id it returns belongs to a page the
+  board just made, and there is no counterpart call to read, list, navigate, close, or modify any
+  other page, so `persephone.call` keeps its scoping to the page hosting this board.
+- `persephone.openRawLink(href, options?)` — open a file/URL in a new Persephone page. Pass
+  `{ editor }` (e.g. `{ editor: "md-view" }`) to request a specific editor — useful to open a
+  Markdown doc rendered rather than as source; falls back to the default editor when omitted/unmatched.
+  An **image `data:` URL** with `{ editor: "image.edit" }` requests the image-edit capability and
+  opens the image as a **new editable drawing** (rasterize your view to a PNG data URL first).
+  - **External links are auto-routed for you.** A plain `<a href="https://…">` click inside a
+    board would otherwise navigate the board frame itself to a URL its `board://` origin can't
+    load, blanking the board. Persephone intercepts anchor clicks (and middle-clicks) and routes
+    any link that leaves the board's own origin through `openRawLink` automatically — no board
+    code needed. Relative and `#fragment` links resolve against the board and navigate in-frame
+    as normal. To handle a link yourself instead, call `e.preventDefault()` in your own click
+    handler first (the auto-router stands down when the event is already handled).
+  - **A default right-click menu is provided for you.** Persephone renders a themed context menu
+    inside your board — no code needed: _Open Link_ / _Copy Link_ on links, _Open Image in New
+    Tab_ / _Copy Image_ / _Save Image As…_ on images, _Cut_ / _Copy_ / _Paste_ in text fields, and
+    _Copy_ on a text selection. To show your own menu instead, call `e.preventDefault()` on the
+    `contextmenu` event in your handler (same opt-out as the link router and Ctrl+S).
+- `persephone.notify(message, type)` — toast (`"info" | "success" | "warning" | "error"`).
+- `persephone.openFileDialog(params)` / `saveFileDialog(params)` / `openFolderDialog(params)`
+  — native dialogs; each returns a path you hand to `execute()`.
+- `persephone.readFile(path, options?)` / `writeFile(path, data, options?)` — read/write a file
+  directly, no backend script needed. A **relative** `path` resolves against the board folder (the
+  same default as `execute()`'s cwd); an absolute path reads/writes anywhere. `writeFile` creates
+  parent folders. Both return Promises and reject on error. Three encodings:
+  - **`"utf8"`** (default) — a plain string.
+  - **`"binary"`** — a **`Uint8Array`** of the raw bytes. **Use this for any binary file** (an
+    image, a PDF, a zip, a spreadsheet). It hands the bytes straight to your parser with no
+    conversion, and it is the only way to read a file over ~400 MB, because base64 of one exceeds
+    V8's maximum string length. Requires app **4.0.21+** — declare `"minAppVersion": "4.0.21"` in
+    `board-manifest.json` and Persephone will refuse to run the board on anything older, so no
+    runtime check is needed.
+  - **`"base64"`** — a base64 string. Correct when you genuinely want base64 (building a `data:`
+    URI); a poor way to move bytes. Measured on a 20 MB file: ~65 ms of pure conversion (`atob`
+    plus a per-byte decode) and roughly 3x the transient memory of the binary path.
+  ```js
+  const bytes = await persephone.readFile(await persephone.getFilePath(), { encoding: "binary" });
+  const workbook = XLSX.read(bytes, { type: "array" });   // no atob, no copy loop
+  ```
+  Ideal for persisting small board state (column layout, last filter, selected item) and loading a
+  board-local config:
+  ```js
+  // persist UI state
+  await persephone.writeFile("state.json", JSON.stringify(state));
+  // restore it next launch (handle first-run "file not found")
+  let state = {};
+  try { state = JSON.parse(await persephone.readFile("state.json")); } catch {}
+  ```
+- `persephone.getFilePath()` → `Promise<string | undefined>` — when this board is opened as a
+  **custom editor** for a file (associated via `fileMasks` in `board-manifest.json`), this resolves
+  to that file's **absolute path**; read/write it with `persephone.readFile()` / `writeFile()`. It
+  resolves to `undefined` for a board opened plainly. Safe to `await` at any time — it waits for the
+  host handshake, so you never race a missing value:
+  ```js
+  const filePath = await persephone.getFilePath();
+  if (filePath) {
+      const content = await persephone.readFile(filePath);
+      // …render / edit, then persephone.writeFile(filePath, updated) to save
+  }
+  ```
+  The path is **always local and always readable**, whatever the file really was. For an archive
+  entry or an `http(s)` URL (which reach you only with `"editorSources": "any"`) Persephone reads
+  the source through its content pipe and hands you a cache file named after it, so one code path
+  serves every source. Two consequences, and a board declaring `"any"` must handle both:
+  ```js
+  // 1. It can be SLOW — a URL completes only after the whole download. Don't make your UI
+  //    wait on it if there is anything else to do first.
+  const pending = persephone.getFilePath();
+  buildUi();                       // runs while the source is still being fetched
+  // 2. It can REJECT — missing archive entry, HTTP failure. Distinct from `undefined`,
+  //    which just means "not opened for a file".
+  let filePath;
+  try { filePath = await pending; }
+  catch (err) { showError(err.message); return; }   // never leave a blank frame
+  ```
+  Materialized files are **read-only**: writing to the cache path does not write back to the
+  original source.
+
+- `persephone.getFolderPath()` → `Promise<string | undefined>` — the absolute directory claimed by
+  a direct-folder editor, or `undefined` for plain boards and file-only openings. It waits for the
+  same host handshake as `getFilePath()`. This is separate from `boardRoot`, the folder containing
+  the board app, and from the file-only `getFilePath()` value.
+
+### Expose a board model to agents
+
+> Full authoring reference: the **AI Vision** guide — `guides.agents["ai-vision"]`, or the
+> `persephone://guides/ai-vision` resource. It covers the descriptor contract field by field, the
+> `refresh()` shape rule, per-frame element registration, and a verification checklist. The summary
+> below is enough for a simple model.
+
+Give the board a named model by attaching an AiVision descriptor to an object and publishing it
+through `persephone.aiVision.expose(root)`. The descriptor supplies the shape an agent can discover:
+`kind`, `summary`, `members`, and optionally `help`, `elements`, `provide`, and `summarize`.
+Persephone then provides `$help`, `$describe`, `helpSearch`, hints, argument validation, property
+writes, method calls, `elements`, and `highlight` over `pages[i].editor.app`.
+
+Use `createElements` for the board's curated controls. A declaration can name a secondary `view`; a
+highlight for that control opens and targets the corresponding view's frame:
+
+```js
+const declarations = [
+    { name: "save", purpose: "Save the current item.", selector: '[data-name="save"]', view: "main" },
+    { name: "notes", purpose: "Edit notes.", selector: '[data-name="notes"]', view: "notes" },
+];
+const elements = persephone.aiVision.createElements(declarations);
+
+const model = { aiVision: {
+    kind: "ProjectBoard",
+    summary: "The board's project model.",
+    members: [
+        { name: "items", kind: "property", summary: "Current project items." },
+        ...elements.members,
+    ],
+    elements: declarations,
+    provide: elements.provide,
+} };
+const remote = persephone.aiVision.expose(model);
+```
+
+Only the main frame registers the model with Persephone. The published shape is a snapshot, so call
+the returned remote's `refresh()` after changing its structure or metadata. `refresh()` also tells
+the host that the board shape changed; the agent should read `pages[i].editor.app` again after the
+resulting `shape-changed` event. A board can send a short board-authored message with the same
+remote:
+
+```js
+remote.notify("The import finished.");
+```
+
+Only trusted boards deliver `notify(text)` to the agent. The text is one line, at most 512
+characters, and accepted notifications are limited to five per rolling minute in the renderer
+window. The agent sees the event labelled as board-written. This does not replace
+`persephone.notify(text, type)`, which remains a toast. A board's exposed state
+is as visible to an agent as what the board already shows on screen; never expose secrets. The todo
+board is the worked example for this `aiVision` surface: `expose()` probes `index(0)` once to derive
+the shape of an indexed item, so a board whose collections are empty during asynchronous
+registration must call the returned remote's `refresh()` when they first become non-empty, or
+`items[0]` will not resolve for an agent. Agent-facing methods must not block on an in-board confirm
+dialog; keep confirmation in the interactive UI and make the exposed method complete immediately.
+
+### Content-host boards — `persephone.host.*`
+
+When your board sets `"editorKind": "content-host"` in the manifest, **Persephone owns the file**,
+not you. It handles the pipe, encoding, encryption, the auto-save cache, and dirty tracking; your
+board never touches a path or calls `readFile`/`writeFile` for the edited file. Instead you work
+with the content through `persephone.host.*`:
+
+- `persephone.host.getContent()` → `Promise<string>` — the current content. Safe to `await` at any
+  time — it waits for the host handshake and the first content snapshot internally, so calling it
+  first thing in your script (before anything else has run) is fine; you never race a missing value.
+- `persephone.host.setContent(content)` — replace the content and mark the file **modified**
+  (schedules the auto-save cache), exactly like a user edit in Monaco. A `getContent()` right after
+  returns what you just wrote (read-your-own-write).
+- `persephone.host.onContentChange(cb)` → unsubscribe fn — `cb(content, language?)` fires whenever
+  the content changes **elsewhere** (e.g. the user switched to Monaco, edited, and switched back).
+  Your own `setContent` does **not** re-fire it. Registers at any time, boot ordering included.
+- `persephone.host.getLanguage()` → `Promise<string | undefined>` — the host's Monaco language id.
+- `persephone.host.save()` — save through the pipe now (optional; see Ctrl+S below).
+
+```js
+// content-host board: render current content, re-render on external change
+render(await persephone.host.getContent());
+persephone.host.onContentChange((content) => render(content));   // keep the render() resilient to
+                                                                 // transient/invalid input
+```
+
+**Saving is automatic.** Persephone injects a `Ctrl+S` (⌘S) handler that saves the host for you —
+you write no save code. If your board wants custom save behavior, add your own key handler and call
+`e.preventDefault()`; Persephone's fallback then stands down. `persephone.host.save()` is available
+for an in-board Save button.
+
+Because the host is shared, a content-host board and Monaco (or Grid) **switch back and forth on the
+same file with no reload and no data loss** — the classic source-edit / live-preview pairing. On a
+plain (non-content-host) board `persephone.host.getContent()` / `getLanguage()` reject (after the
+handshake answers the question) and a registered `onContentChange` callback never fires, so
+feature-detect with a `try`/`catch` around `getContent()` if a board can open either way.
+
+**Clipboard:** use `persephone.clipboard.writeImage(data)` for encoded image bytes (`Uint8Array` or
+`ArrayBuffer`) or `persephone.clipboard.writeText(text)` for text. These methods write through
+Electron's native clipboard and do not require the board document to be focused. A click on
+Persephone's own toolbar can leave the board frame unfocused, in which case
+`navigator.clipboard.write*` rejects with `"Document is not focused"`; the Web Clipboard API is
+still suitable when the board document is focused and the browser gesture requirements are met.
+Only remote *network* is blocked (by the CSP — see *Libraries & assets* below).
+
+### Stream-host boards — `persephone.host.streamUrl()`
+
+With `"editorKind": "stream-host"`, Persephone owns the pipe and gives the board an
+origin-local URL rather than text or a materialized file:
+
+```js
+const url = await persephone.host.streamUrl();
+const response = await fetch(url, { headers: { Range: "bytes=0-1048575" } });
+console.log(response.status, response.headers.get("Content-Range"));
+```
+
+`streamUrl()` is available to both `stream-host` and `content-host` pages and returns a
+`board://<host>/__pipe/<pageId>` URL with `Range` support. A stream-host page does not write its
+source to disk. This is a broker policy, not an OS guarantee: memory may be paged and Chromium
+may keep its own caches. That differs from `editorSources: "any"`, which solves non-local input by
+copying the source into a cache file and returning that local path through `getFilePath()`.
+
+The pipe can range-read platform providers and falls back to buffering when needed. A board
+provider's `readBinary()` is still whole-resource: `ProxyProvider` has no `createReadStream`, so
+the range is buffered before it is returned to the board.
+
+## Secondary views & shared state
+
+A board isn't limited to its main page — it can contribute one or more **secondary views**:
+extra sidebar panels, each its own `board://` iframe over the **same board**. Every frame
+(main + secondaries) shares one state object that Persephone owns and mirrors into all of
+them, so they stay synchronized. This is how you build editor-style boards: a main view plus
+a coordinated "lists / details / outline" sidebar.
+
+### Declare views — manifest or at runtime
+
+Statically, in `board-manifest.json`:
+
+```json
+{
+  "schemaVersion": 1,
+  "secondaryViews": [
+    { "id": "lists",  "title": "Lists" },
+    { "id": "detail", "html": "detail.html", "title": "Detail" }
+  ]
+}
+```
+
+- `id` — stable key for the view (must not contain `::`).
+- `html` — the view's entry file. **Defaults to `index.html`**, so one file can serve every
+  view (branch on `persephone.view`, below); or point it at a dedicated file.
+- `title` — the sidebar panel's label. (The panel icon is always the board's own icon — there
+  is no per-view icon.)
+
+Or dynamically, from any frame:
+
+```js
+persephone.setSecondaryViews([{ id: "lists", title: "Lists" }]);
+persephone.setSecondaryViews([]);   // remove all
+```
+
+Navigating the board's main view away removes its panels and disposes the board — secondary
+views don't keep it on the page.
+
+### One HTML, many roles — `persephone.view`
+
+Each frame knows its role synchronously at load via `persephone.view`: `"main"` for the main
+view, or the view's `id` for a secondary frame. Branch on it to serve everything from
+`index.html`:
+
+```js
+if (persephone.view === "main") renderMain();
+else renderSidebar(persephone.view);   // e.g. "lists"
+```
+
+### Shared state — `persephone.state.*`
+
+The frames coordinate through a shared state object (Persephone-owned, authoritative),
+available on **every** board — main and secondary frames alike:
+
+```js
+// Declare defaults + which keys persist (opt-in — below). Call once, from the main view.
+persephone.state.init({ selected: null, filter: "all" }, { restorableKeys: ["selected"] });
+
+const s   = await persephone.state.get();     // current state (Promise: first snapshot, then cached)
+persephone.state.set({ selected: "work" });   // replace
+persephone.state.merge({ filter: "open" });    // shallow-merge
+const off = persephone.state.onChange((s) => renderFrom(s)); // any frame's change; returns unsubscribe fn
+```
+
+- **`onChange` is the source of truth.** A write round-trips through Persephone and comes back
+  to every frame (including the writer), so treat `onChange` like React `setState` — render
+  from it; don't assume `set`/`merge` applied synchronously.
+- **Opt-in persistence.** Only the keys listed in `state.init(defaults, { restorableKeys })`
+  are saved to the page and restored on app restart / board reload. Everything else is
+  in-memory only — stash large or transient state freely without bloating the open-pages file.
+
+### Example — a list + detail pairing
+
+```js
+// index.html / app.js — the main view
+persephone.state.init({ selectedId: null }, { restorableKeys: ["selectedId"] });
+persephone.state.onChange((s) => highlightSelected(s.selectedId));
+
+// lists.html (or index.html branched on persephone.view === "lists") — a sidebar view
+row.onclick = () => persephone.state.merge({ selectedId: row.dataset.id });
+```
+
+The bundled Demo board has a live **Secondary Views** showcase demonstrating both the
+one-file (`persephone.view`) and dedicated-file styles — see *More examples* below.
+
+## Long-running processes: `setBoardBusy()` / `getBoardBusy()` / `getJobs()`
+
+By default, everything a board spawned is **killed when the board unloads** — the user
+navigating its page to a document, or a board reload. For a board that starts dev
+servers (or any process that must keep running), opt out with the **busy** flag:
+
+- `persephone.setBoardBusy(true)` — declare "my processes must outlive me". While busy,
+  unloading the board (navigation, reload) keeps its processes running. They are still
+  killed when the page/tab closes, when Persephone quits, or after you call
+  `setBoardBusy(false)` and the board unloads.
+- `persephone.getBoardBusy()` → `Promise<boolean>` — the flag survives the board's own
+  reload; read it on startup to know you should re-enter "running" mode.
+- `persephone.getJobs()` → `Promise<[{ jobId, command, name, kill(), write(), endStdin() }]>` —
+  this board's LIVE jobs, including ones spawned by a previous lifetime of the board.
+  Surviving jobs are **control-only**: `kill()`/`write()` work, but there is no
+  stdout/stderr/exit streaming (their output went to the previous lifetime; output
+  produced while the board was unloaded is dropped). Poll `getJobs()` to notice a job
+  exited.
+
+**Name your long-running jobs** — the name is the re-association key after a reload
+(the board's own JS state, including old handles, does not survive):
+
+```js
+// start
+persephone.execute("npm run dev", { name: "backend" });
+persephone.setBoardBusy(true);
+
+// on every board startup — the reinit contract
+if (await persephone.getBoardBusy()) {
+    const jobs = await persephone.getJobs();
+    const backend = jobs.find(j => j.name === "backend");
+    if (backend) showRunning(backend);            // Stop button → backend.kill()
+    if (jobs.length === 0) persephone.setBoardBusy(false); // nothing lives — reset
+}
+
+// stop
+backend.kill();
+persephone.setBoardBusy(false);
+```
+
+## Theme: the `--p-*` contract
+
+Persephone injects its palette as CSS variables on `<html>` and keeps them live
+across theme switches — style everything with them so the board matches the app.
+The variables are defined **before the first paint**, so a board loads already themed
+(no flash) — you can rely on `var(--p-bg)` etc. resolving from the very first frame:
+
+```css
+body { background: var(--p-bg); color: var(--p-text); }
+button { background: var(--p-accent); color: var(--p-accent-text); border-radius: var(--p-radius-md); }
+```
+
+Your board ships with **`board-base.css`** (linked first in `index.html`). It applies
+sensible defaults for you — page background/text, a **monospace default font**,
+**themed scrollbars**, a **themed focus ring**, and **Persephone-style checkboxes**
+(any native `<input type="checkbox">` renders as the app's rounded-square + check,
+driven by the `--p-*` tokens) — all from the `--p-*` contract. It also carries an
+**opt-in chrome layer** (`.p-toolbar`, `.p-btn`, `.p-input`, …) covered in the next
+section. Build your own styles on top (or edit it). The list below is the full
+palette + metric set you can use:
+
+- **Colors** (theme-dependent, update live): `--p-bg`, `--p-panel`, `--p-bg-dark`,
+  `--p-overlay`, `--p-hover`, `--p-tree-selection`, `--p-border`, `--p-border-light`,
+  `--p-text`, `--p-text-muted`, `--p-text-strong`, `--p-accent`, `--p-accent-text`,
+  `--p-accent-hover`, `--p-selection-bg`, `--p-selection-text`, `--p-link`,
+  `--p-error`, `--p-success`, `--p-warning`, `--p-scrollbar`, `--p-scrollbar-thumb`,
+  `--p-shadow`.
+  - To render **Persephone-style chrome** (title bars, sidebar panels, grid headers):
+    `--p-bg-dark` is the app's chrome surface (darker than `--p-panel`), `--p-hover`
+    the list/button hover background, `--p-tree-selection` the selected-row background.
+- **Metrics** (constants): `--p-space-*`, `--p-gap-*`, `--p-radius-*`, `--p-size-*`,
+  `--p-font-*` (e.g. `--p-space-md`, `--p-radius-sm`, `--p-font-base`).
+
+### Toolbars and buttons — use the `.p-*` classes, don't invent your own
+
+`board-base.css` ships ready-made chrome carrying the app's exact control metrics.
+Use it rather than styling a toolbar yourself — the sizes below are what make a board
+look built into Persephone instead of embedded in it:
+
+```html
+<div class="p-toolbar">
+    <span class="p-toolbar-title">Dev Dashboard</span>
+    <span class="p-sep"></span>
+    <button class="p-btn selected">Active</button>
+    <button class="p-btn">All</button>
+    <input class="p-input" placeholder="Search…" />
+    <span class="p-spacer"></span>
+    <button class="p-btn primary">Refresh</button>
+</div>
+```
+
+| Class | What it is |
+|-------|-----------|
+| `.p-toolbar` | 30px bar on `--p-bg-dark` (+1px rule). Add `data-orientation="vertical"` for a side rail. |
+| `.p-btn` | 26px button — **24px inside a `.p-toolbar`**, automatically. Modifiers: `primary` (accent fill), `ghost`, `danger`, `link`, `selected`, `icon` (square), `sm` (24px anywhere), `md` (keep 26px in a bar), `on-dark`. |
+| `.p-input` / `.p-select` | Field aligned with the buttons beside it — 26px, 24px in a toolbar. Same `sm` / `md` modifiers. |
+| `.p-sep` | Hairline between toolbar groups. |
+| `.p-spacer` | Pushes everything after it to the right edge. |
+| `.p-toolbar-title` | Caption text in a bar (board name, breadcrumb) — not a control. |
+
+They are opt-in: a bare `<button>` is untouched, so a vendored library's own controls
+keep their styling.
+
+**If you do write your own chrome CSS, keep these numbers.** They are the whole
+difference between a compact board and a bloated one:
+
+- **Toolbar: 30px tall, holding 24px controls** (31px with the bottom rule). A
+  comfortable-looking `padding: 8px 12px` produces a **45px** bar, half again too tall.
+- **A toolbar button is the SMALL tier: `height: 24px; padding: 0 4px;
+  font-size: 12px`.** This is the one that looks fine in isolation and wrong in place —
+  Persephone's own editor toolbars are built from small buttons, so a bar of 26px
+  medium buttons reads as oversized the moment it sits under the app's chrome. 26px is
+  the *page and dialog* size.
+- **Toolbar surface: `--p-bg-dark`.** App chrome is *darker* than the page, never
+  lighter. `--p-panel` is a content surface — using it is what makes a board's toolbar
+  look pale and web-like next to the app.
+- **Controls: fixed `height`, horizontal padding only.** Vertical padding on a button
+  is the single most common cause of an oversized bar.
+- **Radius 4px (`--p-radius-md`), gap 4px between controls, 6px inside a button,
+  icons 16px** — and use the *same* radius on every button in a bar.
+
+Outside a bar (a form, a dialog, a page action) the medium tier is right: 26px,
+`padding: 0 8px`, 14px text.
+
+Also mirrored in JS — for colors you set from JS (e.g. a chart library):
+
+- `persephone.theme` (`{ id, isDark, vars }`) and `persephone.tokens` — a **snapshot at
+  page load**. Correct on every (re)load, but they do **not** update on an in-session
+  theme switch (the bridge copies them once into the page).
+- `persephone.getTheme()` / `persephone.getTokens()` — the **live** palette/tokens, always
+  the current theme (a function call crosses the bridge fresh each time).
+- `persephone.onThemeChange(cb)` — fires once immediately, then on every switch; the
+  callback **argument** is the live palette.
+
+**Switching themes while testing.** The app's theme shortcuts — `Ctrl+Alt+]` (next) and
+`Ctrl+Alt+[` (previous) — work while focus is inside the board frame, so you can flip through
+themes to check your styling without clicking out to the app first. Persephone forwards them
+out of the frame for you; if your board binds either combo itself, call `preventDefault()` in
+your own handler and the forwarding stands down (same opt-out as `Ctrl+S` and the context menu).
+
+**Graph colors (`--p-graph-*`).** Persephone also publishes its 14 force-graph colors — canvas
+background, node / border / link fills in default, highlight, selected and special variants, the
+label plate and text, and the group outline — as `--p-graph-bg`, `--p-graph-node-default`,
+`--p-graph-node-highlight`, `--p-graph-node-selected`, `--p-graph-node-special`,
+`--p-graph-border-default`, `--p-graph-border-highlight`, `--p-graph-border-selected`,
+`--p-graph-border-special`, `--p-graph-link-default`, `--p-graph-link-selected`,
+`--p-graph-label-bg`, `--p-graph-label-text` and `--p-graph-group-border`. They are per-theme
+values tuned across all ten themes — a palette derived from the general `--p-*` set loses that
+fidelity. Because a `<canvas>` cannot consume `var(...)`, the same values arrive as concrete
+strings on `persephone.getTheme().graph`, keyed by the camelCased suffix (`bg`, `nodeDefault`,
+`nodeHighlight`, `nodeSelected`, `nodeSpecial`, `borderDefault`, `borderHighlight`,
+`borderSelected`, `borderSpecial`, `linkDefault`, `linkSelected`, `labelBg`, `labelText`,
+`groupBorder`). `onThemeChange` delivers the graph family too — re-read it on every fire and
+repaint, never cache it across a switch.
+
+```js
+persephone.onThemeChange((theme) => {
+    ctx.fillStyle = theme.graph.nodeDefault;
+    ctx.strokeStyle = theme.graph.linkDefault;
+    repaint();
+});
+```
+
+**Re-theming a JS-colored component (charts, diagrams):** read the palette from the
+`onThemeChange` argument (or `getTheme()`) and re-apply on each fire — never cache
+`persephone.theme.vars` and reuse it across a switch, or your colors will go stale.
+
+## Libraries & assets — vendor them locally
+
+A board is a **local, offline-first app**, and its CSP **forbids remote network**:
+`connect-src 'self'` blocks CDN scripts, stylesheets, fonts, and any `fetch`
+to another host. So when you use a component library (grids, charts, markdown, icons,
+fonts, …), **download it into the board folder and reference it relatively** — never
+link a CDN.
+
+- Put files under the board folder, e.g. `lib/av-grid.umd.js`, `lib/av-grid.css`,
+  and load them with **relative paths**: `<script src="./lib/av-grid.umd.js"></script>`,
+  `<link rel="stylesheet" href="./lib/av-grid.css" />`. A relative path resolves
+  under the page's `board://` origin automatically (subfolders included) — just like the
+  board's own `./app.js` / `./style.css`. You don't write the scheme yourself (and never
+  the two-slash `board://lib/…` form — the URL parser would read `lib` as the host).
+- **Do not** use `https://…cdn…` URLs in `<script>` / `<link>` / `@import` / `fetch()` —
+  they are blocked and the board will silently fail to load the dependency.
+- Bundle fonts and images in the folder too (or inline images as `data:` URIs).
+
+This keeps the board self-contained: it works with no network connection and won't
+break if a CDN changes or disappears. (As an agent: download the library files into
+the board folder before referencing them.)
+
+**Which library?** The recommended-components catalog
+(`boards-assets/manifest.json`, link at the bottom of this file) lists a pre-tested,
+theme-checked library per job — grid, charts, date picker, select, markdown, diagrams,
+split panes, drag-reorder, tooltips, modals — with vendor URLs, load order, and the skin
+to fetch. Prefer a catalog component over an arbitrary one you pick yourself.
+
+### Tabular data — use av-grid
+
+For **anything grid-shaped**, the default is **[av-grid](https://github.com/andriy-viyatyk/av-grid)**
+(npm `av-grid`), not Tabulator. It is a port of Persephone's own internal grid (VAGrid), so
+it is native to the app: it matches the built-in grid editors' look and keyboard behaviour,
+and it renders more smoothly than Tabulator — noticeably so **even on small datasets**. The
+catalog is verified against av-grid 2.12.1: its text filters support per-column operators
+(`contains`, `equals`, `startsWith`, `blank`, `notBlank`), hosts can own filtering and sorting,
+`treeColumn` provides a gutter over flat rows, and `pinned: "left"` / `"right"` provides
+leading/trailing sticky data columns.
+
+- **No skin to fetch, no theme code.** Every `--avg-*` token falls back to its `--p-*`
+  counterpart, so the grid is themed on arrival and a live theme switch re-tints it with
+  **zero JavaScript** — nothing to re-apply in `onThemeChange`.
+- **Vendor:** `av-grid.css` + `av-grid.umd.cjs` from jsDelivr into `lib/`, **renaming the
+  `.cjs` to `.js`** so it loads as a classic script. It exposes `window.AVGrid`; the class
+  is `AVGrid.AVGrid`.
+- **Read the API doc first:** https://raw.githubusercontent.com/andriy-viyatyk/av-grid/main/docs/api.md
+  — one complete file, written for an agent, with a *"Driving the grid from an agent"*
+  section on the `pages[pageId].editor` path and a DOM contract for selectors.
+- **Load order:** `board-base.css` → `lib/av-grid.css` → your own `<style>`, and pass
+  `injectStyles: false` to `create()` — otherwise the grid appends its stylesheet *after*
+  your page and out-orders your overrides. Give the grid host a **definite height** (a host
+  with no height renders blank; `getState().viewport.width === 0` says so), and with
+  `filterBar: true` give `.avg-grid-wrap` `height: 100%`.
+- **Reach for Tabulator only** when the board genuinely needs something av-grid does not
+  have: variable row heights, row grouping, a true tree-data engine or nested rows,
+  three-or-more-level nested column headers (av-grid's `Column.group` supplies one group band),
+  pagination or server-side paging, remote data transport/fetching, footer calculations,
+  built-in export (CSV/XLSX/PDF/print), drag-to-reorder **rows**, responsive column collapse,
+  undo/redo, arbitrary or interleaved data-column freezing, or Tabulator's ready-made formatters
+  (progress bar, star rating, traffic light).
+
+## Errors & the log
+
+Report failures with `persephone.notify(message, "error")` — they're toasted **and**
+appended to **`ui.log`** in this folder (choose **… → Open board log** in the in-board toolbar
+to open it). Persephone also logs board *load* failures there automatically: navigation
+errors, CSP violations, and uncaught script errors / unhandled rejections — and it mirrors
+every **`console.error`** / **`console.warn`** from the board's frames into the log
+(`console.log`/`info` are not mirrored), so runtime problems your code or a library reports
+via the console are reviewable without DevTools. The log starts
+fresh on every load (it holds only the current board lifetime, beginning with a
+`board loaded` line), so opening it after a clean load shows no errors. Keep your `catch`
+blocks calling `notify(..., "error")` so problems are reviewable.
+
+## Board icon (optional)
+
+Put an `icon.svg`, `icon.png`, or `icon.ico` in this board folder to set the board's
+icon — shown in the Persephone tab (when the board is open), the boards list, and the
+sidebar. First match wins (SVG preferred). Without one, a default glyph is used.
+
+## Editing & reload
+
+Boards do **not** auto-reload when you edit their files. After editing `index.html`,
+`app.js`, or `.css`, apply the changes with **… → Reload board** in the in-board
+toolbar. When an AI agent is driving the board, it reloads with
+`pages[pageId].editor.reload()` — the path returns only after the reloaded main frame has
+finished loading, so `pages[pageId].editor.snapshot()` right after it sees the new content.
+
+**`board-manifest.json` is the exception — a reload does not pick it up.** Persephone reads a
+board's manifest when the board becomes trusted and caches it from then on, so a manifest edit
+(new `fileMasks` or `folderEditorMasks`, changed `folderMasks`, `editorPriority`, or
+`folderEditorPriority`, or adding `editorSources`) takes effect only after
+toggling the board's trust off and on, or restarting the app. A reload that appears to ignore a
+manifest change is this, not a broken manifest.
+
+The same boundary applies to `settings`: a board declaring settings gets a Settings sub-page
+once it is trusted or installed, but editing the cached manifest directly does not update that
+page live. Toggle trust off and on or restart Persephone to refresh it.
+
+## Testing & automation (for an AI agent)
+
+Once the user has opened this board in Persephone, an agent can drive it with
+`pages[pageId].editor` to test and debug it:
+
+- `call` at `pages` → find this board (`editor: "board-view"`, with its `selectedBoard`)
+  and read its `pageId`.
+- `pages[pageId].editor.snapshot()` → read the page's accessibility tree (element refs).
+- `pages[pageId].editor.click/type/pressKey/evaluate(...)` → interact, using refs from
+  the snapshot. Pass a ref as `{ ref: "e12" }`; a plain string is always a selector.
+- `persephone.service.request(message)` → reach the declared service from the board frame; use
+  `persephone.storage` for shared JSON state and call `app.boards.list()` from the host renderer
+  when you need the service lifecycle payload.
+- **Secondary views** (if this board declares any): every `pages[pageId].editor` call targets the
+  main frame by default. `pages[pageId].editor.tabs` lists the main view (`index: 0`,
+  id `"main"`) plus one frame per secondary view (id `board-secondary:<viewId>`);
+  `pages[pageId].editor.switchTab("board-secondary:<viewId>")` points subsequent calls at that
+  frame, so `snapshot()` then reads THAT frame's DOM and `click` / `type`
+  drive it. Persephone auto-opens the view's sidebar panel and waits for it to render — the call
+  always succeeds, even if the panel was closed (no "frame not mounted" error). `switchTab("main")`
+  returns to the main view. All frames share `persephone.state.*`, so a change in one is visible
+  when you snapshot another.
+
+**Verify visually, not just structurally.** The accessibility snapshot includes elements that
+are invisible on screen (zero-height, overridden `display`, below the fold), so a snapshot that
+"looks right" does not prove the board renders right. After UI changes, take
+`pages[pageId].editor.screenshot()` and inspect the image before declaring the UI correct.
+Two classic CSS traps a snapshot won't catch: the `[hidden]` attribute loses to any explicit
+`display` rule (add `[hidden] { display: none !important; }` if you style displays), and a
+textarea sized by script before layout collapses to zero height (prefer CSS
+`field-sizing: content` for auto-growing inputs).
+
+The board must be **open** (the user opens it; an untrusted project won't render).
+Navigation does not apply — a board is a fixed document; `tabs` and
+`switchTab("board-secondary:<viewId>")` select among its frames (main + secondary views) rather
+than creating/closing tabs.
+
+## More examples — the bundled Demo board
+
+Persephone ships a full **Demo board** that exercises the whole surface — the
+`persephone.execute()` channel (buffered / streaming / stdin / kill / cwd), the
+integration tier, the declared `service.mjs` process (`persephone.service.request`, shared
+storage, lifecycle failures, and `boards.list().service`), the `--p-*` theme + token contract, secondary views + shared state
+(`persephone.state.*`), and a tabbed multi-view layout with a pinned output console. When you
+need a richer reference than this starter,
+read the Demo board's files (`index.html`, `app.js`, `style.css`, `board-base.css`):
+
+- **Ask the app:** call the `get_app_info` MCP tool — it returns `demoBoardDir` (the exact path to
+  the bundled demo board) and `resourcesDir`, so you never have to guess the install location.
+- **Installed app:** under the Persephone install's `resources/assets/demo-board/`.
+- **From source (dev):** `assets/demo-board/` in the repository.
+
+## Ship your own documentation — the `guides` folder
+
+Put the board's user and agent documentation **in the board**, not in the app: it then versions and
+ships with the board and cannot drift out of sync with a Persephone release.
+
+1. Add `"guides": "guides"` to `board-manifest.json`.
+2. Create `guides/index.md` (the entry page) and any further `.md` files, nested folders included.
+3. Start every page with the front-matter block Persephone's own guides use:
+
+```markdown
+---
+title: "Using My Board"
+audience: user
+summary: "One sentence, shown beside the page in the About guide tree."
+editorId: "board"
+---
+
+# Using My Board
+...
+```
+
+- `title` and `summary` are required. `audience` is `user`, `agent` or `both`; `agent` pages stay
+  hidden until the reader turns on **Show agent guides**, so a user guide and an agent reference can
+  live side by side.
+- `editorId: "board"` marks the page as the documentation **for this board** — that is what `F1` on
+  one of the board's pages opens. Use the literal token `board`; the board's real editor id embeds
+  its absolute path and differs on every machine, so it can never be written into a shipped guide.
+- A `## Layout` section is read back by `guides[...].layout`, the same as for built-in guides.
+
+Only a **trusted** board contributes documentation, and untrusting or removing the board drops its
+pages from the tree and from search immediately.
+
+## Docs
+
+- Persephone on GitHub: https://github.com/andriy-viyatyk/persephone
+- Board guide (user docs): https://github.com/andriy-viyatyk/persephone/blob/main/assets/guides/boards.md
+- Recommended components + skins catalog:
+  https://raw.githubusercontent.com/andriy-viyatyk/persephone/main/boards-assets/manifest.json
+  (also returned by `get_app_info` as `boardsManifestUrl`). Fetch a skin as its `baseUrl + skin.file`.
+- av-grid (the default data grid) API reference:
+  https://raw.githubusercontent.com/andriy-viyatyk/av-grid/main/docs/api.md

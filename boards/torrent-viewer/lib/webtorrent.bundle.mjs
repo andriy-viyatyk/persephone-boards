@@ -55100,8 +55100,32 @@ var toMagnetURI = magnetURIEncode;
 // node_modules/@thaunknown/simple-peer/lite.js
 var import_debug3 = __toESM(require_src(), 1);
 
-// node_modules/webrtc-polyfill/lib/RTCPeerConnection.js
-import { PeerConnection, RtcpReceivingSession, Video, Audio, cleanup } from "node-datachannel";
+// scripts/node-datachannel-stub.mjs
+function unavailable() {
+  throw new Error("WebRTC is not available in the Torrent Viewer service.");
+}
+var PeerConnection = class {
+  constructor() {
+    unavailable();
+  }
+};
+var RtcpReceivingSession = class {
+  constructor() {
+    unavailable();
+  }
+};
+var Video = class {
+  constructor() {
+    unavailable();
+  }
+};
+var Audio = class {
+  constructor() {
+    unavailable();
+  }
+};
+function cleanup() {
+}
 
 // node_modules/webrtc-polyfill/lib/RTCSessionDescription.js
 var RTCSessionDescription = class {

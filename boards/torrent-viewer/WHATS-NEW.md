@@ -1,5 +1,9 @@
 # What's New — Torrent Viewer
 
+## 1.9.2
+
+- Fixed the service failing to start in an installed board (`process-exit-before-ready`): the bundle no longer needs the native WebRTC package, which the release does not ship. Peers connect over TCP, UDP and web seeds.
+
 ## 1.9.1
 
 - Added a catalog screenshot for the board card in Search boards and Board Info.

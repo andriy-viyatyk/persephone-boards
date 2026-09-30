@@ -176,6 +176,24 @@
       }
     },
     {
+      "id": "torrent-viewer",
+      "version": "1.9.0",
+      "name": "Torrent Viewer",
+      "description": "Browse a torrent's files and open them in Persephone, streamed from the swarm. Metadata only until you open something.",
+      "fileMasks": [
+        "*.torrent"
+      ],
+      "editorName": "Torrent Viewer",
+      "editorKind": "simple",
+      "standalone": false,
+      "minAppVersion": "5.0.4",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/torrent-viewer-v1.9.0/torrent-viewer.zip",
+        "size": 581745,
+        "sha256": "204a0f6be3b4e13701d5a0bf819355abf9acf57672ce6fe38f0da2460f60ea4c"
+      }
+    },
+    {
       "id": "word-viewer",
       "version": "1.1.0",
       "name": "Word Viewer",

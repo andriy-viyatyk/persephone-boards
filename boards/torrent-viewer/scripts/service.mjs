@@ -104,7 +104,8 @@ function getClient() {
     if (shuttingDown) throw new Error("torrent-service-shutting-down");
     if (network.mode === "invalid") throw new Error(`torrent-network-invalid:${network.error}`);
     if (!client) {
-        client = new WebTorrent(network.mode === "socks5" ? proxyClientOptions(network) : undefined);
+        // No WebRTC in either mode: its native backend is not shipped (see node-datachannel-stub.mjs).
+        client = new WebTorrent(network.mode === "socks5" ? proxyClientOptions(network) : { tracker: { wrtc: false } });
         client.on("error", (error) => {
             console.error("WebTorrent client error:", errorMessage(error));
         });

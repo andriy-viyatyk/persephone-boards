@@ -23,6 +23,11 @@ const proxyShims = {
             if (!/[\\/]bittorrent-tracker[\\/]lib[\\/]client[\\/]udp-tracker\.js$/i.test(args.importer)) return undefined;
             return { path: path.join(scriptsDirectory, "socks-v1-compat.mjs") };
         });
+        // A published board has no node_modules: the native WebRTC backend becomes a stub (the
+        // client runs with `wrtc: false`), so the bundle's static import still resolves.
+        context.onResolve({ filter: /^node-datachannel$/ }, () => ({
+            path: path.join(scriptsDirectory, "node-datachannel-stub.mjs"),
+        }));
         context.onResolve({ filter: /^cross-fetch-ponyfill$/ }, () => ({
             path: path.join(scriptsDirectory, "proxy-fetch.mjs"),
         }));
@@ -37,7 +42,7 @@ await build({
     platform: "node",
     format: "esm",
     outfile: outputFile,
-    external: ["bufferutil", "utf-8-validate", "node-datachannel", "utp-native"],
+    external: ["bufferutil", "utf-8-validate", "utp-native"],
     plugins: [proxyShims],
     banner: {
         js: 'import{createRequire as __cr}from"node:module";const require=__cr(import.meta.url);',

@@ -1,5 +1,9 @@
 # What's New — Torrent Viewer
 
+## 1.9.1
+
+- Added a catalog screenshot for the board card in Search boards and Board Info.
+
 ## 1.9.0
 
 - Moved status messages, retry actions, and the network indicator into Persephone's shared status bar.

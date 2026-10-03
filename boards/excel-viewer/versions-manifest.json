@@ -3,6 +3,16 @@
   "id": "excel-viewer",
   "versions": [
     {
+      "version": "1.2.2",
+      "date": "2026-10-03",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/excel-viewer-v1.2.2/excel-viewer.zip",
+        "size": 462985,
+        "sha256": "7ad7d30c93dacc6c814154708273bfadb1e566a859621f73f8945316deb03881"
+      },
+      "minAppVersion": "5.0.7"
+    },
+    {
       "version": "1.2.1",
       "date": "2026-09-25",
       "archive": {

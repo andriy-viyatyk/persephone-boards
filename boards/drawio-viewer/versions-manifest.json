@@ -3,6 +3,16 @@
   "id": "drawio-viewer",
   "versions": [
     {
+      "version": "1.1.1",
+      "date": "2026-10-03",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/drawio-viewer-v1.1.1/drawio-viewer.zip",
+        "size": 888589,
+        "sha256": "5b5890b28f6c4c3ba33125c61fa37d362fe7e0c052d90ce98a9be77b64dab787"
+      },
+      "minAppVersion": "5.0.7"
+    },
+    {
       "version": "1.1.0",
       "date": "2026-09-13",
       "archive": {

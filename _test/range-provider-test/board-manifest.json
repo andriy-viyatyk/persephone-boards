@@ -4,8 +4,20 @@
   "description": "EPIC-113/US-1474 test fixture: a synthetic ranged-read board provider used to verify board-provider ranged reads without a torrent or a real swarm.",
   "author": "Persephone",
   "minAppVersion": "5.0.4",
-  "minBridgeVersion": "1.22.0",
-  "permissions": ["service", "contentProviders"],
+  "minBridgeVersion": "1.30.0",
+  "permissions": {
+    "execute": false,
+    "service": true,
+    "fileSystem": "full",
+    "openExternal": false,
+    "appScripting": false,
+    "network": false,
+    "clipboardRead": false,
+    "camera": false,
+    "microphone": false,
+    "geolocation": false,
+    "notifications": false
+  },
   "service": "scripts/service.mjs",
   "contentProviders": [
     { "type": "test/range", "schemes": ["rangetest"] },

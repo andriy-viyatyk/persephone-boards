@@ -4,6 +4,14 @@ One line per change, newest first. Keep it short. Record pending changes under a
 the **next version** you'll release (the version `board-manifest.json` will be bumped to) — so
 the number is decided up front and nothing needs renaming at release time.
 
+## 1.1.1
+
+- Added explicit permissions, safe static rendering, and returned AiVision exports.
+
+## 1.1.1
+
+- Added explicit permissions, safe static rendering, and returned AiVision exports. The static fallback does not retain GraphViewer layer controls or clickable diagram links.
+
 ## 1.1.0
 
 - An AI assistant can now read the diagram: shapes, containers and connections, decompressed from the file and including your unsaved edits.

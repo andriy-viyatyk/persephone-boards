@@ -1,5 +1,9 @@
 # What's New — PE Viewer
 
+## 1.0.4
+
+- Declared the board's bridge permissions.
+
 ## 1.0.3
 
 - Reads the file as raw bytes instead of base64 — faster on large files, and files

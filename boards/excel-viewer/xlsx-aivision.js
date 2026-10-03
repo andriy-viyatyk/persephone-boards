@@ -35,7 +35,7 @@
 //      pooled cell DOM would not be.
 //
 // Everything here is READ-ONLY with respect to the file. The grid is not `editable`, there is no
-// write path to the workbook, and the save* methods write NEW files at a path the agent names.
+// write path to the workbook, and export methods return content to the agent caller.
 (() => {
     const XA = (window.XLSXAI = window.XLSXAI || {});
 
@@ -75,8 +75,9 @@ SHOWING THE USER. selectRange(range) followed by scrollTo(range) - or showCells(
 both - points the user at what you are talking about, the same way they would point at it
 themselves. There is no way to highlight text in place; the selection IS the pointer.
 
-Paths passed to saveCsv and saveMarkdown must be ABSOLUTE. Row numbers are 1-based Excel row
-numbers and columns are spreadsheet letters everywhere, matching what the user sees on screen.`;
+saveCsv and saveMarkdown return their content as strings. Write returned content through your own
+authorized file workflow if needed. Row numbers are 1-based Excel row numbers and columns are
+spreadsheet letters everywhere, matching what the user sees on screen.`;
 
     const MEMBERS = [
         { name: "fileName", kind: "property", summary: "Name of the open workbook file." },
@@ -96,8 +97,8 @@ numbers and columns are spreadsheet letters everywhere, matching what the user s
         { name: "search", kind: "method", signature: "search(query, options?)", summary: "Find cells whose displayed text matches; returns A1 addresses with their values. Options: { sheet, allSheets, caseSensitive, regex, wholeCell, maxHits }." },
         { name: "getSelectionText", kind: "method", signature: "getSelectionText(mode?)", summary: "The selected range as text, without touching the clipboard. Mode: 'copy' (TSV, default), 'copyWithHeaders', 'copyAsJson', 'copyAsHtmlTable'." },
 
-        { name: "saveCsv", kind: "method", signature: "saveCsv(path, range?, options?)", summary: "Write a range to a CSV file at an absolute path you name. Use this instead of getCsv for a sheet too large to receive in one call.", caution: "writes a new file to disk" },
-        { name: "saveMarkdown", kind: "method", signature: "saveMarkdown(path, range?, options?)", summary: "Write a range to a Markdown table file at an absolute path you name.", caution: "writes a new file to disk" },
+        { name: "saveCsv", kind: "method", signature: "saveCsv(range?, options?)", summary: "Return a range as CSV. Use instead of getCsv for a sheet too large to receive in one call." },
+        { name: "saveMarkdown", kind: "method", signature: "saveMarkdown(range?, options?)", summary: "Return a range as a Markdown table." },
 
         { name: "goToSheet", kind: "method", signature: "goToSheet(name)", summary: "Switch to a worksheet tab - the same thing the user does by clicking it. Resets that view's sort, filters and selection, as a tab switch always does.", caution: "changes what the user is looking at" },
         { name: "setSearch", kind: "method", signature: "setSearch(text)", summary: "Type into the board's toolbar search box. Every whitespace-separated word must appear somewhere in a row, and the words are highlighted inside the cells. Pass '' to clear.", caution: "changes what the user is looking at" },
@@ -467,7 +468,7 @@ numbers and columns are spreadsheet letters everywhere, matching what the user s
         function truncationNote(read) {
             if (!read.truncated) return undefined;
             return "Truncated: " + read.rows.length + " of " + read.totalRows + " rows. Ask for a "
-                + "smaller range, or use saveCsv(path, range) to write the whole thing to a file.";
+                + "smaller range, or use saveCsv(range) to receive the whole thing as CSV.";
         }
 
         // ── formatting reads ────────────────────────────────────────────────────────────────
@@ -797,8 +798,7 @@ numbers and columns are spreadsheet letters everywhere, matching what the user s
 
             // ── writing files ───────────────────────────────────────────────────────────────
 
-            async saveCsv(path, range, options) {
-                requireAbsolutePath(path, "CSV");
+            async saveCsv(range, options) {
                 // Written straight from the workbook with no MAX_CELLS bound — the whole point of
                 // saving is the range that was too big to return.
                 const opts = options || {};
@@ -809,12 +809,10 @@ numbers and columns are spreadsheet letters everywhere, matching what the user s
                     ? readViewCells(requireGrid(), box, !!opts.raw)
                     : readSheetCellsUnbounded(sheet, box, !!opts.raw);
                 const text = toCsv(read);
-                await P.writeFile(path, text, { encoding: "utf8" });
-                return { path: path, sheet: sheet.name, range: rangeText(box), rows: read.rows.length, chars: text.length };
+                return text;
             },
 
-            async saveMarkdown(path, range, options) {
-                requireAbsolutePath(path, "Markdown");
+            async saveMarkdown(range, options) {
                 const opts = options || {};
                 const sheet = requireSheet(opts.sheet);
                 const used = requireUsedRange(sheet);
@@ -824,8 +822,7 @@ numbers and columns are spreadsheet letters everywhere, matching what the user s
                     : readSheetCellsUnbounded(sheet, box, !!opts.raw);
                 const text = "# " + (ctx.getFileName() || "Workbook") + " — " + sheet.name + " "
                     + rangeText(box) + "\n\n" + toMarkdown(read) + "\n";
-                await P.writeFile(path, text, { encoding: "utf8" });
-                return { path: path, sheet: sheet.name, range: rangeText(box), rows: read.rows.length, chars: text.length };
+                return text;
             },
 
             // ── driving the grid ────────────────────────────────────────────────────────────

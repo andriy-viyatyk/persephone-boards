@@ -366,13 +366,43 @@ function parsePages(xml) {
 // sprites and we provide our own zoom/pan.
 function viewerConfig(pageXml) {
     return JSON.stringify({
-        xml: pageXml,
+        xml: sanitizePageXml(pageXml),
         lightbox: false,
         nav: false,
         resize: true,
         center: true,
         border: 8,
     });
+}
+
+// board:// responses omit Access-Control-Allow-Origin, so classic scripts cannot be
+// relied on inside an opaque-origin sandbox. Static fallback: sanitize document strings
+// before GraphViewer parses them, then sanitize its generated SVG before keeping it.
+function sanitizePageXml(pageXml) {
+    const xml = new DOMParser().parseFromString(String(pageXml), "application/xml");
+    if (xml.querySelector("parsererror")) throw new Error("The diagram page contains invalid XML.");
+    for (const node of Array.from(xml.getElementsByTagName("*"))) {
+        if (["script", "foreignobject", "iframe", "object", "embed"].includes(node.localName.toLowerCase())) {
+            node.remove();
+            continue;
+        }
+        for (const attr of Array.from(node.attributes)) {
+            const name = attr.name.toLowerCase();
+            const value = attr.value.trim();
+            if (name.startsWith("on") || ((name === "href" || name.endsWith(":href"))
+                && !/^(?:#|data:image\/(?:png|gif|jpe?g|webp);)/i.test(value))) {
+                node.removeAttributeNode(attr);
+            } else if (name === "value" && /[<>]/.test(value)) {
+                attr.value = DOMPurify.sanitize(value, {
+                    FORBID_TAGS: ["script", "iframe", "object", "embed", "foreignObject"],
+                    ALLOWED_URI_REGEXP: /^(?:#|data:image\/(?:png|gif|jpe?g|webp);)/i,
+                });
+            } else if (name === "style" && /url\s*\(|expression\s*\(/i.test(value)) {
+                node.removeAttributeNode(attr);
+            }
+        }
+    }
+    return new XMLSerializer().serializeToString(xml);
 }
 
 function renderPage(pageXml) {
@@ -406,7 +436,21 @@ function renderPage(pageXml) {
             // createViewerForElement is what processElements() calls per element — used directly
             // so the viewer INSTANCE is kept: its `graph` is the only honest map from a cell id
             // to where that cell was drawn, which is what the agent surface rings.
-            window.GraphViewer.createViewerForElement(div, (viewer) => { currentViewer = viewer; });
+            window.GraphViewer.createViewerForElement(div, (viewer) => {
+                currentViewer = viewer;
+                const svg = div.querySelector("svg");
+                if (svg) {
+                    const safeSvg = DOMPurify.sanitize(svg, {
+                        USE_PROFILES: { svg: true, svgFilters: true },
+                        IN_PLACE: true,
+                        FORBID_TAGS: ["script", "foreignObject"],
+                        FORBID_ATTR: ["onload", "onclick"],
+                        ALLOWED_URI_REGEXP: /^(?:#|data:image\/(?:png|gif|jpe?g|webp);)/i,
+                    });
+                    for (const link of safeSvg.querySelectorAll("a")) link.replaceWith(...Array.from(link.childNodes));
+                    div.replaceChildren(safeSvg);
+                }
+            });
             // Center + fit the freshly-rendered diagram (GraphViewer lays it out asynchronously).
             zoomPan.onRendered();
             // One more frame: onRendered polls for a non-zero box before it fits, so the view is

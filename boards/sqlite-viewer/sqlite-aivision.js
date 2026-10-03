@@ -35,13 +35,13 @@
 //      it is signposted at every call that touches it.
 //
 // Everything here is READ-ONLY with respect to the database. The grid is not `editable`, the
-// connection is readOnly, and the save* methods write NEW files at a path the agent names.
+// connection is readOnly, and save* returns export content for the caller to write if needed.
 (() => {
     const SA = (window.SQLiteAI = window.SQLiteAI || {});
 
     // Bound on the cells one call may return. The server already caps a result at 20,000 rows, and
     // 20,000 rows of 27 columns would blow any result budget; a read truncates and says so rather
-    // than failing, and points at saveCsv() for the whole thing.
+    // than failing. saveCsv() returns server results as text without the page cell bound.
     const MAX_CELLS = 20000;
 
     const HELP = `This is a SQLite database (.db / .sqlite / .sqlite3 / .db3) open in the SQLite
@@ -55,7 +55,8 @@ ASKING THE DATABASE. query(sql) runs any SELECT and returns the rows TO YOU with
 the user is looking at. That is the main read, and SQL is the whole API: project, join, filter,
 group and aggregate in the statement rather than reading rows and post-processing them. getTables()
 lists the tables and views; getSchema(name) gives the CREATE statement and the column definitions.
-A result is bounded, so for something large use saveCsv(path, sql) and read the file.
+A result is bounded, so for something large use saveCsv(sql) to receive the CSV content directly.
+The service caps a query at 20,000 rows, so a server-truncated export may be incomplete.
 
 Values come back RAW: a SQL NULL is null, a number is a number. BLOBs are replaced with a
 "[BLOB n bytes]" placeholder by the server - binary never crosses to the page.
@@ -83,7 +84,9 @@ SHOWING THE USER. showRange(...) selects a block of cells and scrolls it into vi
 you point at what you are talking about. highlightText(text) is the other pointer: it marks the
 words wherever they appear without removing any rows, which setSearch would.
 
-Paths passed to saveCsv and saveMarkdown must be ABSOLUTE.`;
+EXPORTING. saveCsv(sql?) and saveMarkdown(sql?) return the text content to you; they do not write
+files. Omit sql to export the result on screen. If needed, write the returned content through your
+own authorized file workflow.`;
 
     const MEMBERS = [
         { name: "fileName", kind: "property", summary: "Name of the open database file." },
@@ -102,8 +105,8 @@ Paths passed to saveCsv and saveMarkdown must be ABSOLUTE.`;
         { name: "getView", kind: "method", signature: "getView()", summary: "Everything about the view the user is looking at, in one call: the query, the columns in display order, sort, filters, search text, highlight, selected cells, and how many rows the filters are hiding." },
         { name: "getSelectionText", kind: "method", signature: "getSelectionText(mode?)", summary: "The selected cells as text, without touching the clipboard. Mode: 'copy' (TSV, default), 'copyWithHeaders', 'copyAsJson', 'copyAsHtmlTable'." },
 
-        { name: "saveCsv", kind: "method", signature: "saveCsv(path, sql?)", summary: "Write a result to a CSV file at an absolute path you name - the query you pass, or the result on screen. No size bound: use this instead of query() for something too large to receive in one call.", caution: "writes a new file to disk" },
-        { name: "saveMarkdown", kind: "method", signature: "saveMarkdown(path, sql?)", summary: "Write a result to a Markdown table file at an absolute path you name.", caution: "writes a new file to disk" },
+        { name: "saveCsv", kind: "method", signature: "saveCsv(sql?)", summary: "Return a result as CSV text - the query you pass, or the result on screen. No cell-count bound; use this instead of query() for a result too large to receive in one call. The service caps results at 20,000 rows.", caution: "returns database content to you; write it yourself through your authorized file workflow if needed" },
+        { name: "saveMarkdown", kind: "method", signature: "saveMarkdown(sql?)", summary: "Return a result as a Markdown table string - the query you pass, or the result on screen.", caution: "returns database content to you; write it yourself through your authorized file workflow if needed" },
 
         { name: "runQuery", kind: "method", signature: "runQuery(sql)", summary: "Put SQL in the board's query box and run it, so the USER sees the result. Replaces what is on screen, including its sort, filters and selection.", caution: "changes what the user is looking at; runs the SQL you give it (the connection is read-only)" },
         { name: "openTable", kind: "method", signature: "openTable(name)", summary: "Browse a table or view on screen - the same thing the user does by clicking it in the Tables sidebar (SELECT * FROM it, limited to 1000 rows).", caution: "changes what the user is looking at" },
@@ -182,18 +185,6 @@ Paths passed to saveCsv and saveMarkdown must be ABSOLUTE.`;
                     + "browse a table with openTable(name).");
             }
             return grid;
-        }
-
-        function requireAbsolutePath(path, what) {
-            if (typeof path !== "string" || path.trim() === "") {
-                throw new Error("The " + what + " path is required and must be a string.");
-            }
-            const absolute = /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith("\\\\") || path.startsWith("/");
-            if (!absolute) {
-                throw new Error("The " + what + " path must be ABSOLUTE (e.g. C:\\temp\\out.csv); "
-                    + '"' + path + '" is relative and would land inside the board folder.');
-            }
-            return path;
         }
 
         // ── columns ─────────────────────────────────────────────────────────────────────────
@@ -361,8 +352,8 @@ Paths passed to saveCsv and saveMarkdown must be ABSOLUTE.`;
             if (!read.truncated) return undefined;
             return "TRUNCATED: showing the first " + read.rowCount + " of " + read.totalRows
                 + " rows (about " + (maxCells || MAX_CELLS) + " cells is the limit for one call). "
-                + "Use saveCsv(path" + (what ? ", " + what : "") + ") to write the whole thing to a "
-                + "file instead.";
+                + "Use saveCsv(" + (what || "") + ") to receive the export as CSV text; the server "
+                + "itself stops at 20,000 rows.";
         }
 
         // ── formatting ──────────────────────────────────────────────────────────────────────
@@ -813,45 +804,25 @@ Paths passed to saveCsv and saveMarkdown must be ABSOLUTE.`;
                 return grid.getSelectionText(mode || "copy");
             },
 
-            // ── writing files ───────────────────────────────────────────────────────────────
+            // ── returned exports ────────────────────────────────────────────────────────────
 
-            async saveCsv(path, sql) {
-                requireAbsolutePath(path, "CSV");
+            async saveCsv(sql) {
                 // Written with no MAX_CELLS bound — the whole point of saving is the result that
                 // was too big to return.
                 const read = sql == null
                     ? (() => { const r = requireResult(); return { sql: r.sql, columns: r.columns || [], rows: (r.rows || []).map((cells, i) => ({ row: i + 1, cells: cells })), serverTruncated: !!r.truncated }; })()
                     : await askUnbounded(sql);
                 const text = toCsv(read);
-                await P.writeFile(path, text, { encoding: "utf8" });
-                return compact({
-                    path: path,
-                    sql: read.sql,
-                    rows: read.rows.length,
-                    chars: text.length,
-                    note: read.serverTruncated
-                        ? "The database server stopped at its own 20,000-row cap, so the file is not the whole result."
-                        : undefined,
-                });
+                return text;
             },
 
-            async saveMarkdown(path, sql) {
-                requireAbsolutePath(path, "Markdown");
+            async saveMarkdown(sql) {
                 const read = sql == null
                     ? (() => { const r = requireResult(); return { sql: r.sql, columns: r.columns || [], rows: (r.rows || []).map((cells, i) => ({ row: i + 1, cells: cells })), serverTruncated: !!r.truncated }; })()
                     : await askUnbounded(sql);
                 const text = "# " + (ctx.getFileName() || "Database") + "\n\n```sql\n" + read.sql
                     + "\n```\n\n" + toMarkdown(read) + "\n";
-                await P.writeFile(path, text, { encoding: "utf8" });
-                return compact({
-                    path: path,
-                    sql: read.sql,
-                    rows: read.rows.length,
-                    chars: text.length,
-                    note: read.serverTruncated
-                        ? "The database server stopped at its own 20,000-row cap, so the file is not the whole result."
-                        : undefined,
-                });
+                return text;
             },
 
             // ── putting a query on screen ───────────────────────────────────────────────────

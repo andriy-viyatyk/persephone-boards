@@ -1,5 +1,9 @@
 # What's New
 
+## 1.1.1
+
+- Declared bridge permissions; AI CSV and Markdown exports now return content to the caller.
+
 ## 1.1.0
 
 - Rebuilt on the **av-grid** renderer (replacing Tabulator) — a smaller, faster grid that follows

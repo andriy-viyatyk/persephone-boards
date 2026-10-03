@@ -3,6 +3,10 @@
 One line per change, newest first. Keep it short. Record pending changes under a heading for
 the **next version** you'll release (the version `board-manifest.json` will be bumped to).
 
+## 1.1.1
+
+- Added explicit permissions, sanitized document rendering, and returned AiVision exports.
+
 ## 1.1.0
 
 - **An AI assistant can now read the Word document you have open.** Ask it about the document and

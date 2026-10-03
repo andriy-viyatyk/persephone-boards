@@ -153,12 +153,34 @@ async function load() {
         const b64 = await P.readFile(currentPath, { encoding: "base64" });
         const bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
 
-        const previewer = pptxPreview.init(slidesEl, {
+        const staging = document.createElement("div");
+        const previewer = pptxPreview.init(staging, {
             width: SLIDE_W,
             height: SLIDE_H,
             mode: "list", // render every slide (stacked); we own scroll + nav
         });
         await previewer.preview(bytes.buffer);
+
+        DOMPurify.sanitize(staging, {
+            IN_PLACE: true,
+            FORBID_TAGS: ["script", "iframe", "object", "embed", "foreignObject"],
+            ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|data:image\/(?:png|gif|jpe?g|webp);|blob:)/i,
+        });
+        for (const el of staging.querySelectorAll("*")) {
+            for (const attr of Array.from(el.attributes)) {
+                if (/^on/i.test(attr.name)) el.removeAttribute(attr.name);
+            }
+            for (const name of ["href", "src", "xlink:href"]) {
+                const value = el.getAttribute(name);
+                if (!value) continue;
+                const image = el.localName.toLowerCase() === "img" || el.localName.toLowerCase() === "image";
+                const safe = image
+                    ? /^(?:data:image\/(?:png|gif|jpe?g|webp);|blob:)/i.test(value)
+                    : /^(?:https?:|mailto:|tel:|#|\/)/i.test(value);
+                if (!safe) el.removeAttribute(name);
+            }
+        }
+        slidesEl.replaceChildren(...Array.from(staging.childNodes));
 
         slideEls = Array.from(slidesEl.querySelectorAll(".pptx-preview-slide-wrapper"));
         if (slideEls.length === 0) {

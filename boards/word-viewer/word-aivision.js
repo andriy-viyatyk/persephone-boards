@@ -29,8 +29,8 @@
 //      document is in the board's own DOM, so the board can scroll a phrase into the user's view
 //      and flash it — which is how an agent points at what it is talking about.
 //
-// Everything here is READ-ONLY with respect to the document. The save* methods write NEW files at
-// a path the agent names; nothing ever modifies the open .docx.
+// Everything here is READ-ONLY with respect to the document. Export methods return content to
+// the agent caller; they never write files or modify the open .docx.
 (() => {
     const WA = (window.WORDAI = window.WORDAI || {});
 
@@ -41,7 +41,7 @@ Start with getStats(). It reports the page count and the character, line, table 
 EVERY page, which is what you need to decide how to read the document: a short one can be read in
 a single getMarkdown() call, a long one should be read a few pages at a time. A call result is
 bounded (20k characters by default), so ask for a page range you can actually receive, raise
-maxLength, or use saveMarkdown() and read the file.
+maxLength, or use saveMarkdown() to receive the content.
 
 getMarkdown(from, to) is the main read and what you should use by default. Unlike a PDF, a Word
 document carries real structure, and this preserves it: headings become # levels, tables become
@@ -53,7 +53,7 @@ here - if getMarkdown returns nothing for a page, that page is genuinely empty.
 
 Pictures embedded in the document are already decoded and are listed by getImages(). To actually
 LOOK at one - a chart, a diagram, a screenshot pasted into the document - call
-saveImage(path, index) and then open that file with your own vision. There is no way to render a
+saveImage(index) and receive the image content for your own vision. There is no way to render a
 whole PAGE as a picture, and nothing here needs one, because the text is never missing.
 
 getTables(page?) returns tables as arrays of rows, which is what you want when you need the
@@ -63,8 +63,9 @@ search(query) returns page numbers with snippets - use it to locate a topic in a
 before reading those pages in full. showText(query) scrolls the USER's view to a phrase and
 flashes it, so they can see what you are referring to.
 
-Paths passed to saveMarkdown, saveText, saveImage and saveImages must be ABSOLUTE. Page numbers
-are 1-based everywhere, matching the pages the user sees on screen.`;
+Text exports are returned as strings. Image exports return { fileName, mimeType, base64 } and are
+limited to 6 MiB of combined base64 per call. Write returned content through your own authorized
+file workflow if needed. Page numbers are 1-based everywhere, matching the pages the user sees.`;
 
     const MEMBERS = [
         { name: "fileName", kind: "property", summary: "Name of the open Word document." },
@@ -83,10 +84,10 @@ are 1-based everywhere, matching the pages the user sees on screen.`;
         { name: "getImages", kind: "method", signature: "getImages()", summary: "List the pictures embedded in the document with their page, size and format. Save one with saveImage to actually look at it." },
         { name: "getMetadata", kind: "method", signature: "getMetadata()", summary: "Document properties: title, author, subject, keywords, and the created and modified dates." },
 
-        { name: "saveMarkdown", kind: "method", signature: "saveMarkdown(path, from = 1, to = pageCount)", summary: "Write a page range as Markdown to a UTF-8 file at an absolute path you name. Use it instead of getMarkdown for a document too large to receive in one call.", caution: "writes a new file to disk" },
-        { name: "saveText", kind: "method", signature: "saveText(path, from = 1, to = pageCount)", summary: "Write a page range as plain text to a UTF-8 file at an absolute path you name.", caution: "writes a new file to disk" },
-        { name: "saveImage", kind: "method", signature: "saveImage(path, index)", summary: "Write one embedded picture to an absolute path you name. THIS IS HOW YOU READ A CHART OR DIAGRAM - open the file afterwards and read it with your own vision. Index comes from getImages().", caution: "writes a new file to disk" },
-        { name: "saveImages", kind: "method", signature: "saveImages(directory)", summary: "Write every embedded picture into a directory, one file each, and return the paths.", caution: "writes several new files to disk" },
+        { name: "saveMarkdown", kind: "method", signature: "saveMarkdown(from = 1, to = pageCount)", summary: "Return a page range as Markdown. Use instead of getMarkdown for a document too large to receive in one call." },
+        { name: "saveText", kind: "method", signature: "saveText(from = 1, to = pageCount)", summary: "Return a page range as plain text." },
+        { name: "saveImage", kind: "method", signature: "saveImage(index)", summary: "Return one embedded picture as { fileName, mimeType, base64 } (up to 6 MiB). Index comes from getImages()." },
+        { name: "saveImages", kind: "method", signature: "saveImages()", summary: "Return all embedded pictures as { fileName, mimeType, base64 } objects (up to 6 MiB combined base64)." },
 
         { name: "goToPage", kind: "method", signature: "goToPage(pageNumber)", summary: "Scroll the user's view to a page, so they see the page you are talking about." },
         { name: "showText", kind: "method", signature: "showText(query, options?)", summary: "Scroll the user's view to a phrase in the document and flash it, so they can see what you are referring to. Options: { caseSensitive, occurrence }.", caution: "changes what the user is looking at" },
@@ -437,13 +438,20 @@ are 1-based everywhere, matching the pages the user sees on screen.`;
             };
         }
 
-        async function writeImage(path, entry) {
+        function imageExport(entry, fileName) {
             if (!entry.base64) {
                 throw new Error("Image " + entry.index + " is not an embedded picture "
                     + "(its source is a link, not document data), so it cannot be saved.");
             }
-            await P.writeFile(path, entry.base64, { encoding: "base64" });
-            return { ...describeImage(entry), path, note: "Open this file to read the picture with your own vision." };
+            const ext = EXTENSIONS[entry.mime] || "bin";
+            const result = { fileName: fileName || ("image-" + (entry.index + 1) + "." + ext), mimeType: entry.mime, base64: entry.base64 };
+            checkImageExportSize([result]);
+            return result;
+        }
+
+        function checkImageExportSize(images) {
+            const total = images.reduce((size, image) => size + image.base64.length, 0);
+            if (total > 6 * 1024 * 1024) throw new Error("export-result-too-large: image export exceeds 6 MiB of base64.");
         }
 
         function joinPath(directory, name) {
@@ -549,7 +557,7 @@ are 1-based everywhere, matching the pages the user sees on screen.`;
                     ? "This document contains " + totalImages + " embedded picture"
                       + (totalImages === 1 ? "" : "s") + ". Text extraction cannot read what is "
                       + "inside them - list them with getImages() and save one with "
-                      + "saveImage(path, index) to look at it."
+                      + "saveImage(index) to receive it."
                     : undefined,
             };
             return statsCache;
@@ -622,7 +630,7 @@ are 1-based everywhere, matching the pages the user sees on screen.`;
                 summary: "The Word Viewer board's live model for the open .docx document.",
                 overview: "Call getStats() first to see how big the document is, page by page.\n"
                     + "Read it with getMarkdown(from, to) - headings, tables and lists are preserved.\n"
-                    + "Locate a topic with search(query); read a chart with saveImage(path, index).",
+                    + "Locate a topic with search(query); read a chart with saveImage(index).",
                 help: HELP,
                 members: MEMBERS,
                 summarize: () => ({
@@ -761,7 +769,7 @@ are 1-based everywhere, matching the pages the user sees on screen.`;
                     count: images.length,
                     images,
                     note: images.length > 0
-                        ? "Save one with saveImage(path, index) and open the file to read it."
+                        ? "Use saveImage(index) to receive the image content."
                         : "This document has no embedded pictures.",
                 };
             },
@@ -771,27 +779,20 @@ are 1-based everywhere, matching the pages the user sees on screen.`;
                 return readMetadata();
             },
 
-            async saveMarkdown(path, from, to) {
+            async saveMarkdown(from, to) {
                 const list = requireLoaded();
-                requireAbsolutePath(path, "Markdown");
                 const { first, last } = resolveRange(list, from, to);
-                const text = contentForRange(first, last, true);
-                await P.writeFile(path, text, { encoding: "utf8" });
-                return { path, pages: [first, last], chars: text.length, lines: countLines(text) };
+                return contentForRange(first, last, true);
             },
 
-            async saveText(path, from, to) {
+            async saveText(from, to) {
                 const list = requireLoaded();
-                requireAbsolutePath(path, "text");
                 const { first, last } = resolveRange(list, from, to);
-                const text = contentForRange(first, last, false);
-                await P.writeFile(path, text, { encoding: "utf8" });
-                return { path, pages: [first, last], chars: text.length, lines: countLines(text) };
+                return contentForRange(first, last, false);
             },
 
-            async saveImage(path, index) {
+            async saveImage(index) {
                 requireLoaded();
-                requireAbsolutePath(path, "image");
                 const images = collectImages();
                 const n = Number(index);
                 if (!Number.isInteger(n) || n < 0 || n >= images.length) {
@@ -799,21 +800,21 @@ are 1-based everywhere, matching the pages the user sees on screen.`;
                         + images.length + " embedded picture" + (images.length === 1 ? "" : "s")
                         + ". Call getImages() for the list.");
                 }
-                return writeImage(path, images[n]);
+                return imageExport(images[n]);
             },
 
-            async saveImages(directory) {
+            async saveImages() {
                 requireLoaded();
-                requireAbsolutePath(directory, "images");
                 const images = collectImages();
-                const written = [];
+                const exported = [];
                 const width = String(Math.max(1, images.length)).length;
                 for (const entry of images) {
                     const ext = EXTENSIONS[entry.mime] || "bin";
                     const name = "image-" + String(entry.index + 1).padStart(width, "0") + "." + ext;
-                    written.push(await writeImage(joinPath(directory, name), entry));
+                    exported.push(imageExport(entry, name));
                 }
-                return { directory, count: written.length, files: written };
+                checkImageExportSize(exported);
+                return exported;
             },
 
             goToPage(pageNumber) {

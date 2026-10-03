@@ -1,5 +1,9 @@
 # What's new
 
+## 1.0.1
+
+- Declared the board's bridge permissions.
+
 ## 1.0.0
 
 - Selected-node detail panel with Info, Properties and Links tabs: edit a node's id, title, level and shape, and add, edit or delete its properties and links in a grid.

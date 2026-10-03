@@ -3,6 +3,14 @@
 One line per change, newest first. Keep it short. Record pending changes under a heading for
 the **next version** you'll release (the version `board-manifest.json` will be bumped to).
 
+## 1.2.2
+
+- Added explicit permissions and returned AiVision exports.
+
+## 1.2.2
+
+- Added explicit permissions and changed AiVision exports to return content to the caller.
+
 ## 1.2.1
 
 - **The grid no longer blinks while you scroll fast or drag the scrollbar.**

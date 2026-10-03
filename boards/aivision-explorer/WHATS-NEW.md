@@ -1,3 +1,7 @@
+## 1.0.6
+
+- Declared the board's required bridge permissions.
+
 ## 1.0.5
 
 - Members tab: Invoke, Read and Assign now show their result in a dialog. They used to write it into the Agent tab's **Returned value** panel — a different tab, describing a different thing, where the result was not even visible from where it was asked for. The Agent tab's own **Operate on this member** panel is unchanged.

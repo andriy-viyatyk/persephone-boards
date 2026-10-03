@@ -24,8 +24,8 @@
 //      editor's own `snapshot()` remains the way to drive the viewer's UI. `goToPage()` is here
 //      so an agent can still move the user's view.
 //
-// Everything here is READ-ONLY with respect to the PDF. The save* methods write NEW files at a
-// path the agent names; nothing ever modifies the open document.
+// Everything here is READ-ONLY with respect to the PDF. Export methods return content to the
+// agent caller; they never write files or modify the open document.
 (() => {
     const PDFAI = (window.PDFAI = window.PDFAI || {});
 
@@ -38,9 +38,10 @@ getText() call, a long one should be read a few pages at a time. A call result i
 characters by default), so ask for a page range you can actually receive, or raise maxLength.
 
 If hasTextLayer is false the PDF is a SCAN — an image of a document with no text in it. pdf.js
-does not OCR, so getText() legitimately returns nothing. Use savePageImage(path, n) instead: it
-renders that page to a PNG file at the path you name, which you can then open and read with your
-own vision. The same trick reads a figure, chart or complex table on a page that does have text.
+does not OCR, so getText() legitimately returns nothing. Use savePageImage(n) instead; it returns
+the rendered page as { fileName, mimeType, base64 }. Text is returned as strings. Image exports
+are limited to 6 MiB of combined base64 per call. Write returned content through your own
+authorized file workflow if needed. The same trick reads a figure or chart.
 
 Text can also come out WRONG rather than missing. When an embedded font carries no ToUnicode map -
 common for the labels inside charts and figures - the text extracts as meaningless symbols like
@@ -51,8 +52,7 @@ savePageImage and read the picture.
 search(query) is a plain text search over the extracted text and returns page numbers with
 snippets — use it to locate a topic in a long document before reading those pages in full.
 
-Paths passed to saveText, savePageImage and savePageImages must be ABSOLUTE. Page numbers are
-1-based everywhere, matching what the viewer shows the user.`;
+Page numbers are 1-based everywhere, matching what the viewer shows the user.`;
 
     const MEMBERS = [
         { name: "fileName", kind: "property", summary: "Name of the open PDF file." },
@@ -72,10 +72,10 @@ Paths passed to saveText, savePageImage and savePageImages must be ABSOLUTE. Pag
         { name: "getMetadata", kind: "method", signature: "getMetadata()", summary: "Full document metadata, including the raw XMP fields when the PDF carries them." },
         { name: "getPageLabels", kind: "method", signature: "getPageLabels()", summary: "The printed page labels (i, ii, 1, 2, A-1) when the PDF numbers its pages differently from their position." },
 
-        { name: "saveText", kind: "method", signature: "saveText(path, from = 1, to = pageCount)", summary: "Write the text of a page range to a UTF-8 file at an absolute path you name, and return that path. Use it instead of getText for a document too large to receive in one call.", caution: "writes a new file to disk" },
-        { name: "savePageImage", kind: "method", signature: "savePageImage(path, pageNumber, options?)", summary: "Render one page to an image file at an absolute path you name, and return the path with its size. THIS IS HOW YOU READ A SCANNED PDF - open the file afterwards and read it with your own vision. Options: { scale, format, quality }.", caution: "writes a new file to disk" },
-        { name: "savePageImages", kind: "method", signature: "savePageImages(directory, from = 1, to = pageCount, options?)", summary: "Render a range of pages into a directory, one image per page, and return the paths.", caution: "writes several new files to disk" },
-        { name: "getPageImage", kind: "method", signature: "getPageImage(pageNumber, options?)", summary: "One page as a base64 data URL. Usually far too large for a call result - prefer savePageImage, which writes a file you can open.", caution: "returns a very large string" },
+        { name: "saveText", kind: "method", signature: "saveText(from = 1, to = pageCount)", summary: "Return the text of a page range as a string. Use instead of getText for a document too large to receive in one call." },
+        { name: "savePageImage", kind: "method", signature: "savePageImage(pageNumber, options?)", summary: "Return a page image as { fileName, mimeType, base64 } (up to 6 MiB). Options: { scale, format, quality }." },
+        { name: "savePageImages", kind: "method", signature: "savePageImages(from = 1, to = pageCount, options?)", summary: "Return page images as { fileName, mimeType, base64 } objects (up to 6 MiB combined base64)." },
+        { name: "getPageImage", kind: "method", signature: "getPageImage(pageNumber, options?)", summary: "One page as a base64 data URL. Usually far too large for a call result - prefer savePageImage, which enforces the 6 MiB export limit." },
 
         { name: "goToPage", kind: "method", signature: "goToPage(pageNumber)", summary: "Scroll the user's view to a page, so they see the page you are talking about." },
         { name: "openTextPage", kind: "method", signature: "openTextPage(from = 1, to = pageCount)", summary: "Open the extracted text as a new Markdown page in Persephone, to show the user what you read.", caution: "opens a new page" },
@@ -239,7 +239,7 @@ Paths passed to saveText, savePageImage and savePageImages must be ABSOLUTE. Pag
                 pages,
                 note: pagesWithText === 0
                     ? "This PDF has no text layer - it is a scan. getText() will return nothing; "
-                      + "render pages with savePageImage(path, n) and read the images instead."
+                      + "render pages with savePageImage(n) and read the returned images instead."
                     : pagesWithText < doc.numPages
                         ? "Some pages have no text (scanned or image-only) - render those with savePageImage."
                         : undefined,
@@ -310,20 +310,16 @@ Paths passed to saveText, savePageImage and savePageImages must be ABSOLUTE. Pag
             return { pageNumber: n, dataUrl, width: canvas.width, height: canvas.height, format: format === "jpg" ? "jpeg" : format };
         }
 
-        async function writeImage(path, rendered) {
+        function imageExport(rendered, fileName) {
             const base64 = rendered.dataUrl.slice(rendered.dataUrl.indexOf(",") + 1);
-            await P.writeFile(path, base64, { encoding: "base64" });
-            // base64 inflates by 4/3; report the real file size so an agent can judge the cost.
-            const bytes = Math.floor((base64.length * 3) / 4);
-            return {
-                path,
-                page: rendered.pageNumber,
-                width: rendered.width,
-                height: rendered.height,
-                format: rendered.format,
-                bytes,
-                note: "Open this file to read the page with your own vision.",
-            };
+            const result = { fileName, mimeType: rendered.format === "jpeg" ? "image/jpeg" : "image/png", base64 };
+            checkImageExportSize([result]);
+            return result;
+        }
+
+        function checkImageExportSize(images) {
+            const total = images.reduce((size, image) => size + image.base64.length, 0);
+            if (total > 6 * 1024 * 1024) throw new Error("export-result-too-large: image export exceeds 6 MiB of base64.");
         }
 
         /** `page-3.png` for a range written into a directory. Keeps the numbering zero-padded so
@@ -370,7 +366,7 @@ Paths passed to saveText, savePageImage and savePageImages must be ABSOLUTE. Pag
                 summary: "The PDF Viewer board's live model for the open PDF document.",
                 overview: "Call getStats() first to see how big the document is, page by page.\n"
                     + "Read it with getText(from, to), or locate a topic with search(query).\n"
-                    + "If hasTextLayer is false the PDF is a scan: use savePageImage(path, n) and read the image.",
+                    + "If hasTextLayer is false the PDF is a scan: use savePageImage(n) and read the returned image.",
                 help: HELP,
                 members: MEMBERS,
                 summarize: () => ({
@@ -414,7 +410,7 @@ Paths passed to saveText, savePageImage and savePageImages must be ABSOLUTE. Pag
                 if (text.trim() === "") {
                     const scope = first === last ? "Page " + first + " has" : "Pages " + first + "-" + last + " have";
                     return scope + " no extractable text. This is normal for a scanned PDF - "
-                        + "render the pages with savePageImage(path, pageNumber) and read the images instead.";
+                        + "render the pages with savePageImage(pageNumber) and read the returned images instead.";
                 }
                 return text;
             },
@@ -492,35 +488,30 @@ Paths passed to saveText, savePageImage and savePageImages must be ABSOLUTE. Pag
                 return (await doc.getPageLabels()) || null;
             },
 
-            async saveText(path, from, to) {
+            async saveText(from, to) {
                 const doc = requireDoc();
-                requireAbsolutePath(path, "text");
                 const { first, last } = resolveRange(doc, from, to);
-                const text = await textForRange(first, last);
-                await P.writeFile(path, text, { encoding: "utf8" });
-                return { path, pages: [first, last], chars: text.length, lines: countLines(text) };
+                return textForRange(first, last);
             },
 
-            async savePageImage(path, pageNumber, options) {
+            async savePageImage(pageNumber, options) {
                 requireDoc();
-                requireAbsolutePath(path, "image");
                 const rendered = await renderPage(pageNumber, options);
-                return writeImage(path, rendered);
+                return imageExport(rendered, pageFileName(rendered.pageNumber, requireDoc().numPages, rendered.format));
             },
 
-            async savePageImages(directory, from, to, options) {
+            async savePageImages(from, to, options) {
                 const doc = requireDoc();
-                requireAbsolutePath(directory, "images");
                 const { first, last } = resolveRange(doc, from, to);
                 const opts = options || {};
                 const format = String(opts.format || "png").toLowerCase();
-                const written = [];
+                const exported = [];
                 for (let n = first; n <= last; n++) {
                     const rendered = await renderPage(n, opts);
-                    const target = joinPath(directory, pageFileName(n, doc.numPages, format === "jpg" ? "jpeg" : format));
-                    written.push(await writeImage(target, rendered));
+                    exported.push(imageExport(rendered, pageFileName(n, doc.numPages, format === "jpg" ? "jpeg" : format)));
                 }
-                return { directory, count: written.length, files: written };
+                checkImageExportSize(exported);
+                return exported;
             },
 
             async getPageImage(pageNumber, options) {

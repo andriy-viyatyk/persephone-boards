@@ -1,5 +1,9 @@
 # What's New
 
+## 1.1.1
+
+- Added explicit permissions, a same-origin PDF.js fallback with scripting and dynamic evaluation disabled, and returned AiVision exports.
+
 ## 1.1.0
 
 - **An AI assistant can now read the PDF you have open.** Ask it about the document and it reads

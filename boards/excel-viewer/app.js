@@ -141,6 +141,14 @@ function buildGrid(ws) {
                 const text = row[displayKey];
                 return text == null ? "" : text;
             },
+            // Never let workbook values become markup in av-grid. Returning a node with
+            // textContent bypasses its optional HTML-string renderer path.
+            render: ({ row }) => {
+                const cellText = document.createElement("span");
+                const text = row[displayKey];
+                cellText.textContent = text == null ? "" : String(text);
+                return cellText;
+            },
         });
     }
 

@@ -40,8 +40,8 @@
 //      `-` items indented by their level, and the guide says so. Indent LEVEL is exact: the
 //      renderer emits `padding-left` of 36px per level.
 //
-// Everything here is READ-ONLY with respect to the deck. The save* methods write NEW files at a
-// path the agent names; nothing ever modifies the open .pptx.
+// Everything here is READ-ONLY with respect to the deck. Export methods return content to the
+// agent caller; they never write files or modify the open .pptx.
 (() => {
     const PA = (window.PPTXAI = window.PPTXAI || {});
 
@@ -67,16 +67,17 @@ chart data. Do NOT try to read figures off a chart's rendered axis labels - the 
 only tick marks and a placeholder title, while getCharts has the actual numbers.
 
 Pictures embedded in the deck are listed by getImages(). To actually LOOK at one - a diagram, a
-screenshot, a SmartArt graphic - call saveImage(path, index) and open that file with your own
-vision. This renderer is approximate for SmartArt and complex shapes, so when a slide's meaning
-looks like it lives in a picture, read the picture.
+screenshot, a SmartArt graphic - call saveImage(index) to receive the image content. This renderer
+is approximate for SmartArt and complex shapes, so when a slide's meaning looks like it lives in
+a picture, read the picture.
 
 getOutline() gives every slide's title in order - the deck's shape before you read it.
 search(query) returns slide numbers with snippets. showText(query) scrolls the USER's view to a
 phrase and flashes it, so they can see what you are referring to.
 
-Paths passed to saveMarkdown, saveText, saveImage and saveImages must be ABSOLUTE. Slide numbers
-are 1-based everywhere, matching the counter the user sees on screen.`;
+Text exports are returned as strings and image exports return { fileName, mimeType, base64 } (up to
+6 MiB combined base64). Write returned content through your own authorized file workflow if needed.
+Slide numbers are 1-based everywhere, matching the counter the user sees on screen.`;
 
     const MEMBERS = [
         { name: "fileName", kind: "property", summary: "Name of the open PowerPoint deck." },
@@ -97,10 +98,10 @@ are 1-based everywhere, matching the counter the user sees on screen.`;
         { name: "getImages", kind: "method", signature: "getImages()", summary: "List the pictures embedded in the deck with their slide, size and format. Save one with saveImage to actually look at it." },
         { name: "getMetadata", kind: "method", signature: "getMetadata()", summary: "Deck properties: title, author, company, and the created and modified dates." },
 
-        { name: "saveMarkdown", kind: "method", signature: "saveMarkdown(path, from = 1, to = slideCount, options?)", summary: "Write a slide range as Markdown to a UTF-8 file at an absolute path you name. Use it instead of getMarkdown for a deck too large to receive in one call.", caution: "writes a new file to disk" },
-        { name: "saveText", kind: "method", signature: "saveText(path, from = 1, to = slideCount, options?)", summary: "Write a slide range as plain text to a UTF-8 file at an absolute path you name.", caution: "writes a new file to disk" },
-        { name: "saveImage", kind: "method", signature: "saveImage(path, index)", summary: "Write one embedded picture to an absolute path you name. THIS IS HOW YOU READ A DIAGRAM OR SMARTART GRAPHIC - open the file afterwards and read it with your own vision. Index comes from getImages().", caution: "writes a new file to disk" },
-        { name: "saveImages", kind: "method", signature: "saveImages(directory)", summary: "Write every embedded picture into a directory, one file each, and return the paths.", caution: "writes several new files to disk" },
+        { name: "saveMarkdown", kind: "method", signature: "saveMarkdown(from = 1, to = slideCount, options?)", summary: "Return a slide range as Markdown. Use instead of getMarkdown for a deck too large to receive in one call." },
+        { name: "saveText", kind: "method", signature: "saveText(from = 1, to = slideCount, options?)", summary: "Return a slide range as plain text." },
+        { name: "saveImage", kind: "method", signature: "saveImage(index)", summary: "Return one embedded picture as { fileName, mimeType, base64 } (up to 6 MiB). Index comes from getImages()." },
+        { name: "saveImages", kind: "method", signature: "saveImages()", summary: "Return embedded pictures as { fileName, mimeType, base64 } objects (up to 6 MiB combined base64)." },
 
         { name: "goToSlide", kind: "method", signature: "goToSlide(slideNumber)", summary: "Scroll the user's view to a slide, so they see the slide you are talking about." },
         { name: "showText", kind: "method", signature: "showText(query, options?)", summary: "Scroll the user's view to a phrase on a slide and flash it, so they can see what you are referring to. Options: { caseSensitive, occurrence }.", caution: "changes what the user is looking at" },
@@ -386,13 +387,20 @@ are 1-based everywhere, matching the counter the user sees on screen.`;
             };
         }
 
-        async function writeImage(path, entry) {
+        function imageExport(entry, fileName) {
             if (!entry.base64) {
                 throw new Error("Image " + entry.index + " is not an embedded picture "
                     + "(its source is a link, not deck data), so it cannot be saved.");
             }
-            await P.writeFile(path, entry.base64, { encoding: "base64" });
-            return { ...describeImage(entry), path, note: "Open this file to read the picture with your own vision." };
+            const ext = EXTENSIONS[entry.mime] || "bin";
+            const result = { fileName: fileName || ("image-" + (entry.index + 1) + "." + ext), mimeType: entry.mime, base64: entry.base64 };
+            checkImageExportSize([result]);
+            return result;
+        }
+
+        function checkImageExportSize(images) {
+            const total = images.reduce((size, image) => size + image.base64.length, 0);
+            if (total > 6 * 1024 * 1024) throw new Error("export-result-too-large: image export exceeds 6 MiB of base64.");
         }
 
         function joinPath(directory, name) {
@@ -917,7 +925,7 @@ are 1-based everywhere, matching the counter the user sees on screen.`;
                     count: images.length,
                     images,
                     note: images.length > 0
-                        ? "Save one with saveImage(path, index) and open the file to read it."
+                        ? "Use saveImage(index) to receive the image content."
                         : "This deck has no embedded pictures.",
                 };
             },
@@ -927,29 +935,24 @@ are 1-based everywhere, matching the counter the user sees on screen.`;
                 return readMetadata();
             },
 
-            async saveMarkdown(path, from, to, options) {
+            async saveMarkdown(from, to, options) {
                 const list = requireLoaded();
-                requireAbsolutePath(path, "Markdown");
                 const { first, last } = resolveRange(list, from, to);
                 const withNotes = !(options && options.notes === false);
                 const text = contentForRange(first, last, true, withNotes, await packageSidecar());
-                await P.writeFile(path, text, { encoding: "utf8" });
-                return { path, slides: [first, last], chars: text.length, lines: countLines(text) };
+                return text;
             },
 
-            async saveText(path, from, to, options) {
+            async saveText(from, to, options) {
                 const list = requireLoaded();
-                requireAbsolutePath(path, "text");
                 const { first, last } = resolveRange(list, from, to);
                 const withNotes = !(options && options.notes === false);
                 const text = contentForRange(first, last, false, withNotes, await packageSidecar());
-                await P.writeFile(path, text, { encoding: "utf8" });
-                return { path, slides: [first, last], chars: text.length, lines: countLines(text) };
+                return text;
             },
 
-            async saveImage(path, index) {
+            async saveImage(index) {
                 requireLoaded();
-                requireAbsolutePath(path, "image");
                 const images = collectImages();
                 const n = Number(index);
                 if (!Number.isInteger(n) || n < 0 || n >= images.length) {
@@ -957,21 +960,21 @@ are 1-based everywhere, matching the counter the user sees on screen.`;
                         + images.length + " embedded picture" + (images.length === 1 ? "" : "s")
                         + ". Call getImages() for the list.");
                 }
-                return writeImage(path, images[n]);
+                return imageExport(images[n]);
             },
 
-            async saveImages(directory) {
+            async saveImages() {
                 requireLoaded();
-                requireAbsolutePath(directory, "images");
                 const images = collectImages();
-                const written = [];
+                const exported = [];
                 const width = String(Math.max(1, images.length)).length;
                 for (const entry of images) {
                     const ext = EXTENSIONS[entry.mime] || "bin";
                     const name = "image-" + String(entry.index + 1).padStart(width, "0") + "." + ext;
-                    written.push(await writeImage(joinPath(directory, name), entry));
+                    exported.push(imageExport(entry, name));
                 }
-                return { directory, count: written.length, files: written };
+                checkImageExportSize(exported);
+                return exported;
             },
 
             goToSlide(slideNumber) {

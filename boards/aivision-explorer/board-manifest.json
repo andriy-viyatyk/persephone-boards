@@ -4,7 +4,21 @@
   "description": "Explore Persephone's live AiVision model with descriptor-safe tree browsing, help, events, and explicit member operations.",
   "author": "Persephone Boards",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.0.5",
-  "minAppVersion": "5.0.3",
+  "version": "1.0.6",
+  "minAppVersion": "5.0.7",
+  "minBridgeVersion": "1.30.0",
+  "permissions": {
+    "execute": false,
+    "service": false,
+    "fileSystem": false,
+    "openExternal": false,
+    "appScripting": true,
+    "network": false,
+    "clipboardRead": false,
+    "camera": false,
+    "microphone": false,
+    "geolocation": false,
+    "notifications": false
+  },
   "screenshot": "screenshot.png"
 }

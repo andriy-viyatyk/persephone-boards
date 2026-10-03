@@ -157,6 +157,7 @@
 
     <!-- Vendored renderer (offline; CSP forbids remote network). The UMD build is self-contained
          (bundles JSZip + echarts + lodash), so it's the only library file needed. -->
+    <script src="./lib/dompurify/purify.min.js"></script>
     <script src="./lib/pptx-preview.umd.js"></script>
     <!-- JSZip is vendored SEPARATELY (pptx-preview bundles its own internally and exposes no
          global): the agent surface re-opens the .pptx to read speaker notes, chart data and

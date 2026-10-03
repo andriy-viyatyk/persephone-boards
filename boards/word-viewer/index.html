@@ -162,6 +162,7 @@
     <!-- Vendored libraries (offline; CSP forbids remote network). JSZip FIRST — docx-preview's
          UMD wrapper reads the global `JSZip`; then docx-preview exposes the global `docx`. -->
     <script src="./lib/jszip.min.js"></script>
+    <script src="./lib/dompurify/purify.min.js"></script>
     <script src="./lib/docx-preview.min.js"></script>
     <!-- The AiVision agent surface, before app.js: it only defines window.WORDAI, and app.js
          constructs the model from it while evaluating. -->

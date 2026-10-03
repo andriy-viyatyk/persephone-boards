@@ -3,6 +3,10 @@
 One line per change, newest first. Keep it short. Record pending changes under a heading for
 the **next version** you'll release (the version `board-manifest.json` will be bumped to).
 
+## 1.2.1
+
+- Declared the board's bridge permissions.
+
 ## 1.2.0
 
 - Ships user, format, and agent guides for the Todo board.

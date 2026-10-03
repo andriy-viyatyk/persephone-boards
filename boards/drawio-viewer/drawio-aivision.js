@@ -22,7 +22,7 @@
 //      the agent opens with its own vision. `getStats()` says when a page needs that.
 //
 // Everything here is read-only with respect to the diagram: this board never writes content
-// back to the host. The save* methods write NEW files at a path the agent names.
+// back to the host. Export methods return content to the agent caller.
 (() => {
     const DrawioAI = (window.DrawioAI = window.DrawioAI || {});
 
@@ -41,8 +41,10 @@ and far clearer than the XML. getShapes()/getConnections() give the same thing s
 ids and geometry, when you need to compute over it.
 
 If a page reports textChars: 0 it is a PICTURE - shapes and arrows with no labels, or an icon
-layout. There is nothing to read. Call savePageImage(path, page) and open the PNG with your own
-vision. Do the same whenever the answer depends on colour, icons or spatial arrangement rather
+layout. There is nothing to read. Call savePageImage(page); it returns { fileName, mimeType,
+base64 }. Image exports are limited to 6 MiB of combined base64 per call. savePageSvg returns SVG
+text. Write returned content through your own authorized file workflow if needed. Do the same
+whenever the answer depends on colour, icons or spatial arrangement rather
 than on the words: the labels alone do not tell you that two boxes are inside the same dashed
 region, and the image does.
 
@@ -74,9 +76,9 @@ it is how you point, instead of describing where to look.`;
         { name: "getXml", kind: "method", signature: "getXml(page?)", summary: "The DECOMPRESSED mxGraphModel XML of a page, or of the whole file when called with \"all\". This is what the file would contain if it were not compressed.", caution: "can be large - check getStats() first" },
         { name: "getView", kind: "method", signature: "getView()", summary: "What is on screen right now: the page, the zoom, the diagram's natural size, and which shape (if any) is ringed." },
 
-        { name: "savePageImage", kind: "method", signature: "savePageImage(path, page?, options?)", summary: "Render a page to a PNG file at an absolute path you name, and return the path and size. THIS IS HOW YOU READ A DIAGRAM THAT HAS NO TEXT - open the file afterwards and look at it. Renders off screen, so it does not disturb the user's view. Options: { scale }.", caution: "writes a new file to disk" },
-        { name: "savePageSvg", kind: "method", signature: "savePageSvg(path, page?)", summary: "Save a page as a vector SVG file at an absolute path you name. Prefer savePageImage when you intend to look at it yourself.", caution: "writes a new file to disk" },
-        { name: "savePageImages", kind: "method", signature: "savePageImages(directory, options?)", summary: "Render every page into a directory, one PNG per page, and return the paths.", caution: "writes several new files to disk" },
+        { name: "savePageImage", kind: "method", signature: "savePageImage(page?, options?)", summary: "Return a page as { fileName, mimeType, base64 } (up to 6 MiB). Options: { scale }. Renders off screen." },
+        { name: "savePageSvg", kind: "method", signature: "savePageSvg(page?)", summary: "Return a page as vector SVG text." },
+        { name: "savePageImages", kind: "method", signature: "savePageImages(options?)", summary: "Return every page as PNG objects (up to 6 MiB combined base64)." },
 
         { name: "goToPage", kind: "method", signature: "goToPage(page)", summary: "Switch the page tab the user is looking at. Accepts a 1-based number or a page name." },
         { name: "focusShape", kind: "method", signature: "focusShape(ref, options?)", summary: "POINT AT SOMETHING: zoom to a shape and draw a ring around it on screen, switching pages if needed. Pass an id or the shape's text. Options: { zoom, message }." },
@@ -516,17 +518,15 @@ it is how you point, instead of describing where to look.`;
             return ctx.renderPagePng(page.number - 1, scale);
         }
 
-        function imageResult(path, rendered, page) {
-            const bytes = Math.floor((rendered.base64.length * 3) / 4);
-            return compact({
-                path,
-                page: page.number,
-                pageName: page.name,
-                width: rendered.width,
-                height: rendered.height,
-                bytes,
-                note: "Open this file to read the diagram with your own vision.",
-            });
+        function imageExport(fileName, rendered) {
+            const result = { fileName, mimeType: "image/png", base64: rendered.base64 };
+            checkImageExportSize([result]);
+            return result;
+        }
+
+        function checkImageExportSize(images) {
+            const total = images.reduce((size, image) => size + image.base64.length, 0);
+            if (total > 6 * 1024 * 1024) throw new Error("export-result-too-large: image export exceeds 6 MiB of base64.");
         }
 
         function joinPath(directory, name) {
@@ -599,7 +599,7 @@ it is how you point, instead of describing where to look.`;
                 summary: "The DrawIO Viewer board's live model of the open .drawio diagram.",
                 overview: "Call getStats() first: pages, shape and connection counts, and how much text each page has.\n"
                     + "describe(page) is the main read — shapes in reading order and the connections as \"A -> B\".\n"
-                    + "A page with textChars 0 is a picture: savePageImage(path, page) and read it with your own vision.\n"
+                    + "A page with textChars 0 is a picture: use savePageImage(page) to receive it.\n"
                     + "focusShape(ref) zooms to a shape and rings it, so the user can see what you mean.",
                 help: HELP,
                 members: [...MEMBERS, ...elementParts.members],
@@ -666,7 +666,7 @@ it is how you point, instead of describing where to look.`;
                     out.note = "Page" + (empty.length === 1 ? " " : "s ") + empty.join(", ")
                         + " carr" + (empty.length === 1 ? "ies" : "y") + " no label text at all — "
                         + "shapes and arrows only. There is nothing to read there: render with "
-                        + "savePageImage(path, page) and look at the image.";
+                        + "savePageImage(page) and look at the returned image.";
                 }
                 if (out.compressed) {
                     out.compressedNote = "This file stores its pages compressed, so reading it from "
@@ -720,7 +720,7 @@ it is how you point, instead of describing where to look.`;
                 const text = parts.join("\n");
                 if (text.trim() === "") {
                     return "This diagram has no label text at all — it is a picture. "
-                        + "Render it with savePageImage(path, page) and read the image instead.";
+                        + "Render it with savePageImage(page) and read the returned image instead.";
                 }
                 return bound(text);
             },
@@ -790,33 +790,27 @@ it is how you point, instead of describing where to look.`;
                 });
             },
 
-            async savePageImage(path, page, options) {
+            async savePageImage(page, options) {
                 const p = resolvePage(page);
-                requireAbsolutePath(path, "image");
                 const rendered = await renderToPng(p, options);
-                await P.writeFile(path, rendered.base64, { encoding: "base64" });
-                return imageResult(path, rendered, p);
+                return imageExport(pageFileName(p, model().pages.length, "png"), rendered);
             },
 
-            async savePageSvg(path, page) {
+            async savePageSvg(page) {
                 const p = resolvePage(page);
-                requireAbsolutePath(path, "SVG");
                 const svg = await ctx.renderPageSvg(p.number - 1);
-                await P.writeFile(path, svg.text, { encoding: "utf8" });
-                return { path, page: p.number, pageName: p.name, width: svg.width, height: svg.height, chars: svg.text.length };
+                return svg.text;
             },
 
-            async savePageImages(directory, options) {
+            async savePageImages(options) {
                 const pages = model().pages;
-                requireAbsolutePath(directory, "images");
-                const files = [];
+                const exported = [];
                 for (const p of pages) {
                     const rendered = await renderToPng(p, options);
-                    const target = joinPath(directory, pageFileName(p, pages.length, "png"));
-                    await P.writeFile(target, rendered.base64, { encoding: "base64" });
-                    files.push(imageResult(target, rendered, p));
+                    exported.push(imageExport(pageFileName(p, pages.length, "png"), rendered));
                 }
-                return { directory, count: files.length, files };
+                checkImageExportSize(exported);
+                return exported;
             },
 
             async goToPage(page) {

@@ -204,8 +204,31 @@ async function load() {
             type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         });
 
-        // Render body + inject styles both into #doc so docx-preview's CSS stays scoped there.
-        await docx.renderAsync(blob, docEl, docEl, RENDER_OPTIONS);
+        // docx-preview creates nodes with DOM APIs (its only innerHTML values are constant
+        // layout spacers); staging in this document is safe provided it is never attached first.
+        const staging = document.createElement("div");
+        await docx.renderAsync(blob, staging, staging, RENDER_OPTIONS);
+        DOMPurify.sanitize(staging, {
+            IN_PLACE: true,
+            FORBID_TAGS: ["script", "iframe", "object", "embed", "foreignObject"],
+            ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|data:image\/(?:png|gif|jpe?g|webp);|blob:)/i,
+        });
+        for (const el of staging.querySelectorAll("*")) {
+            for (const attr of Array.from(el.attributes)) {
+                if (/^on/i.test(attr.name)) el.removeAttribute(attr.name);
+            }
+            for (const name of ["href", "src", "xlink:href"]) {
+                const value = el.getAttribute(name);
+                if (!value) continue;
+                const tag = el.localName.toLowerCase();
+                const image = tag === "img" || tag === "image";
+                const safe = image
+                    ? /^(?:data:image\/(?:png|gif|jpe?g|webp);|blob:)/i.test(value)
+                    : /^(?:https?:|mailto:|tel:|#|\/)/i.test(value);
+                if (!safe) el.removeAttribute(name);
+            }
+        }
+        docEl.replaceChildren(...Array.from(staging.childNodes));
         hideState();
         zoomCtl.onRendered();
         currentBytes = bytes;

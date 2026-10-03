@@ -167,14 +167,22 @@ async function probeWasm() {
 }
 
 function renderDiagnostics(rows) {
-    const cells = rows.map((r) => {
-        const verdict = r.ok ? '<span class="ok">works</span>' : '<span class="fail">blocked</span>';
-        return "<tr><th>" + r.label + "</th><td>" + verdict + "</td><td>" + r.note + "</td></tr>";
-    }).join("");
-    const violationRows = violations.length
-        ? "<tr><th>CSP violations</th><td colspan=\"2\">" + violations.join("<br>") + "</td></tr>"
-        : "";
-    diagnosticsEl.innerHTML = "<table>" + cells + violationRows + "</table>";
+    const table = document.createElement("table");
+    const appendRow = (label, status, note) => {
+        const row = document.createElement("tr");
+        const heading = document.createElement("th");
+        const verdict = document.createElement("td");
+        const detail = document.createElement("td");
+        heading.textContent = label;
+        verdict.textContent = status;
+        verdict.className = status === "works" ? "ok" : "fail";
+        detail.textContent = note;
+        row.append(heading, verdict, detail);
+        table.appendChild(row);
+    };
+    for (const r of rows) appendRow(r.label, r.ok ? "works" : "blocked", r.note);
+    if (violations.length) appendRow("CSP violations", "blocked", violations.join("\n"));
+    diagnosticsEl.replaceChildren(table);
 }
 
 /** Escape a string for safe interpolation into the diagnostics table. */
@@ -190,10 +198,10 @@ async function runDiagnostics(frameLoaded) {
         {
             label: "Nested iframe (frame-src)",
             ok: frameLoaded.ok,
-            note: escapeHtml(frameLoaded.note),
+            note: frameLoaded.note,
         },
-        { label: "pdf.js worker (worker-src)", ok: worker.ok, note: escapeHtml(worker.note) },
-        { label: "WebAssembly (wasm-unsafe-eval)", ok: wasm.ok, note: escapeHtml(wasm.note) },
+        { label: "pdf.js worker (worker-src)", ok: worker.ok, note: worker.note },
+        { label: "WebAssembly (wasm-unsafe-eval)", ok: wasm.ok, note: wasm.note },
     ];
     renderDiagnostics(rows);
     // Surface the whole verdict in one place for the spike write-up.
@@ -318,7 +326,14 @@ async function main() {
         const readMs = Math.round(performance.now() - startedRead);
 
         const startedOpen = performance.now();
-        await frameResult.win.PDFViewerApplication.open({ data: bytes });
+        // The same-origin fallback is required because board:// responses have no
+        // Access-Control-Allow-Origin header for an opaque sandbox origin's module imports.
+        // Disable PDF JavaScript and dynamic evaluation in this bridge-bearing child frame.
+        await frameResult.win.PDFViewerApplication.open({
+            data: bytes,
+            isEvalSupported: false,
+            enableScripting: false,
+        });
         const openMs = Math.round(performance.now() - startedOpen);
 
         hideStatus();

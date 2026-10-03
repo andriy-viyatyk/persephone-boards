@@ -4,9 +4,9 @@ One line per change, newest first. Keep it short. Record pending changes under a
 the **next version** you'll release (the version `board-manifest.json` will be bumped to) — so
 the number is decided up front and nothing needs renaming at release time.
 
-## 1.1.1
+## 1.1.2
 
-- Added explicit permissions, safe static rendering, and returned AiVision exports.
+- Fixed blank diagrams: the post-render SVG cleanup no longer strips shape geometry and labels.
 
 ## 1.1.1
 

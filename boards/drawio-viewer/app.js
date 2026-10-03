@@ -405,6 +405,28 @@ function sanitizePageXml(pageXml) {
     return new XMLSerializer().serializeToString(xml);
 }
 
+// Clean GraphViewer's generated SVG in place. Not DOMPurify: its SVG profile strips the
+// geometry (x/y/width/height/transform) and the foreignObject labels, leaving a blank diagram.
+// Labels are already sanitized in sanitizePageXml; this drops anything active that remains.
+const SAFE_URI = /^(?:#|data:image\/(?:png|gif|jpe?g|webp);)/i;
+function sanitizeRenderedSvg(svg) {
+    for (const node of Array.from(svg.querySelectorAll("*"))) {
+        const tag = node.localName.toLowerCase();
+        if (["script", "iframe", "object", "embed"].includes(tag)) {
+            node.remove();
+            continue;
+        }
+        for (const attr of Array.from(node.attributes)) {
+            const name = attr.name.toLowerCase();
+            if (name.startsWith("on")
+                || ((name === "href" || name.endsWith(":href") || name === "src") && !SAFE_URI.test(attr.value.trim()))) {
+                node.removeAttributeNode(attr);
+            }
+        }
+        if (tag === "a") node.replaceWith(...Array.from(node.childNodes));
+    }
+}
+
 function renderPage(pageXml) {
     // Drop any previously-rendered viewer, then hand the page XML to GraphViewer.
     // setAttribute + JSON.stringify avoids manual HTML-attribute escaping of the XML.
@@ -439,17 +461,7 @@ function renderPage(pageXml) {
             window.GraphViewer.createViewerForElement(div, (viewer) => {
                 currentViewer = viewer;
                 const svg = div.querySelector("svg");
-                if (svg) {
-                    const safeSvg = DOMPurify.sanitize(svg, {
-                        USE_PROFILES: { svg: true, svgFilters: true },
-                        IN_PLACE: true,
-                        FORBID_TAGS: ["script", "foreignObject"],
-                        FORBID_ATTR: ["onload", "onclick"],
-                        ALLOWED_URI_REGEXP: /^(?:#|data:image\/(?:png|gif|jpe?g|webp);)/i,
-                    });
-                    for (const link of safeSvg.querySelectorAll("a")) link.replaceWith(...Array.from(link.childNodes));
-                    div.replaceChildren(safeSvg);
-                }
+                if (svg) sanitizeRenderedSvg(svg);
             });
             // Center + fit the freshly-rendered diagram (GraphViewer lays it out asynchronously).
             zoomPan.onRendered();

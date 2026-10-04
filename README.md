@@ -4,6 +4,8 @@ Published **boards** (custom editors / viewers) for
 [Persephone](https://github.com/andriy-viyatyk/persephone) — installable from inside the app
 via its Published Boards catalog.
 
+**Browse the catalog online:** [andriy-viyatyk.github.io/boards](https://andriy-viyatyk.github.io/boards/) — every published board with its screenshot or demo, version and install notes.
+
 ## What this repo is
 
 This repository is the **catalog source** for Persephone's board installer. Persephone

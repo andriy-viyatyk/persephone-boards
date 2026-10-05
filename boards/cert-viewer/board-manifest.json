@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "name": "Certificate Viewer",
+  "description": "Offline, read-only inspection of X.509 certificates, requests, and certificate bundles.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "5.0.8",
+  "minBridgeVersion": "1.32.0",
+  "permissions": {
+    "execute": false,
+    "service": false,
+    "fileSystem": false,
+    "openExternal": false,
+    "appScripting": false,
+    "network": false,
+    "clipboardRead": false,
+    "camera": false,
+    "microphone": false,
+    "geolocation": false,
+    "notifications": false
+  },
+  "screenshot": "screenshot.png",
+  "fileMasks": [
+    "*.cer",
+    "*.crt",
+    "*.der",
+    "*.pem",
+    "*.pfx",
+    "*.p12",
+    "*.p7b",
+    "*.p7c"
+  ],
+  "editorPriority": 100,
+  "editorName": "Certificate Viewer",
+  "editorKind": "simple"
+}

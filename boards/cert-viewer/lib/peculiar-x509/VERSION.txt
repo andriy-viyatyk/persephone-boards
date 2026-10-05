@@ -1,0 +1,5 @@
+Package: @peculiar/x509 2.1.0
+Source: https://unpkg.com/@peculiar/x509@2.1.0/build/x509.js
+Bundle: standalone browser UMD build; exposes window.x509
+License: MIT (see LICENSE)
+Bundle size: 222,828 bytes

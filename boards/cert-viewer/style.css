@@ -1,0 +1,345 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    color: var(--p-text);
+    background: var(--p-bg);
+    font-family: system-ui, sans-serif;
+    font-size: var(--p-font-base, 13px);
+}
+
+button,
+input {
+    font: inherit;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+.muted,
+.note {
+    color: var(--p-text-muted);
+}
+
+.main {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
+.state {
+    margin: auto;
+    max-width: 620px;
+    padding: 32px;
+    color: var(--p-text-muted);
+    white-space: pre-wrap;
+    text-align: center;
+}
+
+.state.error {
+    color: var(--p-error);
+}
+
+.report {
+    width: 100%;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(210px, 275px) minmax(0, 1fr);
+    /* One row the height of the board, so the list and the details each scroll on their own. */
+    grid-template-rows: minmax(0, 1fr);
+}
+
+.cert-list-pane {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border-right: 1px solid var(--p-border);
+}
+
+.section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 3px 2px 8px;
+    border-bottom: 1px solid var(--p-border);
+}
+
+.cert-list {
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.cert-option {
+    width: 100%;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 9px 10px;
+    border: 1px solid transparent;
+    border-radius: var(--p-radius-md);
+    color: var(--p-text);
+    background: transparent;
+    cursor: pointer;
+}
+
+.cert-option:hover {
+    background: var(--p-hover);
+}
+
+.cert-option.selected {
+    border-color: var(--p-accent);
+    background: var(--p-tree-selection);
+}
+
+.cert-option-title {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.cert-option-sub {
+    color: var(--p-text-muted);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+.note {
+    font-size: 12px;
+    line-height: 1.5;
+    margin: 4px 0;
+}
+
+.detail-pane {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.selection-title {
+    padding: 13px 18px 9px;
+    color: var(--p-text-strong);
+    font-size: 16px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.tabs {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--p-border);
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.tab {
+    border: 0;
+    border-bottom: 2px solid transparent;
+    padding: 8px 11px 7px;
+    color: var(--p-text-muted);
+    background: transparent;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.tab:hover {
+    color: var(--p-text);
+    background: var(--p-hover);
+}
+
+.tab.active {
+    color: var(--p-accent);
+    border-bottom-color: var(--p-accent);
+}
+
+.panel {
+    min-height: 0;
+    overflow: auto;
+    padding: 16px 18px 28px;
+}
+
+.card {
+    margin: 0 0 12px;
+    padding: 13px 14px;
+    border: 1px solid var(--p-border);
+    border-radius: var(--p-radius-md);
+}
+
+.card h3 {
+    margin: 0 0 10px;
+    color: var(--p-text-strong);
+    font-size: 13px;
+}
+
+.kv {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.kv th,
+.kv td {
+    padding: 7px 8px;
+    border-top: 1px solid var(--p-border);
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+}
+
+.kv tr:first-child th,
+.kv tr:first-child td {
+    border-top: 0;
+}
+
+.kv th {
+    width: 190px;
+    color: var(--p-text-muted);
+    font-weight: 500;
+}
+
+.value {
+    color: var(--p-text);
+    white-space: pre-wrap;
+}
+
+.mono {
+    font-family: var(--p-font-mono, ui-monospace, monospace);
+}
+
+.copy-btn {
+    margin-left: 7px;
+    padding: 2px 6px;
+    border: 1px solid var(--p-border);
+    border-radius: var(--p-radius-sm);
+    color: var(--p-text-muted);
+    background: var(--p-bg);
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.copy-btn:hover {
+    color: var(--p-accent);
+    border-color: var(--p-accent);
+}
+
+.status-expired {
+    color: var(--p-error);
+    font-weight: 600;
+}
+
+.status-soon {
+    color: var(--p-warning);
+    font-weight: 600;
+}
+
+.status-good {
+    color: var(--p-success);
+}
+
+.extension {
+    margin: 0 0 10px;
+    padding: 11px 12px;
+    border: 1px solid var(--p-border);
+    border-radius: var(--p-radius-md);
+}
+
+.extension h3 {
+    margin: 0 0 7px;
+    font-size: 12px;
+    color: var(--p-text-strong);
+}
+
+.extension pre,
+.raw {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--p-text-muted);
+    font-size: 12px;
+}
+
+dialog {
+    width: min(430px, calc(100vw - 32px));
+    border: 1px solid var(--p-border);
+    border-radius: var(--p-radius-lg, 8px);
+    padding: 20px;
+    color: var(--p-text);
+    background: var(--p-panel);
+    box-shadow: var(--p-shadow);
+}
+
+dialog::backdrop {
+    background: var(--p-overlay);
+}
+
+dialog h2 {
+    margin: 0 0 8px;
+    font-size: 16px;
+}
+
+dialog p {
+    color: var(--p-text-muted);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+dialog label {
+    display: block;
+    margin: 14px 0 5px;
+}
+
+dialog input {
+    width: 100%;
+}
+
+.password-error {
+    min-height: 18px;
+    margin-top: 7px;
+    color: var(--p-error);
+    font-size: 12px;
+}
+
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+@media (max-width: 720px) {
+    .report {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(130px, 32vh) minmax(0, 1fr);
+    }
+
+    .cert-list-pane {
+        border-right: 0;
+        border-bottom: 1px solid var(--p-border);
+    }
+
+    .cert-list {
+        flex-direction: row;
+    }
+
+    .cert-option {
+        width: min(240px, 70vw);
+        flex: 0 0 auto;
+    }
+
+    .kv th {
+        width: 120px;
+    }
+}

@@ -1,0 +1,10 @@
+Package: node-forge 1.4.0
+Source: https://unpkg.com/node-forge@1.4.0/dist/forge.min.js
+Bundle: browser minified build; global window.forge
+License: BSD-3-Clause option selected from upstream BSD-3-Clause OR GPL-2.0 terms (see LICENSE)
+Original bundle size: 283,279 bytes
+Patched bundle size: 283,260 bytes
+Local CSP patch (applied unconditionally):
+  Original: new Function("return this")()
+  Replacement: globalThis
+Only this expression was changed to avoid eval-based CSP violations.

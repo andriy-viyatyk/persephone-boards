@@ -1,6 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <path d="M17 7h22l11 11v23H17z" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
-  <path d="M39 8v11h11M24 28h18M24 35h13" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="42" cy="46" r="10" fill="none" stroke="currentColor" stroke-width="3"/>
-  <path d="m37 54-2 8 7-4 7 4-2-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+  <!-- Fixed colors (not currentColor): Persephone shows board icons as <img>, where currentColor
+       falls back to black and disappears on the dark theme. Same approach as the other viewers. -->
+  <path d="M15 6h24l11 11v26H15z" fill="#3FB27F" fill-opacity="0.15"
+        stroke="#3FB27F" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M38 7v11h11" stroke="#3FB27F" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M22 26h18M22 34h11" stroke="#3FB27F" stroke-width="4" stroke-linecap="round"/>
+  <!-- The seal is opaque so the document outline does not show through it. -->
+  <path d="m36 51-3 11 9-4 9 4-3-11z" fill="#D9941E" stroke="#D9941E" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="42" cy="44" r="11" fill="#F2B233" stroke="#D9941E" stroke-width="3"/>
+  <circle cx="42" cy="44" r="5" fill="none" stroke="#FFF3D6" stroke-width="2.5"/>
 </svg>

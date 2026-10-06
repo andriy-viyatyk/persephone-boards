@@ -4,7 +4,7 @@
   "description": "Offline, read-only inspection of X.509 certificates, requests, and certificate bundles.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "5.0.8",
   "minBridgeVersion": "1.34.0",
   "permissions": {

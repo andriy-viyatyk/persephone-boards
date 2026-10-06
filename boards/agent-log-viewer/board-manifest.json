@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "name": "Agent Log Viewer",
+  "description": "Readable Claude Code and Codex CLI session logs (.jsonl): a session as a conversation with paired tool calls, diffs and token usage, or a whole folder as a sortable session list with daily usage. Streams large logs (400 MB+) from disk.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "5.0.8",
+  "minBridgeVersion": "1.30.0",
+  "permissions": {
+    "execute": true,
+    "service": false,
+    "fileSystem": "board",
+    "openExternal": false,
+    "appScripting": false,
+    "network": false,
+    "clipboardRead": false,
+    "camera": false,
+    "microphone": false,
+    "geolocation": false,
+    "notifications": false
+  },
+  "screenshot": "screenshot.png",
+  "fileMasks": [
+    "*.jsonl"
+  ],
+  "folderMasks": [
+    ".claude/projects/**",
+    ".codex/sessions/**"
+  ],
+  "editorPriority": 100,
+  "editorName": "Agent Logs",
+  "editorKind": "simple",
+  "settings": [
+    {
+      "id": "showCost",
+      "type": "boolean",
+      "default": false,
+      "label": "Show estimated cost (for API billing; subscription plans are not billed per token)"
+    }
+  ]
+}

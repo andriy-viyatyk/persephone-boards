@@ -1,0 +1,11 @@
+Vendored third-party libraries for the Agent Log Viewer board (offline; the board has no network).
+
+marked — Markdown renderer
+  version: 15.0.12
+  license: MIT (LICENSE-marked.md)
+  files:   marked.umd.js (npm `marked` -> lib/marked.umd.js); exposes window.marked
+
+DOMPurify — HTML sanitizer for the rendered Markdown
+  version: 3.4.16
+  license: Apache-2.0 OR MPL-2.0 (LICENSE-dompurify)
+  files:   purify.min.js (npm `dompurify` -> dist/); exposes window.DOMPurify

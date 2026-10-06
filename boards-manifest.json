@@ -2,6 +2,25 @@
   "schemaVersion": 1,
   "boards": [
     {
+      "id": "agent-log-viewer",
+      "version": "1.0.0",
+      "name": "Agent Log Viewer",
+      "description": "Readable Claude Code and Codex CLI session logs (.jsonl): a session as a conversation with paired tool calls, diffs and token usage, or a whole folder as a sortable session list with daily usage. Streams large logs (400 MB+) from disk.",
+      "fileMasks": [
+        "*.jsonl"
+      ],
+      "editorName": "Agent Logs",
+      "editorKind": "simple",
+      "standalone": false,
+      "minAppVersion": "5.0.8",
+      "screenshot": "screenshot.png",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/agent-log-viewer-v1.0.0/agent-log-viewer.zip",
+        "size": 71459,
+        "sha256": "b80c1c1bbb49ab9600923e7372a4f66a1f49e2a6d9b0bba795cce1c0ff250433"
+      }
+    },
+    {
       "id": "aivision-explorer",
       "version": "1.0.6",
       "name": "AiVision Explorer",

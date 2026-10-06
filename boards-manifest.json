@@ -16,6 +16,32 @@
       }
     },
     {
+      "id": "cert-viewer",
+      "version": "1.0.0",
+      "name": "Certificate Viewer",
+      "description": "Offline, read-only inspection of X.509 certificates, requests, and certificate bundles.",
+      "fileMasks": [
+        "*.cer",
+        "*.crt",
+        "*.der",
+        "*.pem",
+        "*.pfx",
+        "*.p12",
+        "*.p7b",
+        "*.p7c"
+      ],
+      "editorName": "Certificate Viewer",
+      "editorKind": "simple",
+      "standalone": false,
+      "minAppVersion": "5.0.8",
+      "screenshot": "screenshot.png",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/cert-viewer-v1.0.0/cert-viewer.zip",
+        "size": 164470,
+        "sha256": "f0e628151ede2e8c464bb2a91bbec58c37ff49a6d2335fd6225327c721e1737a"
+      }
+    },
+    {
       "id": "drawio-viewer",
       "version": "1.1.2",
       "name": "DrawIO Viewer",

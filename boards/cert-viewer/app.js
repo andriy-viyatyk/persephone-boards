@@ -21,6 +21,11 @@ let selected = 0;
 let tab = "overview";
 let loadToken = 0;
 let previousFocus = null;
+let activeMode = "empty";
+let capabilityPayload = null;
+let intentSeen = false;
+const processedIntentIds = new Set();
+const PAGE_STATE_KEY = "certificate-chain";
 
 const TAB_DEFS = [
     { id: "overview", label: "Overview" },
@@ -149,7 +154,9 @@ function renderList() {
     }
 
     countEl.textContent = certs.length ? String(certs.length) : "none";
-    $("order-note").hidden = certs.length <= 1;
+    // A chain sent by the browser is in Chromium's verified order, so the best-effort note
+    // applies only to certificates read from a file.
+    $("order-note").hidden = certs.length <= 1 || Boolean(capabilityPayload);
 }
 
 // Only certificate inputs get certificate-specific tabs; CSR/key inputs show Overview alone.
@@ -178,6 +185,12 @@ function renderTabs() {
 // Show certificate identity, common extensions, and asynchronous source-DER fingerprints.
 function renderOverview(cert) {
     panelEl.textContent = "";
+    if (capabilityPayload) {
+        const rows = [["Title", capabilityPayload.title]];
+        if (capabilityPayload.sourceUrl) rows.push(["Opened from", capabilityPayload.sourceUrl]);
+        appendCard(panelEl, "Site certificate", rows);
+    }
+
     const status = certStatus(cert);
     appendCard(panelEl, "Identity & validity", [
         ["Subject", cert.subject, "", true],
@@ -268,7 +281,6 @@ function dateText(date) {
 }
 
 function renderExtensions(cert) {
-    panelEl.textContent = "";
     if (!cert.extensions || !cert.extensions.length) {
         panelEl.appendChild(node("p", "note", "No extensions are present."));
         return;
@@ -292,18 +304,40 @@ function renderExtensions(cert) {
     }
 }
 
+// Raw view of one certificate: its algorithm details and the certificate itself as PEM,
+// built from the original DER bytes. A certificate is public data, so it can be copied.
 function renderDetails(cert) {
-    panelEl.textContent = "";
     appendCard(panelEl, "Certificate details", [
-        ["Subject", cert.subject, "", true],
-        ["Issuer", cert.issuer, "", true],
-        ["Serial number", cert.serial, "mono", true],
         ["Version", cert.version],
         ["Signature algorithm", cert.signatureAlgorithm],
         ["Public key algorithm", cert.publicKeyAlgorithm],
         ["Public key size / curve", cert.publicKeyDetails],
+        ["Extensions", String((cert.extensions || []).length)],
+        ["DER size", cert.der.length + " bytes"],
     ]);
-    renderExtensions(cert);
+
+    const pem = certificateToPem(cert.der);
+    const card = node("section", "card");
+    const heading = node("div", "card-heading");
+    heading.appendChild(node("h3", "", "Certificate (PEM)"));
+    const button = node("button", "copy-btn", "Copy");
+    button.type = "button";
+    button.title = "Copy the certificate as PEM";
+    button.addEventListener("click", () => copy(pem));
+    heading.appendChild(button);
+    card.appendChild(heading);
+    card.appendChild(node("pre", "raw mono pem", pem));
+    panelEl.appendChild(card);
+}
+
+// Encode DER bytes as one PEM certificate block with 64-character lines.
+function certificateToPem(der) {
+    let binary = "";
+    for (let index = 0; index < der.length; index++) {
+        binary += String.fromCharCode(der[index]);
+    }
+    const lines = btoa(binary).match(/.{1,64}/g) || [];
+    return ["-----BEGIN CERTIFICATE-----", ...lines, "-----END CERTIFICATE-----"].join("\n");
 }
 
 // Summarize PEM requests and unsupported blocks without exposing their raw content.
@@ -356,7 +390,9 @@ function renderSelected() {
     panelEl.textContent = "";
 
     if (cert) {
-        titleEl.textContent = certName(cert);
+        titleEl.textContent = capabilityPayload
+            ? "Site certificate · " + capabilityPayload.title
+            : certName(cert);
         if (tab === "overview") renderOverview(cert);
         else if (tab === "extensions") renderExtensions(cert);
         else renderDetails(cert);
@@ -374,6 +410,12 @@ function setStatus(text, tone) {
 
 function setSummary(dataValue) {
     const count = dataValue.certs.length;
+    if (capabilityPayload) {
+        const label = count === 1 ? "1 certificate" : count + " certificates";
+        setStatus("Site certificate · " + label + " · " + capabilityPayload.title, "normal");
+        return;
+    }
+
     const parts = [dataValue.format || "Certificate input"];
     if (count) parts.push(count === 1 ? "1 certificate" : count + " certificates");
     if (dataValue.isCsr) parts.push("certificate request");
@@ -473,6 +515,174 @@ async function openWithPassword(bytes, path) {
 
 // Read the hosted file, route PFX inputs through the password flow, and ignore stale reloads.
 async function load() {
+    if (activeMode === "capability") {
+        await reloadCapability();
+        return;
+    }
+    if (activeMode === "intent-error") return;
+
+    await loadFileOrRestore();
+}
+
+// Decode the host's canonical base64 values without changing the original DER bytes.
+function decodeBase64(value, index) {
+    if (typeof value !== "string" || !value || value.length % 4 !== 0) {
+        throw new Error("Certificate " + (index + 1) + " is not valid base64.");
+    }
+    if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
+        throw new Error("Certificate " + (index + 1) + " is not valid base64.");
+    }
+
+    let binary;
+    try {
+        binary = atob(value);
+    } catch (_) {
+        throw new Error("Certificate " + (index + 1) + " is not valid base64.");
+    }
+    const bytes = new Uint8Array(binary.length);
+    for (let offset = 0; offset < binary.length; offset += 1) {
+        bytes[offset] = binary.charCodeAt(offset);
+    }
+    if (btoa(binary) !== value) {
+        throw new Error("Certificate " + (index + 1) + " is not canonical base64.");
+    }
+    return bytes;
+}
+
+// Validate requests and saved page data at the same board-owned boundary.
+function normalizeCapabilityPayload(value, saved) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+        throw new Error("The certificate request payload must be an object.");
+    }
+    if (typeof value.title !== "string" || !value.title.trim()) {
+        throw new Error("The certificate request needs a non-empty title.");
+    }
+    if (!Array.isArray(value.certificates) || !value.certificates.length) {
+        throw new Error("The certificate request needs a non-empty certificates array.");
+    }
+    if (saved && value.sourceUrl !== undefined && typeof value.sourceUrl !== "string") {
+        throw new Error("The saved certificate source URL is invalid.");
+    }
+
+    let sourceUrl;
+    if (saved) {
+        sourceUrl = value.sourceUrl;
+    } else if (value.source !== undefined) {
+        if (!value.source || typeof value.source !== "object" || Array.isArray(value.source)) {
+            throw new Error("The certificate request source must be an object.");
+        }
+        if (typeof value.source.url !== "string") {
+            throw new Error("The certificate request source URL must be a string.");
+        }
+        sourceUrl = value.source.url;
+    }
+
+    const certificates = value.certificates.map((item, index) => {
+        if (typeof item !== "string") {
+            throw new Error("Certificate " + (index + 1) + " must be a base64 string.");
+        }
+        return item;
+    });
+    return { title: value.title, certificates, sourceUrl };
+}
+
+// Parse and render one validated chain while preserving the request's leaf-first order.
+function renderCapability(payload) {
+    const bytes = payload.certificates.map((value, index) => decodeBase64(value, index));
+    const parsed = window.CertParser.parseCertificateChain(bytes, payload.title);
+    capabilityPayload = payload;
+    activeMode = "capability";
+    filePath = "";
+    install(parsed);
+}
+
+// Handle each host request once, persist it before rendering, and always settle it.
+async function handleIntent(request) {
+    if (!request || processedIntentIds.has(request.requestId)) return;
+    processedIntentIds.add(request.requestId);
+    intentSeen = true;
+    const token = ++loadToken;
+    activeMode = "capability";
+    setReloadEnabled(false);
+
+    try {
+        if (request.id !== "certificate.view") {
+            throw new Error("Unsupported capability request: " + String(request.id || "(missing id)"));
+        }
+        if (request.version !== 1) {
+            throw new Error("Unsupported certificate.view version: " + String(request.version));
+        }
+        const payload = normalizeCapabilityPayload(request.payload, false);
+        const parsed = window.CertParser.parseCertificateChain(
+            payload.certificates.map((value, index) => decodeBase64(value, index)),
+            payload.title,
+        );
+        const saved = {
+            title: payload.title,
+            certificates: payload.certificates,
+        };
+        if (payload.sourceUrl !== undefined) saved.sourceUrl = payload.sourceUrl;
+
+        await P.pageState.set(PAGE_STATE_KEY, JSON.stringify(saved));
+        if (token !== loadToken) {
+            request.reject("Certificate request was superseded before it could be displayed.");
+            return;
+        }
+        capabilityPayload = payload;
+        activeMode = "capability";
+        filePath = "";
+        install(parsed);
+        request.resolve();
+    } catch (error) {
+        if (token === loadToken) {
+            data = null;
+            capabilityPayload = null;
+            activeMode = "intent-error";
+            state("Could not open site certificate.\n" + errorText(error), true);
+            setStatus("Certificate request failed", "error");
+            setReloadEnabled(false);
+        }
+        request.reject(errorText(error));
+    }
+}
+
+// Restore the saved request only when no file is attached to this page.
+async function restoreCapability() {
+    const serialized = await P.pageState.get(PAGE_STATE_KEY);
+    if (serialized === undefined) return false;
+
+    let stored;
+    try {
+        stored = JSON.parse(serialized);
+        const payload = normalizeCapabilityPayload(stored, true);
+        renderCapability(payload);
+        return true;
+    } catch (error) {
+        throw new Error("Saved certificate data could not be restored: " + errorText(error));
+    }
+}
+
+// Re-read persisted request data so Reload exercises the restart-safe source of truth.
+async function reloadCapability() {
+    const token = ++loadToken;
+    setReloadEnabled(false);
+    try {
+        state("Loading saved certificate chain…");
+        setStatus("Loading…");
+        capabilityPayload = null;
+        if (!await restoreCapability()) {
+            throw new Error("No saved certificate chain is available.");
+        }
+    } catch (error) {
+        state("Could not restore the site certificate.\n" + errorText(error), true);
+        setStatus("Certificate restore failed", "error");
+    } finally {
+        if (token === loadToken) setReloadEnabled(true);
+    }
+}
+
+// Preserve file loading and prefer it over saved page data on ordinary page startup.
+async function loadFileOrRestore() {
     const token = ++loadToken;
     setReloadEnabled(false);
 
@@ -483,11 +693,24 @@ async function load() {
 
         const path = await P.getFilePath();
         filePath = path || "";
+        if (intentSeen || token !== loadToken) return;
         if (!filePath) {
+            try {
+                const restored = await restoreCapability();
+                if (intentSeen || token !== loadToken) return;
+                if (restored) return;
+            } catch (_) {
+                // Malformed page state falls back to the normal empty-page view.
+            }
+            if (intentSeen || token !== loadToken) return;
+            activeMode = "empty";
+            capabilityPayload = null;
             setStatus("No file open");
             state("Open a .cer, .crt, .der, .pem, .pfx, .p12, .p7b or .p7c file to inspect it.");
             return;
         }
+        activeMode = "file";
+        capabilityPayload = null;
 
         const bytes = await P.readFile(filePath, { encoding: "binary" });
         if (token !== loadToken) return;
@@ -510,6 +733,7 @@ async function load() {
 
         install(parsed);
     } catch (error) {
+        if (intentSeen || token !== loadToken) return;
         const message = errorText(error);
         state("Could not inspect this file.\n" + message, true);
         P.notify(message, "error");
@@ -526,7 +750,7 @@ async function load() {
 // code is fine: the shim queues the calls until the frame's load event, and a reload clears
 // both catalogs, so this script declares them again when it runs.
 P.toolbar.set([
-    { id: "reload", type: "button", title: "Reload file", icon: { name: "refresh" } },
+    { id: "reload", type: "button", title: "Reload certificate", icon: { name: "refresh" } },
 ]);
 P.statusBar.set([
     { id: "summary", type: "text", text: "Loading…", tone: "muted" },
@@ -542,4 +766,11 @@ P.toolbar.onAction(({ id }) => {
     if (id === "reload") load();
 });
 
-load();
+const unsubscribeIntent = P.intent.onRequest((request) => {
+    void handleIntent(request);
+});
+const initialIntent = P.intent.get();
+if (initialIntent) void handleIntent(initialIntent);
+window.addEventListener("pagehide", unsubscribeIntent, { once: true });
+
+loadFileOrRestore();

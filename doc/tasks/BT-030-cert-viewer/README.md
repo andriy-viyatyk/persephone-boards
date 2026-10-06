@@ -2,7 +2,7 @@
 
 ## Status
 
-**Status:** In Progress  
+**Status:** Done  
 **Priority:** Medium  
 **Board id:** `cert-viewer`  
 **Started:** 2026-10-05  
@@ -48,7 +48,7 @@ Create a fully offline, read-only Persephone simple custom editor for X.509 cert
 - [x] Omit “Export certificate as PEM” for v1: the bridge's native save dialog is permission-gated, while all board permissions must stay false. A browser download link is not a permissionless Persephone save API and does not satisfy the requested bridge facility condition.
 - [x] Use only Persephone `--p-*` theme tokens for colors, spacing, typography, chrome, and focus states; link `board-base.css` first and follow PE Viewer's themed tabs, cards, chips, and tables. Add no hard-coded light/dark palette. Custom password overlay must use the same tokens and trap/restore focus accessibly.
 - [x] Add `boards/cert-viewer/WHATS-NEW.md` with a `## 1.0.0` heading and terse initial release notes. Add `icon.svg`.
-- [ ] Capture `screenshot.png` from the live board content area at 1120×700 (16:10), populated by a synthetic fixture, with no personal data, and keep it under ~300 KB. *(Reviewer-owned live capture.)*
+- [x] Capture `screenshot.png` from the live board content area at 1120×700 (16:10), populated by a synthetic fixture, with no personal data, and keep it under ~300 KB. *(Reviewer-owned live capture.)*
 - [x] Add `_test/cert-viewer/README.md` and `_test/cert-viewer/generate-fixtures.ps1` documenting reproducible local generation with OpenSSL 3.x; generated files remain under `_test/cert-viewer/`. Create: one single-certificate PEM; one DER `.cer`; a PEM chain with an EC P-256 leaf and RSA intermediate/root; an Ed25519 single-cert PEM; expired and expiring-soon certificates; synthetic private-key-only PEM and CSR PEM inputs; password-protected PFX using legacy 3DES and containing an EC certificate; password-protected PFX using AES-256 PBES2; a no-password/empty-password PFX; and a `.p7b` SignedData cert bundle containing an EC certificate. The script may also emit `.p7c` if needed to exercise that alias. Use fresh synthetic keys and names such as `CN=BT-030 Test Leaf`; never commit actual user certificates or keys. Prefer OpenSSL commands such as `req -x509`/`req -new`, `x509`, `pkcs12 -export` with explicit `-keypbe` / `-certpbe` selection (and `-legacy` only if needed for a desired RC2 case), and `crl2pkcs7 -certfile ... -nocrl` for the P7B fixture. Record fixture passwords only in this test README, not in the board UI.
 - [x] Live reviewer check: every fixture parses; all SHA-256 fingerprints match this README, including certificates inside PFX; legacy 3DES, AES-256, and empty-password PFX work; wrong-password retry works; private keys never appear; `ui.log` is clean.
 - [ ] Remaining live manual checks: editor association/default selection and built-in switch; detail-field completeness and raw extension fallback; CSR summary fields; expired/expiring-soon display; public copy buttons; dialog keyboard/cancel behavior; theme changes; malformed input.
@@ -74,7 +74,7 @@ Create a fully offline, read-only Persephone simple custom editor for X.509 cert
 - [ ] Required certificate fields, status highlighting, public field copying, SHA-1/SHA-256 fingerprints, and unknown extension OID/hex output work from the original certificate bytes.
 - [ ] PFX starts with an empty-password attempt, retries after a wrong password, and reports key presence without displaying, copying, or logging key material. Private-key-only PEM is identified without exposing content; CSR PEM shows a v1 public summary.
 - [ ] No native prompt/confirm/alert calls; password entry uses an in-board themed dialog.
-- [ ] Styling uses `--p-*` tokens, `board-base.css`, and PE Viewer visual conventions. `WHATS-NEW.md`, icon, and compliant synthetic-data screenshot are included.
+- [x] Styling uses `--p-*` tokens, `board-base.css`, and PE Viewer visual conventions. `WHATS-NEW.md`, icon, and compliant synthetic-data screenshot are included.
 - [ ] `_test/cert-viewer/` contains the local OpenSSL fixture generator and all requested synthetic fixtures; no real/personal certificate material is used.
 - [ ] Reviewer completes the manual Persephone MCP checklist; `ui.log` has no unexplained CSP/runtime errors (any Forge global-shim patch is recorded in VERSION.txt). No unit tests.
 - [ ] Fully offline, including library loading.

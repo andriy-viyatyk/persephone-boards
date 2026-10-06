@@ -508,6 +508,43 @@
         }
     }
 
+    // Parse an already ordered DER chain without applying bundle ordering heuristics.
+    function parseCertificateChain(certificates, sourceName) {
+        if (!Array.isArray(certificates) || !certificates.length) {
+            throw new Error("The certificate chain must contain at least one certificate.");
+        }
+
+        const certs = [];
+        for (let index = 0; index < certificates.length; index += 1) {
+            const der = certificates[index];
+            if (!(der instanceof Uint8Array)) {
+                throw new Error("Certificate " + (index + 1) + " is not decoded DER data.");
+            }
+            if (der.length < 2 || der[0] !== 0x30) {
+                throw new Error("Certificate " + (index + 1) + " is not a DER certificate.");
+            }
+
+            try {
+                const record = makeRecord(der, sourceName, index);
+                if (record.kind !== "certificate") {
+                    throw new Error("The parsed data is not an X.509 certificate.");
+                }
+                certs.push(record);
+            } catch (error) {
+                throw new Error("Certificate " + (index + 1) + " could not be parsed: " + error.message);
+            }
+        }
+
+        return {
+            certs,
+            rows: [],
+            privateKey: false,
+            isCsr: false,
+            format: "Site certificate",
+            orderNote: "",
+        };
+    }
+
     // Inject the self-hosted Forge bundle only for PKCS#12 inputs.
     function loadForge() {
         if (window.forge) return Promise.resolve(window.forge);
@@ -789,5 +826,5 @@
         return result;
     }
 
-    window.CertParser = { parse, parseCsr, hex, looksPfx };
+    window.CertParser = { parse, parseCsr, parseCertificateChain, hex, looksPfx };
 }());

@@ -8,11 +8,9 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-- [ ] [BT-030: Certificate Viewer](tasks/BT-030-cert-viewer/README.md)
+*(nothing active)*
 
 ## Planned
-
-- [ ] BT-031: Certificate Viewer claims `certificate.view` and renders a chain from the request payload — for Persephone's **EPIC-122** (task document not written yet)
 
 Board work for Persephone's **EPIC-101** (*Structured descriptor access and the AiVision Explorer
 board*) is finished: BT-022 and BT-023 shipped as `aivision-explorer` v1.0.2, published

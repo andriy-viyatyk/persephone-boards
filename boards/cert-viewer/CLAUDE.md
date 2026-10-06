@@ -6,6 +6,8 @@ Read-only, offline inspection of X.509 certificates, PEM bundles, DER files, CSR
 certificate collections, and PKCS#12 (`.pfx` / `.p12`) files. The board is a simple custom editor
 for `.cer`, `.crt`, `.der`, `.pem`, `.pfx`, `.p12`, `.p7b`, and `.p7c`. It displays public
 certificate data only. It does not validate certificate signatures, chains, trust, or revocation.
+It also handles Persephone's `certificate.view` v1 capability, rendering the host-provided
+leaf-first base64 DER chain and optional source URL without fetching it.
 
 ## How it works
 
@@ -20,6 +22,13 @@ after the input is identified as PKCS#12. It handles PKCS#12 PBE and ASN.1 trans
 objects are created by Peculiar X.509. A board-owned `<dialog>` asks for a password after the
 initial empty-password attempt.
 
+For `certificate.view`, `app.js` validates the request, decodes each base64 certificate, and passes
+the DER entries to the ordered chain parser without the file parser's best-effort ordering. It saves
+the title, original base64 strings, and optional source URL as JSON under `persephone.pageState` key
+`certificate-chain` before rendering and resolving the request. On startup, source precedence is
+intent, hosted file path, saved page state, then the empty state. Reload reads and parses the saved
+chain again for capability pages; ordinary file pages keep the existing hosted-file reload path.
+
 The PFX adapter walks the original PFX AuthenticatedSafe ASN.1. It verifies the PKCS#12 MAC with
 Forge's PKCS#12 KDF/HMAC primitives, decrypts encrypted SafeContents with Forge PBE primitives,
 and reads SafeBag OIDs directly. It obtains certificate octets from each CertBag's OCTET STRING
@@ -33,12 +42,12 @@ clipboard, or diagnostics. Forge is not used for X.509/PKCS#7 parsing or signatu
 | File | Role |
 |---|---|
 | `index.html` / `style.css` | Certificate list, report tabs, details, and accessible password dialog. No in-board header or footer: Reload is a host toolbar button and the format summary and scope note are host status-bar items. Panels and cards use the page background with borders only (no lighter fills), and no text is smaller than 12px. `board-base.css` is linked first and kept as scaffolded. |
-| `app.js` | Readable browser script for the host toolbar (`persephone.toolbar.set`, Reload) and status bar (`persephone.statusBar.set`, summary + scope note), reload, password retry, text-only rendering, public-field clipboard actions, and fingerprint calculation. |
-| `cert-parser.js` | Readable browser script for PEM/DER detection, CSR and PKCS#7 parsing, PFX decryption/SafeContents traversal, signature formatting, and best-effort issuer/subject ordering. |
+| `app.js` | Readable browser script for the host toolbar (`persephone.toolbar.set`, Reload) and status bar (`persephone.statusBar.set`, summary + scope note), capability request handling and page-state restore, file reload, password retry, text-only rendering, public-field clipboard actions, and fingerprint calculation. |
+| `cert-parser.js` | Readable browser script for the ordered capability DER-chain entry point, PEM/DER detection, CSR and PKCS#7 parsing, PFX decryption/SafeContents traversal, signature formatting, and best-effort issuer/subject ordering for file inputs. |
 | `x509-reflect-shim.js` | Local minimal Reflect metadata compatibility required because the Peculiar UMD calls `Reflect.getMetadata` without bundling reflect-metadata. |
 | `lib/peculiar-x509/` | @peculiar/x509 2.1.0, MIT; certificate, CSR, and PKCS#7 parsing. |
 | `lib/node-forge/` | node-forge 1.4.0; lazy PFX PBE/ASN.1 helper only. See its VERSION.txt for the single CSP patch. |
-| `board-manifest.json` | All-false permissions, simple-editor masks, and minimum app/bridge versions. |
+| `board-manifest.json` | All-false permissions, simple-editor masks, minimum app/bridge versions, and the `certificate.view` v1 handler declaration. |
 | `_test/cert-viewer/` | Repo-only synthetic OpenSSL inputs and expected SHA-256 fingerprints. |
 
 The public-key label uses public algorithm names (`RSA · 2048 bits`, `ECDSA · P-256`,
@@ -60,8 +69,10 @@ board content area at 1120×700 using synthetic data.
 
 ## Gotchas
 
-- The object-form manifest keeps every permission false. Bridge 1.32.0 is required so the board can
-  read its exact hosted file without general filesystem access. There is no save/export path.
+- The object-form manifest keeps every permission false. `minAppVersion` remains 5.0.8 and
+  `minBridgeVersion` is 1.34.0 for `persephone.pageState`; page state needs no filesystem permission.
+  Bridge 1.32.0 originally enabled reading the exact hosted file without general filesystem access.
+  There is no save/export path. The board does not expose an AiVision model.
 - Forge is lazy-loaded only for PFX/P12. The global shim's single `new Function` expression was
   changed unconditionally to `globalThis`; no other vendor bytes were changed.
 - @peculiar/x509's browser bundle requires Reflect metadata for its tsyringe registrations and does

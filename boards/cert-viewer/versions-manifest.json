@@ -3,6 +3,16 @@
   "id": "cert-viewer",
   "versions": [
     {
+      "version": "1.0.1",
+      "date": "2026-10-06",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/cert-viewer-v1.0.1/cert-viewer.zip",
+        "size": 164743,
+        "sha256": "fae675b6a7916d7aca87e808286e4120be25ce041e514cdd51e3c9eca22eec76"
+      },
+      "minAppVersion": "5.0.8"
+    },
+    {
       "version": "1.0.0",
       "date": "2026-10-06",
       "archive": {

@@ -61,6 +61,20 @@
       }
     },
     {
+      "id": "chess",
+      "version": "1.0.0",
+      "name": "Agent Chess",
+      "description": "Play chess against your own AI agent. You move with the mouse; the agent connected to Persephone (Claude Code, Codex, …) reads the position and moves through the board's model, talks to you in the side chat and draws arrows to explain its ideas. Illegal moves are rejected.",
+      "standalone": true,
+      "minAppVersion": "5.0.8",
+      "screenshot": "screenshot.png",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/chess-v1.0.0/chess.zip",
+        "size": 54730,
+        "sha256": "f38e1b368105aff1a8bfe5830f237f81e9de8577740f26b040339d2a0ef25c15"
+      }
+    },
+    {
       "id": "drawio-viewer",
       "version": "1.1.2",
       "name": "DrawIO Viewer",

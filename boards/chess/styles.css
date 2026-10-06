@@ -1,0 +1,112 @@
+/* Agent Chess — board styles. UI chrome uses the --p-* theme contract; the chessboard itself uses
+   fixed classic square colours, like a picture, so it reads the same in every theme. */
+
+:root {
+    --sq-light: #f0d9b5;
+    --sq-dark: #b58863;
+    --sq-last: rgba(205, 210, 106, 0.75);
+    --sq-sel: rgba(20, 85, 30, 0.5);
+    --dot: rgba(20, 85, 30, 0.5);
+    --arrow: rgba(37, 99, 235, 0.8);
+}
+
+html, body { height: 100%; }
+body {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: system-ui, "Segoe UI", sans-serif;
+    font-size: 13px;
+    background: var(--p-bg);
+    color: var(--p-text);
+}
+[hidden] { display: none !important; }
+#bar { flex: 0 0 auto; gap: 4px; }
+#bar svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+/* Piece sprites rely on SVG defaults (black fill, no stroke) for parts without attributes. */
+.piece, #ghost, #promo svg { fill: #000; stroke: none; }
+
+#main { flex: 1 1 auto; min-height: 0; display: flex; }
+#boardWrap {
+    flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: center;
+    padding: 12px;
+}
+
+/* ---- board -------------------------------------------------------------------------------- */
+#board { position: relative; flex: 0 0 auto; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35); user-select: none; touch-action: none; }
+#squares { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); width: 100%; height: 100%; }
+.sq { position: relative; }
+.sq.light { background: var(--sq-light); }
+.sq.dark { background: var(--sq-dark); }
+.sq.last::before, .sq.sel::before, .sq.check::before { content: ""; position: absolute; inset: 0; }
+.sq.last::before { background: var(--sq-last); }
+.sq.sel::before { background: var(--sq-sel); }
+.sq.check::before { background: radial-gradient(ellipse at center, rgba(255, 0, 0, 1) 0%, rgba(231, 0, 0, 1) 25%, rgba(169, 0, 0, 0) 89%, rgba(158, 0, 0, 0) 100%); }
+.sq.target::after {
+    content: ""; position: absolute; left: 50%; top: 50%; width: 30%; height: 30%;
+    transform: translate(-50%, -50%); border-radius: 50%; background: var(--dot); pointer-events: none;
+}
+.sq.target.capture::after {
+    width: 100%; height: 100%; background: radial-gradient(transparent 0%, transparent 79%, var(--dot) 80%);
+}
+.sq .coord { position: absolute; font-size: 11px; font-weight: 600; pointer-events: none; line-height: 1; }
+.sq .coord.rank { left: 3px; top: 3px; }
+.sq .coord.file { right: 3px; bottom: 2px; }
+.sq.light .coord { color: var(--sq-dark); }
+.sq.dark .coord { color: var(--sq-light); }
+.piece { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; cursor: default; stroke: none; }
+.piece.mine { cursor: grab; }
+.piece.dragging { opacity: 0.3; }
+.piece.anim { transition: transform 0.22s ease-out; z-index: 3; }
+#ghost { position: fixed; pointer-events: none; z-index: 50; stroke: none; cursor: grabbing; }
+
+#arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+#arrows line { stroke: var(--arrow); stroke-width: 0.17; stroke-linecap: round; }
+#arrows marker path { fill: var(--arrow); stroke: none; }
+
+#promo {
+    position: absolute; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+}
+#promo .choices { display: flex; gap: 6px; padding: 8px; border-radius: 8px; background: var(--p-panel); border: 1px solid var(--p-border); }
+#promo button { width: 64px; height: 64px; padding: 2px; border-radius: 6px; border: 1px solid var(--p-border); background: var(--sq-light); cursor: pointer; }
+#promo button:hover { background: var(--sq-dark); }
+#promo svg { width: 100%; height: 100%; stroke: none; }
+
+/* ---- side panel --------------------------------------------------------------------------- */
+#side {
+    flex: 0 0 300px; min-height: 0; display: flex; flex-direction: column;
+    border-left: 1px solid var(--p-border); background: var(--p-bg-dark);
+}
+#status { padding: 10px 12px; border-bottom: 1px solid var(--p-border); }
+#status .big { font-size: 15px; font-weight: 600; color: var(--p-text-strong, var(--p-text)); }
+#status .sub { color: var(--p-text-muted); margin-top: 2px; font-size: 12px; }
+#status .thinking::after { content: ""; animation: dots 1.2s steps(4, end) infinite; }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+#status.over .big { color: var(--p-accent); }
+
+#moves {
+    flex: 0 1 40%; min-height: 60px; overflow: auto; padding: 4px 0; border-bottom: 1px solid var(--p-border);
+    display: grid; grid-template-columns: 36px 1fr 1fr; align-content: start; font-variant-numeric: tabular-nums;
+}
+#moves .no { color: var(--p-text-muted); text-align: right; padding: 2px 8px 2px 0; }
+#moves .mv { padding: 2px 6px; justify-self: start; min-width: 48px; }
+#moves .mv.agent { color: var(--p-accent); }
+#moves .mv.cur { background: color-mix(in srgb, var(--p-accent) 22%, transparent); border-radius: 3px; }
+#moves .empty { grid-column: 1 / -1; padding: 6px 12px; color: var(--p-text-muted); }
+
+#chat { flex: 1 1 60%; min-height: 0; overflow: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.msg { max-width: 92%; padding: 5px 9px; border-radius: 8px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg .who { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.75; margin-bottom: 1px; }
+.msg.agent { align-self: flex-start; background: color-mix(in srgb, var(--p-accent) 18%, var(--p-panel)); border: 1px solid color-mix(in srgb, var(--p-accent) 40%, transparent); }
+.msg.user { align-self: flex-end; background: var(--p-panel); border: 1px solid var(--p-border); }
+.msg.system { align-self: center; max-width: 100%; text-align: center; font-size: 11px; color: var(--p-text-muted); padding: 0; }
+.hint { color: var(--p-text-muted); font-size: 12px; line-height: 1.5; padding: 4px 2px; }
+.hint code { font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: var(--p-text); }
+#chatForm { padding: 8px; border-top: 1px solid var(--p-border); }
+#chatInput { width: 100%; box-sizing: border-box; }
+
+@media (max-width: 720px) {
+    #main { flex-direction: column; }
+    #side { flex: 1 1 auto; border-left: none; border-top: 1px solid var(--p-border); }
+}

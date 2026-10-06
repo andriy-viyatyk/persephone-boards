@@ -1,0 +1,9 @@
+chess.js 1.4.0 — https://github.com/jhlywa/chess.js — BSD-2-Clause (LICENSE-chess.js.txt)
+  lib/chess.js is dist/esm/chess.js with its final `export {…}` line removed, wrapped in an IIFE
+  that sets window.Chess (boards here load classic scripts only).
+
+pieces.svg — the "standard" sprite from cm-chessboard 8.15.3 (assets/pieces/standard.svg).
+  The pieces are Wikimedia Commons "SVG chess pieces/Standard" by Cburnett and Rfc1394,
+  modified by shaack. License: CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/).
+  The attribution comment is kept at the top of the file. Do not use cm-chessboard's "staunty"
+  set: it is CC BY-NC-SA.

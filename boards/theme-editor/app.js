@@ -967,6 +967,10 @@
         }
         const draft = clone(snapshot);
         delete draft.id;
+        // A new theme keeps the active theme's base colors and mode but none of its pinned colors:
+        // an exact built-in fork pins ~47 colors to reproduce the original, which would leave the
+        // generator with almost nothing to drive.
+        draft.overrides = {};
         draft.name = `New ${active.name || draft.name}`;
         return { mode: "new", activeId, active, draft };
     }
@@ -1370,7 +1374,7 @@
                 overview: "Read draft, themes, derived, contrast, and previewStatus for the current board draft.\nUse setBaseColor, setMode, and setOverride to edit it and preview valid changes.\nUse save/saveAs to persist and apply; revert discards draft edits.",
                 help: [
                     "This model edits the draft currently open in the user's Theme Editor board, not a separate app.themes object.",
-                    "Settings Edit requests a specific theme through theme.edit@1; the request is accepted immediately before source loading. A custom theme loads its saved file, while a built-in loads as an exact, unsaved \"<name> copy\". The Settings + action creates an id-less dirty draft from the active theme's saved file or exact built-in fork, named \"New <active name>\".",
+                    "Settings Edit requests a specific theme through theme.edit@1; the request is accepted immediately before source loading. A custom theme loads its saved file, while a built-in loads as an exact, unsaved \"<name> copy\". The Settings + action creates an id-less dirty draft with the active theme's base colors and mode and no pinned overrides, named \"New <active name>\".",
                     "A dirty or restored draft is never replaced by a repeated Settings request. Save persists it and then opens the requested source; Discard drops it and opens that source; Cancel keeps the draft and reapplies its live preview.",
                     "Changes preview live; there is no separate apply step. Revert restores the saved theme.",
                     "Rename, Save, Save as, and Revert are Persephone page-toolbar controls (board-toolbar-control-rename/save/save-as/revert); Delete theme, Export JSON, and Import JSON are at the top of the page toolbar's … menu (board-toolbar-more). The toolbar text slot shows 'Theme: <name>'. Prefer the model methods below.",

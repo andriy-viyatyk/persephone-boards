@@ -72,6 +72,9 @@
         previewTimer: 0, previewResolve: null, previewChain: Promise.resolve(),
         unlistenTheme: null, locks: {}, view: "generator", nameDialogMode: "rename",
         pageModified: false, persistTimer: 0, restoredDraft: false, intentPending: 0,
+        // Override keys holding the opened theme's exact colors (not set by hand in Details). The
+        // board opens with them as-is; the first generator change releases them all.
+        sourceExact: new Set(),
     };
     let initializationPromise;
     let intentQueue = Promise.resolve();
@@ -337,8 +340,9 @@
                 const key = token.dataset.key;
                 const derived = stripColor(key);
                 token.querySelector(".generator-token-swatch").style.backgroundColor = derived || "transparent";
-                token.classList.toggle("pinned", Object.hasOwn(state.draft.overrides, key));
-                token.querySelector(".pinned-marker").hidden = !Object.hasOwn(state.draft.overrides, key);
+                const handSet = Object.hasOwn(state.draft.overrides, key) && !state.sourceExact.has(key);
+                token.classList.toggle("pinned", handSet);
+                token.querySelector(".pinned-marker").hidden = !handSet;
             }
             if (block.contrast) {
                 const item = state.contrast?.[block.contrast];
@@ -358,9 +362,9 @@
                 (state.draft.isDark === false && button.dataset.mode === "light");
             button.setAttribute("aria-pressed", String(selected));
         }
-        const overrideCount = Object.keys(state.draft.overrides).length;
-        ui.overrideNotice.hidden = overrideCount === 0;
-        ui.overrideNoticeText.textContent = `${overrideCount} ${overrideCount === 1 ? "color is" : "colors are"} pinned and won't follow the generator`;
+        const handSetCount = Object.keys(state.draft.overrides).filter((key) => !state.sourceExact.has(key)).length;
+        ui.overrideNotice.hidden = handSetCount === 0;
+        ui.overrideNoticeText.textContent = `${handSetCount} ${handSetCount === 1 ? "color was" : "colors were"} set in Details and won't follow the generator`;
         for (const button of ui.generateButtons) button.disabled = state.busy || GENERATOR_BLOCKS.slice(0, 3).every((block) => state.locks[block.key]);
     }
     function setView(view) {
@@ -474,6 +478,7 @@
             });
             await state.previewChain;
             if (!best) return;
+            releaseSourceExact();
             state.draft.base = best.base;
             if (mode) { state.draft.isDark = best.isDark; setPolarity(); }
             state.contrast = bestReport;
@@ -584,7 +589,7 @@
         }
         state.persistTimer = setTimeout(() => {
             if (!state.dirty || !state.draft) return;
-            const saved = JSON.stringify({ sourceId: state.sourceId, sourceKind: state.sourceKind, draft: state.draft, baseline: state.baseline });
+            const saved = JSON.stringify({ sourceId: state.sourceId, sourceKind: state.sourceKind, draft: state.draft, baseline: state.baseline, sourceExact: [...state.sourceExact] });
             void persephone.pageState.set("draft", saved).catch((error) => reportError(error, "Could not preserve unsaved changes"));
         }, 500);
     }
@@ -695,6 +700,18 @@
         mutateBaseColor(field.key, value, { allowInvalid: true, syncControls: false });
         input.setAttribute("aria-invalid", value && !parseableColor(value) ? "true" : "false");
     }
+    // Initialization flow: a loaded theme keeps its exact colors; the generator controls only show
+    // where its base colors sit. User-change flow: the first base-color, mode or Generate/Reroll
+    // change hands every exact color back to the generator. Colors set by hand in Details stay.
+    function markSourceExact() {
+        state.sourceExact = new Set(Object.keys(state.draft?.overrides || {}));
+    }
+    function releaseSourceExact() {
+        if (!state.draft || !state.sourceExact.size) return;
+        for (const key of state.sourceExact) delete state.draft.overrides[key];
+        state.sourceExact.clear();
+        renderPaletteValues();
+    }
     function mutateBaseColor(key, value, { allowInvalid = false, syncControls = true } = {}) {
         const field = BASE_FIELDS.find((item) => item.key === key);
         if (!field) throw new Error(`Unknown base color "${key}". Allowed keys: ${BASE_FIELDS.map((item) => item.key).join(", ")}.`);
@@ -702,6 +719,7 @@
         const normalized = value == null ? "" : String(value).trim();
         if (!allowInvalid && normalized && !parseableColor(normalized)) throw new Error(`"${normalized}" is not a valid CSS color for ${key}; use a CSS color value such as #336699, rgb(), hsl(), or a named color.`);
         if (!normalized && field.required && !allowInvalid) throw new Error(`${key} is required and cannot be removed.`);
+        releaseSourceExact();
         if (!normalized && !field.required) delete state.draft.base[key];
         else state.draft.base[key] = normalized;
         if (syncControls) renderEditorFields();
@@ -719,6 +737,7 @@
         if (!legalKeys.includes(key)) throw new Error(`Unknown override key "${key}". Allowed keys: ${legalKeys.join(", ")}.`);
         const normalized = value == null ? "" : String(value).trim();
         if (!allowInvalid && normalized && !parseableColor(normalized)) throw new Error(`"${normalized}" is not a valid CSS color for ${key}; use a CSS color value such as #336699, rgb(), hsl(), or a named color.`);
+        state.sourceExact.delete(key);
         if (!normalized) delete state.draft.overrides[key];
         else state.draft.overrides[key] = normalized;
         if (syncControls) renderPaletteValues();
@@ -730,6 +749,7 @@
         const legalKeys = [...GROUPS.flatMap((group) => group.keys), ...MONACO_KEYS.map((item) => `monaco:${item}`)];
         if (!legalKeys.includes(key)) throw new Error(`Unknown override key "${key}". Allowed keys: ${legalKeys.join(", ")}.`);
         if (!(key in state.draft.overrides)) return false;
+        state.sourceExact.delete(key);
         delete state.draft.overrides[key];
         renderPaletteValues();
         onDraftChanged();
@@ -739,6 +759,7 @@
         if (!state.draft) throw new Error("The theme draft is not ready.");
         const count = Object.keys(state.draft.overrides).length;
         state.draft.overrides = {};
+        state.sourceExact.clear();
         renderPaletteValues();
         onDraftChanged();
         return count;
@@ -772,6 +793,7 @@
     function mutateMode(mode) {
         if (!state.draft) throw new Error("The theme draft is not ready.");
         if (!["auto", "dark", "light"].includes(mode)) throw new Error(`Unknown theme mode "${mode}". Allowed modes: auto, dark, light.`);
+        releaseSourceExact();
         state.draft.isDark = mode === "auto" ? null : mode === "dark";
         setPolarity();
         syncGeneratorControls();
@@ -900,6 +922,7 @@
             }
             if (op !== state.operation) return;
             state.draft = clone(draft);
+            markSourceExact();
             state.baseline = clone(draft);
             state.restoredDraft = false;
             state.hasPreview = false;
@@ -991,6 +1014,7 @@
             state.sourceId = null;
             state.sourceKind = "new";
             state.draft = clone(source.draft);
+            markSourceExact();
             state.baseline = clone(source.draft);
             state.restoredDraft = true;
             state.derived = null;
@@ -1166,6 +1190,7 @@
                 state.draft = state.baseline ? clone(state.baseline) : newDraft();
             }
             state.baseline = clone(state.draft);
+            markSourceExact();
             state.restoredDraft = false;
             if (ownedPreview) {
                 const active = await persephone.themes.current();
@@ -1223,7 +1248,7 @@
             const id = state.sourceId;
             await persephone.themes.rename(id, normalized);
             const file = await persephone.themes.file(id);
-            if (file && !state.dirty) { state.draft = clone(file); state.baseline = clone(file); state.restoredDraft = false; }
+            if (file && !state.dirty) { state.draft = clone(file); state.baseline = clone(file); markSourceExact(); state.restoredDraft = false; }
             else { state.draft.name = normalized; state.baseline.name = normalized; }
             await refreshThemes();
             renderEditorFields();
@@ -1301,6 +1326,7 @@
             state.sourceKind = "custom";
             state.sourceId = saved.id;
             state.draft = clone(saved);
+            markSourceExact();
             state.baseline = clone(saved);
             state.restoredDraft = false;
             state.hasPreview = false;
@@ -1377,6 +1403,7 @@
                     "Settings Edit requests a specific theme through theme.edit@1; the request is accepted immediately before source loading. A custom theme loads its saved file, while a built-in loads as an exact, unsaved \"<name> copy\". The Settings + action creates an id-less dirty draft with the active theme's base colors and mode and no pinned overrides, named \"New <active name>\".",
                     "A dirty or restored draft is never replaced by a repeated Settings request. Save persists it and then opens the requested source; Discard drops it and opens that source; Cancel keeps the draft and reapplies its live preview.",
                     "Changes preview live; there is no separate apply step. Revert restores the saved theme.",
+                    "An opened theme keeps its exact colors (stored as overrides) and the generator controls only show where its base colors sit. The first setBaseColor, setMode or randomize call hands every one of those exact colors back to the generator; overrides set with setOverride stay. Revert returns to the exact colors.",
                     "Rename, Save, Save as, and Revert are Persephone page-toolbar controls (board-toolbar-control-rename/save/save-as/revert); Delete theme, Export JSON, and Import JSON are at the top of the page toolbar's … menu (board-toolbar-more). The toolbar text slot shows 'Theme: <name>'. Prefer the model methods below.",
                     "Auto mode maps to isDark: null; dark and light map to true and false. Optional base colors link, error, warning, and success can be removed with null or an empty string; the required background, text, and accent cannot.",
                     "Overrides pin CSS colors. setOverride accepts CSS color syntax validated with CSS.supports; null or empty removes that override. resetOverride removes one pin; clearOverrides removes all pins.",
@@ -1510,6 +1537,9 @@
                 state.sourceKind = restored.sourceKind || "new";
                 state.draft = clone(restored.draft);
                 state.baseline = clone(restored.baseline);
+                state.sourceExact = new Set(Array.isArray(restored.sourceExact)
+                    ? restored.sourceExact.filter((key) => Object.hasOwn(state.draft.overrides, key))
+                    : Object.keys(state.draft.overrides));
                 state.restoredDraft = true;
                 renderEditorFields();
                 await queueDraftRefresh();

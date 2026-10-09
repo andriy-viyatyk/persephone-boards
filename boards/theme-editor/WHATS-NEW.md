@@ -1,5 +1,9 @@
 # What's new
 
+## 1.0.2
+- Editing a theme opens its exact colors with no pinned-colors notice; the generator takes over only when you move a slider, change the mode, or generate.
+- The color blocks keep an even margin on both sides when the editor area shows a scrollbar.
+
 ## 1.0.1
 - A new theme from Settings (+) now starts from the active theme's base colors with nothing pinned, so the generator drives every color.
 

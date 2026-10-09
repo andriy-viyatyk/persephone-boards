@@ -16,6 +16,7 @@ Offline editor for Persephone custom themes, using the narrow `persephone.themes
 ## Rules that matter
 
 - Use Persephone for derivation and contrast. The editor lists all 77 CSS colors and seven Monaco override keys; palette overrides use their `--color-*` names and Monaco overrides use `monaco:<key>`.
+- Initialization and user changes are separate flows. Loading a theme (Edit, Revert, import, rename reload) keeps its exact colors: every override it carries is recorded in `state.sourceExact`, and the generator controls only show where its base colors sit; no notice or pin marker is shown for them. The first base-color, mode or Generate/Reroll change (`releaseSourceExact()` in `mutateBaseColor`, `mutateMode`, `randomizeCore`) drops all of those overrides so the generator drives the palette. Overrides set by hand in Details are not in the set and survive; only they get the "set in Details" notice and pin markers. The set is persisted with the `pageState` draft.
 - Generator and Details edit the same draft. Generator strips display `derive()` values and mark overridden values as pinned; Details shows effective editable values and per-row Reset. The sidebar and contrast list stay visible across tabs.
 - Generator locks are session-only. Random theme checks candidates with the bridge's contrast report, keeps overrides, and never invents optional semantic colors.
 - Unsaved drafts use `page.setModified`, `onSaveRequest`, and `pageState`; Save on close saves and applies, and restart restoration leaves the draft dirty with Revert available.

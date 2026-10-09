@@ -63,7 +63,10 @@ dialog::backdrop { background: var(--p-overlay); }
 .view-tabs { display: flex; gap: var(--p-space-xs); border-bottom: 1px solid var(--p-border); flex: 0 0 auto; }
 .view-tab { padding: var(--p-space-sm) var(--p-space-md); color: var(--p-text-muted); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
 .view-tab[aria-selected="true"] { color: var(--p-text); border-bottom-color: var(--p-accent); }
-.view-panel { min-height: 0; overflow-y: auto; overflow-x: hidden; }
+/* The right gutter lives inside the scrolling panel, so a scrollbar sits beyond it instead of
+   eating it: blocks keep the same margin on both sides whether or not the panel scrolls. */
+.palette-area { padding-right: 0; }
+.view-panel { min-height: 0; overflow-y: auto; overflow-x: hidden; padding-right: var(--p-space-lg); }
 .view-panel[hidden] { display: none; }
 .override-notice { display: flex; align-items: center; justify-content: space-between; gap: var(--p-space-md); margin-bottom: var(--p-space-md); padding: var(--p-space-sm) var(--p-space-md); color: var(--p-warning); background: var(--p-panel); border: 1px solid var(--p-border); border-radius: var(--p-radius-md); font-size: var(--p-font-sm); }
 .generator-message { margin-bottom: var(--p-space-md); padding: var(--p-space-sm) var(--p-space-md); color: var(--p-text); background: var(--p-bg-dark); border-radius: var(--p-radius-sm); font-size: var(--p-font-sm); }
@@ -99,7 +102,8 @@ dialog::backdrop { background: var(--p-overlay); }
 .pinned-marker { grid-column: 2; color: var(--p-warning); font-size: 10px; }
 @media (max-width: 840px) {
     .workspace { grid-template-columns: 230px minmax(0, 1fr); }
-    .palette-area { padding: var(--p-space-md); }
+    .palette-area { padding: var(--p-space-md); padding-right: 0; }
+    .view-panel { padding-right: var(--p-space-md); }
     .palette-heading { top: calc(-1 * var(--p-space-md)); margin: calc(-1 * var(--p-space-md)) calc(-1 * var(--p-space-md)) var(--p-space-md); padding: var(--p-space-sm) var(--p-space-md); }
     .generator-controls { grid-template-columns: 1fr; }
 }

@@ -1,5 +1,8 @@
 # What's new
 
+## 1.0.3
+- About one Generate click in five now picks a strongly colored background (a deep red, blue or green; a pastel tint in light mode) instead of a muted one.
+
 ## 1.0.2
 - Editing a theme opens its exact colors with no pinned-colors notice; the generator takes over only when you move a slider, change the mode, or generate.
 - The color blocks keep an even margin on both sides when the editor area shows a scrollbar.

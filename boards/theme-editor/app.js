@@ -384,7 +384,13 @@
         if (draft.isDark !== null) return draft.isDark;
         return state.derived?.isDark ?? true;
     }
-    function makeRandomCandidate(source, keys, random = Math.random, mode) {
+    // Backgrounds are muted (8–20% saturation) so text reads calmly on them; at that strength red and
+    // orange read as brown. One Generate click in VIVID_BACKGROUND_CHANCE picks a strongly colored
+    // background instead (a deep red, blue or green; a pastel tint in light mode).
+    const VIVID_BACKGROUND_CHANCE = 0.2;
+    const MUTED_BACKGROUND_SATURATION = [8, 20];
+    const VIVID_BACKGROUND_SATURATION = [40, 70];
+    function makeRandomCandidate(source, keys, random = Math.random, mode, vividBackground = false) {
         const candidate = clone(source);
         const randomizeBackground = keys.includes("background") && !state.locks.background;
         // An explicit mode (Generate dark/light) wins over the draft's mode; the result goes to Auto so
@@ -393,7 +399,8 @@
         const bgModeDark = mode ? mode === "dark" : candidate.isDark === null ? random() < 0.5 : candidate.isDark;
         if (randomizeBackground) {
             const hue = randomInt(0, 359, random);
-            candidate.base.background = randomBaseColor(hue, [8, 20], bgModeDark ? [10, 22] : [88, 96], random);
+            const saturation = vividBackground ? VIVID_BACKGROUND_SATURATION : MUTED_BACKGROUND_SATURATION;
+            candidate.base.background = randomBaseColor(hue, saturation, bgModeDark ? [10, 22] : [88, 96], random);
         }
         const backgroundHsl = colorToHsl(candidate.base.background);
         const dark = mode ? mode === "dark" : candidate.isDark === null && randomizeBackground ? bgModeDark : activeDark(candidate);
@@ -457,10 +464,12 @@
         let bestReport = null;
         let bestRank = null;
         let accepted = false;
+        // Decided once per click, not per attempt: 20 attempts would make nearly every click vivid.
+        const vividBackground = random() < VIVID_BACKGROUND_CHANCE;
         try {
             state.previewChain = state.previewChain.then(async () => {
                 for (let attempt = 0; attempt < 20; attempt++) {
-                    const candidate = makeRandomCandidate(state.draft, selected, random, mode);
+                    const candidate = makeRandomCandidate(state.draft, selected, random, mode, vividBackground);
                     const report = await persephone.themes.contrast(candidate);
                     const rank = rankContrast(report);
                     if (!bestRank || rank.passes > bestRank.passes || (rank.passes === bestRank.passes && rank.lowest > bestRank.lowest)) {

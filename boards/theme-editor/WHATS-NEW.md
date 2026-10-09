@@ -1,5 +1,9 @@
 # What's new
 
+## 1.1.0
+- Added a Generated Set tab with 100 contrast-ranked, hue-sorted variants and live preview on selection, plus a Both / Dark / Light switch and a Regenerate button.
+- Settings new-theme requests now open Generated Set in Auto mode.
+
 ## 1.0.3
 - About one Generate click in five now picks a strongly colored background (a deep red, blue or green; a pastel tint in light mode) instead of a muted one.
 

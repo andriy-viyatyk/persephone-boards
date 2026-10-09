@@ -62,6 +62,7 @@
         generator: $("#generator-blocks"), generatorMessage: $("#generator-message"), generateButtons: [$("#generate-dark"), $("#generate-light")],
         overrideNotice: $("#override-notice"), overrideNoticeText: $("#override-notice-text"), generatorClearOverrides: $("#generator-clear-overrides"),
         startingPalette: $('[aria-labelledby="starting-heading"]'),
+        setStatus: $("#set-status"), setModeButtons: [...document.querySelectorAll("#set-mode button")], setTiles: $("#set-tiles"), setRegenerate: $("#set-regenerate"),
     };
     const state = {
         themes: [], current: null, draft: null, baseline: null, sourceId: null,
@@ -71,6 +72,7 @@
         dirty: false, busy: false, externalTimer: 0, externalRefreshPromise: Promise.resolve(), operation: 0, previewGeneration: 0,
         previewTimer: 0, previewResolve: null, previewChain: Promise.resolve(),
         unlistenTheme: null, locks: {}, view: "generator", nameDialogMode: "rename",
+        generatedSet: null, selectedSetIndex: null, generatingSet: false, setMode: "both",
         pageModified: false, persistTimer: 0, restoredDraft: false, intentPending: 0,
         // Override keys holding the opened theme's exact colors (not set by hand in Details). The
         // board opens with them as-is; the first generator change releases them all.
@@ -368,13 +370,15 @@
         for (const button of ui.generateButtons) button.disabled = state.busy || GENERATOR_BLOCKS.slice(0, 3).every((block) => state.locks[block.key]);
     }
     function setView(view) {
-        if (view !== "generator" && view !== "details") throw new Error('Unknown view. Allowed values: "generator", "details".');
+        if (view !== "set" && view !== "generator" && view !== "details") throw new Error('Unknown view. Allowed values: "set", "generator", "details".');
         state.view = view;
         for (const button of document.querySelectorAll(".view-tab")) button.setAttribute("aria-selected", String(button.dataset.view === view));
         for (const panel of document.querySelectorAll("[data-view-panel]")) panel.hidden = panel.dataset.viewPanel !== view;
-        // The generator blocks own the base colors; the sidebar copy is only needed in Details.
-        ui.startingPalette.hidden = view === "generator";
+        // Generator and Set replace the sidebar's base-color controls; Contrast remains visible.
+        ui.startingPalette.hidden = view !== "details";
+        if (view === "set") void ensureGeneratedSet().catch((error) => reportError(error, "Could not generate theme variants"));
     }
+    function setGeneratedView() { setView("set"); return ensureGeneratedSet(); }
     function randomBetween(min, max, random = Math.random) { return min + random() * (max - min); }
     function randomInt(min, max, random = Math.random) { return Math.floor(randomBetween(min, max + 1, random)); }
     function randomBaseColor(hue, saturationRange, lightnessRange, random = Math.random) {
@@ -396,14 +400,16 @@
         // An explicit mode (Generate dark/light) wins over the draft's mode; the result goes to Auto so
         // Persephone infers dark or light from the generated background.
         if (mode) candidate.isDark = null;
-        const bgModeDark = mode ? mode === "dark" : candidate.isDark === null ? random() < 0.5 : candidate.isDark;
+        const bgModeDark = mode ? mode === "dark" : candidate.isDark === null
+            ? (randomizeBackground ? random() < 0.5 : activeDark(candidate))
+            : candidate.isDark;
         if (randomizeBackground) {
             const hue = randomInt(0, 359, random);
             const saturation = vividBackground ? VIVID_BACKGROUND_SATURATION : MUTED_BACKGROUND_SATURATION;
             candidate.base.background = randomBaseColor(hue, saturation, bgModeDark ? [10, 22] : [88, 96], random);
         }
         const backgroundHsl = colorToHsl(candidate.base.background);
-        const dark = mode ? mode === "dark" : candidate.isDark === null && randomizeBackground ? bgModeDark : activeDark(candidate);
+        const dark = mode ? mode === "dark" : candidate.isDark === null ? bgModeDark : candidate.isDark;
         if (keys.includes("text") && !state.locks.text) {
             candidate.base.text = randomBaseColor(backgroundHsl.h, [0, 10], dark ? [88, 96] : [6, 16], random);
         }
@@ -413,7 +419,7 @@
         }
         for (const key of keys.filter((item) => !["background", "text", "accent"].includes(item))) {
             const block = GENERATOR_BLOCKS.find((item) => item.key === key);
-            if (block && !state.locks[key]) {
+            if (block && Object.hasOwn(candidate.base, key) && !state.locks[key]) {
                 const hue = randomInt(0, 359, random);
                 candidate.base[key] = randomBaseColor(hue, [55, 85], dark ? [42, 72] : [30, 60], random);
             }
@@ -442,6 +448,161 @@
             return ((result ^ (result >>> 14)) >>> 0) / 4294967296;
         };
     }
+    function generatorSource() {
+        const source = clone(state.draft);
+        for (const key of state.sourceExact) delete source.overrides[key];
+        return source;
+    }
+    function clearSetSelection() {
+        state.selectedSetIndex = null;
+        for (const tile of ui.setTiles.querySelectorAll(".set-tile")) tile.setAttribute("aria-pressed", "false");
+    }
+    function selectSetTile(index) {
+        state.selectedSetIndex = index;
+        for (const tile of ui.setTiles.querySelectorAll(".set-tile")) tile.setAttribute("aria-pressed", String(Number(tile.dataset.index) === index));
+    }
+    async function applyGeneratedDraft(candidate, { polarity = candidate.isDark, selectedIndex = null, allowBusy = false } = {}) {
+        if (!state.draft) throw new Error("The theme draft is not ready.");
+        if (state.busy && !allowBusy) throw new Error("Theme Editor is busy with another operation; try again when it finishes.");
+        releaseSourceExact();
+        clearSetSelection();
+        state.draft.base = clone(candidate.base);
+        if (typeof polarity === "boolean") state.draft.isDark = polarity;
+        else state.draft.isDark = candidate.isDark;
+        setPolarity();
+        syncGeneratorControls();
+        onDraftChanged();
+        if (selectedIndex !== null) selectSetTile(selectedIndex);
+        await queueDraftRefresh();
+    }
+    function effectiveVariantColors(derived, draft) {
+        const colors = { ...(derived?.colors || {}) };
+        for (const [key, value] of Object.entries(draft.overrides || {})) {
+            if (key.startsWith("--color-") && !state.sourceExact.has(key)) colors[key] = value;
+        }
+        return colors;
+    }
+    function makeSetTile(variant, index) {
+        const tile = document.createElement("button");
+        tile.type = "button";
+        tile.className = "set-tile";
+        tile.dataset.index = String(index);
+        tile.dataset.name = `set-tile-${index + 1}`;
+        tile.setAttribute("aria-pressed", String(index === state.selectedSetIndex));
+        tile.setAttribute("aria-label", `Variant ${index + 1}, ${variant.isDark ? "dark" : "light"}`);
+        const mock = document.createElement("span");
+        mock.className = "mini-window";
+        mock.setAttribute("aria-hidden", "true");
+        const c = variant.colors;
+        mock.style.setProperty("--tile-bg", c["--color-bg-default"] || "#ffffff");
+        mock.style.setProperty("--tile-title", c["--color-bg-dark"] || c["--color-bg-default"] || "#333333");
+        mock.style.setProperty("--tile-title-text", c["--color-text-strong"] || c["--color-text-default"] || "#ffffff");
+        mock.style.setProperty("--tile-toolbar", c["--color-bg-light"] || c["--color-bg-default"] || "#eeeeee");
+        mock.style.setProperty("--tile-text", c["--color-text-default"] || "#222222");
+        mock.style.setProperty("--tile-muted", c["--color-text-light"] || c["--color-text-default"] || "#777777");
+        mock.style.setProperty("--tile-border", c["--color-border-default"] || "#999999");
+        mock.style.setProperty("--tile-border-light", c["--color-border-light"] || c["--color-border-default"] || "#cccccc");
+        mock.style.setProperty("--tile-primary", c["--color-primary-bg"] || "#336699");
+        mock.style.setProperty("--tile-primary-text", c["--color-primary-text"] || "#ffffff");
+        mock.style.setProperty("--tile-selection", c["--color-bg-selection"] || "transparent");
+        mock.style.setProperty("--tile-selection-text", c["--color-text-selection"] || c["--color-text-default"] || "#222222");
+        mock.innerHTML = '<span class="mini-title"><i></i><i></i><i></i><b>Theme</b></span><span class="mini-toolbar"><i></i><i></i><i></i></span><span class="mini-content"><b>Sample heading</b><i class="mini-line"></i><i class="mini-line short"></i><span class="mini-selection">Selected item</span><span class="mini-accent">Action</span><small>Muted helper text</small></span>';
+        const caption = document.createElement("span");
+        caption.className = "set-caption";
+        caption.textContent = `Variant ${index + 1} · ${variant.isDark ? "Dark" : "Light"}`;
+        tile.append(mock, caption);
+        return tile;
+    }
+    function renderGeneratedSet() {
+        const fragment = document.createDocumentFragment();
+        state.generatedSet.forEach((variant, index) => {
+            const currentColors = effectiveVariantColors({ colors: variant.derivedColors }, state.draft);
+            fragment.append(makeSetTile({ ...variant, colors: currentColors }, index));
+        });
+        ui.setTiles.replaceChildren(fragment);
+    }
+    // "both" picks dark or light per variant, so the set mixes them whatever the draft's mode. A locked
+    // Background fixes the polarity, so the switch then has no effect.
+    function variantMode(random) {
+        if (state.locks.background) return undefined;
+        if (state.setMode === "both") return random() < 0.5 ? "dark" : "light";
+        return state.setMode;
+    }
+    function setGeneratedSetMode(mode) {
+        if (!["both", "dark", "light"].includes(mode)) throw new Error('Unknown set mode. Allowed values: "both", "dark", "light".');
+        state.setMode = mode;
+        for (const button of ui.setModeButtons) button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
+        return ensureGeneratedSet(true);
+    }
+    async function ensureGeneratedSet(force = false) {
+        if (state.generatingSet) return state.setPromise;
+        if (state.generatedSet && !force) return state.generatedSet;
+        if (!state.draft) return null;
+        state.generatingSet = true;
+        state.generatedSet = null;
+        clearSetSelection();
+        markBusy(true);
+        const startedAt = performance.now();
+        const source = generatorSource();
+        const keys = GENERATOR_BLOCKS.map((block) => block.key);
+        const variants = [];
+        ui.setTiles.replaceChildren();
+        ui.setStatus.textContent = "Generating 0 of 100…";
+        ui.setRegenerate.disabled = true;
+        for (const button of ui.setModeButtons) button.disabled = true;
+        try {
+            state.setPromise = (async () => {
+                for (let start = 0; start < 100; start += 15) {
+                    const batch = Array.from({ length: Math.min(15, 100 - start) }, async (_, offset) => {
+                        const random = Math.random;
+                        let best = null, bestReport = null, bestRank = null, chosenMode = null;
+                        const vividBackground = random() < VIVID_BACKGROUND_CHANCE;
+                        for (let attempt = 0; attempt < 2; attempt++) {
+                            const candidate = makeRandomCandidate(source, keys, random, variantMode(random), vividBackground);
+                            const report = await persephone.themes.contrast(candidate);
+                            const rank = rankContrast(report);
+                            if (!bestRank || rank.passes > bestRank.passes || (rank.passes === bestRank.passes && rank.lowest > bestRank.lowest)) {
+                                best = candidate; bestReport = report; bestRank = rank;
+                            }
+                            if (rank.complete && rank.passes === REQUIRED_RANDOM_PAIR_COUNT) break;
+                        }
+                        const backgroundHsl = colorToHsl(best.base.background);
+                        const inferredDark = best.isDark === null ? backgroundHsl.l < 50 : best.isDark;
+                        const derived = await persephone.themes.derive(best.base, inferredDark);
+                        chosenMode = derived?.isDark ?? inferredDark;
+                        return { draft: best, contrast: bestReport, rank: bestRank, isDark: chosenMode, derivedColors: derived?.colors || {}, hue: backgroundHsl.h, lightness: backgroundHsl.l };
+                    });
+                    variants.push(...await Promise.all(batch));
+                    ui.setStatus.textContent = `Generating ${variants.length} of 100…`;
+                }
+                // The hue wheel wraps: crimson and rose (330–359°) look red, so they lead the set with red;
+                // the set then runs orange, yellow, green, cyan, blue and ends on violet/magenta (to 329°).
+                const hueOrder = (hue) => (hue + 30) % 360;
+                variants.sort((a, b) => hueOrder(a.hue) - hueOrder(b.hue) || a.lightness - b.lightness);
+                state.generatedSet = variants;
+                renderGeneratedSet();
+                const duration = ((performance.now() - startedAt) / 1000).toFixed(2);
+                ui.setStatus.textContent = `100 variants ready in ${duration}s.`;
+                return variants;
+            })();
+            return await state.setPromise;
+        } catch (error) {
+            ui.setStatus.textContent = "Generation failed. Select Regenerate to try again.";
+            throw error;
+        } finally {
+            state.generatingSet = false;
+            markBusy(false);
+            ui.setRegenerate.disabled = false;
+            for (const button of ui.setModeButtons) button.disabled = false;
+        }
+    }
+    async function applySetTile(index) {
+        if (state.busy) throw new Error("Theme Editor is busy with another operation; try again when it finishes.");
+        if (!Number.isInteger(index) || index < 0 || index >= (state.generatedSet?.length || 0)) throw new Error("Variant index must be an integer from 0 to 99.");
+        const variant = state.generatedSet[index];
+        await applyGeneratedDraft(variant.draft, { polarity: variant.isDark, selectedIndex: index });
+        return { index, isDark: variant.isDark, contrast: clone(variant.contrast) };
+    }
     async function randomizeCore({ blocks, seed, mode } = {}) {
         if (!state.draft) throw new Error("The theme draft is not ready.");
         if (state.busy) throw new Error("Theme Editor is busy with another operation; try again when it finishes.");
@@ -460,6 +621,7 @@
         if (!await flushPendingPreview()) throw new Error(validDraft().message || "The current draft is invalid.");
         markBusy(true);
         const random = seed === undefined ? Math.random : seededRandom(seed);
+        const source = generatorSource();
         let best = null;
         let bestReport = null;
         let bestRank = null;
@@ -469,7 +631,7 @@
         try {
             state.previewChain = state.previewChain.then(async () => {
                 for (let attempt = 0; attempt < 20; attempt++) {
-                    const candidate = makeRandomCandidate(state.draft, selected, random, mode, vividBackground);
+                    const candidate = makeRandomCandidate(source, selected, random, mode, vividBackground);
                     const report = await persephone.themes.contrast(candidate);
                     const rank = rankContrast(report);
                     if (!bestRank || rank.passes > bestRank.passes || (rank.passes === bestRank.passes && rank.lowest > bestRank.lowest)) {
@@ -487,13 +649,8 @@
             });
             await state.previewChain;
             if (!best) return;
-            releaseSourceExact();
-            state.draft.base = best.base;
-            if (mode) { state.draft.isDark = best.isDark; setPolarity(); }
+            await applyGeneratedDraft(best, { polarity: best.isDark, allowBusy: true });
             state.contrast = bestReport;
-            syncGeneratorControls();
-            onDraftChanged();
-            await queueDraftRefresh();
             if (accepted) {
                 ui.generatorMessage.textContent = blocks ? "Rerolled color passes all four AA checks." : `Generated ${mode || "random"} theme passes all four AA checks.`;
             } else {
@@ -522,6 +679,8 @@
         state.busy = busy;
         for (const control of [...ui.base.querySelectorAll("input"), ...ui.generator.querySelectorAll("input, select, button"), ...ui.groups.querySelectorAll("input, button")]) control.disabled = busy;
         for (const button of ui.generateButtons) button.disabled = busy;
+        ui.setRegenerate.disabled = busy || !state.draft;
+        for (const tile of ui.setTiles.querySelectorAll(".set-tile")) tile.disabled = busy;
         renderDirty();
     }
     function draftIsDirty() {
@@ -729,6 +888,7 @@
         if (!allowInvalid && normalized && !parseableColor(normalized)) throw new Error(`"${normalized}" is not a valid CSS color for ${key}; use a CSS color value such as #336699, rgb(), hsl(), or a named color.`);
         if (!normalized && field.required && !allowInvalid) throw new Error(`${key} is required and cannot be removed.`);
         releaseSourceExact();
+        clearSetSelection();
         if (!normalized && !field.required) delete state.draft.base[key];
         else state.draft.base[key] = normalized;
         if (syncControls) renderEditorFields();
@@ -749,6 +909,7 @@
         state.sourceExact.delete(key);
         if (!normalized) delete state.draft.overrides[key];
         else state.draft.overrides[key] = normalized;
+        if (state.generatedSet) renderGeneratedSet();
         if (syncControls) renderPaletteValues();
         onDraftChanged();
         return state.draft.overrides[key] ?? null;
@@ -760,6 +921,7 @@
         if (!(key in state.draft.overrides)) return false;
         state.sourceExact.delete(key);
         delete state.draft.overrides[key];
+        if (state.generatedSet) renderGeneratedSet();
         renderPaletteValues();
         onDraftChanged();
         return true;
@@ -769,6 +931,7 @@
         const count = Object.keys(state.draft.overrides).length;
         state.draft.overrides = {};
         state.sourceExact.clear();
+        if (state.generatedSet) renderGeneratedSet();
         renderPaletteValues();
         onDraftChanged();
         return count;
@@ -803,6 +966,7 @@
         if (!state.draft) throw new Error("The theme draft is not ready.");
         if (!["auto", "dark", "light"].includes(mode)) throw new Error(`Unknown theme mode "${mode}". Allowed modes: auto, dark, light.`);
         releaseSourceExact();
+        clearSetSelection();
         state.draft.isDark = mode === "auto" ? null : mode === "dark";
         setPolarity();
         syncGeneratorControls();
@@ -900,6 +1064,8 @@
         return { schemaVersion: 1, name: "New Theme", base: defaultBase, isDark: null, overrides: {} };
     }
     async function loadSourceCore(id) {
+        state.generatedSet = null;
+        clearSetSelection();
         if (state.busy) throw new Error("Theme Editor is busy with another operation; try again when it finishes.");
         if (!state.themes.some((theme) => theme.id === id)) throw new Error(`Unknown theme "${id}".`);
         markBusy(true);
@@ -1003,6 +1169,7 @@
         // an exact built-in fork pins ~47 colors to reproduce the original, which would leave the
         // generator with almost nothing to drive.
         draft.overrides = {};
+        draft.isDark = null;
         draft.name = `New ${active.name || draft.name}`;
         return { mode: "new", activeId, active, draft };
     }
@@ -1015,6 +1182,7 @@
         if (source.mode === "edit") {
             await refreshThemes();
             await loadSourceCore(source.themeId);
+            setView("generator");
             return;
         }
 
@@ -1023,6 +1191,8 @@
             state.sourceId = null;
             state.sourceKind = "new";
             state.draft = clone(source.draft);
+            state.generatedSet = null;
+            clearSetSelection();
             markSourceExact();
             state.baseline = clone(source.draft);
             state.restoredDraft = true;
@@ -1035,6 +1205,7 @@
         } finally {
             markBusy(false);
         }
+        await setGeneratedView();
     }
     async function processThemeEditIntent(intent) {
         await state.externalRefreshPromise;
@@ -1185,6 +1356,7 @@
     }
     async function revertDraftCore() {
         if (state.busy) throw new Error("Theme Editor is busy with another operation; try again when it finishes.");
+        clearSetSelection();
         markBusy(true);
         const ownedPreview = state.hasPreview && !state.previewSuperseded;
         let superseded = state.previewSuperseded;
@@ -1385,7 +1557,12 @@
             { name: "clear-overrides", view: "main", purpose: "Remove all pinned palette overrides so colors follow derived values.", where: "Details view heading." },
             { name: "generator-clear-overrides", view: "main", purpose: "Remove all pinned palette overrides so colors follow derived values.", where: "Generator view, above the color blocks when overrides exist." },
             { name: "view-generator", view: "main", purpose: "Show the Generator tab for base colors and randomization.", where: "Palette area tab strip." },
+            { name: "view-set", view: "main", purpose: "Show the Generated Set tab with 100 sorted theme variants.", where: "Palette area tab strip." },
             { name: "view-details", view: "main", purpose: "Show the Details tab for individual derived palette values and overrides.", where: "Palette area tab strip." },
+            { name: "set-regenerate", view: "main", purpose: "Generate a fresh set of 100 contrast-ranked variants.", where: "Generated Set heading." },
+            { name: "set-mode", view: "main", purpose: "Choose Both, Dark or Light variants; changing it regenerates the set.", where: "Generated Set heading." },
+            { name: "set-status", view: "main", purpose: "Show Generated Set progress and completion status.", where: "Generated Set heading." },
+            ...Array.from({ length: 100 }, (_, index) => ({ name: `set-tile-${index + 1}`, view: "main", purpose: `Apply Generated Set variant ${index + 1} to the theme draft and live preview.`, where: "Generated Set variant grid." })),
             { name: "theme-edit-unsaved-dialog", view: "main", purpose: "Choose how to handle the current unsaved draft before opening a theme requested from Settings.", where: "Theme Editor request confirmation." },
             { name: "theme-edit-cancel", view: "main", purpose: "Keep the current draft and restore its live preview.", where: "Unsaved theme changes dialog." },
             { name: "theme-edit-discard", view: "main", purpose: "Discard the current draft and open the requested theme.", where: "Unsaved theme changes dialog." },
@@ -1409,7 +1586,8 @@
                 overview: "Read draft, themes, derived, contrast, and previewStatus for the current board draft.\nUse setBaseColor, setMode, and setOverride to edit it and preview valid changes.\nUse save/saveAs to persist and apply; revert discards draft edits.",
                 help: [
                     "This model edits the draft currently open in the user's Theme Editor board, not a separate app.themes object.",
-                    "Settings Edit requests a specific theme through theme.edit@1; the request is accepted immediately before source loading. A custom theme loads its saved file, while a built-in loads as an exact, unsaved \"<name> copy\". The Settings + action creates an id-less dirty draft with the active theme's base colors and mode and no pinned overrides, named \"New <active name>\".",
+                    "Settings Edit requests a specific theme through theme.edit@1; the request is accepted immediately before source loading. A custom theme loads its saved file, while a built-in loads as an exact, unsaved \"<name> copy\" and opens Generator. The Settings + action creates an id-less dirty draft with the active theme's base colors, Auto mode, and no pinned overrides, named \"New <active name>\", then opens and generates Generated Set.",
+                    "Generated Set is created lazily the first time its tab is selected; Regenerate replaces the in-memory 100-variant set. The Both / Dark / Light switch makes a mixed, all-dark or all-light set (Both by default; a locked Background fixes the polarity). Candidates are contrast-ranked, sorted by background hue and lightness, and display illustrative palettes, not controls. Select a tile to apply its base colors and polarity to the shared draft and live preview. A busy generation reports progress and rejects AiVision mutations.",
                     "A dirty or restored draft is never replaced by a repeated Settings request. Save persists it and then opens the requested source; Discard drops it and opens that source; Cancel keeps the draft and reapplies its live preview.",
                     "Changes preview live; there is no separate apply step. Revert restores the saved theme.",
                     "An opened theme keeps its exact colors (stored as overrides) and the generator controls only show where its base colors sit. The first setBaseColor, setMode or randomize call hands every one of those exact colors back to the generator; overrides set with setOverride stay. Revert returns to the exact colors.",
@@ -1428,7 +1606,7 @@
                     { name: "themes", kind: "property", summary: "Saved theme choices as id/name/custom-or-built-in summaries." },
                     { name: "derived", kind: "property", summary: "Latest completed authoritative theme derivation from Persephone, or null before one completes." },
                     { name: "contrast", kind: "property", summary: "Latest completed authoritative contrast report from Persephone; it may lag while previewStatus.pending is true." },
-                    { name: "busy", kind: "property", summary: "True while a load, save, revert, rename, or delete operation is running." },
+                    { name: "busy", kind: "property", summary: "True while generation or another load, save, revert, rename, or delete operation is running." },
                     { name: "dirty", kind: "property", summary: "Whether the open draft differs from its baseline and is marked modified in Persephone." },
                     { name: "valid", kind: "property", summary: "Whether the current draft has a non-empty name and valid required colors, optional colors, and overrides." },
                     { name: "validationError", kind: "property", summary: "Readable validation error for the current draft, or an empty string when valid." },
@@ -1445,7 +1623,10 @@
                     { name: "deleteThemeCore", kind: "method", signature: "deleteThemeCore()", summary: "Delete the selected saved custom theme, then load the theme Persephone falls back to." , caution: "Immediately removes the saved custom theme with no agent-side confirmation or undo." },
                     { name: "randomize", kind: "method", signature: 'randomize(options?: { blocks?: string[], seed?: number | string, mode?: "dark" | "light" })', summary: "Generate base colors for selected unlocked blocks, update the live draft and preview, and return whether all four required AA checks passed or the best fallback result." },
                     { name: "setLock", kind: "method", signature: "setLock(block: string, locked: boolean)", summary: "Set whether a Generator block is held fixed during randomization; does not change the draft or preview." },
-                    { name: "setView", kind: "method", signature: 'setView(view: "generator" | "details")', summary: "Change the visible tab without changing the draft or preview." },
+                    { name: "regenerateSet", kind: "method", signature: "regenerateSet()", summary: "Generate and return 100 fresh contrast-ranked variants for Generated Set." },
+                    { name: "setSetMode", kind: "method", signature: 'setSetMode(mode: "both" | "dark" | "light")', summary: "Choose whether Generated Set makes dark and light, only dark, or only light variants, and regenerate it." },
+                    { name: "applySetTile", kind: "method", signature: "applySetTile(index: number)", summary: "Apply a zero-based Generated Set tile index (0–99) to the shared draft and live preview." },
+                    { name: "setView", kind: "method", signature: 'setView(view: "set" | "generator" | "details")', summary: "Change the visible tab; selecting set generates it once on first use." },
                     ...elementParts.members,
                 ],
                 elements: declarations,
@@ -1491,7 +1672,10 @@
             async deleteThemeCore() { assertModelEditable(); return await deleteThemeCore(); },
             async randomize(options) { assertModelEditable(); return await randomizeCore(options); },
             setLock(block, locked) { assertModelEditable(); if (typeof locked !== "boolean") throw new Error("locked must be true or false."); setBlockLock(block, locked); return state.locks[block]; },
-            setView(view) { setView(view); return state.view; },
+            async regenerateSet() { assertModelEditable(); return await ensureGeneratedSet(true); },
+            async setSetMode(mode) { assertModelEditable(); return await setGeneratedSetMode(mode); },
+            async applySetTile(index) { assertModelEditable(); return await applySetTile(index); },
+            setView(view) { assertModelEditable(); setView(view); return state.view; },
         };
         function assertModelEditable() {
             if (state.busy) throw new Error("Theme Editor is busy with another operation; try again when it finishes.");
@@ -1516,6 +1700,16 @@
         ui.generatorClearOverrides.addEventListener("click", clearOverrides);
         ui.generateButtons[0].addEventListener("click", () => { void randomize(undefined, "dark"); });
         ui.generateButtons[1].addEventListener("click", () => { void randomize(undefined, "light"); });
+        for (const button of ui.setModeButtons) button.addEventListener("click", () => {
+            if (state.busy || button.dataset.mode === state.setMode) return;
+            void setGeneratedSetMode(button.dataset.mode).catch((error) => reportError(error, "Could not generate theme variants"));
+        });
+        ui.setRegenerate.addEventListener("click", () => { void ensureGeneratedSet(true).catch((error) => reportError(error, "Could not generate theme variants")); });
+        ui.setTiles.addEventListener("click", (event) => {
+            const tile = event.target.closest(".set-tile");
+            if (!tile || state.busy) return;
+            void applySetTile(Number(tile.dataset.index)).catch((error) => reportError(error, "Could not apply theme variant"));
+        });
         for (const tab of document.querySelectorAll(".view-tab")) tab.addEventListener("click", () => setView(tab.dataset.view));
         setView(state.view);
         declarePageToolbar();

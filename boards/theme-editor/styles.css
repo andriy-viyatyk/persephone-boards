@@ -63,6 +63,28 @@ dialog::backdrop { background: var(--p-overlay); }
 .view-tabs { display: flex; gap: var(--p-space-xs); border-bottom: 1px solid var(--p-border); flex: 0 0 auto; }
 .view-tab { padding: var(--p-space-sm) var(--p-space-md); color: var(--p-text-muted); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
 .view-tab[aria-selected="true"] { color: var(--p-text); border-bottom-color: var(--p-accent); }
+.set-mode button { padding: var(--p-space-xs) var(--p-space-sm); }
+.set-heading-status { font-size: var(--p-font-sm); }
+.set-tiles { display: flex; flex-wrap: wrap; align-content: flex-start; gap: var(--p-space-md); padding-bottom: var(--p-space-lg); }
+.set-tile { width: 160px; min-height: 132px; display: grid; gap: var(--p-space-xs); padding: var(--p-space-xs); color: var(--p-text); text-align: left; background: var(--p-panel); border: 1px solid var(--p-border); border-radius: var(--p-radius-md); cursor: pointer; }
+.set-tile:hover { border-color: var(--p-accent); }
+.set-tile:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
+.set-tile[aria-pressed="true"] { border: 2px solid var(--p-accent); padding: calc(var(--p-space-xs) - 1px); }
+.set-tile:disabled { cursor: wait; opacity: .75; }
+.mini-window { min-height: 98px; display: grid; grid-template-rows: 19px 14px 1fr; overflow: hidden; color: var(--tile-text); background: var(--tile-bg); border: 1px solid var(--tile-border); border-radius: 4px; box-shadow: 0 1px 3px color-mix(in srgb, var(--p-shadow) 35%, transparent); font: 7px/1.2 system-ui, sans-serif; }
+.mini-title { display: flex; align-items: center; gap: 3px; padding: 0 5px; color: var(--tile-title-text); background: var(--tile-title); }
+.mini-title i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: .65; }
+.mini-title b { margin-left: auto; font-size: 7px; font-weight: 500; }
+.mini-toolbar { display: flex; align-items: center; gap: 5px; padding: 0 6px; background: var(--tile-toolbar); border-bottom: 1px solid var(--tile-border-light); }
+.mini-toolbar i { width: 12px; height: 4px; background: var(--tile-border); border-radius: 2px; opacity: .8; }
+.mini-content { position: relative; display: grid; grid-template-columns: 1fr auto; align-content: start; gap: 3px; padding: 6px; border: 1px solid var(--tile-border-light); border-top: 0; }
+.mini-content > b { grid-column: 1 / -1; font-size: 8px; }
+.mini-line { display: block; width: 90%; height: 3px; background: var(--tile-muted); opacity: .6; border-radius: 2px; }
+.mini-line.short { width: 55%; }
+.mini-selection { position: absolute; left: 4px; bottom: 8px; padding: 2px 4px; color: var(--tile-selection-text); background: var(--tile-selection); }
+.mini-accent { align-self: end; padding: 2px 5px; color: var(--tile-primary-text); background: var(--tile-primary); border-radius: 3px; font-size: 6px; }
+.mini-content small { grid-column: 1 / -1; color: var(--tile-muted); font-size: 6px; }
+.set-caption { color: var(--p-text-muted); font-size: var(--p-font-sm); }
 /* The right gutter lives inside the scrolling panel, so a scrollbar sits beyond it instead of
    eating it: blocks keep the same margin on both sides whether or not the panel scrolls. */
 .palette-area { padding-right: 0; }

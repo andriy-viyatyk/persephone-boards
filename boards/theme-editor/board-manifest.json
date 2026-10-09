@@ -4,7 +4,7 @@
   "description": "Create your own Persephone color themes. Pick a background, text and accent color and every other color is derived for you; adjust any derived color, check text contrast, preview live, then save, rename, import or export named themes you can select in Settings.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "minAppVersion": "5.0.9",
   "minBridgeVersion": "1.35.0",
   "screenshot": "screenshot.png",

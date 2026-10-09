@@ -35,9 +35,17 @@
 
         <section class="palette-area" aria-label="Theme palette">
             <nav class="view-tabs" aria-label="Theme editing view">
+                <button class="view-tab" id="set-tab" type="button" data-view="set" data-name="view-set" aria-selected="false">Generated Set</button>
                 <button class="view-tab" id="generator-tab" type="button" data-view="generator" data-name="view-generator" aria-selected="true">Generator</button>
                 <button class="view-tab" id="details-tab" type="button" data-view="details" data-name="view-details" aria-selected="false">Details</button>
             </nav>
+            <section id="set-view" class="view-panel" data-view-panel="set" aria-labelledby="set-tab" hidden>
+                <div class="palette-heading">
+                    <div><h1>Generated set</h1><p class="muted">100 contrast-ranked variants, sorted by background hue. Select a tile to preview it.</p></div>
+                    <div class="palette-heading-actions"><div class="segmented set-mode" id="set-mode" role="group" aria-label="Variant color mode" data-name="set-mode"><button type="button" data-mode="both" aria-pressed="true">Both</button><button type="button" data-mode="dark" aria-pressed="false">Dark</button><button type="button" data-mode="light" aria-pressed="false">Light</button></div><span id="set-status" class="muted" role="status" aria-live="polite" data-name="set-status">Select Generated Set to create variants.</span><button class="p-btn primary sm" id="set-regenerate" data-name="set-regenerate" type="button">Regenerate</button></div>
+                </div>
+                <div id="set-tiles" class="set-tiles" data-name="set-tiles" aria-label="Generated theme variants"></div>
+            </section>
             <section id="generator-view" class="view-panel" data-view-panel="generator" aria-labelledby="generator-tab">
                 <div class="palette-heading">
                     <div><h1>Theme generator</h1><p class="muted">Adjust foundation colors and preview Persephone’s derived palette.</p></div>

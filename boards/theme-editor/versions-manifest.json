@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "theme-editor",
+  "versions": [
+    {
+      "version": "1.0.0",
+      "date": "2026-10-09",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/theme-editor-v1.0.0/theme-editor.zip",
+        "size": 32810,
+        "sha256": "e18e188a6ecce8b572fea76e0977d61d1e5dc3f8d844b668b717202306f8377e"
+      },
+      "minAppVersion": "5.0.9"
+    }
+  ]
+}

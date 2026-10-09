@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Theme Editor</title>
+    <link rel="stylesheet" href="./board-base.css">
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div id="message" class="message" role="status" aria-live="polite" data-name="editor-message" hidden></div>
+
+    <main class="workspace">
+        <aside class="sidebar">
+            <section class="panel" aria-labelledby="starting-heading">
+                <div class="panel-heading"><h2 id="starting-heading">Starting palette</h2><span id="mode-indicator" class="mode-chip">—</span></div>
+                <p class="muted">Set the three foundations. Persephone derives the rest of the palette.</p>
+                <div id="base-controls" class="base-controls"></div>
+                <fieldset class="polarity-control">
+                    <legend>Color mode</legend>
+                    <div class="segmented" id="polarity" data-name="theme-polarity">
+                        <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
+                        <button type="button" data-mode="dark" aria-pressed="false">Dark</button>
+                        <button type="button" data-mode="light" aria-pressed="false">Light</button>
+                    </div>
+                </fieldset>
+                <div id="active-theme" class="active-theme" data-name="active-theme-indicator"></div>
+            </section>
+
+            <section class="panel contrast-panel" aria-labelledby="contrast-heading">
+                <div class="panel-heading"><h2 id="contrast-heading">Contrast</h2><span class="muted">WCAG AA</span></div>
+                <div id="contrast-list" class="contrast-list"><p class="muted">Waiting for a palette…</p></div>
+            </section>
+        </aside>
+
+        <section class="palette-area" aria-label="Theme palette">
+            <nav class="view-tabs" aria-label="Theme editing view">
+                <button class="view-tab" id="generator-tab" type="button" data-view="generator" data-name="view-generator" aria-selected="true">Generator</button>
+                <button class="view-tab" id="details-tab" type="button" data-view="details" data-name="view-details" aria-selected="false">Details</button>
+            </nav>
+            <section id="generator-view" class="view-panel" data-view-panel="generator" aria-labelledby="generator-tab">
+                <div class="palette-heading">
+                    <div><h1>Theme generator</h1><p class="muted">Adjust foundation colors and preview Persephone’s derived palette.</p></div>
+                    <div class="palette-heading-actions"><button class="p-btn primary sm" id="generate-dark" data-name="generate-dark" type="button" disabled>Generate dark theme</button><button class="p-btn primary sm" id="generate-light" data-name="generate-light" type="button" disabled>Generate light theme</button></div>
+                </div>
+                <div id="override-notice" class="override-notice" data-name="override-notice" hidden>
+                    <span id="override-notice-text"></span>
+                    <button class="p-btn sm" id="generator-clear-overrides" data-name="generator-clear-overrides" type="button">Clear</button>
+                </div>
+                <div id="generator-message" class="generator-message" role="status" aria-live="polite" data-name="generator-message" hidden></div>
+                <div id="generator-blocks" class="generator-blocks"></div>
+            </section>
+            <section id="details-view" class="view-panel" data-view-panel="details" aria-labelledby="details-tab" hidden>
+                <div class="palette-heading"><div><h1>Palette details</h1><p class="muted">Edit a value to pin it as an override. Reset restores Persephone’s derived value.</p></div><div class="palette-heading-actions"><button class="p-btn sm" id="clear-overrides" data-name="clear-overrides" type="button" title="Remove every override so the whole palette follows the base colors" disabled>Clear overrides</button></div></div>
+                <div id="palette-groups" class="palette-groups"></div>
+            </section>
+        </section>
+    </main>
+
+    <dialog id="delete-dialog" data-name="delete-confirmation">
+        <form method="dialog" class="dialog-content">
+            <h2>Delete custom theme?</h2>
+            <p id="delete-copy">This removes the saved theme from Persephone.</p>
+            <div class="dialog-actions"><button class="p-btn" value="cancel">Cancel</button><button class="p-btn danger" id="confirm-delete" value="delete">Delete theme</button></div>
+        </form>
+    </dialog>
+    <dialog id="rename-dialog" data-name="rename-dialog">
+        <form method="dialog" class="dialog-content" id="rename-form">
+            <h2 id="rename-title">Rename theme</h2>
+            <label>Name <input class="p-input" id="rename-input" maxlength="80" required></label>
+            <div class="dialog-actions"><button class="p-btn" value="cancel">Cancel</button><button class="p-btn primary" id="confirm-rename" value="confirm">Rename</button></div>
+        </form>
+    </dialog>
+    <dialog id="intent-dialog" data-name="theme-edit-unsaved-dialog">
+        <form method="dialog" class="dialog-content">
+            <h2>Unsaved theme changes</h2>
+            <p class="intent-dialog-copy">Your current draft has unsaved changes. Save it or discard it before opening the requested theme.</p>
+            <div class="dialog-actions">
+                <button class="p-btn" value="cancel" data-name="theme-edit-cancel">Cancel</button>
+                <button class="p-btn danger" value="discard" data-name="theme-edit-discard">Discard</button>
+                <button class="p-btn primary" value="save" data-name="theme-edit-save">Save</button>
+            </div>
+        </form>
+    </dialog>
+    <dialog id="import-dialog" data-name="import-dialog">
+        <form method="dialog" class="dialog-content">
+            <h2>Import theme JSON</h2>
+            <p>The file is saved as a new custom theme and applied.</p>
+            <div class="dialog-actions"><button class="p-btn" value="cancel">Cancel</button><button class="p-btn primary" type="button" id="choose-import-file" data-name="choose-import-file">Choose file…</button></div>
+        </form>
+    </dialog>
+    <input id="import-file" type="file" accept="application/json,.json" hidden data-name="import-theme-file">
+    <script src="./app.js"></script>
+</body>
+</html>

@@ -8,7 +8,7 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-*(nothing active)*
+*(none)*
 
 ## Planned
 

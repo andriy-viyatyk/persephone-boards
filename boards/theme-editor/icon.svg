@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Fixed colors (not currentColor): Persephone shows board icons as <img>. -->
+  <path d="M32 5C16.5 5 5 16.2 5 30.5 5 45 16.8 58 31 58c5.2 0 8-2.6 8-6.4 0-2.6-1.6-4-1.6-6.2 0-2.7 2.2-4.4 5.2-4.4h5.6C54.4 41 59 36.6 59 29.6 59 15.6 47.2 5 32 5z" fill="#F2D3A2" stroke="#8A6236" stroke-width="3" stroke-linejoin="round"/>
+  <circle cx="20" cy="22" r="5.5" fill="#E5484D"/>
+  <circle cx="33" cy="16" r="5.5" fill="#F5B82E"/>
+  <circle cx="46" cy="22" r="5.5" fill="#30A46C"/>
+  <circle cx="16.5" cy="36" r="5.5" fill="#3E7BFA"/>
+  <circle cx="25" cy="48" r="5" fill="#8E4EC6"/>
+  <circle cx="46" cy="33" r="3.2" fill="#FFFFFF" stroke="#8A6236" stroke-width="2"/>
+</svg>

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "name": "Theme Editor",
+  "description": "Create your own Persephone color themes. Pick a background, text and accent color and every other color is derived for you; adjust any derived color, check text contrast, preview live, then save, rename, import or export named themes you can select in Settings.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "5.0.9",
+  "minBridgeVersion": "1.35.0",
+  "screenshot": "screenshot.png",
+  "permissions": {
+    "themes": true,
+    "execute": false,
+    "service": false,
+    "fileSystem": false,
+    "openExternal": false,
+    "appScripting": false,
+    "network": false,
+    "clipboardRead": false,
+    "camera": false,
+    "microphone": false,
+    "geolocation": false,
+    "notifications": false
+  },
+  "capabilities": [
+    {
+      "id": "theme.edit",
+      "version": 1,
+      "priority": 50,
+      "title": "Theme Editor"
+    }
+  ]
+}

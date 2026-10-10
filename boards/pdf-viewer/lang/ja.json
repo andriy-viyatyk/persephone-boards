@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "PDF Viewer",
+    "frame.title": "PDF ドキュメント",
+    "status.loading": "読み込み中…",
+    "errors.bridge": "Persephone ブリッジを利用できません",
+    "errors.bridgeDetail": "このボードはPersephone内で実行する必要があります。",
+    "status.opening": "開いています…",
+    "status.resolving": "ドキュメントの場所を確認しています。",
+    "errors.read": "ドキュメントを読み取れませんでした",
+    "toast.read": "PDFの読み込みに失敗しました: {error}",
+    "empty.instructions": "このボードでPDFファイルを開けます。表示する.pdfファイルを開いてください。",
+    "empty.title": "ドキュメントがありません",
+    "empty.probes": "このPersephoneビルドでの機能チェック:",
+    "errors.viewer": "PDFビューアーを読み込めませんでした",
+    "toast.viewer": "PDFビューアー フレームの読み込みに失敗しました。詳細はボードを確認してください。",
+    "status.reading": "読み取り中…",
+    "errors.open": "ドキュメントを開けませんでした",
+    "toast.open": "PDFを開けませんでした: {error}",
+    "probes.iframe": "入れ子のiframe（frame-src）",
+    "probes.worker": "pdf.jsワーカー（worker-src）",
+    "probes.wasm": "WebAssembly（wasm-unsafe-eval）",
+    "status.works": "動作中",
+    "status.blocked": "ブロック済み",
+    "status.violations": "CSP違反",
+    "manifest.name": "PDF ビューアー",
+    "manifest.description": "検索、サムネイル、アウトライン、ズームとページ合わせ、回転、印刷に対応したPDFドキュメントの読み取り専用ビューアー。",
+    "manifest.editorName": "PDF"
+  }
+}

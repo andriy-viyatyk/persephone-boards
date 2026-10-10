@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Visor de PowerPoint",
+    "slides.counter.empty": "–",
+    "slides.previous.title": "Diapositiva anterior",
+    "slides.next.title": "Diapositiva siguiente",
+    "toolbar.reload.title": "Volver a cargar el archivo desde el disco",
+    "state.loading": "Cargando…",
+    "state.noFile": "No hay ningún archivo abierto. Abre un archivo .pptx para verlo aquí.",
+    "state.noSlides": "Esta presentación no contiene diapositivas.",
+    "state.openError": "No se pudo abrir este archivo.",
+    "toast.openError": "No se pudo abrir este archivo: {error}",
+    "manifest.name": "Visor de PowerPoint",
+    "manifest.description": "Visor de presentaciones de PowerPoint de solo lectura.",
+    "manifest.editorName": "PowerPoint"
+  }
+}

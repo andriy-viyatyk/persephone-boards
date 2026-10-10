@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Перегляд PDF",
+    "frame.title": "Документ PDF",
+    "status.loading": "Завантаження…",
+    "errors.bridge": "Міст Persephone недоступний",
+    "errors.bridgeDetail": "Ця дошка має працювати в Persephone.",
+    "status.opening": "Відкриття…",
+    "status.resolving": "Визначення джерела документа.",
+    "errors.read": "Не вдалося прочитати документ",
+    "toast.read": "Не вдалося прочитати джерело PDF: {error}",
+    "empty.instructions": "Ця дошка відкриває PDF-файли. Відкрийте файл .pdf, щоб переглянути його.",
+    "empty.title": "Немає документа",
+    "empty.probes": "Перевірки можливостей цієї збірки Persephone:",
+    "errors.viewer": "Не вдалося завантажити засіб перегляду PDF",
+    "toast.viewer": "Не вдалося завантажити вікно засобу перегляду PDF — див. подробиці на дошці.",
+    "status.reading": "Читання…",
+    "errors.open": "Не вдалося відкрити документ",
+    "toast.open": "Не вдалося відкрити PDF: {error}",
+    "probes.iframe": "Вкладений iframe (frame-src)",
+    "probes.worker": "Робочий процес pdf.js (worker-src)",
+    "probes.wasm": "WebAssembly (wasm-unsafe-eval)",
+    "status.works": "працює",
+    "status.blocked": "заблоковано",
+    "status.violations": "порушення CSP",
+    "manifest.name": "Перегляд PDF",
+    "manifest.description": "Перегляд PDF-документів без редагування.",
+    "manifest.editorName": "PDF"
+  }
+}

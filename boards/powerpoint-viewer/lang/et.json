@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "PowerPointi vaatur",
+    "slides.counter.empty": "–",
+    "slides.previous.title": "Eelmine slaid",
+    "slides.next.title": "Järgmine slaid",
+    "toolbar.reload.title": "Laadi fail kettalt uuesti",
+    "state.loading": "Laadimine…",
+    "state.noFile": "Ühtegi faili pole avatud. Avage siin vaatamiseks .pptx-fail.",
+    "state.noSlides": "Selles esitluses pole slaide.",
+    "state.openError": "Faili avamine nurjus.",
+    "toast.openError": "Faili avamine nurjus: {error}",
+    "manifest.name": "PowerPointi vaatur",
+    "manifest.description": "Ainult vaatamiseks mõeldud PowerPointi esitluste (.pptx) vaatur — keritavad slaidid renderdatakse võrguühenduseta.",
+    "manifest.editorName": "PowerPoint"
+  }
+}

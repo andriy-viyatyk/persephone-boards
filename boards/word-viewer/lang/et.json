@@ -1,0 +1,15 @@
+{
+  "messages": {
+    "document.title": "Wordi vaatur",
+    "board.name": "Wordi vaatur",
+    "toolbar.reload.title": "Laadi fail kettalt uuesti",
+    "zoom.help": "Suum: Ctrl + hiireratas (või Ctrl ja + / - / 0). Klõpsake siin, et lähtestada suum väärtusele 100%.",
+    "state.loading": "Laadimine…",
+    "state.noFile": "Ühtegi faili pole avatud. Avage siin vaatamiseks .docx-fail.",
+    "state.openError": "Faili avamine nurjus.",
+    "toast.openError": "Faili avamine nurjus: {error}",
+    "manifest.name": "Wordi vaatur",
+    "manifest.description": "Ainult vaatamiseks mõeldud Wordi dokumentide (.docx) vaatur — lehekülgede täpne renderdamine pealkirjade, loendite, tabelite ja piltidega.",
+    "manifest.editorName": "Word"
+  }
+}

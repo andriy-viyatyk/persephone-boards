@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Перегляд SQLite",
+    "search.placeholder": "Пошук у результатах…",
+    "action.open.title": "Відкрити файл бази даних SQLite…",
+    "action.reload.title": "Повторно відкрити базу даних із диска",
+    "query.placeholder": "SELECT … (виберіть таблицю на бічній панелі «Таблиці» або введіть запит)",
+    "query.run": "Виконати",
+    "query.stop": "Зупинити",
+    "query.shortcut": "Ctrl+Enter",
+    "tables.title": "Таблиці",
+    "tables.empty": "Базу даних не відкрито.",
+    "tables.kind": "Таблиці",
+    "views.kind": "Подання",
+    "state.noColumns": "Інструкція не повернула стовпців.",
+    "status.running": "Виконується…",
+    "status.rows": {"one":"{countLabel} рядок за {msLabel} мс{truncation}","few":"{countLabel} рядки за {msLabel} мс{truncation}","many":"{countLabel} рядків за {msLabel} мс{truncation}","other":"{countLabel} рядка за {msLabel} мс{truncation}"},
+    "status.error": "Помилка: {error}",
+    "status.cancelling": "Скасування…",
+    "status.cancelled": "Запит скасовано.",
+    "state.opening": "Відкриття бази даних…",
+    "state.noTables": "У цій базі даних немає таблиць.",
+    "state.openError": "Не вдалося відкрити цю базу даних.",
+    "state.noDatabase": "Базу даних не відкрито. Відкрийте файл .db / .sqlite або скористайтеся кнопкою папки вище.",
+    "manifest.name": "Перегляд SQLite",
+    "manifest.description": "Перегляд баз даних SQLite і виконання запитів SQL.",
+    "manifest.editorName": "SQLite",
+    "manifest.views.tables.title": "Таблиці"
+  }
+}

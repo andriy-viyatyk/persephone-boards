@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Visualizador de PDF",
+    "frame.title": "Documento PDF",
+    "status.loading": "Carregando…",
+    "errors.bridge": "Ponte do Persephone indisponível",
+    "errors.bridgeDetail": "Este quadro precisa ser executado no Persephone.",
+    "status.opening": "Abrindo…",
+    "status.resolving": "Localizando a origem do documento.",
+    "errors.read": "Não foi possível ler o documento",
+    "toast.read": "Falha ao ler a origem do PDF: {error}",
+    "empty.instructions": "Este quadro abre arquivos PDF. Abra um arquivo .pdf para visualizá-lo.",
+    "empty.title": "Nenhum documento",
+    "empty.probes": "Testes de capacidade desta versão do Persephone:",
+    "errors.viewer": "Não foi possível carregar o visualizador de PDF",
+    "toast.viewer": "O quadro do visualizador de PDF não carregou — consulte os detalhes no quadro.",
+    "status.reading": "Lendo…",
+    "errors.open": "Não foi possível abrir o documento",
+    "toast.open": "Falha ao abrir o PDF: {error}",
+    "probes.iframe": "IFrame aninhado (frame-src)",
+    "probes.worker": "Worker do pdf.js (worker-src)",
+    "probes.wasm": "WebAssembly (wasm-unsafe-eval)",
+    "status.works": "funciona",
+    "status.blocked": "bloqueado",
+    "status.violations": "violações de CSP",
+    "manifest.name": "Visualizador de PDF",
+    "manifest.description": "Visualizador de documentos PDF com o visualizador padrão do pdf.js, pesquisa, miniaturas, estrutura de tópicos, zoom/ajuste, rotação e impressão.",
+    "manifest.editorName": "PDF"
+  }
+}

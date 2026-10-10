@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "SQLite 뷰어",
+    "search.placeholder": "결과 검색…",
+    "action.open.title": "SQLite 데이터베이스 파일 열기…",
+    "action.reload.title": "디스크에서 데이터베이스 다시 열기",
+    "query.placeholder": "SELECT … (테이블 사이드 패널에서 테이블을 선택하거나 쿼리를 입력하세요)",
+    "query.run": "실행",
+    "query.stop": "중지",
+    "query.shortcut": "Ctrl+Enter",
+    "tables.title": "테이블",
+    "tables.empty": "열린 데이터베이스가 없습니다.",
+    "tables.kind": "테이블",
+    "views.kind": "뷰",
+    "state.noColumns": "문에서 열을 반환하지 않았습니다.",
+    "status.running": "실행 중…",
+    "status.rows": {"other": "행 {countLabel}개 · {msLabel}ms{truncation}"},
+    "status.error": "오류: {error}",
+    "status.cancelling": "취소하는 중…",
+    "status.cancelled": "쿼리가 취소되었습니다.",
+    "state.opening": "데이터베이스 여는 중…",
+    "state.noTables": "이 데이터베이스에 테이블이 없습니다.",
+    "state.openError": "이 데이터베이스를 열 수 없습니다.",
+    "state.noDatabase": "열린 데이터베이스가 없습니다. .db 또는 .sqlite 파일을 열거나 위의 폴더 단추를 사용하세요.",
+    "manifest.name": "SQLite 뷰어",
+    "manifest.description": "SQLite 데이터베이스를 살펴보고 SQL 쿼리를 실행합니다.",
+    "manifest.editorName": "SQLite",
+    "manifest.views.tables.title": "테이블"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "DrawIO 查看器",
+    "board.name": "DrawIO 查看器",
+    "action.openDrawing.title": "在绘图编辑器中打开（在 Excalidraw 中编辑副本）",
+    "action.save.title": "将当前页面另存为图像（SVG 或 PNG）",
+    "action.copy.title": "将图表复制为 PNG 到剪贴板",
+    "action.saveSvg": "另存为 SVG",
+    "action.savePng": "另存为 PNG",
+    "zoom.reset.title": "重置缩放（双击图表）",
+    "toast.copy.success": "已将图表复制到剪贴板（PNG）。",
+    "toast.copy.error": "复制失败：{error}",
+    "toast.saveSvg.success": "图表已另存为 SVG。",
+    "toast.saveSvg.error": "另存为 SVG 失败：{error}",
+    "toast.savePng.success": "图表已另存为 PNG。",
+    "toast.savePng.error": "另存为 PNG 失败：{error}",
+    "toast.openDrawing.error": "在绘图编辑器中打开失败：{error}",
+    "empty.file": "文件为空。",
+    "errors.render": "无法呈现图表：{error}",
+    "empty.open": "打开 .drawio 文件以在此处查看。",
+    "save.svg.title": "另存为 SVG",
+    "save.png.title": "另存为 PNG",
+    "save.filter.svg": "SVG 图像",
+    "save.filter.png": "PNG 图像",
+    "save.filter.all": "所有文件",
+    "manifest.name": "DrawIO 查看器",
+    "manifest.description": "只读查看 diagrams.net / draw.io（.drawio）图表。",
+    "manifest.editorName": "DrawIO"
+  }
+}

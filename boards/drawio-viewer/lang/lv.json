@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "draw.io skatītājs",
+    "board.name": "draw.io skatītājs",
+    "action.openDrawing.title": "Atvērt zīmējumu redaktorā (rediģēt kopiju programmā Excalidraw)",
+    "action.save.title": "Saglabāt pašreizējo lapu kā attēlu (SVG vai PNG)",
+    "action.copy.title": "Kopēt diagrammu starpliktuvē kā PNG",
+    "action.saveSvg": "Saglabāt kā SVG",
+    "action.savePng": "Saglabāt kā PNG",
+    "zoom.reset.title": "Atiestatīt tālummaiņu (veiciet dubultklikšķi uz diagrammas)",
+    "toast.copy.success": "Diagramma nokopēta starpliktuvē kā PNG.",
+    "toast.copy.error": "Neizdevās kopēt: {error}",
+    "toast.saveSvg.success": "Diagramma saglabāta kā SVG.",
+    "toast.saveSvg.error": "Neizdevās saglabāt kā SVG: {error}",
+    "toast.savePng.success": "Diagramma saglabāta kā PNG.",
+    "toast.savePng.error": "Neizdevās saglabāt kā PNG: {error}",
+    "toast.openDrawing.error": "Neizdevās atvērt zīmējumu redaktorā: {error}",
+    "empty.file": "Fails ir tukšs.",
+    "errors.render": "Neizdevās attēlot diagrammu: {error}",
+    "empty.open": "Atveriet .drawio failu, lai to skatītu šeit.",
+    "save.svg.title": "Saglabāt kā SVG",
+    "save.png.title": "Saglabāt kā PNG",
+    "save.filter.svg": "SVG attēls",
+    "save.filter.png": "PNG attēls",
+    "save.filter.all": "Visi faili",
+    "manifest.name": "draw.io skatītājs",
+    "manifest.description": "diagrams.net / draw.io (.drawio) diagrammu skatītājs bez rediģēšanas.",
+    "manifest.editorName": "draw.io"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Excel 뷰어",
+    "search.placeholder": "검색…",
+    "toolbar.reload.title": "디스크에서 파일 다시 로드",
+    "state.sheetEmpty": "이 시트는 비어 있습니다.",
+    "state.loading": "로드 중…",
+    "state.noFile": "열린 파일이 없습니다.",
+    "state.supportedTypes": ".xlsx 또는 .xls 파일을 열어 여기서 확인하세요.",
+    "state.noSheets": "이 통합 문서에 시트가 없습니다.",
+    "state.openError": "이 파일을 열 수 없습니다.",
+    "toast.openError": "이 파일을 열 수 없습니다: {error}",
+    "manifest.name": "Excel 뷰어",
+    "manifest.description": "Excel 통합 문서를 읽기 전용으로 확인합니다.",
+    "manifest.editorName": "Excel"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Прагляд Excel",
+    "search.placeholder": "Пошук…",
+    "toolbar.reload.title": "Перазагрузіце файл з дыска",
+    "state.sheetEmpty": "Гэты аркуш пусты.",
+    "state.loading": "Загрузка…",
+    "state.noFile": "Файл не адкрыты.",
+    "state.supportedTypes": "Адкрыйце файл .xlsx або .xls, каб праглядзець яго тут.",
+    "state.noSheets": "У гэтай кнізе няма аркушаў.",
+    "state.openError": "Не ўдалося адкрыць гэты файл.",
+    "toast.openError": "Не ўдалося адкрыць гэты файл: {error}",
+    "manifest.name": "Прагляд Excel",
+    "manifest.description": "Прагляд табліц Excel (.xlsx / .xls) без рэдагавання: асобная ўкладка для кожнага аркуша, табліцу можна сартаваць і фільтраваць.",
+    "manifest.editorName": "Excel"
+  }
+}

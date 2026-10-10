@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "DrawIO 뷰어",
+    "board.name": "DrawIO 뷰어",
+    "action.openDrawing.title": "Drawing 편집기에서 열기 (Excalidraw에서 복사본 편집)",
+    "action.save.title": "현재 페이지를 이미지로 저장 (SVG 또는 PNG)",
+    "action.copy.title": "다이어그램을 PNG로 클립보드에 복사",
+    "action.saveSvg": "SVG로 저장",
+    "action.savePng": "PNG로 저장",
+    "zoom.reset.title": "확대/축소 초기화 (다이어그램 두 번 클릭)",
+    "toast.copy.success": "다이어그램을 PNG로 클립보드에 복사했습니다.",
+    "toast.copy.error": "복사하지 못했습니다: {error}",
+    "toast.saveSvg.success": "다이어그램을 SVG로 저장했습니다.",
+    "toast.saveSvg.error": "SVG로 저장하지 못했습니다: {error}",
+    "toast.savePng.success": "다이어그램을 PNG로 저장했습니다.",
+    "toast.savePng.error": "PNG로 저장하지 못했습니다: {error}",
+    "toast.openDrawing.error": "Drawing 편집기에서 열지 못했습니다: {error}",
+    "empty.file": "파일이 비어 있습니다.",
+    "errors.render": "다이어그램을 렌더링하지 못했습니다: {error}",
+    "empty.open": ".drawio 파일을 열어 여기서 확인하세요.",
+    "save.svg.title": "SVG로 저장",
+    "save.png.title": "PNG로 저장",
+    "save.filter.svg": "SVG 이미지",
+    "save.filter.png": "PNG 이미지",
+    "save.filter.all": "모든 파일",
+    "manifest.name": "draw.io 뷰어",
+    "manifest.description": "diagrams.net / draw.io(.drawio) 다이어그램을 읽기 전용으로 확인합니다.",
+    "manifest.editorName": "draw.io"
+  }
+}

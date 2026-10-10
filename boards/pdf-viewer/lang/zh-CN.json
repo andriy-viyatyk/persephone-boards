@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "PDF 查看器",
+    "frame.title": "PDF 文档",
+    "status.loading": "正在加载…",
+    "errors.bridge": "Persephone 桥接接口不可用",
+    "errors.bridgeDetail": "此面板必须在 Persephone 中运行。",
+    "status.opening": "正在打开…",
+    "status.resolving": "正在解析文档来源。",
+    "errors.read": "无法读取文档",
+    "toast.read": "读取 PDF 来源失败：{error}",
+    "empty.instructions": "此面板用于打开 PDF 文件。打开 .pdf 文件即可查看。",
+    "empty.title": "没有文档",
+    "empty.probes": "此 Persephone 版本的功能探测：",
+    "errors.viewer": "无法加载 PDF 查看器",
+    "toast.viewer": "PDF 查看器框架加载失败 — 请查看面板了解详情。",
+    "status.reading": "正在读取…",
+    "errors.open": "无法打开文档",
+    "toast.open": "打开 PDF 失败：{error}",
+    "probes.iframe": "嵌套 iframe（frame-src）",
+    "probes.worker": "pdf.js 工作线程（worker-src）",
+    "probes.wasm": "WebAssembly（wasm-unsafe-eval）",
+    "status.works": "可用",
+    "status.blocked": "已阻止",
+    "status.violations": "CSP 违规",
+    "manifest.name": "PDF 查看器",
+    "manifest.description": "PDF 文档查看器 — 使用标准 PDF.js 查看器，支持搜索、缩略图、文档大纲、缩放/适合页面、旋转和打印。",
+    "manifest.editorName": "PDF"
+  }
+}

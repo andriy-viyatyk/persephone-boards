@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Visualizzatore SQLite",
+    "search.placeholder": "Cerca nei risultati…",
+    "action.open.title": "Apri un file di database SQLite…",
+    "action.reload.title": "Riapri il database dal disco",
+    "query.placeholder": "SELECT … (scegli una tabella nel pannello laterale Tabelle oppure scrivi una query)",
+    "query.run": "Esegui",
+    "query.stop": "Interrompi",
+    "query.shortcut": "Ctrl+Enter",
+    "tables.title": "Tabelle",
+    "tables.empty": "Nessun database aperto.",
+    "tables.kind": "Tabelle",
+    "views.kind": "Viste",
+    "state.noColumns": "L’istruzione non ha restituito colonne.",
+    "status.running": "Esecuzione…",
+    "status.rows": { "one": "{countLabel} riga in {msLabel} ms{truncation}", "many": "{countLabel} righe in {msLabel} ms{truncation}", "other": "{countLabel} righe in {msLabel} ms{truncation}" },
+    "status.error": "Errore: {error}",
+    "status.cancelling": "Annullamento…",
+    "status.cancelled": "Query annullata.",
+    "state.opening": "Apertura del database…",
+    "state.noTables": "Questo database non contiene tabelle.",
+    "state.openError": "Impossibile aprire questo database.",
+    "state.noDatabase": "Nessun database aperto. Apri un file .db / .sqlite oppure usa il pulsante della cartella qui sopra.",
+    "manifest.name": "Visualizzatore SQLite",
+    "manifest.description": "Esplora database SQLite in sola lettura (.db / .sqlite / .sqlite3 / .db3): tabelle nel pannello laterale, query SELECT libere (incluso FTS5) e risultati in una griglia ordinabile e filtrabile.",
+    "manifest.editorName": "SQLite",
+    "manifest.views.tables.title": "Tabelle"
+  }
+}

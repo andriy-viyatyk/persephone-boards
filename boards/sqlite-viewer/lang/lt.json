@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title":"SQLite peržiūros programa",
+    "search.placeholder":"Ieškoti rezultatuose…",
+    "action.open.title":"Atidaryti SQLite duomenų bazės failą…",
+    "action.reload.title":"Iš naujo atidaryti duomenų bazę iš disko",
+    "query.placeholder":"SELECT … (pasirinkite lentelę šoninės juostos srityje Lentelės arba įveskite užklausą)",
+    "query.run":"Vykdyti",
+    "query.stop":"Stabdyti",
+    "query.shortcut":"Ctrl+Enter",
+    "tables.title":"Lentelės",
+    "tables.empty":"Duomenų bazė neatidaryta.",
+    "tables.kind":"Lentelės",
+    "views.kind":"Rodiniai",
+    "state.noColumns":"Užklausa negrąžino stulpelių.",
+    "status.running":"Vykdoma…",
+    "status.rows":{"one":"{countLabel} eilutė per {msLabel} ms{truncation}","few":"{countLabel} eilutės per {msLabel} ms{truncation}","many":"{countLabel} eilučių per {msLabel} ms{truncation}","other":"{countLabel} eilutės per {msLabel} ms{truncation}"},
+    "status.error":"Klaida: {error}",
+    "status.cancelling":"Atšaukiama…",
+    "status.cancelled":"Užklausa atšaukta.",
+    "state.opening":"Atidaroma duomenų bazė…",
+    "state.noTables":"Šioje duomenų bazėje nėra lentelių.",
+    "state.openError":"Nepavyko atidaryti šios duomenų bazės.",
+    "state.noDatabase":"Duomenų bazė neatidaryta. Atidarykite .db / .sqlite failą arba naudokite viršuje esantį aplanko mygtuką.",
+    "manifest.name":"SQLite peržiūros programa",
+    "manifest.description":"Tik skaitymui skirta SQLite duomenų bazių SQL naršyklė (.db / .sqlite / .sqlite3 / .db3) – lentelės šoninėje juostoje, laisvos formos SELECT užklausos (įskaitant FTS5), rezultatai rikiuojamame ir filtruojamame tinklelyje.",
+    "manifest.editorName":"SQLite",
+    "manifest.views.tables.title":"Lentelės"
+  }
+}

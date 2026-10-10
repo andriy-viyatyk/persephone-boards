@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Visualizador do PowerPoint",
+    "slides.counter.empty": "–",
+    "slides.previous.title": "Slide anterior",
+    "slides.next.title": "Próximo slide",
+    "toolbar.reload.title": "Recarregar arquivo do disco",
+    "state.loading": "Carregando…",
+    "state.noFile": "Nenhum arquivo aberto. Abra um arquivo .pptx para visualizá-lo aqui.",
+    "state.noSlides": "Esta apresentação não tem slides.",
+    "state.openError": "Não foi possível abrir este arquivo.",
+    "toast.openError": "Não foi possível abrir este arquivo: {error}",
+    "manifest.name": "Visualizador do PowerPoint",
+    "manifest.description": "Visualizador somente leitura de apresentações do PowerPoint (.pptx), com slides roláveis renderizados offline.",
+    "manifest.editorName": "PowerPoint"
+  }
+}

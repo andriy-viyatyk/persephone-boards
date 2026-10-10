@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Visionneuse PowerPoint",
+    "slides.counter.empty": "–",
+    "slides.previous.title": "Diapositive précédente",
+    "slides.next.title": "Diapositive suivante",
+    "toolbar.reload.title": "Recharger le fichier depuis le disque",
+    "state.loading": "Chargement…",
+    "state.noFile": "Aucun fichier ouvert. Ouvrez un fichier .pptx pour l’afficher ici.",
+    "state.noSlides": "Cette présentation ne contient aucune diapositive.",
+    "state.openError": "Impossible d’ouvrir ce fichier.",
+    "toast.openError": "Impossible d’ouvrir ce fichier : {error}",
+    "manifest.name": "Visionneuse PowerPoint",
+    "manifest.description": "Visionneuse en lecture seule pour les présentations PowerPoint (.pptx), avec défilement des diapositives et rendu hors ligne.",
+    "manifest.editorName": "PowerPoint"
+  }
+}

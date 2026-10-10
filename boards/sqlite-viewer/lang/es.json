@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Visor de SQLite",
+    "search.placeholder": "Buscar resultados…",
+    "action.open.title": "Abrir un archivo de base de datos SQLite…",
+    "action.reload.title": "Volver a abrir la base de datos desde el disco",
+    "query.placeholder": "SELECT … (elige una tabla en el panel lateral Tablas o escribe una consulta)",
+    "query.run": "Ejecutar",
+    "query.stop": "Detener",
+    "query.shortcut": "Ctrl+Enter",
+    "tables.title": "Tablas",
+    "tables.empty": "No hay ninguna base de datos abierta.",
+    "tables.kind": "Tablas",
+    "views.kind": "Vistas",
+    "state.noColumns": "La instrucción no devolvió ninguna columna.",
+    "status.running": "Ejecutando…",
+    "status.rows": { "one": "{countLabel} fila en {msLabel} ms{truncation}", "many": "{countLabel} filas en {msLabel} ms{truncation}", "other": "{countLabel} filas en {msLabel} ms{truncation}" },
+    "status.error": "Error: {error}",
+    "status.cancelling": "Cancelando…",
+    "status.cancelled": "Consulta cancelada.",
+    "state.opening": "Abriendo la base de datos…",
+    "state.noTables": "Esta base de datos no contiene tablas.",
+    "state.openError": "No se pudo abrir esta base de datos.",
+    "state.noDatabase": "No hay ninguna base de datos abierta. Abre un archivo .db o .sqlite, o usa el botón de carpeta de arriba.",
+    "manifest.name": "Visor de SQLite",
+    "manifest.description": "Visor de bases de datos SQLite y ejecución de consultas SQL.",
+    "manifest.editorName": "SQLite",
+    "manifest.views.tables.title": "Tablas"
+  }
+}

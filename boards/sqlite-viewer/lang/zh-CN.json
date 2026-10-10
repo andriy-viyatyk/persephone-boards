@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "SQLite 查看器",
+    "search.placeholder": "搜索结果…",
+    "action.open.title": "打开 SQLite 数据库文件…",
+    "action.reload.title": "从磁盘重新打开数据库",
+    "query.placeholder": "SELECT …（在“表”侧边栏面板中选择表，或输入查询）",
+    "query.run": "运行",
+    "query.stop": "停止",
+    "query.shortcut": "Ctrl+Enter",
+    "tables.title": "表",
+    "tables.empty": "未打开数据库。",
+    "tables.kind": "表",
+    "views.kind": "视图",
+    "state.noColumns": "语句未返回任何列。",
+    "status.running": "正在运行…",
+    "status.rows": { "other": "{countLabel} 行，用时 {msLabel} 毫秒{truncation}" },
+    "status.error": "错误：{error}",
+    "status.cancelling": "正在取消…",
+    "status.cancelled": "查询已取消。",
+    "state.opening": "正在打开数据库…",
+    "state.noTables": "此数据库没有表。",
+    "state.openError": "无法打开此数据库。",
+    "state.noDatabase": "未打开数据库。打开 .db / .sqlite 文件，或使用上方的文件夹按钮。",
+    "manifest.name": "SQLite 查看器",
+    "manifest.description": "只读浏览 SQLite 数据库（.db / .sqlite / .sqlite3 / .db3），在侧边栏查看表，并运行自由格式的 SELECT 查询（包括 FTS5）；结果显示在可排序和筛选的网格中。",
+    "manifest.editorName": "SQLite",
+    "manifest.views.tables.title": "表"
+  }
+}

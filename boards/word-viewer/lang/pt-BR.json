@@ -1,0 +1,15 @@
+{
+  "messages": {
+    "document.title": "Visualizador do Word",
+    "board.name": "Visualizador do Word",
+    "toolbar.reload.title": "Recarregar arquivo do disco",
+    "zoom.help": "Zoom: Ctrl + roda do mouse (ou Ctrl e + / - / 0). Clique aqui para redefinir para 100%.",
+    "state.loading": "Carregando…",
+    "state.noFile": "Nenhum arquivo aberto. Abra um arquivo .docx para visualizá-lo aqui.",
+    "state.openError": "Não foi possível abrir este arquivo.",
+    "toast.openError": "Não foi possível abrir este arquivo: {error}",
+    "manifest.name": "Visualizador do Word",
+    "manifest.description": "Visualizador somente leitura de documentos do Word (.docx), com renderização fiel às páginas, títulos, listas, tabelas e imagens.",
+    "manifest.editorName": "Word"
+  }
+}

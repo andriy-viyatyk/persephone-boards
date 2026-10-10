@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "DrawIO vaatur",
+    "board.name": "DrawIO vaatur",
+    "action.openDrawing.title": "Ava joonistiredaktoris (muuda koopiat Excalidraw abil)",
+    "action.save.title": "Salvesta praegune leht pildina (SVG või PNG)",
+    "action.copy.title": "Kopeeri diagramm PNG-vormingus lõikelauale",
+    "action.saveSvg": "Salvesta SVG-vormingus",
+    "action.savePng": "Salvesta PNG-vormingus",
+    "zoom.reset.title": "Lähtesta suum (topeltklõpsake diagrammi)",
+    "toast.copy.success": "Diagramm kopeeriti PNG-vormingus lõikelauale.",
+    "toast.copy.error": "Kopeerimine nurjus: {error}",
+    "toast.saveSvg.success": "Diagramm salvestati SVG-vormingus.",
+    "toast.saveSvg.error": "SVG-vormingus salvestamine nurjus: {error}",
+    "toast.savePng.success": "Diagramm salvestati PNG-vormingus.",
+    "toast.savePng.error": "PNG-vormingus salvestamine nurjus: {error}",
+    "toast.openDrawing.error": "Joonistiredaktoris avamine nurjus: {error}",
+    "empty.file": "Fail on tühi.",
+    "errors.render": "Diagrammi renderdamine nurjus: {error}",
+    "empty.open": "Avage siin vaatamiseks .drawio-fail.",
+    "save.svg.title": "Salvesta SVG-vormingus",
+    "save.png.title": "Salvesta PNG-vormingus",
+    "save.filter.svg": "SVG-pilt",
+    "save.filter.png": "PNG-pilt",
+    "save.filter.all": "Kõik failid",
+    "manifest.name": "DrawIO vaatur",
+    "manifest.description": "Ainult vaatamiseks mõeldud vaatur diagrams.neti / draw.io (.drawio) diagrammidele.",
+    "manifest.editorName": "DrawIO"
+  }
+}

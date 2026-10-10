@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Podgląd PDF",
+    "frame.title": "Dokument PDF",
+    "status.loading": "Wczytywanie…",
+    "errors.bridge": "Most Persephone jest niedostępny",
+    "errors.bridgeDetail": "Ta tablica musi działać w Persephone.",
+    "status.opening": "Otwieranie…",
+    "status.resolving": "Ustalanie źródła dokumentu.",
+    "errors.read": "Nie można odczytać dokumentu",
+    "toast.read": "Nie udało się odczytać źródła PDF: {error}",
+    "empty.instructions": "Ta tablica otwiera pliki PDF. Otwórz plik .pdf, aby go wyświetlić.",
+    "empty.title": "Brak dokumentu",
+    "empty.probes": "Testy możliwości tej kompilacji Persephone:",
+    "errors.viewer": "Nie można wczytać podglądu PDF",
+    "toast.viewer": "Nie udało się wczytać ramki podglądu PDF — szczegóły znajdziesz na tablicy.",
+    "status.reading": "Odczytywanie…",
+    "errors.open": "Nie można otworzyć dokumentu",
+    "toast.open": "Nie udało się otworzyć pliku PDF: {error}",
+    "probes.iframe": "Zagnieżdżona ramka iframe (frame-src)",
+    "probes.worker": "Proces roboczy pdf.js (worker-src)",
+    "probes.wasm": "WebAssembly (wasm-unsafe-eval)",
+    "status.works": "działa",
+    "status.blocked": "zablokowane",
+    "status.violations": "Naruszenia CSP",
+    "manifest.name": "Podgląd PDF",
+    "manifest.description": "Otwieraj pliki PDF i wyświetlaj ich zawartość.",
+    "manifest.editorName": "Podgląd PDF"
+  }
+}

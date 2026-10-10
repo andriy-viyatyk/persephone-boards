@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "PDF-vaatur",
+    "frame.title": "PDF-dokument",
+    "status.loading": "Laadimine…",
+    "errors.bridge": "Persephone sild pole saadaval",
+    "errors.bridgeDetail": "See tahvel peab töötama Persephones.",
+    "status.opening": "Avamine…",
+    "status.resolving": "Dokumendi allika tuvastamine.",
+    "errors.read": "Dokumendi lugemine nurjus",
+    "toast.read": "PDF-i allika lugemine nurjus: {error}",
+    "empty.instructions": "See tahvel avab PDF-faile. Avage vaatamiseks .pdf-fail.",
+    "empty.title": "Dokumenti pole",
+    "empty.probes": "Selle Persephone järgu võimaluste kontrollid:",
+    "errors.viewer": "PDF-vaaturi laadimine nurjus",
+    "toast.viewer": "PDF-vaaturi raami laadimine nurjus — vaadake üksikasju tahvlilt.",
+    "status.reading": "Lugemine…",
+    "errors.open": "Dokumendi avamine nurjus",
+    "toast.open": "PDF-i avamine nurjus: {error}",
+    "probes.iframe": "Pesastatud iframe (frame-src)",
+    "probes.worker": "pdf.js töötlusprotsess (worker-src)",
+    "probes.wasm": "WebAssembly (wasm-unsafe-eval)",
+    "status.works": "töötab",
+    "status.blocked": "blokeeritud",
+    "status.violations": "CSP rikkumised",
+    "manifest.name": "PDF-vaatur",
+    "manifest.description": "PDF-dokumentide vaatur — algne pdf.js-vaatur otsingu, pisipiltide, liigendusvaate, suumimise ja sobitamise, pööramise ning printimisega.",
+    "manifest.editorName": "PDF"
+  }
+}

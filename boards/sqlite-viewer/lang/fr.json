@@ -1,0 +1,34 @@
+{
+  "messages": {
+    "document.title": "Visionneuse SQLite",
+    "search.placeholder": "Rechercher dans les résultats…",
+    "action.open.title": "Ouvrir un fichier de base de données SQLite…",
+    "action.reload.title": "Rouvrir la base de données depuis le disque",
+    "query.placeholder": "SELECT … (choisissez une table dans le panneau latéral Tables ou saisissez une requête)",
+    "query.run": "Exécuter",
+    "query.stop": "Arrêter",
+    "query.shortcut": "Ctrl+Entrée",
+    "tables.title": "Tables",
+    "tables.empty": "Aucune base de données ouverte.",
+    "tables.kind": "Tables",
+    "views.kind": "Vues",
+    "state.noColumns": "L’instruction n’a renvoyé aucune colonne.",
+    "status.running": "Exécution…",
+    "status.rows": {
+      "one": "{countLabel} ligne en {msLabel} ms{truncation}",
+      "many": "{countLabel} ligne en {msLabel} ms{truncation}",
+      "other": "{countLabel} lignes en {msLabel} ms{truncation}"
+    },
+    "status.error": "Erreur : {error}",
+    "status.cancelling": "Annulation…",
+    "status.cancelled": "Requête annulée.",
+    "state.opening": "Ouverture de la base de données…",
+    "state.noTables": "Cette base de données ne contient aucune table.",
+    "state.openError": "Impossible d’ouvrir cette base de données.",
+    "state.noDatabase": "Aucune base de données ouverte. Ouvrez un fichier .db / .sqlite ou utilisez le bouton de dossier ci-dessus.",
+    "manifest.name": "Visionneuse SQLite",
+    "manifest.description": "Explorateur SQL en lecture seule pour les bases de données SQLite (.db / .sqlite / .sqlite3 / .db3), avec tables dans le panneau latéral, requêtes SELECT libres (FTS5 inclus) et grille de résultats triable et filtrable.",
+    "manifest.editorName": "SQLite",
+    "manifest.views.tables.title": "Tables"
+  }
+}

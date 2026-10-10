@@ -1,0 +1,15 @@
+{
+  "messages": {
+    "document.title": "Visor de Word",
+    "board.name": "Visor de Word",
+    "toolbar.reload.title": "Volver a cargar el archivo desde el disco",
+    "zoom.help": "Zoom: Ctrl + rueda del ratón (o Ctrl y + / - / 0). Haz clic aquí para restablecerlo al 100 %.",
+    "state.loading": "Cargando…",
+    "state.noFile": "No hay ningún archivo abierto. Abre un archivo .docx para verlo aquí.",
+    "state.openError": "No se pudo abrir este archivo.",
+    "toast.openError": "No se pudo abrir este archivo: {error}",
+    "manifest.name": "Visor de Word",
+    "manifest.description": "Visor de solo lectura para documentos de Word (.docx), con representación precisa de páginas, encabezados, listas, tablas e imágenes.",
+    "manifest.editorName": "Word"
+  }
+}

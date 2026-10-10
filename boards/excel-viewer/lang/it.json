@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Visualizzatore Excel",
+    "search.placeholder": "Cerca…",
+    "toolbar.reload.title": "Ricarica il file dal disco",
+    "state.sheetEmpty": "Questo foglio è vuoto.",
+    "state.loading": "Caricamento…",
+    "state.noFile": "Nessun file aperto.",
+    "state.supportedTypes": "Apri un file .xlsx o .xls per visualizzarlo qui.",
+    "state.noSheets": "La cartella di lavoro non contiene fogli.",
+    "state.openError": "Impossibile aprire questo file.",
+    "toast.openError": "Impossibile aprire questo file: {error}",
+    "manifest.name": "Visualizzatore Excel",
+    "manifest.description": "Visualizzatore in sola lettura per fogli di calcolo Excel (.xlsx / .xls), con una scheda per ogni foglio e una griglia ordinabile e filtrabile.",
+    "manifest.editorName": "Excel"
+  }
+}

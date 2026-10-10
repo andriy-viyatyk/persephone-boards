@@ -1,0 +1,15 @@
+{
+  "messages": {
+    "document.title": "Word skatītājs",
+    "board.name": "Word skatītājs",
+    "toolbar.reload.title": "Pārlādēt failu no diska",
+    "zoom.help": "Tālummaiņa: Ctrl + peles ritenītis (vai Ctrl un + / - / 0). Noklikšķiniet šeit, lai atiestatītu uz 100%.",
+    "state.loading": "Ielādē…",
+    "state.noFile": "Nav atvērta faila. Atveriet .docx failu, lai to skatītu šeit.",
+    "state.openError": "Nevarēja atvērt šo failu.",
+    "toast.openError": "Nevarēja atvērt šo failu: {error}",
+    "manifest.name": "Word skatītājs",
+    "manifest.description": "Word dokumentu (.docx) skatītājs bez rediģēšanas: precīzs lapu attēlojums ar virsrakstiem, sarakstiem, tabulām un attēliem.",
+    "manifest.editorName": "Word"
+  }
+}

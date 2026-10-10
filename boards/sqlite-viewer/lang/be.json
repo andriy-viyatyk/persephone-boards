@@ -1,0 +1,35 @@
+{
+  "messages": {
+    "document.title": "Прагляд SQLite",
+    "search.placeholder": "Пошук у выніках…",
+    "action.open.title": "Адкрыйце файл базы даных SQLite…",
+    "action.reload.title": "Перазагрузіце базу даных з дыска",
+    "query.placeholder": "SELECT … (выберыце табліцу на бакавой панэлі «Табліцы» або ўвядзіце запыт)",
+    "query.run": "Выканаць",
+    "query.stop": "Спыніце",
+    "query.shortcut": "Ctrl+Enter",
+    "tables.title": "Табліцы",
+    "tables.empty": "База даных не адкрыта.",
+    "tables.kind": "Табліцы",
+    "views.kind": "Прагляды",
+    "state.noColumns": "Інструкцыя не вярнула слупкоў.",
+    "status.running": "Выконваецца…",
+    "status.rows": {
+      "one": "{countLabel} радок за {msLabel} мс{truncation}",
+      "few": "{countLabel} радкі за {msLabel} мс{truncation}",
+      "many": "{countLabel} радкоў за {msLabel} мс{truncation}",
+      "other": "{countLabel} радка за {msLabel} мс{truncation}"
+    },
+    "status.error": "Памылка: {error}",
+    "status.cancelling": "Скасаванне…",
+    "status.cancelled": "Запыт скасаваны.",
+    "state.opening": "Адкрыццё базы даных…",
+    "state.noTables": "У гэтай базе даных няма табліц.",
+    "state.openError": "Не ўдалося адкрыць гэтую базу даных.",
+    "state.noDatabase": "База даных не адкрыта. Адкрыйце файл .db / .sqlite або скарыстайцеся кнопкай папкі вышэй.",
+    "manifest.name": "Прагляд SQLite",
+    "manifest.description": "Прагляд баз даных SQLite толькі для чытання (.db / .sqlite / .sqlite3 / .db3): табліцы на бакавой панэлі, адвольныя запыты SELECT (у тым ліку FTS5), вынікі ў табліцы з сартаваннем і фільтраваннем.",
+    "manifest.editorName": "SQLite",
+    "manifest.views.tables.title": "Табліцы"
+  }
+}

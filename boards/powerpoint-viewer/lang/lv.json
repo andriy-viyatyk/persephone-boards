@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "PowerPoint skatītājs",
+    "slides.counter.empty": "–",
+    "slides.previous.title": "Iepriekšējais slaids",
+    "slides.next.title": "Nākamais slaids",
+    "toolbar.reload.title": "Pārlādēt failu no diska",
+    "state.loading": "Ielādē…",
+    "state.noFile": "Nav atvērta faila. Atveriet .pptx failu, lai to skatītu šeit.",
+    "state.noSlides": "Šajā prezentācijā nav slaidu.",
+    "state.openError": "Nevarēja atvērt šo failu.",
+    "toast.openError": "Nevarēja atvērt šo failu: {error}",
+    "manifest.name": "PowerPoint skatītājs",
+    "manifest.description": "PowerPoint prezentāciju skatītājs bez rediģēšanas.",
+    "manifest.editorName": "PowerPoint"
+  }
+}

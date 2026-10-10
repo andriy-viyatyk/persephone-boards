@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "PDF skatītājs",
+    "frame.title": "PDF dokuments",
+    "status.loading": "Ielādē…",
+    "errors.bridge": "Persephone tilts nav pieejams",
+    "errors.bridgeDetail": "Šai tāfelei jādarbojas programmā Persephone.",
+    "status.opening": "Atver…",
+    "status.resolving": "Nosaka dokumenta avotu.",
+    "errors.read": "Nevarēja nolasīt dokumentu",
+    "toast.read": "Neizdevās nolasīt PDF avotu: {error}",
+    "empty.instructions": "Šī tāfele atver PDF failus. Atveriet .pdf failu, lai to skatītu.",
+    "empty.title": "Nav dokumenta",
+    "empty.probes": "Šīs Persephone versijas iespēju pārbaudes:",
+    "errors.viewer": "Nevarēja ielādēt PDF skatītāju",
+    "toast.viewer": "Neizdevās ielādēt PDF skatītāja rāmi — skatiet tāfeles detalizēto informāciju.",
+    "status.reading": "Lasa…",
+    "errors.open": "Nevarēja atvērt dokumentu",
+    "toast.open": "Neizdevās atvērt PDF: {error}",
+    "probes.iframe": "Iegultais iframe (frame-src)",
+    "probes.worker": "pdf.js apstrādes pavediens (worker-src)",
+    "probes.wasm": "WebAssembly (wasm-unsafe-eval)",
+    "status.works": "darbojas",
+    "status.blocked": "bloķēts",
+    "status.violations": "CSP pārkāpumi",
+    "manifest.name": "PDF skatītājs",
+    "manifest.description": "PDF dokumentu skatītājs bez rediģēšanas.",
+    "manifest.editorName": "PDF"
+  }
+}

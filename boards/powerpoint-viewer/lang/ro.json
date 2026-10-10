@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Vizualizator PowerPoint",
+    "slides.counter.empty": "–",
+    "slides.previous.title": "Diapozitivul anterior",
+    "slides.next.title": "Diapozitivul următor",
+    "toolbar.reload.title": "Reîncărcarea fișierului de pe disc",
+    "state.loading": "Se încarcă…",
+    "state.noFile": "Niciun fișier deschis. Deschideți un fișier .pptx pentru a-l vizualiza aici.",
+    "state.noSlides": "Această prezentare nu conține diapozitive.",
+    "state.openError": "Nu s-a putut deschide acest fișier.",
+    "toast.openError": "Nu s-a putut deschide acest fișier: {error}",
+    "manifest.name": "Vizualizator PowerPoint",
+    "manifest.description": "Vizualizator PowerPoint",
+    "manifest.editorName": "Vizualizator PowerPoint"
+  }
+}

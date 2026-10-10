@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Прагляд PDF",
+    "frame.title": "Дакумент PDF",
+    "status.loading": "Загрузка…",
+    "errors.bridge": "Мост Persephone недаступны",
+    "errors.bridgeDetail": "Гэта дошка павінна працаваць у Persephone.",
+    "status.opening": "Адкрыццё…",
+    "status.resolving": "Вызначэнне крыніцы дакумента.",
+    "errors.read": "Не ўдалося прачытаць дакумент",
+    "toast.read": "Не ўдалося прачытаць крыніцу PDF: {error}",
+    "empty.instructions": "Гэта дошка адкрывае файлы PDF. Адкрыйце файл .pdf для прагляду.",
+    "empty.title": "Няма дакумента",
+    "empty.probes": "Праверкі магчымасцей гэтай зборкі Persephone:",
+    "errors.viewer": "Не ўдалося загрузіць праглядальнік PDF",
+    "toast.viewer": "Не ўдалося загрузіць фрэйм праглядальніка PDF — падрабязнасці глядзіце на дошцы.",
+    "status.reading": "Чытанне…",
+    "errors.open": "Не ўдалося адкрыць дакумент",
+    "toast.open": "Не ўдалося адкрыць PDF: {error}",
+    "probes.iframe": "Укладзены iframe (frame-src)",
+    "probes.worker": "Рабочы працэс pdf.js (worker-src)",
+    "probes.wasm": "WebAssembly (wasm-unsafe-eval)",
+    "status.works": "працуе",
+    "status.blocked": "заблакавана",
+    "status.violations": "Парушэнні CSP",
+    "manifest.name": "Прагляд PDF",
+    "manifest.description": "Прагляд дакументаў PDF у стандартным праглядальніку pdf.js з пошукам, мініяцюрамі, структурай дакумента, маштабаваннем і падганяннем, паваротам і друкам.",
+    "manifest.editorName": "PDF"
+  }
+}

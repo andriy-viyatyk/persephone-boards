@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "SQLite-vaatur",
+    "search.placeholder": "Otsi tulemustest…",
+    "action.open.title": "Ava SQLite-andmebaasifail…",
+    "action.reload.title": "Ava andmebaas kettalt uuesti",
+    "query.placeholder": "SELECT … (valige tabel külgriba paneelil Tabelid või sisestage päring)",
+    "query.run": "Käivita",
+    "query.stop": "Peata",
+    "query.shortcut": "Ctrl+Enter",
+    "tables.title": "Tabelid",
+    "tables.empty": "Andmebaasi pole avatud.",
+    "tables.kind": "Tabelid",
+    "views.kind": "Vaated",
+    "state.noColumns": "Lause ei tagastanud veerge.",
+    "status.running": "Käivitamine…",
+    "status.rows": { "one": "{countLabel} rida, {msLabel} ms{truncation}", "other": "{countLabel} rida, {msLabel} ms{truncation}" },
+    "status.error": "Tõrge: {error}",
+    "status.cancelling": "Tühistamine…",
+    "status.cancelled": "Päring tühistati.",
+    "state.opening": "Andmebaasi avamine…",
+    "state.noTables": "Selles andmebaasis pole tabeleid.",
+    "state.openError": "Andmebaasi avamine nurjus.",
+    "state.noDatabase": "Andmebaasi pole avatud. Avage .db- või .sqlite-fail või kasutage ülal kaustanuppu.",
+    "manifest.name": "SQLite-vaatur",
+    "manifest.description": "Ainult lugemiseks mõeldud SQLite-andmebaaside SQL-brauser (.db / .sqlite / .sqlite3 / .db3) — tabelid külgribal, vabad SELECT-päringud (sh FTS5) ja sorditavad ning filtreeritavad tulemused.",
+    "manifest.editorName": "SQLite",
+    "manifest.views.tables.title": "Tabelid"
+  }
+}

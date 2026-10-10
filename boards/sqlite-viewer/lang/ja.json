@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "SQLite Viewer",
+    "search.placeholder": "結果を検索…",
+    "action.open.title": "SQLiteデータベース ファイルを開く…",
+    "action.reload.title": "ディスクからデータベースを開き直す",
+    "query.placeholder": "SELECT …（Tablesサイドバーでテーブルを選択するか、クエリを入力）",
+    "query.run": "実行",
+    "query.stop": "停止",
+    "query.shortcut": "Ctrl+Enter",
+    "tables.title": "テーブル",
+    "tables.empty": "データベースが開かれていません。",
+    "tables.kind": "テーブル",
+    "views.kind": "ビュー",
+    "state.noColumns": "このステートメントは列を返しませんでした。",
+    "status.running": "実行中…",
+    "status.rows": { "other": "{msLabel}ミリ秒で{countLabel}行{truncation}" },
+    "status.error": "エラー: {error}",
+    "status.cancelling": "キャンセル中…",
+    "status.cancelled": "クエリをキャンセルしました。",
+    "state.opening": "データベースを開いています…",
+    "state.noTables": "このデータベースにテーブルはありません。",
+    "state.openError": "データベースを開けませんでした。",
+    "state.noDatabase": "データベースが開かれていません。.dbまたは.sqliteファイルを開くか、上のフォルダー ボタンを使ってください。",
+    "manifest.name": "SQLite ビューアー",
+    "manifest.description": "SQLiteデータベースを表示、検索し、SQLクエリを実行します。",
+    "manifest.editorName": "SQLite",
+    "manifest.views.tables.title": "テーブル"
+  }
+}

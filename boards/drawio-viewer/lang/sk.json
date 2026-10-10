@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "DrawIO Viewer",
+    "board.name": "DrawIO Viewer",
+    "action.openDrawing.title": "Otvoriť v editore kresieb (upraviť kópiu v Excalidraw)",
+    "action.save.title": "Uložiť aktuálnu stranu ako obrázok (SVG alebo PNG)",
+    "action.copy.title": "Kopírovať diagram ako PNG do schránky",
+    "action.saveSvg": "Uložiť ako SVG",
+    "action.savePng": "Uložiť ako PNG",
+    "zoom.reset.title": "Obnoviť mierku (dvojitým kliknutím na diagram)",
+    "toast.copy.success": "Diagram sa skopíroval do schránky ako PNG.",
+    "toast.copy.error": "Kopírovanie zlyhalo: {error}",
+    "toast.saveSvg.success": "Diagram sa uložil ako SVG.",
+    "toast.saveSvg.error": "Uloženie ako SVG zlyhalo: {error}",
+    "toast.savePng.success": "Diagram sa uložil ako PNG.",
+    "toast.savePng.error": "Uloženie ako PNG zlyhalo: {error}",
+    "toast.openDrawing.error": "Otvorenie v editore kresieb zlyhalo: {error}",
+    "empty.file": "Súbor je prázdny.",
+    "errors.render": "Diagram sa nepodarilo vykresliť: {error}",
+    "empty.open": "Otvorte súbor .drawio a zobrazte ho tu.",
+    "save.svg.title": "Uložiť ako SVG",
+    "save.png.title": "Uložiť ako PNG",
+    "save.filter.svg": "Obrázok SVG",
+    "save.filter.png": "Obrázok PNG",
+    "save.filter.all": "Všetky súbory",
+    "manifest.name": "Prehliadač draw.io",
+    "manifest.description": "Prehliadač diagramov diagrams.net / draw.io (.drawio) bez možnosti úprav.",
+    "manifest.editorName": "draw.io"
+  }
+}

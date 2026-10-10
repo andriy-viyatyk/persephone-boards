@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title":"PowerPoint peržiūros programa",
+    "slides.counter.empty":"–",
+    "slides.previous.title":"Ankstesnė skaidrė",
+    "slides.next.title":"Paskesnė skaidrė",
+    "toolbar.reload.title":"Iš naujo įkelti failą iš disko",
+    "state.loading":"Įkeliama…",
+    "state.noFile":"Failas neatidarytas. Atidarykite .pptx failą, kad galėtumėte jį peržiūrėti.",
+    "state.noSlides":"Šioje pateiktyje nėra skaidrių.",
+    "state.openError":"Nepavyko atidaryti šio failo.",
+    "toast.openError":"Nepavyko atidaryti šio failo: {error}",
+    "manifest.name":"PowerPoint peržiūros programa",
+    "manifest.description":"Tik skaitymui skirta PowerPoint pateikčių (.pptx) peržiūros programa – skaidrės atvaizduojamos neprisijungus ir slenkamos.",
+    "manifest.editorName":"PowerPoint"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Visor de PDF",
+    "frame.title": "Documento PDF",
+    "status.loading": "Cargando…",
+    "errors.bridge": "El puente de Persephone no está disponible",
+    "errors.bridgeDetail": "Este tablero debe ejecutarse dentro de Persephone.",
+    "status.opening": "Abriendo…",
+    "status.resolving": "Resolviendo el origen del documento.",
+    "errors.read": "No se pudo leer el documento",
+    "toast.read": "No se pudo leer el origen del PDF: {error}",
+    "empty.instructions": "Este tablero abre archivos PDF. Abre un archivo .pdf para verlo.",
+    "empty.title": "No hay ningún documento",
+    "empty.probes": "Comprobaciones de capacidades de esta compilación de Persephone:",
+    "errors.viewer": "No se pudo cargar el visor de PDF",
+    "toast.viewer": "No se pudo cargar el marco del visor de PDF; consulta los detalles del tablero.",
+    "status.reading": "Leyendo…",
+    "errors.open": "No se pudo abrir el documento",
+    "toast.open": "No se pudo abrir el PDF: {error}",
+    "probes.iframe": "iframe anidado (frame-src)",
+    "probes.worker": "proceso de trabajo de pdf.js (worker-src)",
+    "probes.wasm": "WebAssembly (wasm-unsafe-eval)",
+    "status.works": "funciona",
+    "status.blocked": "bloqueado",
+    "status.violations": "infracciones de CSP",
+    "manifest.name": "Visor de PDF",
+    "manifest.description": "Visor de documentos PDF de solo lectura.",
+    "manifest.editorName": "PDF"
+  }
+}

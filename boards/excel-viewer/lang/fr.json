@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Visionneuse Excel",
+    "search.placeholder": "Rechercher…",
+    "toolbar.reload.title": "Recharger le fichier depuis le disque",
+    "state.sheetEmpty": "Cette feuille est vide.",
+    "state.loading": "Chargement…",
+    "state.noFile": "Aucun fichier ouvert.",
+    "state.supportedTypes": "Ouvrez un fichier .xlsx ou .xls pour l’afficher ici.",
+    "state.noSheets": "Ce classeur ne contient aucune feuille.",
+    "state.openError": "Impossible d’ouvrir ce fichier.",
+    "toast.openError": "Impossible d’ouvrir ce fichier : {error}",
+    "manifest.name": "Visionneuse Excel",
+    "manifest.description": "Visionneuse en lecture seule pour les feuilles de calcul Excel (.xlsx / .xls), avec un onglet par feuille et une grille triable et filtrable.",
+    "manifest.editorName": "Excel"
+  }
+}

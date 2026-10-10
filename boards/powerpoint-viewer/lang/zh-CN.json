@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "PowerPoint 查看器",
+    "slides.counter.empty": "–",
+    "slides.previous.title": "上一张幻灯片",
+    "slides.next.title": "下一张幻灯片",
+    "toolbar.reload.title": "从磁盘重新加载文件",
+    "state.loading": "正在加载…",
+    "state.noFile": "没有打开的文件。打开 .pptx 文件即可在此处查看。",
+    "state.noSlides": "此演示文稿没有幻灯片。",
+    "state.openError": "无法打开此文件。",
+    "toast.openError": "无法打开此文件：{error}",
+    "manifest.name": "PowerPoint 查看器",
+    "manifest.description": "只读 PowerPoint 演示文稿查看器（.pptx）。",
+    "manifest.editorName": "PowerPoint"
+  }
+}

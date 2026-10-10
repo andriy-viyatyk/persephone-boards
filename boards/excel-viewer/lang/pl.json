@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Podgląd Excela",
+    "search.placeholder": "Szukaj…",
+    "toolbar.reload.title": "Wczytaj plik ponownie z dysku",
+    "state.sheetEmpty": "Ten arkusz jest pusty.",
+    "state.loading": "Wczytywanie…",
+    "state.noFile": "Nie otwarto żadnego pliku.",
+    "state.supportedTypes": "Otwórz plik .xlsx lub .xls, aby wyświetlić go tutaj.",
+    "state.noSheets": "Ten skoroszyt nie zawiera arkuszy.",
+    "state.openError": "Nie można otworzyć tego pliku.",
+    "toast.openError": "Nie można otworzyć tego pliku: {error}",
+    "manifest.name": "Podgląd Excela",
+    "manifest.description": "Wyświetlaj pliki arkuszy kalkulacyjnych Excel.",
+    "manifest.editorName": "Podgląd Excela"
+  }
+}

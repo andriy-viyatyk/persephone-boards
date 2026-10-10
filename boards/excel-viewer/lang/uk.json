@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Перегляд Excel",
+    "search.placeholder": "Пошук…",
+    "toolbar.reload.title": "Перезавантажити файл із диска",
+    "state.sheetEmpty": "Цей аркуш порожній.",
+    "state.loading": "Завантаження…",
+    "state.noFile": "Файл не відкрито.",
+    "state.supportedTypes": "Відкрийте файл .xlsx або .xls, щоб переглянути його тут.",
+    "state.noSheets": "У цій книзі немає аркушів.",
+    "state.openError": "Не вдалося відкрити цей файл.",
+    "toast.openError": "Не вдалося відкрити цей файл: {error}",
+    "manifest.name": "Перегляд Excel",
+    "manifest.description": "Перегляд книг Excel без редагування.",
+    "manifest.editorName": "Excel"
+  }
+}

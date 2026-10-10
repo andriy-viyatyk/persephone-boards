@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "SQLite-Viewer",
+    "search.placeholder": "Ergebnisse durchsuchen…",
+    "action.open.title": "SQLite-Datenbankdatei öffnen…",
+    "action.reload.title": "Datenbank erneut vom Datenträger öffnen",
+    "query.placeholder": "SELECT … (wählen Sie eine Tabelle im Tabellenbereich der Seitenleiste aus oder geben Sie eine Abfrage ein)",
+    "query.run": "Ausführen",
+    "query.stop": "Anhalten",
+    "query.shortcut": "Strg+Eingabetaste",
+    "tables.title": "Tabellen",
+    "tables.empty": "Keine Datenbank geöffnet.",
+    "tables.kind": "Tabellen",
+    "views.kind": "Ansichten",
+    "state.noColumns": "Die Anweisung hat keine Spalten zurückgegeben.",
+    "status.running": "Wird ausgeführt…",
+    "status.rows": { "one": "{countLabel} Zeile in {msLabel} ms{truncation}", "other": "{countLabel} Zeilen in {msLabel} ms{truncation}" },
+    "status.error": "Fehler: {error}",
+    "status.cancelling": "Wird abgebrochen…",
+    "status.cancelled": "Abfrage abgebrochen.",
+    "state.opening": "Datenbank wird geöffnet…",
+    "state.noTables": "Diese Datenbank enthält keine Tabellen.",
+    "state.openError": "Diese Datenbank konnte nicht geöffnet werden.",
+    "state.noDatabase": "Keine Datenbank geöffnet. Öffnen Sie eine .db- oder .sqlite-Datei oder verwenden Sie die Ordnerschaltfläche oben.",
+    "manifest.name": "SQLite-Viewer",
+    "manifest.description": "Schreibgeschützter SQL-Browser für SQLite-Datenbanken (.db / .sqlite / .sqlite3 / .db3) mit Tabellen in der Seitenleiste, freien SELECT-Abfragen (einschließlich FTS5) und sortierbarem, filterbarem Ergebnisraster.",
+    "manifest.editorName": "SQLite",
+    "manifest.views.tables.title": "Tabellen"
+  }
+}

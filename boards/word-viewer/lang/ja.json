@@ -1,0 +1,15 @@
+{
+  "messages": {
+    "document.title": "Word Viewer",
+    "board.name": "Word Viewer",
+    "toolbar.reload.title": "ディスクからファイルを再読み込み",
+    "zoom.help": "ズーム: Ctrl + マウス ホイール（またはCtrlと+ / - / 0）。クリックすると100%に戻ります。",
+    "state.loading": "読み込み中…",
+    "state.noFile": "ファイルが開かれていません。表示する.docxファイルを開いてください。",
+    "state.openError": "ファイルを開けませんでした。",
+    "toast.openError": "ファイルを開けませんでした: {error}",
+    "manifest.name": "Word ビューアー",
+    "manifest.description": "Word文書（.docx）を編集せずに表示します。見出し、リスト、表、画像を含むページ単位の表示に対応します。",
+    "manifest.editorName": "Word"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "PDF-Viewer",
+    "frame.title": "PDF-Dokument",
+    "status.loading": "Wird geladen…",
+    "errors.bridge": "Persephone-Bridge nicht verfügbar",
+    "errors.bridgeDetail": "Dieses Board muss in Persephone ausgeführt werden.",
+    "status.opening": "Wird geöffnet…",
+    "status.resolving": "Dokumentquelle wird ermittelt.",
+    "errors.read": "Dokument konnte nicht gelesen werden",
+    "toast.read": "PDF-Quelle konnte nicht gelesen werden: {error}",
+    "empty.instructions": "Dieses Board öffnet PDF-Dateien. Öffnen Sie eine .pdf-Datei, um sie anzuzeigen.",
+    "empty.title": "Kein Dokument",
+    "empty.probes": "Funktionsprüfungen für diesen Persephone-Build:",
+    "errors.viewer": "PDF-Viewer konnte nicht geladen werden",
+    "toast.viewer": "Der PDF-Viewer-Frame konnte nicht geladen werden. Weitere Informationen finden Sie im Board.",
+    "status.reading": "Wird gelesen…",
+    "errors.open": "Dokument konnte nicht geöffnet werden",
+    "toast.open": "PDF konnte nicht geöffnet werden: {error}",
+    "probes.iframe": "Verschachtelter Iframe (frame-src)",
+    "probes.worker": "pdf.js-Worker (worker-src)",
+    "probes.wasm": "WebAssembly (wasm-unsafe-eval)",
+    "status.works": "funktioniert",
+    "status.blocked": "blockiert",
+    "status.violations": "CSP-Verstöße",
+    "manifest.name": "PDF-Viewer",
+    "manifest.description": "Viewer für PDF-Dokumente mit dem Standard-Viewer von pdf.js: Suche, Miniaturansichten, Gliederung, Zoom und Anpassen, Drehen und Drucken.",
+    "manifest.editorName": "PDF"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Podgląd programu PowerPoint",
+    "slides.counter.empty": "–",
+    "slides.previous.title": "Poprzedni slajd",
+    "slides.next.title": "Następny slajd",
+    "toolbar.reload.title": "Wczytaj plik ponownie z dysku",
+    "state.loading": "Wczytywanie…",
+    "state.noFile": "Nie otwarto żadnego pliku. Otwórz plik .pptx, aby wyświetlić go tutaj.",
+    "state.noSlides": "Ta prezentacja nie zawiera slajdów.",
+    "state.openError": "Nie można otworzyć tego pliku.",
+    "toast.openError": "Nie można otworzyć tego pliku: {error}",
+    "manifest.name": "Podgląd programu PowerPoint",
+    "manifest.description": "Wyświetlaj prezentacje programu PowerPoint.",
+    "manifest.editorName": "Podgląd programu PowerPoint"
+  }
+}

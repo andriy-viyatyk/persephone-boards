@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "PowerPoint 뷰어",
+    "slides.counter.empty": "–",
+    "slides.previous.title": "이전 슬라이드",
+    "slides.next.title": "다음 슬라이드",
+    "toolbar.reload.title": "디스크에서 파일 다시 로드",
+    "state.loading": "로드 중…",
+    "state.noFile": "열린 파일이 없습니다. .pptx 파일을 열어 여기서 확인하세요.",
+    "state.noSlides": "이 프레젠테이션에 슬라이드가 없습니다.",
+    "state.openError": "이 파일을 열 수 없습니다.",
+    "toast.openError": "이 파일을 열 수 없습니다: {error}",
+    "manifest.name": "PowerPoint 뷰어",
+    "manifest.description": "PowerPoint 프레젠테이션을 읽기 전용으로 확인합니다.",
+    "manifest.editorName": "PowerPoint"
+  }
+}

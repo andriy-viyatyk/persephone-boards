@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Excel Viewer",
+    "search.placeholder": "Hľadať…",
+    "toolbar.reload.title": "Znova načítať súbor z disku",
+    "state.sheetEmpty": "Tento hárok je prázdny.",
+    "state.loading": "Načítava sa…",
+    "state.noFile": "Nie je otvorený žiadny súbor.",
+    "state.supportedTypes": "Otvorte súbor .xlsx alebo .xls a zobrazte ho tu.",
+    "state.noSheets": "Tento zošit neobsahuje žiadne hárky.",
+    "state.openError": "Súbor sa nepodarilo otvoriť.",
+    "toast.openError": "Súbor sa nepodarilo otvoriť: {error}",
+    "manifest.name": "Excel Viewer",
+    "manifest.description": "Prehliadač tabuliek Excel bez možnosti úprav (.xlsx / .xls) – samostatná karta pre každý hárok a mriežka s radením a filtrami.",
+    "manifest.editorName": "Excel"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "PDF Viewer",
+    "frame.title": "Dokument PDF",
+    "status.loading": "Načítava sa…",
+    "errors.bridge": "Mostík Persephone nie je dostupný",
+    "errors.bridgeDetail": "Táto doska musí byť spustená v Persephone.",
+    "status.opening": "Otvára sa…",
+    "status.resolving": "Vyhľadáva sa zdroj dokumentu.",
+    "errors.read": "Dokument sa nepodarilo prečítať",
+    "toast.read": "Zdroj PDF sa nepodarilo prečítať: {error}",
+    "empty.instructions": "Táto doska otvára súbory PDF. Otvorte súbor .pdf a zobrazte ho.",
+    "empty.title": "Žiadny dokument",
+    "empty.probes": "Kontroly možností tejto zostavy Persephone:",
+    "errors.viewer": "Prehliadač PDF sa nepodarilo načítať",
+    "toast.viewer": "Rám prehliadača PDF sa nepodarilo načítať. Podrobnosti nájdete na doske.",
+    "status.reading": "Číta sa…",
+    "errors.open": "Dokument sa nepodarilo otvoriť",
+    "toast.open": "PDF sa nepodarilo otvoriť: {error}",
+    "probes.iframe": "Vnorený iframe (frame-src)",
+    "probes.worker": "Pracovný proces pdf.js (worker-src)",
+    "probes.wasm": "WebAssembly (wasm-unsafe-eval)",
+    "status.works": "funguje",
+    "status.blocked": "zablokované",
+    "status.violations": "Porušenia CSP",
+    "manifest.name": "PDF Viewer",
+    "manifest.description": "Prehliadač dokumentov PDF – štandardný prehliadač pdf.js s vyhľadávaním, miniatúrami, obsahom, priblížením, prispôsobením, otáčaním a tlačou.",
+    "manifest.editorName": "PDF"
+  }
+}

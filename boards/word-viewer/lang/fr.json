@@ -1,0 +1,15 @@
+{
+  "messages": {
+    "document.title": "Visionneuse Word",
+    "board.name": "Visionneuse Word",
+    "toolbar.reload.title": "Recharger le fichier depuis le disque",
+    "zoom.help": "Zoom : Ctrl + molette de la souris (ou Ctrl et + / - / 0). Cliquez ici pour rétablir le zoom à 100 %.",
+    "state.loading": "Chargement…",
+    "state.noFile": "Aucun fichier ouvert. Ouvrez un fichier .docx pour l’afficher ici.",
+    "state.openError": "Impossible d’ouvrir ce fichier.",
+    "toast.openError": "Impossible d’ouvrir ce fichier : {error}",
+    "manifest.name": "Visionneuse Word",
+    "manifest.description": "Visionneuse en lecture seule pour les documents Word (.docx), avec un rendu fidèle des pages, des titres, des listes, des tableaux et des images.",
+    "manifest.editorName": "Word"
+  }
+}

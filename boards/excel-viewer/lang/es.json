@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Visor de Excel",
+    "search.placeholder": "Buscar…",
+    "toolbar.reload.title": "Volver a cargar el archivo desde el disco",
+    "state.sheetEmpty": "Esta hoja está vacía.",
+    "state.loading": "Cargando…",
+    "state.noFile": "No hay ningún archivo abierto.",
+    "state.supportedTypes": "Abre un archivo .xlsx o .xls para verlo aquí.",
+    "state.noSheets": "Este libro no contiene hojas.",
+    "state.openError": "No se pudo abrir este archivo.",
+    "toast.openError": "No se pudo abrir este archivo: {error}",
+    "manifest.name": "Visor de Excel",
+    "manifest.description": "Visor de libros de Excel de solo lectura.",
+    "manifest.editorName": "Excel"
+  }
+}

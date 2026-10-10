@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Podgląd draw.io",
+    "board.name": "Podgląd draw.io",
+    "action.openDrawing.title": "Otwórz w edytorze diagramów (edytuj kopię w Excalidraw)",
+    "action.save.title": "Zapisz bieżącą stronę jako obraz (SVG lub PNG)",
+    "action.copy.title": "Skopiuj diagram jako PNG do schowka",
+    "action.saveSvg": "Zapisz jako SVG",
+    "action.savePng": "Zapisz jako PNG",
+    "zoom.reset.title": "Resetuj powiększenie (kliknij dwukrotnie diagram)",
+    "toast.copy.success": "Skopiowano diagram do schowka jako PNG.",
+    "toast.copy.error": "Nie udało się skopiować: {error}",
+    "toast.saveSvg.success": "Zapisano diagram jako SVG.",
+    "toast.saveSvg.error": "Nie udało się zapisać jako SVG: {error}",
+    "toast.savePng.success": "Zapisano diagram jako PNG.",
+    "toast.savePng.error": "Nie udało się zapisać jako PNG: {error}",
+    "toast.openDrawing.error": "Nie udało się otworzyć w edytorze diagramów: {error}",
+    "empty.file": "Plik jest pusty.",
+    "errors.render": "Nie udało się wyświetlić diagramu: {error}",
+    "empty.open": "Otwórz plik .drawio, aby go tutaj wyświetlić.",
+    "save.svg.title": "Zapisz jako SVG",
+    "save.png.title": "Zapisz jako PNG",
+    "save.filter.svg": "Obraz SVG",
+    "save.filter.png": "Obraz PNG",
+    "save.filter.all": "Wszystkie pliki",
+    "manifest.name": "Podgląd draw.io",
+    "manifest.description": "Wyświetlaj diagramy draw.io i zapisuj je jako obrazy.",
+    "manifest.editorName": "Podgląd draw.io"
+  }
+}

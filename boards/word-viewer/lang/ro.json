@@ -1,0 +1,15 @@
+{
+  "messages": {
+    "document.title": "Vizualizator Word",
+    "board.name": "Vizualizator Word",
+    "toolbar.reload.title": "Reîncărcarea fișierului de pe disc",
+    "zoom.help": "Zoom: Ctrl + rotița mouse-ului (sau Ctrl și + / - / 0). Faceți clic aici pentru a reseta la 100%.",
+    "state.loading": "Se încarcă...",
+    "state.noFile": "Niciun fișier deschis. Deschideți un fișier .docx pentru a-l vizualiza aici.",
+    "state.openError": "Nu s-a putut deschide acest fișier.",
+    "toast.openError": "Nu s-a putut deschide acest fișier: {error}",
+    "manifest.name": "Vizualizator Word",
+    "manifest.description": "Vizualizator doar pentru citire pentru documente Word (.docx), cu redare fidelă paginilor, titluri, liste, tabele și imagini.",
+    "manifest.editorName": "Word"
+  }
+}

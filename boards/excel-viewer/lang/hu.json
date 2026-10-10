@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Excel-megjelenítő",
+    "search.placeholder": "Keresés…",
+    "toolbar.reload.title": "Fájl újratöltése a lemezről",
+    "state.sheetEmpty": "Ez a munkalap üres.",
+    "state.loading": "Betöltés…",
+    "state.noFile": "Nincs megnyitott fájl.",
+    "state.supportedTypes": "A megtekintéshez nyiss meg egy .xlsx vagy .xls fájlt.",
+    "state.noSheets": "Ez a munkafüzet nem tartalmaz munkalapokat.",
+    "state.openError": "Nem sikerült megnyitni ezt a fájlt.",
+    "toast.openError": "Nem sikerült megnyitni ezt a fájlt: {error}",
+    "manifest.name": "Excel-megjelenítő",
+    "manifest.description": "Csak olvasásra használható Excel-munkafüzet-megjelenítő kereséssel és az összes munkalap lapfüleivel.",
+    "manifest.editorName": "Excel"
+  }
+}

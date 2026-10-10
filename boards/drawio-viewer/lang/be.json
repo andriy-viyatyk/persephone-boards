@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Прагляд draw.io",
+    "board.name": "Прагляд draw.io",
+    "action.openDrawing.title": "Адкрыйце ў рэдактары малюнкаў (рэдагуйце копію ў Excalidraw)",
+    "action.save.title": "Захавайце бягучую старонку як выяву (SVG або PNG)",
+    "action.copy.title": "Скапіруйце дыяграму як PNG у буфер абмену",
+    "action.saveSvg": "Захавайце як SVG",
+    "action.savePng": "Захавайце як PNG",
+    "zoom.reset.title": "Скіньце маштаб (двойчы націсніце дыяграму)",
+    "toast.copy.success": "Дыяграма скапіявана ў буфер абмену як PNG.",
+    "toast.copy.error": "Не ўдалося скапіяваць: {error}",
+    "toast.saveSvg.success": "Дыяграма захавана як SVG.",
+    "toast.saveSvg.error": "Не ўдалося захаваць як SVG: {error}",
+    "toast.savePng.success": "Дыяграма захавана як PNG.",
+    "toast.savePng.error": "Не ўдалося захаваць як PNG: {error}",
+    "toast.openDrawing.error": "Не ўдалося адкрыць у рэдактары малюнкаў: {error}",
+    "empty.file": "Файл пусты.",
+    "errors.render": "Не ўдалося адлюстраваць дыяграму: {error}",
+    "empty.open": "Адкрыйце файл .drawio, каб праглядзець яго тут.",
+    "save.svg.title": "Захаваць як SVG",
+    "save.png.title": "Захаваць як PNG",
+    "save.filter.svg": "Выява SVG",
+    "save.filter.png": "Выява PNG",
+    "save.filter.all": "Усе файлы",
+    "manifest.name": "Прагляд draw.io",
+    "manifest.description": "Прагляд дыяграм diagrams.net / draw.io (.drawio) без рэдагавання.",
+    "manifest.editorName": "draw.io"
+  }
+}

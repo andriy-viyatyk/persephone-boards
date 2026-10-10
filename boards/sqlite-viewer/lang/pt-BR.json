@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Visualizador de SQLite",
+    "search.placeholder": "Pesquisar resultados…",
+    "action.open.title": "Abrir um arquivo de banco de dados SQLite…",
+    "action.reload.title": "Reabrir o banco de dados do disco",
+    "query.placeholder": "SELECT … (escolha uma tabela no painel lateral Tabelas ou digite uma consulta)",
+    "query.run": "Executar",
+    "query.stop": "Parar",
+    "query.shortcut": "Ctrl+Enter",
+    "tables.title": "Tabelas",
+    "tables.empty": "Nenhum banco de dados aberto.",
+    "tables.kind": "Tabelas",
+    "views.kind": "Exibições",
+    "state.noColumns": "A instrução não retornou colunas.",
+    "status.running": "Executando…",
+    "status.rows": { "one": "{countLabel} linha em {msLabel} ms{truncation}", "many": "{countLabel} linhas em {msLabel} ms{truncation}", "other": "{countLabel} linhas em {msLabel} ms{truncation}" },
+    "status.error": "Erro: {error}",
+    "status.cancelling": "Cancelando…",
+    "status.cancelled": "Consulta cancelada.",
+    "state.opening": "Abrindo banco de dados…",
+    "state.noTables": "Este banco de dados não tem tabelas.",
+    "state.openError": "Não foi possível abrir este banco de dados.",
+    "state.noDatabase": "Nenhum banco de dados aberto. Abra um arquivo .db / .sqlite ou use o botão de pasta acima.",
+    "manifest.name": "Visualizador de SQLite",
+    "manifest.description": "Navegador SQL somente leitura para bancos de dados SQLite (.db / .sqlite / .sqlite3 / .db3) — tabelas na barra lateral, consultas SELECT livres (inclui FTS5) e resultados em grade classificável e filtrável.",
+    "manifest.editorName": "SQLite",
+    "manifest.views.tables.title": "Tabelas"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "DrawIO Viewer",
+    "board.name": "DrawIO Viewer",
+    "action.openDrawing.title": "Drawing Editorで開く（コピーをExcalidrawで編集）",
+    "action.save.title": "現在のページを画像として保存（SVGまたはPNG）",
+    "action.copy.title": "図をPNGとしてクリップボードにコピー",
+    "action.saveSvg": "SVGとして保存",
+    "action.savePng": "PNGとして保存",
+    "zoom.reset.title": "ズームをリセット（図をダブルクリック）",
+    "toast.copy.success": "図をPNGとしてクリップボードにコピーしました。",
+    "toast.copy.error": "コピーできませんでした: {error}",
+    "toast.saveSvg.success": "図をSVGとして保存しました。",
+    "toast.saveSvg.error": "SVGとして保存できませんでした: {error}",
+    "toast.savePng.success": "図をPNGとして保存しました。",
+    "toast.savePng.error": "PNGとして保存できませんでした: {error}",
+    "toast.openDrawing.error": "Drawing Editorで開けませんでした: {error}",
+    "empty.file": "ファイルは空です。",
+    "errors.render": "図を表示できませんでした: {error}",
+    "empty.open": "表示する.drawioファイルを開いてください。",
+    "save.svg.title": "SVGとして保存",
+    "save.png.title": "PNGとして保存",
+    "save.filter.svg": "SVG画像",
+    "save.filter.png": "PNG画像",
+    "save.filter.all": "すべてのファイル",
+    "manifest.name": "draw.io ビューアー",
+    "manifest.description": "diagrams.net / draw.io（.drawio）図を表示するための読み取り専用ビューアー。",
+    "manifest.editorName": "draw.io"
+  }
+}

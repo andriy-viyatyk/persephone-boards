@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Excel Viewer",
+    "search.placeholder": "検索…",
+    "toolbar.reload.title": "ディスクからファイルを再読み込み",
+    "state.sheetEmpty": "このシートは空です。",
+    "state.loading": "読み込み中…",
+    "state.noFile": "ファイルが開かれていません。",
+    "state.supportedTypes": "表示する.xlsxまたは.xlsファイルを開いてください。",
+    "state.noSheets": "このブックにシートはありません。",
+    "state.openError": "ファイルを開けませんでした。",
+    "toast.openError": "ファイルを開けませんでした: {error}",
+    "manifest.name": "Excel ビューアー",
+    "manifest.description": "Excelブックを編集せずに表示します。",
+    "manifest.editorName": "Excel"
+  }
+}

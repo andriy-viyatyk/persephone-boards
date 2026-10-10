@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Vizualizator DrawIO",
+    "board.name": "Vizualizator DrawIO",
+    "action.openDrawing.title": "Deschidere în editorul de desene (edit a copy in Excalidraw)",
+    "action.save.title": "Salvarea paginii curente ca imagine (SVG or PNG)",
+    "action.copy.title": "Copierea diagramei ca PNG în clipboard",
+    "action.saveSvg": "Salvare ca SVG",
+    "action.savePng": "Salvare ca PNG",
+    "zoom.reset.title": "Resetarea zoomului (double-faceți clic diagram)",
+    "toast.copy.success": "Diagrama a fost copiată în clipboard ca PNG.",
+    "toast.copy.error": "Copiere a eșuat: {error}",
+    "toast.saveSvg.success": "Diagram salvat as SVG.",
+    "toast.saveSvg.error": "Salvare ca SVG a eșuat: {error}",
+    "toast.savePng.success": "Diagram salvat as PNG.",
+    "toast.savePng.error": "Salvare ca PNG a eșuat: {error}",
+    "toast.openDrawing.error": "Deschidere în editorul de desene a eșuat: {error}",
+    "empty.file": "Fișierul este gol.",
+    "errors.render": "Redarea diagramei a eșuat: {error}",
+    "empty.open": "Deschideți un fișier.drawio pentru a-l vizualiza aici.",
+    "save.svg.title": "Salvare ca SVG",
+    "save.png.title": "Salvare ca PNG",
+    "save.filter.svg": "Imagine SVG",
+    "save.filter.png": "Imagine PNG",
+    "save.filter.all": "Toate fișierele",
+    "manifest.name": "Vizualizator draw.io",
+    "manifest.description": "Vizualizator draw.io",
+    "manifest.editorName": "Vizualizator draw.io"
+  }
+}

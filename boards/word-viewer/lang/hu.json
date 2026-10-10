@@ -1,0 +1,15 @@
+{
+  "messages": {
+    "document.title": "Word-megjelenítő",
+    "board.name": "Word-megjelenítő",
+    "toolbar.reload.title": "Fájl újratöltése a lemezről",
+    "zoom.help": "Nagyítás: Ctrl + egérgörgő (vagy Ctrl és + / - / 0). Kattints ide a 100%-os nagyítás visszaállításához.",
+    "state.loading": "Betöltés…",
+    "state.noFile": "Nincs megnyitott fájl. A megtekintéshez nyiss meg egy .docx fájlt.",
+    "state.openError": "Nem sikerült megnyitni ezt a fájlt.",
+    "toast.openError": "Nem sikerült megnyitni ezt a fájlt: {error}",
+    "manifest.name": "Word-megjelenítő",
+    "manifest.description": "Csak olvasásra használható Word-dokumentum-megjelenítő (.docx) pontos oldaltördeléssel, címsorokkal, listákkal, táblázatokkal és képekkel.",
+    "manifest.editorName": "Word"
+  }
+}

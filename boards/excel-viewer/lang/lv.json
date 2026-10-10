@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Excel skatītājs",
+    "search.placeholder": "Meklēt…",
+    "toolbar.reload.title": "Pārlādēt failu no diska",
+    "state.sheetEmpty": "Šī lapa ir tukša.",
+    "state.loading": "Ielādē…",
+    "state.noFile": "Nav atvērta faila.",
+    "state.supportedTypes": "Atveriet .xlsx vai .xls failu, lai to skatītu šeit.",
+    "state.noSheets": "Šajā darbgrāmatā nav lapu.",
+    "state.openError": "Nevarēja atvērt šo failu.",
+    "toast.openError": "Nevarēja atvērt šo failu: {error}",
+    "manifest.name": "Excel skatītājs",
+    "manifest.description": "Excel darbgrāmatu skatītājs bez rediģēšanas.",
+    "manifest.editorName": "Excel"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title":"PDF peržiūros programa",
+    "frame.title":"PDF dokumentas",
+    "status.loading":"Įkeliama…",
+    "errors.bridge":"Persephone tiltas nepasiekiamas",
+    "errors.bridgeDetail":"Ši lenta turi veikti Persephone aplinkoje.",
+    "status.opening":"Atidaroma…",
+    "status.resolving":"Nustatomas dokumento šaltinis.",
+    "errors.read":"Nepavyko perskaityti dokumento",
+    "toast.read":"Nepavyko perskaityti PDF šaltinio: {error}",
+    "empty.instructions":"Ši lenta atidaro PDF failus. Atidarykite .pdf failą, kad jį peržiūrėtumėte.",
+    "empty.title":"Dokumento nėra",
+    "empty.probes":"Šios Persephone versijos galimybių patikros:",
+    "errors.viewer":"Nepavyko įkelti PDF peržiūros programos",
+    "toast.viewer":"Nepavyko įkelti PDF peržiūros kadro – žr. lentos informaciją.",
+    "status.reading":"Skaitoma…",
+    "errors.open":"Nepavyko atidaryti dokumento",
+    "toast.open":"Nepavyko atidaryti PDF: {error}",
+    "probes.iframe":"Įdėtinis kadras (frame-src)",
+    "probes.worker":"pdf.js darbinis procesas (worker-src)",
+    "probes.wasm":"WebAssembly (wasm-unsafe-eval)",
+    "status.works":"veikia",
+    "status.blocked":"užblokuota",
+    "status.violations":"CSP pažeidimai",
+    "manifest.name":"PDF peržiūros programa",
+    "manifest.description":"PDF dokumentų peržiūros programa su standartine pdf.js peržiūros programa, kurioje yra ieška, miniatiūros, struktūra, mastelio pritaikymas, pasukimas ir spausdinimas.",
+    "manifest.editorName":"PDF"
+  }
+}

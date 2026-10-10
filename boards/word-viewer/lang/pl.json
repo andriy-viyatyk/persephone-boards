@@ -1,0 +1,15 @@
+{
+  "messages": {
+    "document.title": "Podgląd programu Word",
+    "board.name": "Podgląd programu Word",
+    "toolbar.reload.title": "Wczytaj plik ponownie z dysku",
+    "zoom.help": "Powiększenie: Ctrl + kółko myszy (lub Ctrl i + / - / 0). Kliknij tutaj, aby przywrócić 100%.",
+    "state.loading": "Wczytywanie…",
+    "state.noFile": "Nie otwarto żadnego pliku. Otwórz plik .docx, aby wyświetlić go tutaj.",
+    "state.openError": "Nie można otworzyć tego pliku.",
+    "toast.openError": "Nie można otworzyć tego pliku: {error}",
+    "manifest.name": "Podgląd programu Word",
+    "manifest.description": "Wyświetlaj dokumenty programu Word.",
+    "manifest.editorName": "Podgląd programu Word"
+  }
+}

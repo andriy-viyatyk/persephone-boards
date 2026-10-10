@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Visor de draw.io",
+    "board.name": "Visor de draw.io",
+    "action.openDrawing.title": "Abrir en el editor de dibujos (editar una copia en Excalidraw)",
+    "action.save.title": "Guardar la página actual como imagen (SVG o PNG)",
+    "action.copy.title": "Copiar el diagrama como PNG al portapapeles",
+    "action.saveSvg": "Guardar como SVG",
+    "action.savePng": "Guardar como PNG",
+    "zoom.reset.title": "Restablecer el zoom (doble clic en el diagrama)",
+    "toast.copy.success": "Diagrama copiado al portapapeles como PNG.",
+    "toast.copy.error": "Error al copiar: {error}",
+    "toast.saveSvg.success": "Diagrama guardado como SVG.",
+    "toast.saveSvg.error": "Error al guardar como SVG: {error}",
+    "toast.savePng.success": "Diagrama guardado como PNG.",
+    "toast.savePng.error": "Error al guardar como PNG: {error}",
+    "toast.openDrawing.error": "Error al abrir en el editor de dibujos: {error}",
+    "empty.file": "El archivo está vacío.",
+    "errors.render": "No se pudo representar el diagrama: {error}",
+    "empty.open": "Abre un archivo .drawio para verlo aquí.",
+    "save.svg.title": "Guardar como SVG",
+    "save.png.title": "Guardar como PNG",
+    "save.filter.svg": "Imagen SVG",
+    "save.filter.png": "Imagen PNG",
+    "save.filter.all": "Todos los archivos",
+    "manifest.name": "Visor de draw.io",
+    "manifest.description": "Visor de solo lectura para diagramas de diagrams.net / draw.io (.drawio).",
+    "manifest.editorName": "draw.io"
+  }
+}

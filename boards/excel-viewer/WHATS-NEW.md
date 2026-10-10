@@ -4,6 +4,7 @@ One line per change, newest first. Keep it short. Record pending changes under a
 the **next version** you'll release (the version `board-manifest.json` will be bumped to).
 
 ## 1.3.0
+- Interface languages: Ukrainian, Polish, Lithuanian, Latvian, Estonian, Belarusian, Romanian, Slovak, Hungarian, German, French, Spanish, Italian, Portuguese (Brazil), Chinese (Simplified), Japanese, Korean.
 
 - Interface text moved to a language pack (`lang/en.json`) so the board can be translated; requires Persephone with board bridge 1.36.0.
 

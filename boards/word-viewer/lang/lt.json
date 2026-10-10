@@ -1,0 +1,15 @@
+{
+  "messages": {
+    "document.title":"Word peržiūros programa",
+    "board.name":"Word peržiūros programa",
+    "toolbar.reload.title":"Iš naujo įkelti failą iš disko",
+    "zoom.help":"Mastelis: Ctrl + pelės ratukas (arba Ctrl ir + / - / 0). Spustelėkite čia, kad nustatytumėte 100 % mastelį.",
+    "state.loading":"Įkeliama…",
+    "state.noFile":"Failas neatidarytas. Atidarykite .docx failą, kad galėtumėte jį peržiūrėti.",
+    "state.openError":"Nepavyko atidaryti šio failo.",
+    "toast.openError":"Nepavyko atidaryti šio failo: {error}",
+    "manifest.name":"Word peržiūros programa",
+    "manifest.description":"Tik skaitymui skirta Word dokumentų (.docx) peržiūros programa – tiksliai atvaizduojami puslapiai su antraštėmis, sąrašais, lentelėmis ir vaizdais.",
+    "manifest.editorName":"Word"
+  }
+}

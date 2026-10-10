@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "DrawIO-Viewer",
+    "board.name": "DrawIO-Viewer",
+    "action.openDrawing.title": "Im Zeichen-Editor öffnen (Kopie in Excalidraw bearbeiten)",
+    "action.save.title": "Aktuelle Seite als Bild speichern (SVG oder PNG)",
+    "action.copy.title": "Diagramm als PNG in die Zwischenablage kopieren",
+    "action.saveSvg": "Als SVG speichern",
+    "action.savePng": "Als PNG speichern",
+    "zoom.reset.title": "Zoom zurücksetzen (Diagramm doppelklicken)",
+    "toast.copy.success": "Diagramm als PNG in die Zwischenablage kopiert.",
+    "toast.copy.error": "Kopieren fehlgeschlagen: {error}",
+    "toast.saveSvg.success": "Diagramm als SVG gespeichert.",
+    "toast.saveSvg.error": "Speichern als SVG fehlgeschlagen: {error}",
+    "toast.savePng.success": "Diagramm als PNG gespeichert.",
+    "toast.savePng.error": "Speichern als PNG fehlgeschlagen: {error}",
+    "toast.openDrawing.error": "Öffnen im Zeichen-Editor fehlgeschlagen: {error}",
+    "empty.file": "Die Datei ist leer.",
+    "errors.render": "Diagramm konnte nicht dargestellt werden: {error}",
+    "empty.open": "Öffnen Sie eine .drawio-Datei, um sie hier anzuzeigen.",
+    "save.svg.title": "Als SVG speichern",
+    "save.png.title": "Als PNG speichern",
+    "save.filter.svg": "SVG-Bild",
+    "save.filter.png": "PNG-Bild",
+    "save.filter.all": "Alle Dateien",
+    "manifest.name": "DrawIO-Viewer",
+    "manifest.description": "Schreibgeschützter Viewer für diagrams.net- und draw.io-Diagramme (.drawio).",
+    "manifest.editorName": "DrawIO"
+  }
+}

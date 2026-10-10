@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "DrawIO-megjelenítő",
+    "board.name": "DrawIO-megjelenítő",
+    "action.openDrawing.title": "Megnyitás a Rajzszerkesztőben (másolat szerkesztése Excalidrawban)",
+    "action.save.title": "Aktuális oldal mentése képként (SVG vagy PNG)",
+    "action.copy.title": "Diagram másolása PNG-ként a vágólapra",
+    "action.saveSvg": "Mentés SVG-ként",
+    "action.savePng": "Mentés PNG-ként",
+    "zoom.reset.title": "Nagyítás visszaállítása (dupla kattintás a diagramon)",
+    "toast.copy.success": "A diagram PNG-ként a vágólapra másolva.",
+    "toast.copy.error": "A másolás nem sikerült: {error}",
+    "toast.saveSvg.success": "A diagram SVG-ként mentve.",
+    "toast.saveSvg.error": "Az SVG mentése nem sikerült: {error}",
+    "toast.savePng.success": "A diagram PNG-ként mentve.",
+    "toast.savePng.error": "A PNG mentése nem sikerült: {error}",
+    "toast.openDrawing.error": "A Rajzszerkesztőben való megnyitás nem sikerült: {error}",
+    "empty.file": "A fájl üres.",
+    "errors.render": "Nem sikerült megjeleníteni a diagramot: {error}",
+    "empty.open": "Nyiss meg egy .drawio fájlt a megtekintéséhez.",
+    "save.svg.title": "Mentés SVG-ként",
+    "save.png.title": "Mentés PNG-ként",
+    "save.filter.svg": "SVG-kép",
+    "save.filter.png": "PNG-kép",
+    "save.filter.all": "Minden fájl",
+    "manifest.name": "DrawIO-megjelenítő",
+    "manifest.description": "Draw.io-diagramok megtekintése; a diagramokat PNG- vagy SVG-képként mentheted, illetve Excalidrawban szerkesztheted.",
+    "manifest.editorName": "DrawIO"
+  }
+}

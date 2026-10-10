@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "SQLite-megjelenítő",
+    "search.placeholder": "Keresés az eredményekben…",
+    "action.open.title": "SQLite-adatbázisfájl megnyitása…",
+    "action.reload.title": "Adatbázis újbóli megnyitása a lemezről",
+    "query.placeholder": "SELECT … (válassz táblát a Táblák oldalsávpanelen, vagy írj be egy lekérdezést)",
+    "query.run": "Futtatás",
+    "query.stop": "Leállítás",
+    "query.shortcut": "Ctrl+Enter",
+    "tables.title": "Táblák",
+    "tables.empty": "Nincs megnyitott adatbázis.",
+    "tables.kind": "Táblák",
+    "views.kind": "Nézetek",
+    "state.noColumns": "Az utasítás nem adott vissza oszlopokat.",
+    "status.running": "Futtatás…",
+    "status.rows": { "one": "{countLabel} sor · {msLabel} ms{truncation}", "other": "{countLabel} sor · {msLabel} ms{truncation}" },
+    "status.error": "Hiba: {error}",
+    "status.cancelling": "Megszakítás…",
+    "status.cancelled": "A lekérdezés megszakítva.",
+    "state.opening": "Adatbázis megnyitása…",
+    "state.noTables": "Ez az adatbázis nem tartalmaz táblákat.",
+    "state.openError": "Nem sikerült megnyitni ezt az adatbázist.",
+    "state.noDatabase": "Nincs megnyitott adatbázis. Nyiss meg egy .db vagy .sqlite fájlt, vagy használd a fenti mappagombot.",
+    "manifest.name": "SQLite-megjelenítő",
+    "manifest.description": "SQLite-adatbázisok megnyitása, táblák böngészése és lekérdezések futtatása.",
+    "manifest.editorName": "SQLite",
+    "manifest.views.tables.title": "Táblák"
+  }
+}

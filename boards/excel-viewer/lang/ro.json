@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Vizualizator Excel",
+    "search.placeholder": "Căutare…",
+    "toolbar.reload.title": "Reîncărcarea fișierului de pe disc",
+    "state.sheetEmpty": "Această foaie este goală.",
+    "state.loading": "Se încarcă…",
+    "state.noFile": "Niciun fișier deschis.",
+    "state.supportedTypes": "Deschideți un fișier.xlsx sau.xls pentru a-l vizualiza aici.",
+    "state.noSheets": "Acest registru de lucru nu conține foi.",
+    "state.openError": "Nu s-a putut deschide acest fișier.",
+    "toast.openError": "Nu s-a putut deschide acest fișier: {error}",
+    "manifest.name": "Vizualizator Excel",
+    "manifest.description": "Vizualizator Excel",
+    "manifest.editorName": "Vizualizator Excel"
+  }
+}

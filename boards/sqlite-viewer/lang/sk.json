@@ -1,0 +1,35 @@
+{
+  "messages": {
+    "document.title": "SQLite Viewer",
+    "search.placeholder": "Hľadať vo výsledkoch…",
+    "action.open.title": "Otvoriť súbor databázy SQLite…",
+    "action.reload.title": "Znova otvoriť databázu z disku",
+    "query.placeholder": "SELECT … (vyberte tabuľku na bočnom paneli Tabuľky alebo zadajte dotaz)",
+    "query.run": "Spustiť",
+    "query.stop": "Zastaviť",
+    "query.shortcut": "Ctrl+Enter",
+    "tables.title": "Tabuľky",
+    "tables.empty": "Nie je otvorená žiadna databáza.",
+    "tables.kind": "Tabuľky",
+    "views.kind": "Zobrazenia",
+    "state.noColumns": "Príkaz nevrátil žiadne stĺpce.",
+    "status.running": "Spúšťa sa…",
+    "status.rows": {
+      "one": "{countLabel} riadok za {msLabel} ms{truncation}",
+      "few": "{countLabel} riadky za {msLabel} ms{truncation}",
+      "many": "{countLabel} riadkov za {msLabel} ms{truncation}",
+      "other": "{countLabel} riadka za {msLabel} ms{truncation}"
+    },
+    "status.error": "Chyba: {error}",
+    "status.cancelling": "Ruší sa…",
+    "status.cancelled": "Dotaz bol zrušený.",
+    "state.opening": "Otvára sa databáza…",
+    "state.noTables": "Táto databáza neobsahuje žiadne tabuľky.",
+    "state.openError": "Databázu sa nepodarilo otvoriť.",
+    "state.noDatabase": "Nie je otvorená žiadna databáza. Otvorte súbor .db / .sqlite alebo použite tlačidlo priečinka vyššie.",
+    "manifest.name": "SQLite Viewer",
+    "manifest.description": "Prehliadač databáz SQLite a spúšťanie dotazov SQL. Iba na čítanie; tabuľky sú na bočnom paneli, dotazy SELECT možno zadávať voľne a výsledky zobraziť v mriežke s radením a filtrami.",
+    "manifest.editorName": "SQLite",
+    "manifest.views.tables.title": "Tabuľky"
+  }
+}

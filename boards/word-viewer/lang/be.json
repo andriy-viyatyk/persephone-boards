@@ -1,0 +1,15 @@
+{
+  "messages": {
+    "document.title": "Прагляд Word",
+    "board.name": "Прагляд Word",
+    "toolbar.reload.title": "Перазагрузіце файл з дыска",
+    "zoom.help": "Маштаб: Ctrl + кола мышы (або Ctrl і + / - / 0). Націсніце тут, каб скінуць маштаб да 100%.",
+    "state.loading": "Загрузка…",
+    "state.noFile": "Файл не адкрыты. Адкрыйце файл .docx, каб праглядзець яго тут.",
+    "state.openError": "Не ўдалося адкрыць гэты файл.",
+    "toast.openError": "Не ўдалося адкрыць гэты файл: {error}",
+    "manifest.name": "Прагляд Word",
+    "manifest.description": "Прагляд дакументаў Word (.docx) без рэдагавання з дакладным адлюстраваннем старонак, загалоўкаў, спісаў, табліц і выяў.",
+    "manifest.editorName": "Word"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Excel-Viewer",
+    "search.placeholder": "Suchen…",
+    "toolbar.reload.title": "Datei vom Datenträger neu laden",
+    "state.sheetEmpty": "Dieses Arbeitsblatt ist leer.",
+    "state.loading": "Wird geladen…",
+    "state.noFile": "Keine Datei geöffnet.",
+    "state.supportedTypes": "Öffnen Sie eine .xlsx- oder .xls-Datei, um sie hier anzuzeigen.",
+    "state.noSheets": "Diese Arbeitsmappe enthält keine Arbeitsblätter.",
+    "state.openError": "Diese Datei konnte nicht geöffnet werden.",
+    "toast.openError": "Diese Datei konnte nicht geöffnet werden: {error}",
+    "manifest.name": "Excel-Viewer",
+    "manifest.description": "Schreibgeschützter Viewer für Excel-Tabellen (.xlsx / .xls) mit einem Register pro Arbeitsblatt und sortierbarem, filterbarem Raster.",
+    "manifest.editorName": "Excel"
+  }
+}

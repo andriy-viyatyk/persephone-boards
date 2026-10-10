@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Excel 查看器",
+    "search.placeholder": "搜索…",
+    "toolbar.reload.title": "从磁盘重新加载文件",
+    "state.sheetEmpty": "此工作表为空。",
+    "state.loading": "正在加载…",
+    "state.noFile": "没有打开的文件。",
+    "state.supportedTypes": "打开 .xlsx 或 .xls 文件以在此处查看。",
+    "state.noSheets": "此工作簿没有工作表。",
+    "state.openError": "无法打开此文件。",
+    "toast.openError": "无法打开此文件：{error}",
+    "manifest.name": "Excel 查看器",
+    "manifest.description": "只读 Excel 电子表格查看器（.xlsx / .xls），每个工作表各占一个选项卡，并提供可排序和筛选的网格。",
+    "manifest.editorName": "Excel"
+  }
+}

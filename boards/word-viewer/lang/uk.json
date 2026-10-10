@@ -1,0 +1,15 @@
+{
+  "messages": {
+    "document.title": "Перегляд Word",
+    "board.name": "Перегляд Word",
+    "toolbar.reload.title": "Перезавантажити файл із диска",
+    "zoom.help": "Масштаб: Ctrl + колесо миші (або Ctrl і + / - / 0). Клацніть тут, щоб скинути до 100%.",
+    "state.loading": "Завантаження…",
+    "state.noFile": "Файл не відкрито. Відкрийте файл .docx, щоб переглянути його тут.",
+    "state.openError": "Не вдалося відкрити цей файл.",
+    "toast.openError": "Не вдалося відкрити цей файл: {error}",
+    "manifest.name": "Перегляд Word",
+    "manifest.description": "Перегляд документів Word (.docx) без редагування: точне відображення сторінок із заголовками, списками, таблицями та зображеннями.",
+    "manifest.editorName": "Word"
+  }
+}

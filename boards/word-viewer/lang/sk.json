@@ -1,0 +1,15 @@
+{
+  "messages": {
+    "document.title": "Word Viewer",
+    "board.name": "Word Viewer",
+    "toolbar.reload.title": "Znova načítať súbor z disku",
+    "zoom.help": "Mierka: Ctrl + koliesko myši (alebo Ctrl a + / - / 0). Kliknutím sem obnovíte mierku na 100 %.",
+    "state.loading": "Načítava sa…",
+    "state.noFile": "Nie je otvorený žiadny súbor. Otvorte súbor .docx a zobrazte ho tu.",
+    "state.openError": "Súbor sa nepodarilo otvoriť.",
+    "toast.openError": "Súbor sa nepodarilo otvoriť: {error}",
+    "manifest.name": "Word Viewer",
+    "manifest.description": "Prehliadač dokumentov Word (.docx) iba na čítanie – zobrazenie strán so zachovaným rozložením, nadpismi, zoznamami, tabuľkami a obrázkami.",
+    "manifest.editorName": "Word"
+  }
+}

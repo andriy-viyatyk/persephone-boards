@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Visionneuse PDF",
+    "frame.title": "Document PDF",
+    "status.loading": "Chargement…",
+    "errors.bridge": "Pont Persephone indisponible",
+    "errors.bridgeDetail": "Ce tableau doit être exécuté dans Persephone.",
+    "status.opening": "Ouverture…",
+    "status.resolving": "Résolution de la source du document.",
+    "errors.read": "Impossible de lire le document",
+    "toast.read": "Échec de la lecture de la source PDF : {error}",
+    "empty.instructions": "Ce tableau ouvre les fichiers PDF. Ouvrez un fichier .pdf pour l’afficher.",
+    "empty.title": "Aucun document",
+    "empty.probes": "Vérifications des capacités pour cette version de Persephone :",
+    "errors.viewer": "Impossible de charger la visionneuse PDF",
+    "toast.viewer": "Échec du chargement du cadre de la visionneuse PDF : consultez le tableau pour plus de détails.",
+    "status.reading": "Lecture…",
+    "errors.open": "Impossible d’ouvrir le document",
+    "toast.open": "Échec de l’ouverture du PDF : {error}",
+    "probes.iframe": "IFrame imbriquée (frame-src)",
+    "probes.worker": "Worker pdf.js (worker-src)",
+    "probes.wasm": "WebAssembly (wasm-unsafe-eval)",
+    "status.works": "fonctionne",
+    "status.blocked": "bloqué",
+    "status.violations": "Violations CSP",
+    "manifest.name": "Visionneuse PDF",
+    "manifest.description": "Visionneuse de documents PDF avec la visionneuse pdf.js standard : recherche, miniatures, plan, zoom et ajustement, rotation et impression.",
+    "manifest.editorName": "PDF"
+  }
+}

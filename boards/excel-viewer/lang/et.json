@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Exceli vaatur",
+    "search.placeholder": "Otsi…",
+    "toolbar.reload.title": "Laadi fail kettalt uuesti",
+    "state.sheetEmpty": "See tööleht on tühi.",
+    "state.loading": "Laadimine…",
+    "state.noFile": "Ühtegi faili pole avatud.",
+    "state.supportedTypes": "Avage siin vaatamiseks .xlsx- või .xls-fail.",
+    "state.noSheets": "Selles töövihikus pole töölehti.",
+    "state.openError": "Faili avamine nurjus.",
+    "toast.openError": "Faili avamine nurjus: {error}",
+    "manifest.name": "Exceli vaatur",
+    "manifest.description": "Ainult vaatamiseks mõeldud Exceli arvutustabelite (.xlsx / .xls) vaatur — iga tööleht avaneb eraldi vahekaardil filtreeritavas ja sorditavas ruudustikus.",
+    "manifest.editorName": "Excel"
+  }
+}

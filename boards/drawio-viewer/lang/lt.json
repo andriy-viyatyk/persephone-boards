@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title":"DrawIO peržiūros programa",
+    "board.name":"DrawIO peržiūros programa",
+    "action.openDrawing.title":"Atidaryti piešimo rengyklėje (redaguoti kopiją naudojant Excalidraw)",
+    "action.save.title":"Įrašyti dabartinį puslapį kaip SVG arba PNG vaizdą",
+    "action.copy.title":"Kopijuoti diagramą į mainų sritį kaip PNG",
+    "action.saveSvg":"Įrašyti kaip SVG",
+    "action.savePng":"Įrašyti kaip PNG",
+    "zoom.reset.title":"Atkurti mastelį (dukart spustelėkite diagramą)",
+    "toast.copy.success":"Diagrama nukopijuota į mainų sritį kaip PNG.",
+    "toast.copy.error":"Nepavyko kopijuoti: {error}",
+    "toast.saveSvg.success":"Diagrama įrašyta kaip SVG.",
+    "toast.saveSvg.error":"Nepavyko įrašyti kaip SVG: {error}",
+    "toast.savePng.success":"Diagrama įrašyta kaip PNG.",
+    "toast.savePng.error":"Nepavyko įrašyti kaip PNG: {error}",
+    "toast.openDrawing.error":"Nepavyko atidaryti piešimo rengyklėje: {error}",
+    "empty.file":"Failas tuščias.",
+    "errors.render":"Nepavyko atvaizduoti diagramos: {error}",
+    "empty.open":"Atidarykite .drawio failą, kad jį peržiūrėtumėte.",
+    "save.svg.title":"Įrašyti kaip SVG",
+    "save.png.title":"Įrašyti kaip PNG",
+    "save.filter.svg":"SVG vaizdas",
+    "save.filter.png":"PNG vaizdas",
+    "save.filter.all":"Visi failai",
+    "manifest.name":"DrawIO peržiūros programa",
+    "manifest.description":"Tik skaitymui skirta diagrams.net / draw.io (.drawio) diagramų peržiūros programa.",
+    "manifest.editorName":"DrawIO"
+  }
+}

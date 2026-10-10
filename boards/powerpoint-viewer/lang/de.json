@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "PowerPoint-Viewer",
+    "slides.counter.empty": "–",
+    "slides.previous.title": "Vorherige Folie",
+    "slides.next.title": "Nächste Folie",
+    "toolbar.reload.title": "Datei vom Datenträger neu laden",
+    "state.loading": "Wird geladen…",
+    "state.noFile": "Keine Datei geöffnet. Öffnen Sie eine .pptx-Datei, um sie hier anzuzeigen.",
+    "state.noSlides": "Diese Präsentation enthält keine Folien.",
+    "state.openError": "Diese Datei konnte nicht geöffnet werden.",
+    "toast.openError": "Diese Datei konnte nicht geöffnet werden: {error}",
+    "manifest.name": "PowerPoint-Viewer",
+    "manifest.description": "Schreibgeschützter Viewer für PowerPoint-Präsentationen (.pptx) mit offline gerenderten, durchlaufbaren Folien.",
+    "manifest.editorName": "PowerPoint"
+  }
+}

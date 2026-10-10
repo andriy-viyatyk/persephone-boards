@@ -1,0 +1,34 @@
+{
+  "messages": {
+    "document.title": "Vizualizator SQLite",
+    "search.placeholder": "Rezultate de căutare…",
+    "action.open.title": "Deschiderea unui fișier de bază de date SQLite…",
+    "action.reload.title": "Redeschiderea bazei de date de pe disc",
+    "query.placeholder": "SELECT … (alegeți un tabel din panoul lateral Tabele sau introduceți o interogare)",
+    "query.run": "Rulare",
+    "query.stop": "Oprire",
+    "query.shortcut": "Ctrl+Enter",
+    "tables.title": "Tabele",
+    "tables.empty": "Nicio bază de date deschisă.",
+    "tables.kind": "Tabele",
+    "views.kind": "Vizualizări",
+    "state.noColumns": "Instrucțiunea nu a returnat nicio coloană.",
+    "status.running": "Se execută…",
+    "status.rows": {
+      "one": "{countLabel} row in {msLabel} ms{truncation}",
+      "few": "{countLabel} rânduri in {msLabel} ms{truncation}",
+      "other": "{countLabel} rânduri in {msLabel} ms{truncation}"
+    },
+    "status.error": "Eroare: {error}",
+    "status.cancelling": "Se anulează…",
+    "status.cancelled": "Interogare anulată.",
+    "state.opening": "Se deschide baza de date…",
+    "state.noTables": "Această bază de date nu conține tabele.",
+    "state.openError": "Nu s-a putut deschide acest database.",
+    "state.noDatabase": "Nicio bază de date deschisă. Deschideți un fișier .db / .sqlite sau folosiți butonul folder de mai sus.",
+    "manifest.name": "Vizualizator SQLite",
+    "manifest.description": "Explorați bazele de date SQLite și rulați interogări.",
+    "manifest.editorName": "Vizualizator SQLite",
+    "manifest.views.tables.title": "Tabele"
+  }
+}

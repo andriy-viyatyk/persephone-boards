@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "PDF-megjelenítő",
+    "frame.title": "PDF-dokumentum",
+    "status.loading": "Betöltés…",
+    "errors.bridge": "A Persephone-híd nem érhető el",
+    "errors.bridgeDetail": "Ezt a táblát a Persephone alkalmazásban kell futtatni.",
+    "status.opening": "Megnyitás…",
+    "status.resolving": "A dokumentumforrás feloldása.",
+    "errors.read": "Nem sikerült beolvasni a dokumentumot",
+    "toast.read": "A PDF-forrás beolvasása nem sikerült: {error}",
+    "empty.instructions": "Ez a tábla PDF-fájlokat nyit meg. A megtekintéshez nyiss meg egy .pdf fájlt.",
+    "empty.title": "Nincs dokumentum",
+    "empty.probes": "Kompatibilitási tesztek ehhez a Persephone-verzióhoz:",
+    "errors.viewer": "Nem sikerült betölteni a PDF-megjelenítőt",
+    "toast.viewer": "Nem sikerült betölteni a PDF-megjelenítő keretét — a részleteket a táblán találod.",
+    "status.reading": "Beolvasás…",
+    "errors.open": "Nem sikerült megnyitni a dokumentumot",
+    "toast.open": "A PDF megnyitása nem sikerült: {error}",
+    "probes.iframe": "Beágyazott iframe (frame-src)",
+    "probes.worker": "pdf.js-munkafolyamat (worker-src)",
+    "probes.wasm": "WebAssembly (wasm-unsafe-eval)",
+    "status.works": "működik",
+    "status.blocked": "blokkolva",
+    "status.violations": "CSP-sértések",
+    "manifest.name": "PDF-megjelenítő",
+    "manifest.description": "Beépített PDF-megjelenítő PDF-dokumentumok megnyitásához és olvasásához.",
+    "manifest.editorName": "PDF"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "PowerPoint-megjelenítő",
+    "slides.counter.empty": "–",
+    "slides.previous.title": "Előző dia",
+    "slides.next.title": "Következő dia",
+    "toolbar.reload.title": "Fájl újratöltése a lemezről",
+    "state.loading": "Betöltés…",
+    "state.noFile": "Nincs megnyitott fájl. A megtekintéshez nyiss meg egy .pptx fájlt.",
+    "state.noSlides": "Ez a bemutató nem tartalmaz diákat.",
+    "state.openError": "Nem sikerült megnyitni ezt a fájlt.",
+    "toast.openError": "Nem sikerült megnyitni ezt a fájlt: {error}",
+    "manifest.name": "PowerPoint-megjelenítő",
+    "manifest.description": "Csak olvasásra használható PowerPoint-bemutató-megjelenítő dia-navigálással.",
+    "manifest.editorName": "PowerPoint"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "messages": {
+    "document.title": "Word 查看器",
+    "board.name": "Word 查看器",
+    "toolbar.reload.title": "从磁盘重新加载文件",
+    "zoom.help": "缩放：Ctrl + 鼠标滚轮（或 Ctrl 和 + / - / 0）。单击此处重置为 100%。",
+    "state.loading": "正在加载…",
+    "state.noFile": "没有打开的文件。打开 .docx 文件即可在此处查看。",
+    "state.openError": "无法打开此文件。",
+    "toast.openError": "无法打开此文件：{error}",
+    "manifest.name": "Word 查看器",
+    "manifest.description": "只读 Word 文档查看器（.docx），按页面精确呈现标题、列表、表格和图像。",
+    "manifest.editorName": "Word"
+  }
+}

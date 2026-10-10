@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Visualizador do Excel",
+    "search.placeholder": "Pesquisar…",
+    "toolbar.reload.title": "Recarregar arquivo do disco",
+    "state.sheetEmpty": "Esta planilha está vazia.",
+    "state.loading": "Carregando…",
+    "state.noFile": "Nenhum arquivo aberto.",
+    "state.supportedTypes": "Abra um arquivo .xlsx ou .xls para visualizá-lo aqui.",
+    "state.noSheets": "Esta pasta de trabalho não tem planilhas.",
+    "state.openError": "Não foi possível abrir este arquivo.",
+    "toast.openError": "Não foi possível abrir este arquivo: {error}",
+    "manifest.name": "Visualizador do Excel",
+    "manifest.description": "Visualizador somente leitura de planilhas do Excel (.xlsx / .xls) — uma guia por planilha, em grade classificável e filtrável.",
+    "manifest.editorName": "Excel"
+  }
+}

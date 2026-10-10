@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Vizualizator PDF",
+    "frame.title": "Document PDF",
+    "status.loading": "Se încarcă...",
+    "errors.bridge": "Puntea Persephone nu este disponibilă",
+    "errors.bridgeDetail": "Acest panou trebuie rulat în Persephone.",
+    "status.opening": "Se deschide...",
+    "status.resolving": "Se rezolvă sursa documentului.",
+    "errors.read": "Nu s-a putut citi documentul",
+    "toast.read": "Citirea sursei PDF a eșuat: {error}",
+    "empty.instructions": "Acest panou deschide fișiere PDF. Deschideți un fișier .pdf pentru a-l vizualiza.",
+    "empty.title": "Niciun document",
+    "empty.probes": "Verificări de capabilități pentru această versiune Persephone:",
+    "errors.viewer": "Nu s-a putut încărca vizualizatorul PDF",
+    "toast.viewer": "Cadrul vizualizatorului PDF nu s-a încărcat — consultați panoul pentru detalii.",
+    "status.reading": "Se citește...",
+    "errors.open": "Nu s-a putut deschide documentul",
+    "toast.open": "Deschiderea PDF-ului a eșuat: {error}",
+    "probes.iframe": "iframe imbricat (frame-src)",
+    "probes.worker": "worker pdf.js (worker-src)",
+    "probes.wasm": "WebAssembly (wasm-unsafe-eval)",
+    "status.works": "funcționează",
+    "status.blocked": "blocat",
+    "status.violations": "Încălcări CSP",
+    "manifest.name": "Vizualizator PDF",
+    "manifest.description": "Vizualizator PDF",
+    "manifest.editorName": "Vizualizator PDF"
+  }
+}

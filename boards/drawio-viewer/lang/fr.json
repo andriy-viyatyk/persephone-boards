@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Visionneuse DrawIO",
+    "board.name": "Visionneuse DrawIO",
+    "action.openDrawing.title": "Ouvrir dans Drawing Editor (modifier une copie dans Excalidraw)",
+    "action.save.title": "Enregistrer la page actuelle comme image (SVG ou PNG)",
+    "action.copy.title": "Copier le diagramme au format PNG dans le presse-papiers",
+    "action.saveSvg": "Enregistrer au format SVG",
+    "action.savePng": "Enregistrer au format PNG",
+    "zoom.reset.title": "Rétablir le zoom (double-cliquez sur le diagramme)",
+    "toast.copy.success": "Diagramme copié dans le presse-papiers au format PNG.",
+    "toast.copy.error": "Échec de la copie : {error}",
+    "toast.saveSvg.success": "Diagramme enregistré au format SVG.",
+    "toast.saveSvg.error": "Échec de l’enregistrement au format SVG : {error}",
+    "toast.savePng.success": "Diagramme enregistré au format PNG.",
+    "toast.savePng.error": "Échec de l’enregistrement au format PNG : {error}",
+    "toast.openDrawing.error": "Impossible d’ouvrir dans Drawing Editor : {error}",
+    "empty.file": "Le fichier est vide.",
+    "errors.render": "Impossible d’afficher le diagramme : {error}",
+    "empty.open": "Ouvrez un fichier .drawio pour l’afficher ici.",
+    "save.svg.title": "Enregistrer au format SVG",
+    "save.png.title": "Enregistrer au format PNG",
+    "save.filter.svg": "Image SVG",
+    "save.filter.png": "Image PNG",
+    "save.filter.all": "Tous les fichiers",
+    "manifest.name": "Visionneuse DrawIO",
+    "manifest.description": "Visionneuse en lecture seule pour les diagrammes diagrams.net / draw.io (.drawio).",
+    "manifest.editorName": "DrawIO"
+  }
+}

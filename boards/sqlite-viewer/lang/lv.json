@@ -1,0 +1,34 @@
+{
+  "messages": {
+    "document.title": "SQLite skatītājs",
+    "search.placeholder": "Meklēt rezultātos…",
+    "action.open.title": "Atvērt SQLite datubāzes failu…",
+    "action.reload.title": "Atkārtoti atvērt datubāzi no diska",
+    "query.placeholder": "SELECT … (izvēlieties tabulu sānjoslas panelī «Tabulas» vai ievadiet vaicājumu)",
+    "query.run": "Palaist",
+    "query.stop": "Apturēt",
+    "query.shortcut": "Ctrl+Enter",
+    "tables.title": "Tabulas",
+    "tables.empty": "Nav atvērtas datubāzes.",
+    "tables.kind": "Tabulas",
+    "views.kind": "Skati",
+    "state.noColumns": "Prasība neatgrieza nevienu kolonnu.",
+    "status.running": "Darbojas…",
+    "status.rows": {
+      "zero": "{countLabel} rindu, {msLabel} ms{truncation}",
+      "one": "{countLabel} rinda, {msLabel} ms{truncation}",
+      "other": "{countLabel} rindas, {msLabel} ms{truncation}"
+    },
+    "status.error": "Kļūda: {error}",
+    "status.cancelling": "Atceļ…",
+    "status.cancelled": "Vaicājums atcelts.",
+    "state.opening": "Atver datubāzi…",
+    "state.noTables": "Šajā datubāzē nav tabulu.",
+    "state.openError": "Nevarēja atvērt šo datubāzi.",
+    "state.noDatabase": "Nav atvērtas datubāzes. Atveriet .db vai .sqlite failu vai izmantojiet mapes pogu augstāk.",
+    "manifest.name": "SQLite skatītājs",
+    "manifest.description": "SQLite datubāzu skatītājs un SQL vaicājumu izpilde.",
+    "manifest.editorName": "SQLite",
+    "manifest.views.tables.title": "Tabulas"
+  }
+}

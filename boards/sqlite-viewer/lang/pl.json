@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Podgląd SQLite",
+    "search.placeholder": "Szukaj w wynikach…",
+    "action.open.title": "Otwórz plik bazy danych SQLite…",
+    "action.reload.title": "Otwórz bazę danych ponownie z dysku",
+    "query.placeholder": "SELECT … (wybierz tabelę w panelu Tabele lub wpisz zapytanie)",
+    "query.run": "Uruchom",
+    "query.stop": "Zatrzymaj",
+    "query.shortcut": "Ctrl+Enter",
+    "tables.title": "Tabele",
+    "tables.empty": "Nie otwarto żadnej bazy danych.",
+    "tables.kind": "Tabele",
+    "views.kind": "Widoki",
+    "state.noColumns": "Instrukcja nie zwróciła żadnych kolumn.",
+    "status.running": "Uruchamianie…",
+    "status.rows": { "one": "{countLabel} wiersz w {msLabel} ms{truncation}", "few": "{countLabel} wiersze w {msLabel} ms{truncation}", "many": "{countLabel} wierszy w {msLabel} ms{truncation}", "other": "{countLabel} wiersza w {msLabel} ms{truncation}" },
+    "status.error": "Błąd: {error}",
+    "status.cancelling": "Anulowanie…",
+    "status.cancelled": "Anulowano zapytanie.",
+    "state.opening": "Otwieranie bazy danych…",
+    "state.noTables": "Ta baza danych nie zawiera tabel.",
+    "state.openError": "Nie można otworzyć tej bazy danych.",
+    "state.noDatabase": "Nie otwarto żadnej bazy danych. Otwórz plik .db lub .sqlite albo użyj przycisku folderu powyżej.",
+    "manifest.name": "Podgląd SQLite",
+    "manifest.description": "Przeglądaj tabele i wykonuj zapytania do baz danych SQLite.",
+    "manifest.editorName": "Podgląd SQLite",
+    "manifest.views.tables.title": "Tabele"
+  }
+}

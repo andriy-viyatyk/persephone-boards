@@ -1,0 +1,30 @@
+{
+  "messages": {
+    "document.title": "Visualizzatore PDF",
+    "frame.title": "Documento PDF",
+    "status.loading": "Caricamento...",
+    "errors.bridge": "Bridge Persephone non disponibile",
+    "errors.bridgeDetail": "Questa bacheca deve essere eseguita in Persephone.",
+    "status.opening": "Apertura...",
+    "status.resolving": "Risoluzione dell’origine del documento.",
+    "errors.read": "Impossibile leggere il documento",
+    "toast.read": "Lettura dell’origine PDF non riuscita: {error}",
+    "empty.instructions": "Questa bacheca apre file PDF. Apri un file .pdf per visualizzarlo.",
+    "empty.title": "Nessun documento",
+    "empty.probes": "Verifiche delle funzionalità per questa versione di Persephone:",
+    "errors.viewer": "Impossibile caricare il visualizzatore PDF",
+    "toast.viewer": "Caricamento del riquadro PDF non riuscito: consulta la bacheca per i dettagli.",
+    "status.reading": "Lettura...",
+    "errors.open": "Impossibile aprire il documento",
+    "toast.open": "Apertura del PDF non riuscita: {error}",
+    "probes.iframe": "IFrame annidato (frame-src)",
+    "probes.worker": "Worker pdf.js (worker-src)",
+    "probes.wasm": "WebAssembly (wasm-unsafe-eval)",
+    "status.works": "funziona",
+    "status.blocked": "bloccato",
+    "status.violations": "Violazioni CSP",
+    "manifest.name": "Visualizzatore PDF",
+    "manifest.description": "Visualizzatore di documenti PDF con il visualizzatore pdf.js standard, ricerca, anteprime, struttura, zoom e adattamento, rotazione e stampa.",
+    "manifest.editorName": "PDF"
+  }
+}

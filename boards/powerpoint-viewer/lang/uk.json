@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title": "Перегляд PowerPoint",
+    "slides.counter.empty": "–",
+    "slides.previous.title": "Попередній слайд",
+    "slides.next.title": "Наступний слайд",
+    "toolbar.reload.title": "Перезавантажити файл із диска",
+    "state.loading": "Завантаження…",
+    "state.noFile": "Файл не відкрито. Відкрийте файл .pptx, щоб переглянути його тут.",
+    "state.noSlides": "У цій презентації немає слайдів.",
+    "state.openError": "Не вдалося відкрити цей файл.",
+    "toast.openError": "Не вдалося відкрити цей файл: {error}",
+    "manifest.name": "Перегляд PowerPoint",
+    "manifest.description": "Перегляд презентацій PowerPoint без редагування.",
+    "manifest.editorName": "PowerPoint"
+  }
+}

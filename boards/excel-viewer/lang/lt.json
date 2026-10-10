@@ -1,0 +1,17 @@
+{
+  "messages": {
+    "document.title":"Excel peržiūros programa",
+    "search.placeholder":"Ieškoti…",
+    "toolbar.reload.title":"Iš naujo įkelti failą iš disko",
+    "state.sheetEmpty":"Šis darbalapis tuščias.",
+    "state.loading":"Įkeliama…",
+    "state.noFile":"Failas neatidarytas.",
+    "state.supportedTypes":"Atidarykite .xlsx arba .xls failą, kad galėtumėte jį peržiūrėti.",
+    "state.noSheets":"Šioje darbaknygėje nėra darbalapių.",
+    "state.openError":"Nepavyko atidaryti šio failo.",
+    "toast.openError":"Nepavyko atidaryti šio failo: {error}",
+    "manifest.name":"Excel peržiūros programa",
+    "manifest.description":"Tik skaitymui skirta Excel skaičiuoklių (.xlsx / .xls) peržiūros programa – po skirtuką kiekvienam darbalapiui, rikiuojamas ir filtruojamas tinklelis.",
+    "manifest.editorName":"Excel"
+  }
+}

@@ -3,6 +3,8 @@
 (function () {
     "use strict";
 
+    applyI18n();
+
     const P = window.persephone;
     const Chess = window.Chess;
     const $ = (id) => document.getElementById(id);
@@ -72,14 +74,15 @@
         const st = status();
         const w = winner();
         const agentWon = w === saved.agentColor;
-        const won = forAgent ? (agentWon ? "you won" : "the user won") : (agentWon ? "the agent won" : "you won");
-        if (st === "checkmate") return `Checkmate — ${won}`;
+        const won = forAgent ? (agentWon ? "you won" : "the user won") : t(agentWon ? "chess.result.agentWon" : "chess.result.userWon");
+        if (st === "checkmate") return forAgent ? `Checkmate — ${won}` : t("chess.result.checkmate", { winner: won });
         if (st === "resigned") {
             const agentResigned = saved.resigned === saved.agentColor;
-            const who = forAgent ? (agentResigned ? "You" : "The user") : (agentResigned ? "The agent" : "You");
-            return `${who} resigned — ${won}`;
+            const who = forAgent ? (agentResigned ? "You" : "The user") : t(agentResigned ? "chess.result.agent" : "chess.result.you");
+            return forAgent ? `${who} resigned — ${won}` : t("chess.result.resigned", { who, winner: won });
         }
-        return `Draw (${st.replace(/-/g, " ")})`;
+        const reason = t(`chess.result.reason.${st}`);
+        return forAgent ? `Draw (${reason})` : t("chess.result.draw", { reason });
     }
 
     function pgn() {
@@ -140,7 +143,7 @@
         game = new Chess();
         selected = null;
         arrows = [];
-        addChat("system", `New game — ${by === "agent" ? "the agent" : "you"} started it. You play ${COLOR_NAME[userColor()]}.`);
+        addChat("system", t("chess.chat.newGame", { starter: t(by === "agent" ? "chess.result.agent" : "chess.result.you"), color: t(`chess.color.${COLOR_NAME[userColor()]}`) }));
         persist();
         render();
         wakeWaiters();
@@ -156,7 +159,7 @@
         if (saved.resigned) {
             // Taking back a resignation reopens the game where it stood.
             saved.resigned = null;
-            addChat("system", "Resignation taken back.");
+            addChat("system", t("chess.chat.resignationTakenBack"));
         } else {
             // Undo to the user's previous turn: the agent's reply (if any) and the user's own move.
             const uc = userColor();
@@ -168,7 +171,7 @@
                 if (game.turn() === uc) break;
             }
             if (!undone) return;
-            addChat("system", undone === 1 ? "You took back your move." : "You took back your move and the agent's reply.");
+            addChat("system", t(undone === 1 ? "chess.chat.takeback.one" : "chess.chat.takeback.multiple"));
         }
         selected = null;
         arrows = [];
@@ -182,7 +185,7 @@
     function resign(color, by) {
         if (isOver()) return;
         saved.resigned = color;
-        addChat("system", by === "agent" ? "The agent resigned." : "You resigned.");
+        addChat("system", t(by === "agent" ? "chess.chat.resigned.agent" : "chess.chat.resigned.user"));
         persist();
         render();
         wakeWaiters();
@@ -334,18 +337,18 @@
         sub.className = "sub";
         if (isOver()) {
             big.textContent = overText(false);
-            sub.textContent = `Result ${result()} · start a new game from the toolbar`;
+            sub.textContent = t("chess.result.prompt", { result: result() });
         } else if (isUserTurn()) {
-            big.textContent = game.inCheck() ? "Check! Your move" : "Your move";
-            sub.textContent = `You play ${COLOR_NAME[userColor()]}`;
+            big.textContent = t(game.inCheck() ? "chess.turn.checkUser" : "chess.turn.user");
+            sub.textContent = t("chess.turn.userColor", { color: COLOR_NAME[userColor()] });
         } else {
-            big.textContent = game.inCheck() ? "Check! Agent is thinking" : "Agent is thinking";
+            big.textContent = t(game.inCheck() ? "chess.turn.checkAgent" : "chess.turn.agent");
             big.classList.add("thinking");
-            sub.textContent = `The agent plays ${COLOR_NAME[saved.agentColor]}`;
+            sub.textContent = t("chess.turn.agentColor", { color: t(`chess.color.${COLOR_NAME[saved.agentColor]}`) });
         }
         el.append(big, sub);
         if (P && P.setStatusText) {
-            try { P.setStatusText(`Move ${Math.floor(saved.moves.length / 2) + 1} · ${COLOR_NAME[game.turn()]} to move`); } catch { /* old app */ }
+            try { P.setStatusText(t("chess.status.move", { number: new Intl.NumberFormat(P.locale.code).format(Math.floor(saved.moves.length / 2) + 1), color: t(`chess.color.${COLOR_NAME[game.turn()]}`) })); } catch { /* old app */ }
         }
     }
 
@@ -353,7 +356,7 @@
         const el = $("moves");
         el.textContent = "";
         if (!saved.moves.length) {
-            el.appendChild(Object.assign(document.createElement("div"), { className: "empty", textContent: "No moves yet." }));
+            el.appendChild(Object.assign(document.createElement("div"), { className: "empty", textContent: t("chess.moves.empty") }));
             return;
         }
         for (let i = 0; i < saved.moves.length; i += 2) {
@@ -379,7 +382,10 @@
         if (!saved.chat.length) {
             const hint = document.createElement("div");
             hint.className = "hint";
-            hint.innerHTML = "Ask your AI agent (connected to Persephone over MCP) to play, for example:<br><code>Let's play chess on the Agent Chess board in Persephone. You are Black.</code><br><br>Then make your move. The agent's moves and comments appear here.";
+            const example = document.createElement("code");
+            example.textContent = t("chess.hint.example");
+            hint.append(t("chess.hint.ask"), document.createElement("br"), example,
+                document.createElement("br"), document.createElement("br"), t("chess.hint.move"));
             el.appendChild(hint);
             return;
         }
@@ -387,7 +393,7 @@
             const div = document.createElement("div");
             div.className = "msg " + m.who;
             if (m.who !== "system") {
-                div.appendChild(Object.assign(document.createElement("div"), { className: "who", textContent: m.who === "agent" ? "Agent" : "You" }));
+                div.appendChild(Object.assign(document.createElement("div"), { className: "who", textContent: t(m.who === "agent" ? "chess.chat.speaker.agent" : "chess.chat.speaker.user") }));
             }
             div.appendChild(document.createTextNode(m.text));
             el.appendChild(div);
@@ -519,7 +525,7 @@
         choices.className = "choices";
         for (const t of ["q", "r", "b", "n"]) {
             const btn = document.createElement("button");
-            btn.title = { q: "Queen", r: "Rook", b: "Bishop", n: "Knight" }[t];
+            btn.title = window.t("chess.promotion." + ({ q: "queen", r: "rook", b: "bishop", n: "knight" }[t]));
             btn.appendChild(pieceSvg(userColor(), t));
             btn.addEventListener("click", (e) => {
                 e.stopPropagation();
@@ -553,9 +559,9 @@
         try {
             if (P && P.clipboard && P.clipboard.writeText) await P.clipboard.writeText(text);
             else await navigator.clipboard.writeText(text);
-            if (P && P.notify) P.notify("PGN copied to the clipboard", "success");
+            if (P && P.notify) P.notify(t("chess.toast.pgnCopied"), "success");
         } catch {
-            if (P && P.notify) P.notify("Could not copy the PGN", "error");
+            if (P && P.notify) P.notify(t("chess.error.pgnCopy"), "error");
         }
     });
     $("chatForm").addEventListener("submit", (e) => {

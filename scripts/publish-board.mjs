@@ -116,6 +116,76 @@ function resolveStandalone(m) {
     return !(Array.isArray(m.fileMasks) && m.fileMasks.length > 0);
 }
 
+/** Read the declared language packs' catalog-facing name and description fields. */
+function buildLocalizedCatalogMetadata(id, m) {
+    const languages = m.languages;
+    if (!languages || typeof languages !== "object" || Array.isArray(languages)) return undefined;
+
+    const folder = typeof languages.folder === "string" && languages.folder.trim()
+        ? languages.folder.trim()
+        : "lang";
+    const boardPath = path.join(boardsDir, id);
+    const languageDir = path.resolve(boardPath, folder);
+    // Language folders are board inputs and must stay inside the board folder.
+    if (languageDir !== boardPath && !languageDir.startsWith(`${boardPath}${path.sep}`)) {
+        console.warn(`- ${id}: language folder "${folder}" is outside the board folder; skipped.`);
+        return undefined;
+    }
+
+    let files;
+    try {
+        files = fs.readdirSync(languageDir, { withFileTypes: true })
+            .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
+            .map((entry) => entry.name)
+            .sort();
+    } catch (error) {
+        if (error.code !== "ENOENT") {
+            console.warn(`- ${id}: could not read language folder "${folder}": ${error.message}`);
+        }
+        return undefined;
+    }
+
+    const localized = {};
+    for (const file of files) {
+        const filePath = path.join(languageDir, file);
+        let pack;
+        try {
+            pack = JSON.parse(fs.readFileSync(filePath, "utf8"));
+        } catch (error) {
+            console.warn(`- ${id}: could not parse language pack ${filePath}: ${error.message}`);
+            continue;
+        }
+
+        const messages = pack?.messages;
+        if (!messages || typeof messages !== "object" || Array.isArray(messages)) continue;
+
+        const code = file.slice(0, -".json".length);
+        const locale = {};
+        for (const field of ["name", "description"]) {
+            const key = `manifest.${field}`;
+            const value = messages[key];
+            if (value === undefined) continue;
+            if (typeof value !== "string") {
+                console.warn(`- ${id}: ${file} ${key} must be a string; omitted.`);
+                continue;
+            }
+            const trimmed = value.trim();
+            if (!trimmed) {
+                console.warn(`- ${id}: ${file} ${key} is blank; omitted.`);
+                continue;
+            }
+            if (/\{[^{}]+\}/.test(trimmed)) {
+                console.warn(`- ${id}: ${file} ${key} contains a placeholder; omitted.`);
+                continue;
+            }
+            locale[field] = trimmed;
+        }
+        if (Object.keys(locale).length > 0) localized[code] = locale;
+    }
+
+    return Object.keys(localized).length > 0 ? localized : undefined;
+}
+
 /** Build the boards-manifest.json entry for a board (drops undefined fields). */
 function buildCatalogEntry(id, m, archive) {
     const entry = {
@@ -132,6 +202,7 @@ function buildCatalogEntry(id, m, archive) {
         // boards/<id>/ and rejects anything carrying a path separator or a scheme.
         screenshot: m.screenshot,
         archive,
+        localized: buildLocalizedCatalogMetadata(id, m),
     };
     for (const k of Object.keys(entry)) if (entry[k] === undefined) delete entry[k];
     return entry;

@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>PowerPoint Viewer</title>
+    <title data-i18n="document.title">PowerPoint Viewer</title>
     <link rel="stylesheet" href="./board-base.css" />
     <style>
         html, body { height: 100%; margin: 0; }
@@ -126,23 +126,23 @@
 </head>
 <body>
     <div id="bar">
-        <span id="name">PowerPoint Viewer</span>
+        <span id="name" data-i18n="document.title">PowerPoint Viewer</span>
         <div id="nav">
-            <button id="prev" class="tool-btn" title="Previous slide">
+            <button id="prev" class="tool-btn" title="Previous slide" data-i18n-title="slides.previous.title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <polyline points="15 18 9 12 15 6"></polyline>
                 </svg>
             </button>
             <span id="counter">–</span>
-            <button id="next" class="tool-btn" title="Next slide">
+            <button id="next" class="tool-btn" title="Next slide" data-i18n-title="slides.next.title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <polyline points="9 18 15 12 9 6"></polyline>
                 </svg>
             </button>
         </div>
-        <button id="reload" class="tool-btn" title="Reload the file from disk" disabled>
+        <button id="reload" class="tool-btn" title="Reload the file from disk" data-i18n-title="toolbar.reload.title" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <polyline points="23 4 23 10 17 10"></polyline>
@@ -166,6 +166,7 @@
     <!-- The AiVision agent surface, before app.js: it only defines window.PPTXAI, and app.js
          constructs the model from it while evaluating. -->
     <script src="./pptx-aivision.js"></script>
+    <script src="./i18n.js"></script>
     <script src="./app.js"></script>
 </body>
 </html>

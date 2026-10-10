@@ -29,6 +29,8 @@
 // file. Nothing here depends on it — the board runs identically when it is absent.
 
 const P = window.persephone;
+const t = (key, params) => P.i18n.t(key, params);
+applyI18n(document);
 
 const nameEl = document.getElementById("name");
 const tabsEl = document.getElementById("tabs");
@@ -111,7 +113,7 @@ const zoomPan = (() => {
             ")";
         contentEl.style.transition = dragging ? "none" : "transform 0.1s ease-out";
         if (ringEl) ringEl.style.borderWidth = Math.max(0.5, 2 / scale) + "px";
-        zoomEl.textContent = Math.round(scale * 100) + "%";
+        zoomEl.textContent = new Intl.NumberFormat(P.locale.code).format(Math.round(scale * 100)) + "%";
     }
 
     // Fit-to-viewport scale; never scales up past 100% (matches BaseImageView).
@@ -474,7 +476,7 @@ function renderPage(pageXml) {
             canvas.innerHTML = "";
             currentViewer = null;
             zoomPan.clear();
-            showState("Failed to render diagram: " + message, true);
+            showState(t("errors.render", {error:message}), true);
             settle();
         }
     };
@@ -613,10 +615,10 @@ async function copyPng() {
     try {
         const blob = await diagramToPngBlob();
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-        if (P.notify) P.notify("Diagram copied to clipboard as PNG.", "success");
+        if (P.notify) P.notify(t("toast.copy.success"), "success");
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
-        if (P.notify) P.notify("Copy failed: " + message, "error");
+        if (P.notify) P.notify(t("toast.copy.error", {error:message}), "error");
     }
 }
 
@@ -690,19 +692,19 @@ async function saveSvg() {
     try {
         const svgText = diagramToSvgString();
         const path = await P.saveFileDialog({
-            title: "Save as SVG",
+            title: P.i18n.t("save.svg.title"),
             defaultPath: suggestedName("svg"),
             filters: [
-                { name: "SVG Image", extensions: ["svg"] },
-                { name: "All Files", extensions: ["*"] },
+                { name: P.i18n.t("save.filter.svg"), extensions: ["svg"] },
+                { name: P.i18n.t("save.filter.all"), extensions: ["*"] },
             ],
         });
         if (!path) return; // user cancelled
         await P.writeFile(path, svgText, { encoding: "utf8" });
-        if (P.notify) P.notify("Diagram saved as SVG.", "success");
+        if (P.notify) P.notify(t("toast.saveSvg.success"), "success");
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
-        if (P.notify) P.notify("Save as SVG failed: " + message, "error");
+        if (P.notify) P.notify(t("toast.saveSvg.error", {error:message}), "error");
     }
 }
 
@@ -712,19 +714,19 @@ async function savePng() {
     try {
         const blob = await diagramToPngBlob();
         const path = await P.saveFileDialog({
-            title: "Save as PNG",
+            title: P.i18n.t("save.png.title"),
             defaultPath: suggestedName("png"),
             filters: [
-                { name: "PNG Image", extensions: ["png"] },
-                { name: "All Files", extensions: ["*"] },
+                { name: P.i18n.t("save.filter.png"), extensions: ["png"] },
+                { name: P.i18n.t("save.filter.all"), extensions: ["*"] },
             ],
         });
         if (!path) return; // user cancelled
         await P.writeFile(path, await blobToBase64(blob), { encoding: "base64" });
-        if (P.notify) P.notify("Diagram saved as PNG.", "success");
+        if (P.notify) P.notify(t("toast.savePng.success"), "success");
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
-        if (P.notify) P.notify("Save as PNG failed: " + message, "error");
+        if (P.notify) P.notify(t("toast.savePng.error", {error:message}), "error");
     }
 }
 
@@ -788,7 +790,7 @@ async function openInDrawing() {
         P.openRawLink(dataUrl, { editor: "draw-view" });
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
-        if (P.notify) P.notify("Open in Drawing Editor failed: " + message, "error");
+        if (P.notify) P.notify(t("toast.openDrawing.error", {error:message}), "error");
     }
 }
 
@@ -811,7 +813,7 @@ function render(xml) {
             canvas.innerHTML = "";
             currentViewer = null;
             zoomPan.clear();
-            showState("The file is empty.", false);
+            showState(t("empty.file"), false);
             return;
         }
         const pages = parsePages(xml);
@@ -834,7 +836,7 @@ function render(xml) {
         canvas.innerHTML = "";
         currentViewer = null;
         zoomPan.clear();
-        showState("Failed to render diagram: " + message, true);
+        showState(t("errors.render", {error:message}), true);
     } finally {
         // The agent surface re-parses this same content into shapes and connections; whatever
         // it had parsed belongs to the previous version. Told in `finally` because an error
@@ -945,12 +947,12 @@ async function load() {
     try {
         const filePath = await P.getFilePath();
         currentFilePath = filePath || "";
-        nameEl.textContent = filePath ? basename(filePath) : "DrawIO Viewer";
+        nameEl.textContent = filePath ? basename(filePath) : t("board.name");
         // Tooltip: the full file path (the label itself shows only the basename).
         nameEl.title = filePath || "";
     } catch {
         currentFilePath = "";
-        nameEl.textContent = "DrawIO Viewer";
+        nameEl.textContent = t("board.name");
         nameEl.title = "";
     }
 
@@ -963,10 +965,10 @@ async function load() {
     } catch {
         // Not a content-host board (opened plainly, or host unavailable) — persephone.host.getContent
         // rejects. Show the empty state.
-        nameEl.textContent = "DrawIO Viewer";
+        nameEl.textContent = t("board.name");
         tabsEl.classList.remove("show");
         canvas.innerHTML = "";
-        showState("Open a .drawio file to view it here.", false);
+        showState(t("empty.open"), false);
         return;
     }
 

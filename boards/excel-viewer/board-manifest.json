@@ -4,9 +4,10 @@
   "description": "Read-only viewer for Excel spreadsheets (.xlsx / .xls) — one tab per worksheet, sortable/filterable grid.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.2.2",
+  "version": "1.3.0",
   "minAppVersion": "5.0.7",
-  "minBridgeVersion": "1.32.0",
+  "minBridgeVersion": "1.36.0",
+  "languages": { "folder": "lang", "default": "en" },
   "permissions": {
     "execute": false,
     "service": false,

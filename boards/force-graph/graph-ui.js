@@ -11,6 +11,7 @@
 // implementation living next to the one already in `lib/`.
 (() => {
     const FG = (window.FG = window.FG || {});
+    const t = window.forceGraphT;
     const SVG_NS = "http://www.w3.org/2000/svg";
 
     // =====================================================================
@@ -170,15 +171,15 @@
     function buildMarkdown(node, isRoot) {
         const lines = [];
         const title = node.title || node.id;
-        if (isRoot) lines.push("**Root Node**");
-        if (node.isGroup) lines.push("**Group**");
+        if (isRoot) lines.push("**" + t("markdown.root") + "**");
+        if (node.isGroup) lines.push("**" + t("markdown.group") + "**");
         lines.push("## " + title);
         if (node.title) lines.push("`" + node.id + "`");
 
         const customProps = FG.getCustomProperties(node);
         if (customProps.length > 0) {
             lines.push("");
-            lines.push("| Property | Value |");
+            lines.push("| " + t("markdown.property") + " | " + t("markdown.value") + " |");
             lines.push("|----------|-------|");
             for (const [key, value] of customProps) {
                 lines.push("| " + key + " | " + value.replace(/\|/g, "\\|") + " |");
@@ -238,12 +239,12 @@
     }
 
     /**
-     * Confirmation dialog. `buttons` defaults to ["Yes", "No"] — matching the app's
+     * Confirmation dialog. `buttons` defaults to [t("dialog.yes"), t("dialog.no")] — matching the app's
      * showConfirmationDialog — and the three-button Group Options dialog passes its own.
      * Resolves with the pressed button's label, or undefined when dismissed.
      */
     function showConfirmationDialog(params) {
-        const buttons = params.buttons && params.buttons.length ? params.buttons : ["Yes", "No"];
+        const buttons = params.buttons && params.buttons.length ? params.buttons : [t("dialog.yes"), t("dialog.no")];
         return overlayShell((box, done) => {
             box.dataset.name = "graph-confirm-dialog";
             if (params.title) box.append(el("div", { class: "confirm-title", text: params.title }));
@@ -251,7 +252,7 @@
             const row = el("div", { class: "confirm-actions" });
             let primary = null;
             buttons.forEach((label, index) => {
-                const isPrimary = index === 0 && label !== "Cancel" && label !== "No";
+                const isPrimary = index === 0 && label !== t("dialog.cancel") && label !== t("dialog.no");
                 const button = el("button", {
                     class: "p-btn md" + (isPrimary ? " primary" : ""),
                     text: label,
@@ -274,12 +275,12 @@
             const input = el("input", { class: "p-input md fg-dialog-input", type: "text", spellcheck: "false" });
             input.value = params.value == null ? "" : String(params.value);
             input.addEventListener("keydown", (event) => {
-                if (event.key === "Enter") { event.preventDefault(); done({ button: "OK", value: input.value }); }
+                if (event.key === "Enter") { event.preventDefault(); done({ button: t("dialog.ok"), value: input.value }); }
             });
             box.append(input);
             box.append(el("div", { class: "confirm-actions" },
-                el("button", { class: "p-btn md", text: "Cancel", onclick: () => done(undefined) }),
-                el("button", { class: "p-btn md primary", text: "OK", onclick: () => done({ button: "OK", value: input.value }) }),
+                el("button", { class: "p-btn md", text: t("dialog.cancel"), onclick: () => done(undefined) }),
+                el("button", { class: "p-btn md primary", text: t("dialog.ok"), onclick: () => done({ button: t("dialog.ok"), value: input.value }) }),
             ));
             setTimeout(() => { input.focus(); input.select(); }, 0);
         });
@@ -315,13 +316,13 @@
         const items = [];
         const links = o.nodeLinks && o.nodeLinks.links ? o.nodeLinks.links : [];
         if (links.length === 1) {
-            items.push({ label: "Open " + links[0].propertyKey, icon: createOpenLinkIconElement(), onClick: () => o.nodeLinks.onOpen(links[0].href) });
+            items.push({ label: t("context.openProperty", {property:links[0].propertyKey}), icon: createOpenLinkIconElement(), onClick: () => o.nodeLinks.onOpen(links[0].href) });
         } else if (links.length > 1) {
             items.push({
-                label: "Open link...",
+                label: t("context.openLink"),
                 icon: createOpenLinkIconElement(),
                 items: links.map((link) => ({
-                    label: "Open " + link.propertyKey,
+                    label: t("context.openProperty", {property:link.propertyKey}),
                     icon: createOpenLinkIconElement(),
                     onClick: () => o.nodeLinks.onOpen(link.href),
                 })),
@@ -330,22 +331,22 @@
 
         const hasLinks = links.length > 0;
         items.push(
-            { label: "Add Child", onClick: () => o.actions.addChild(o.nodeId), startGroup: hasLinks || undefined },
-            { label: "Set as Root", onClick: () => o.actions.setRootNode(o.nodeId), disabled: o.isRoot },
-            { label: "Collapse", onClick: () => o.actions.collapseNode(o.nodeId), disabled: !o.hasVisibilityFilter },
-            { label: "Select children", onClick: () => o.actions.selectChildren(), startGroup: true },
+            { label: t("context.addChild"), onClick: () => o.actions.addChild(o.nodeId), startGroup: hasLinks || undefined },
+            { label: t("context.setRoot"), onClick: () => o.actions.setRootNode(o.nodeId), disabled: o.isRoot },
+            { label: t("context.collapse"), onClick: () => o.actions.collapseNode(o.nodeId), disabled: !o.hasVisibilityFilter },
+            { label: t("context.selectChildren"), onClick: () => o.actions.selectChildren(), startGroup: true },
         );
 
         const isMultiSelected = o.multiSelectedCount !== undefined && o.multiSelectedCount > 1;
         items.push({
-            label: isMultiSelected ? "Delete " + o.multiSelectedCount + " Nodes" : "Delete Node",
+            label: isMultiSelected ? t("context.deleteNodes", {count:o.multiSelectedCount}) : t("context.deleteNode"),
             onClick: () => (isMultiSelected ? o.actions.deleteSelected() : o.actions.deleteNode(o.nodeId)),
             startGroup: true,
         });
 
         if (o.neighborIds.length > 0) {
             items.push({
-                label: "Delete Link to...",
+                label: t("context.deleteLinkTo"),
                 startGroup: true,
                 items: o.neighborIds.map((id) => ({
                     label: o.getNodeLabel(id),
@@ -356,50 +357,50 @@
 
         const hideGroup = o.groupingEnabled === false;
         if (o.multiSelectedCount !== undefined && o.multiSelectedCount >= 2) {
-            items.push({ label: "Group Selected", onClick: () => o.actions.groupSelected(), startGroup: true, invisible: hideGroup });
+            items.push({ label: t("context.groupSelected"), onClick: () => o.actions.groupSelected(), startGroup: true, invisible: hideGroup });
         }
         if (o.isInGroup) {
-            items.push({ label: "Remove from Group", onClick: () => o.actions.removeFromGroup(o.nodeId), invisible: hideGroup });
+            items.push({ label: t("context.removeFromGroup"), onClick: () => o.actions.removeFromGroup(o.nodeId), invisible: hideGroup });
         }
         return items;
     }
 
     function buildGroupNodeContextMenu(o) {
         const items = [
-            { label: "Edit Title", onClick: () => o.actions.editGroupTitle(o.groupId) },
-            { label: "Collapse", onClick: () => o.actions.collapseNode(o.groupId), disabled: !o.hasVisibilityFilter },
-            { label: "Select members", onClick: () => o.actions.selectMembers(), startGroup: true },
-            { label: "Select members deep", onClick: () => o.actions.selectMembersDeep() },
-            { label: "Delete (Ungroup)", onClick: () => o.actions.ungroupNode(o.groupId), startGroup: true },
-            { label: "Delete with Children", onClick: () => o.actions.deleteGroup(o.groupId) },
+            { label: t("context.editTitle"), onClick: () => o.actions.editGroupTitle(o.groupId) },
+            { label: t("context.collapse"), onClick: () => o.actions.collapseNode(o.groupId), disabled: !o.hasVisibilityFilter },
+            { label: t("context.selectMembers"), onClick: () => o.actions.selectMembers(), startGroup: true },
+            { label: t("context.selectMembersDeep"), onClick: () => o.actions.selectMembersDeep() },
+            { label: t("context.deleteUngroup"), onClick: () => o.actions.ungroupNode(o.groupId), startGroup: true },
+            { label: t("context.deleteChildren"), onClick: () => o.actions.deleteGroup(o.groupId) },
         ];
         if (o.multiSelectedCount !== undefined && o.multiSelectedCount >= 2) {
-            items.push({ label: "Group Selected", onClick: () => o.actions.groupSelected(), startGroup: true, invisible: o.groupingEnabled === false });
+            items.push({ label: t("context.groupSelected"), onClick: () => o.actions.groupSelected(), startGroup: true, invisible: o.groupingEnabled === false });
         }
         return items;
     }
 
     function buildEmptyAreaContextMenu(worldX, worldY, actions) {
-        return [{ label: "Add Node", onClick: () => actions.addNode(worldX, worldY) }];
+        return [{ label: t("context.addNode"), onClick: () => actions.addNode(worldX, worldY) }];
     }
 
     function buildSelectionMenu(info, actions, groupingEnabled) {
         const items = [
-            { label: "Select children", onClick: actions.selectChildren, disabled: !info.hasNonGroups },
-            { label: "Select members", onClick: actions.selectMembers, disabled: !info.hasGroups, invisible: groupingEnabled === false },
-            { label: "Select members deep", onClick: actions.selectMembersDeep, disabled: !info.hasGroups, invisible: groupingEnabled === false },
-            { label: "Highlight", onClick: actions.highlight },
-            { label: "Copy (markdown)", onClick: actions.copyMarkdown, startGroup: true },
-            { label: "Open (markdown)", onClick: actions.openMarkdown },
-            { label: "Open in grid", onClick: actions.openGrid },
+            { label: t("context.selectChildren"), onClick: actions.selectChildren, disabled: !info.hasNonGroups },
+            { label: t("context.selectMembers"), onClick: actions.selectMembers, disabled: !info.hasGroups, invisible: groupingEnabled === false },
+            { label: t("context.selectMembersDeep"), onClick: actions.selectMembersDeep, disabled: !info.hasGroups, invisible: groupingEnabled === false },
+            { label: t("context.highlight"), onClick: actions.highlight },
+            { label: t("context.copyMarkdown"), onClick: actions.copyMarkdown, startGroup: true },
+            { label: t("context.openMarkdown"), onClick: actions.openMarkdown },
+            { label: t("context.openGrid"), onClick: actions.openGrid },
         ];
         if (info.count >= 2) {
-            items.push({ label: "Group Selected", onClick: actions.groupSelected, startGroup: true, invisible: groupingEnabled === false });
+            items.push({ label: t("context.groupSelected"), onClick: actions.groupSelected, startGroup: true, invisible: groupingEnabled === false });
         }
         items.push(
-            { label: "Extract", onClick: actions.extract, startGroup: true },
-            { label: "Extract with children", onClick: actions.extractWithChildren },
-            { label: "Delete " + info.count + " Node" + (info.count > 1 ? "s" : ""), onClick: actions.deleteNodes, startGroup: true },
+            { label: t("context.extract"), onClick: actions.extract, startGroup: true },
+            { label: t("context.extractChildren"), onClick: actions.extractWithChildren },
+            { label: t("context.deleteNodes", {count:info.count}), onClick: actions.deleteNodes, startGroup: true },
         );
         return items;
     }
@@ -461,8 +462,8 @@
             root.addEventListener("mouseleave", () => { hovered = false; clearDelayed(); });
 
             const headerContent = el("div", { class: "fg-tooltip-header-content" });
-            if (isRoot) headerContent.append(el("div", { class: "fg-tooltip-badge", text: "Root Node" }));
-            if (node.isGroup) headerContent.append(el("div", { class: "fg-tooltip-badge", text: "Group" }));
+            if (isRoot) headerContent.append(el("div", { class: "fg-tooltip-badge", text: t("badge.root") }));
+            if (node.isGroup) headerContent.append(el("div", { class: "fg-tooltip-badge", text: t("badge.group") }));
             const titleEl = el("div", { class: "fg-tooltip-title" });
             appendWithLinks(titleEl, node.title || node.id);
             headerContent.append(titleEl);

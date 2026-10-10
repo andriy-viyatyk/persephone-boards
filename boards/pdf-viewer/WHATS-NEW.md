@@ -1,5 +1,9 @@
 # What's New
 
+## 1.2.0
+
+- Interface text moved to a language pack (`lang/en.json`) so the board can be translated; requires Persephone with board bridge 1.36.0.
+
 ## 1.1.1
 
 - Added explicit permissions, a same-origin PDF.js fallback with scripting and dynamic evaluation disabled, and returned AiVision exports.

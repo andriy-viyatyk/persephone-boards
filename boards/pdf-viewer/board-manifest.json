@@ -4,9 +4,9 @@
   "description": "Viewer for PDF documents — the stock pdf.js viewer with search, thumbnails, outline, zoom/fit, rotate and print.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "minAppVersion": "5.0.7",
-  "minBridgeVersion": "1.32.0",
+  "minBridgeVersion": "1.36.0",
   "permissions": {
     "execute": false,
     "service": false,
@@ -22,9 +22,15 @@
   },
   "screenshot": "screenshot.png",
   "guides": "guides",
-  "fileMasks": ["*.pdf"],
+  "fileMasks": [
+    "*.pdf"
+  ],
   "editorPriority": 100,
   "editorName": "PDF",
   "editorKind": "simple",
-  "editorSources": "any"
+  "editorSources": "any",
+  "languages": {
+    "folder": "lang",
+    "default": "en"
+  }
 }

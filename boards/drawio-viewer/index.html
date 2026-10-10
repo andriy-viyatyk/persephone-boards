@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>DrawIO Viewer</title>
+    <title data-i18n="document.title">DrawIO Viewer</title>
     <!-- Shared base: page background, themed scrollbars, monospace default. -->
     <link rel="stylesheet" href="./board-base.css" />
     <style>
@@ -219,18 +219,18 @@
 </head>
 <body>
     <div id="bar">
-        <span id="name">DrawIO Viewer</span>
+        <span id="name" data-i18n="board.name">DrawIO Viewer</span>
         <div class="spacer"></div>
         <div id="tabs"></div>
         <div class="spacer"></div>
-        <button id="editdraw" class="tool-btn" title="Open in Drawing Editor (edit a copy in Excalidraw)" disabled>
+        <button id="editdraw" class="tool-btn" title="Open in Drawing Editor (edit a copy in Excalidraw)" data-i18n-title="action.openDrawing.title" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M12 20h9"></path>
                 <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
             </svg>
         </button>
-        <button id="save" class="tool-btn" title="Save current page as an image (SVG or PNG)"
+        <button id="save" class="tool-btn" title="Save current page as an image (SVG or PNG)" data-i18n-title="action.save.title"
                 aria-haspopup="menu" aria-expanded="false" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -243,7 +243,7 @@
                 <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
         </button>
-        <button id="copy" class="tool-btn" title="Copy diagram as PNG to clipboard" disabled>
+        <button id="copy" class="tool-btn" title="Copy diagram as PNG to clipboard" data-i18n-title="action.copy.title" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -252,18 +252,19 @@
         </button>
     </div>
     <div id="saveMenu" role="menu">
-        <button class="menu-item" data-format="svg" role="menuitem">Save as SVG</button>
-        <button class="menu-item" data-format="png" role="menuitem">Save as PNG</button>
+        <button class="menu-item" data-format="svg" role="menuitem" data-i18n="action.saveSvg">Save as SVG</button>
+        <button class="menu-item" data-format="png" role="menuitem" data-i18n="action.savePng">Save as PNG</button>
     </div>
     <div id="diagram">
         <div id="canvas"></div>
         <div id="state"></div>
-        <div id="zoom" title="Reset zoom (double-click diagram)">100%</div>
+        <div id="zoom" title="Reset zoom (double-click diagram)" data-i18n-title="zoom.reset.title">100%</div>
     </div>
 
     <!-- The AiVision agent surface, before app.js: it only defines window.DrawioAI, and app.js
          constructs the model from it while evaluating. -->
     <script src="./drawio-aivision.js"></script>
+    <script src="./i18n.js"></script>
     <script src="./app.js"></script>
 </body>
 </html>

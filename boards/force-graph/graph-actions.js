@@ -11,6 +11,7 @@
 // and is what the AiVision surface calls; `xxx(...)` is the interactive half that confirms first.
 (() => {
     const FG = (window.FG = window.FG || {});
+    const t = window.forceGraphT;
 
     FG.createActions = function createActions(ctx) {
         const { dataModel, groupModel, connectivityModel, visibilityModel, renderer } = ctx;
@@ -97,10 +98,10 @@
             if (ids.length === 0) return;
             if (ids.length > 1) {
                 const ok = await ctx.confirm({
-                    title: "Delete Nodes",
-                    message: "Delete " + ids.length + " selected nodes?",
+                    title: t("dialog.deleteNodes.title"),
+                    message: t("dialog.deleteNodes.message", {count:ids.length}),
                 });
-                if (ok !== "Yes") return;
+                if (ok !== t("dialog.yes")) return;
             }
             deleteNodesCore(ids);
         }
@@ -158,7 +159,7 @@
             const markdown = buildSelectedMarkdown();
             if (!markdown) return Promise.resolve(undefined);
             const selected = ctx.getSelectedNodes();
-            const title = selected.length === 1 ? (selected[0].title || "Node") : selected.length + " nodes";
+            const title = selected.length === 1 ? (selected[0].title || t("common.node")) : t("status.nodeCount", {count:selected.length});
             return ctx.openContent({ editor: "md-view", language: "markdown", title, content: markdown });
         }
 
@@ -166,7 +167,7 @@
             const ids = renderer.selectedIds;
             if (ids.size === 0) return Promise.resolve(undefined);
             const rows = nodes().filter((n) => ids.has(n.id)).map((n) => dataModel.cleanNode(n));
-            const title = rows.length === 1 ? (rows[0].title || rows[0].id) : rows.length + " nodes";
+            const title = rows.length === 1 ? (rows[0].title || rows[0].id) : t("status.nodeCount", {count:rows.length});
             return ctx.openContent({
                 editor: "grid-json", language: "json",
                 title: title + ".grid.json", content: JSON.stringify(rows, null, 2),
@@ -214,7 +215,7 @@
         function extractSelected(withChildren) {
             const graph = buildExtract(withChildren);
             if (!graph) {
-                ctx.notify("Cannot extract group(s) only — select regular nodes or use 'Extract with children'", "warning");
+                ctx.notify(t("warnings.extractGroupsOnly"), "warning");
                 return Promise.resolve(undefined);
             }
             return ctx.openContent({
@@ -291,7 +292,7 @@
         /** Alt+click: link toggle / group membership toggle, the full built-in behaviour. */
         function handleAltClick(nodeId) {
             if (renderer.selectedIds.size !== 1) {
-                ctx.notify("Select one node first, then Alt+click another to link them or change group membership.", "warning");
+                ctx.notify(t("warnings.selectOneNode"), "warning");
                 return;
             }
             const selectedId = renderer.selectedId;
@@ -309,7 +310,7 @@
                     dataModel.deleteLink(nodeId, selectedId);
                 } else {
                     if (groupModel.wouldCreateCycle(selectedId, nodeId)) {
-                        ctx.notify("Cannot add: would create circular group hierarchy.", "warning");
+                        ctx.notify(t("warnings.circularGroup"), "warning");
                         return;
                     }
                     if (clickedParent) dataModel.deleteLink(clickedParent, nodeId);
@@ -357,11 +358,11 @@
 
         async function requestGroupTitle(value) {
             const result = await ctx.prompt({
-                title: "Group Title",
-                message: "Enter a title for the group:",
+                title: t("dialog.groupTitle.title"),
+                message: t("dialog.groupTitle.message"),
                 value: value || "",
             });
-            return result && result.button === "OK" ? result.value : undefined;
+            return result && result.button === t("dialog.ok") ? result.value : undefined;
         }
 
         async function groupSelectedNodes() {
@@ -373,7 +374,7 @@
             if (groupIds.length === 0) {
                 if (regularIds.length < 2) return;
                 if (regularParents.size > 1) {
-                    ctx.notify("Cannot group: selected nodes belong to different groups.", "warning");
+                    ctx.notify(t("warnings.nodesDifferentGroups"), "warning");
                     return;
                 }
                 const title = await requestGroupTitle();
@@ -386,16 +387,14 @@
                 const groupId = groupIds[0];
                 const groupNode = findNode(groupId);
                 const choice = await ctx.confirm({
-                    title: "Group Options",
-                    message: "Add " + regularIds.length + ' node(s) to group "'
-                        + FG.nodeLabel(groupNode || { id: groupId })
-                        + '", or create a new group containing all selected?',
-                    buttons: ["Add to Group", "Create New Group", "Cancel"],
+                    title: t("dialog.groupOptions.title"),
+                    message: t("dialog.groupOptions.message", {count:regularIds.length,group:FG.nodeLabel(groupNode || { id: groupId })}),
+                    buttons: [t("dialog.groupOptions.add"), t("dialog.groupOptions.create"), t("dialog.cancel")],
                 });
-                if (choice === "Add to Group") {
+                if (choice === t("dialog.groupOptions.add")) {
                     reparent(regularIds, groupId);
                     finalize();
-                } else if (choice === "Create New Group") {
+                } else if (choice === t("dialog.groupOptions.create")) {
                     const title = await requestGroupTitle();
                     if (title === undefined) return;
                     createGroup(regularIds.concat([groupId]), groupModel.getGroupOf(groupId), title);
@@ -406,7 +405,7 @@
             if (groupIds.length >= 2) {
                 const groupParents = new Set(groupIds.map((id) => groupModel.getGroupOf(id)));
                 if (groupParents.size > 1) {
-                    ctx.notify("Cannot group: selected groups belong to different parent groups.", "warning");
+                    ctx.notify(t("warnings.groupsDifferentParents"), "warning");
                     return;
                 }
                 const selectedGroupSet = new Set(groupIds);
@@ -414,7 +413,7 @@
                 for (const id of regularIds) {
                     const nodeParent = groupModel.getGroupOf(id);
                     if (nodeParent && !selectedGroupSet.has(nodeParent) && nodeParent !== commonParent) {
-                        ctx.notify("Cannot group: selected nodes belong to different groups.", "warning");
+                        ctx.notify(t("warnings.nodesDifferentGroups"), "warning");
                         return;
                     }
                 }
@@ -460,14 +459,12 @@
             if (!node || !node.isGroup) return;
             const members = Array.from(groupModel.getMembers(groupId));
             const parentGroup = groupModel.getGroupOf(groupId);
-            const destination = parentGroup
-                ? members.length + " member(s) will be moved to the parent group."
-                : members.length + " member(s) will become top-level nodes.";
+            const destination = parentGroup ? t("deleteGroup.toParent") : t("deleteGroup.toTopLevel");
             const ok = await ctx.confirm({
-                title: "Ungroup",
-                message: 'Ungroup "' + FG.nodeLabel(node) + '"? ' + destination,
+                title: t("dialog.ungroup.title"),
+                message: t("dialog.ungroup.message", {group:FG.nodeLabel(node),destination}),
             });
-            if (ok !== "Yes") return;
+            if (ok !== t("dialog.yes")) return;
             ungroupNodeCore(groupId);
         }
 
@@ -499,18 +496,16 @@
         }
 
         function buildDeleteMessage(label, deleteCount, promoteCount, realDeleteCount, subGroupDeleteCount, hasParent) {
-            const destination = hasParent ? "moved to parent group" : "promoted to top level";
+            const destination = hasParent ? t("deleteGroup.toParent") : t("deleteGroup.toTopLevel");
             if (deleteCount === 0) {
-                return 'Delete group "' + label + '"? ' + promoteCount + " member(s) will be " + destination + ".";
+                return t("deleteGroup.promoteOnly", {label,promoteCount,destination});
             }
             if (promoteCount === 0) {
                 return subGroupDeleteCount > 0
-                    ? 'Delete group "' + label + '" and all ' + (realDeleteCount + subGroupDeleteCount)
-                        + " descendants (" + realDeleteCount + " nodes, " + subGroupDeleteCount + " sub-groups)?"
-                    : 'Delete group "' + label + '" and its ' + realDeleteCount + " member node(s)?";
+                    ? t("deleteGroup.descendants", {label,count:realDeleteCount+subGroupDeleteCount,nodes:realDeleteCount,groups:subGroupDeleteCount})
+                    : t("deleteGroup.members", {label,count:realDeleteCount});
             }
-            return 'Delete group "' + label + '" with ' + deleteCount + " visually connected descendant(s)? "
-                + promoteCount + " unconnected member(s) will be " + destination + ".";
+            return t("deleteGroup.connected", {label,deleteCount,promoteCount,destination});
         }
 
         /** Agent-safe delete-with-children: no confirmation overlay. */
@@ -541,13 +536,13 @@
             const realDeleteCount = deleted.filter((id) => !groupModel.isGroup(id)).length;
             const subGroupDeleteCount = deleted.length - realDeleteCount;
             const ok = await ctx.confirm({
-                title: "Delete Group",
+                title: t("dialog.deleteGroup.title"),
                 message: buildDeleteMessage(
                     FG.nodeLabel(node), plan.toDelete.size, plan.toPromote.size,
                     realDeleteCount, subGroupDeleteCount, !!plan.parentGroup,
                 ),
             });
-            if (ok !== "Yes") return;
+            if (ok !== t("dialog.yes")) return;
             deleteGroupCore(groupId);
         }
 

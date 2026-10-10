@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Word Viewer</title>
+    <title data-i18n="document.title">Word Viewer</title>
     <link rel="stylesheet" href="./board-base.css" />
     <style>
         html, body { height: 100%; margin: 0; }
@@ -144,8 +144,8 @@
 </head>
 <body>
     <div id="bar">
-        <span id="name">Word Viewer</span>
-        <button id="reload" class="tool-btn" title="Reload the file from disk" disabled>
+        <span id="name" data-i18n="board.name">Word Viewer</span>
+        <button id="reload" class="tool-btn" title="Reload the file from disk" data-i18n-title="toolbar.reload.title" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <polyline points="23 4 23 10 17 10"></polyline>
@@ -156,7 +156,7 @@
     <div id="wrap">
         <div id="doc"></div>
         <div id="state"></div>
-        <div id="zoom" title="Zoom: Ctrl + Mouse Wheel (or Ctrl and + / − / 0).&#10;Click here to reset to 100%.">100%</div>
+        <div id="zoom" title="Zoom: Ctrl + Mouse Wheel (or Ctrl and + / − / 0).&#10;Click here to reset to 100%." data-i18n-title="zoom.help">100%</div>
     </div>
 
     <!-- Vendored libraries (offline; CSP forbids remote network). JSZip FIRST — docx-preview's
@@ -167,6 +167,7 @@
     <!-- The AiVision agent surface, before app.js: it only defines window.WORDAI, and app.js
          constructs the model from it while evaluating. -->
     <script src="./word-aivision.js"></script>
+    <script src="./i18n.js"></script>
     <script src="./app.js"></script>
 </body>
 </html>

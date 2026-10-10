@@ -6,6 +6,8 @@
 // read_guide("boards") for the persephone.* bridge reference.
 
 const P = window.persephone;
+const t = window.PEViewerT;
+const numberFormat = new Intl.NumberFormat(P.locale.code);
 
 const nameEl = document.getElementById("name");
 const reloadBtn = document.getElementById("reload");
@@ -71,11 +73,11 @@ const hex = (n, pad) => "0x" + (n >>> 0).toString(16).toUpperCase().padStart(pad
 const hexBig = (b) => "0x" + b.toString(16).toUpperCase();
 
 function formatBytes(n) {
-    if (n < 1024) return n + " B";
+    if (n < 1024) return numberFormat.format(n) + " B";
     const units = ["KB", "MB", "GB"];
     let v = n, i = -1;
     do { v /= 1024; i++; } while (v >= 1024 && i < units.length - 1);
-    return v.toFixed(v < 10 ? 2 : 1) + " " + units[i] + " (" + n.toLocaleString() + " B)";
+    return v.toFixed(v < 10 ? 2 : 1) + " " + units[i] + " (" + numberFormat.format(n) + " B)";
 }
 
 function fileName(p) {
@@ -139,16 +141,16 @@ function buildOverview(pe) {
 
     // Identity card: icon + headline fields.
     const idBody = el("div", { class: "id-row" });
-    if (pe.iconDataUrl) idBody.appendChild(el("img", { class: "app-icon", src: pe.iconDataUrl, alt: "icon" }));
-    else idBody.appendChild(el("div", { class: "app-icon placeholder" }, "PE"));
+    if (pe.iconDataUrl) idBody.appendChild(el("img", { class: "app-icon", src: pe.iconDataUrl, alt: t("image.icon.alt") }));
+    else idBody.appendChild(el("div", { class: "app-icon placeholder" }, t("badge.pe")));
 
     const badges = el("div", { class: "badges" });
     badges.appendChild(chip(pe.format.split(" ")[0], "info"));
     badges.appendChild(chip(pe.coff.machineName.split(" ")[0]));
     if (pe.isDotNet) badges.appendChild(chip(".NET", "accent"));
     if (pe.security.isDll) badges.appendChild(chip("DLL"));
-    badges.appendChild(pe.signature.present ? chip("Signed", "ok") : chip("Unsigned", "warn"));
-    if (pe.packerHints.length) badges.appendChild(chip("Packed: " + pe.packerHints.join(", "), "warn"));
+    badges.appendChild(pe.signature.present ? chip(t("badge.signed"), "ok") : chip(t("badge.unsigned"), "warn"));
+    if (pe.packerHints.length) badges.appendChild(chip(t("badge.packed", { hints: pe.packerHints.join(", ") }), "warn"));
 
     idBody.appendChild(el("div", { class: "id-text" },
         el("div", { class: "id-title" }, S.ProductName || S.FileDescription || friendlyType(pe)),
@@ -158,7 +160,7 @@ function buildOverview(pe) {
     wrap.appendChild(el("section", { class: "card" }, idBody));
 
     // File & version.
-    wrap.appendChild(section("File",
+    wrap.appendChild(section(t("section.file"),
         kv([
             ["Type", friendlyType(pe)],
             ["File version", vi && vi.fixed ? vi.fixed.fileVersion : S.FileVersion],
@@ -169,7 +171,7 @@ function buildOverview(pe) {
             ["Copyright", S.LegalCopyright],
             ["Comments", S.Comments],
             ["Size", formatBytes(pe.file.size)],
-            ["Compiled", pe.coff.compileTime ? pe.coff.compileTime.toUTCString() : "—"],
+            ["Compiled", pe.coff.compileTime ? new Intl.DateTimeFormat(P.locale.code, { dateStyle: "medium", timeStyle: "medium", timeZone: "UTC" }).format(pe.coff.compileTime) : "—"],
             ["Overall entropy", entropyCell(pe.entropy)],
         ]),
     ));
@@ -184,12 +186,12 @@ function buildOverview(pe) {
         mitChip("Force Integrity", sec.forceIntegrity),
         mitChip("SafeSEH", !sec.noSeh),
     );
-    wrap.appendChild(section("Security mitigations", secChips,
+    wrap.appendChild(section(t("section.security"), secChips,
         pe.highEntropyExec ? el("p", { class: "note warn-text" }, "⚠ A high-entropy executable section was detected — the binary may be packed or encrypted.") : null,
     ));
 
     // Key fingerprints (full list is on the Hashes tab).
-    wrap.appendChild(section("Fingerprint",
+    wrap.appendChild(section(t("section.fingerprint"),
         kv([
             ["SHA-256", hashCell("sha256")],
             ["Imphash", mono(pe.imphash)],
@@ -202,10 +204,10 @@ function buildOverview(pe) {
 // A hash value cell that reflects the async hashing lifecycle: "computing…" while hashes are in
 // flight, the value once ready, or a "skipped" note for the full-file MD5 on very large files.
 function hashCell(key) {
-    if (currentHashes === null) return el("span", { class: "note" }, "computing…");
+    if (currentHashes === null) return el("span", { class: "note" }, t("state.computing"));
     const v = currentHashes[key];
     if (v == null) {
-        if (key === "md5" && currentHashes.md5Skipped) return el("span", { class: "note" }, "skipped (large file)");
+        if (key === "md5" && currentHashes.md5Skipped) return el("span", { class: "note" }, t("hash.skipped"));
         return "—";
     }
     return mono(v);
@@ -215,7 +217,7 @@ function mitChip(label, on) {
     return el("span", { class: "chip " + (on ? "ok" : "off") }, (on ? "✓ " : "✕ ") + label);
 }
 function mono(text) {
-    return text ? el("code", { class: "mono copyable", title: "Click to copy", onClick: () => copy(text) }, text) : "—";
+    return text ? el("code", { class: "mono copyable", title: t("copy.title"), onClick: () => copy(text) }, text) : "—";
 }
 function friendlyType(pe) {
     const s = pe.optional.subsystemName;
@@ -232,15 +234,15 @@ function friendlyType(pe) {
 function buildHeaders(pe) {
     const o = pe.optional;
     const wrap = el("div", null);
-    wrap.appendChild(section("COFF header",
+    wrap.appendChild(section(t("section.coff"),
         kv([
             ["Machine", pe.coff.machineName + " (" + hex(pe.coff.machine, 4) + ")"],
             ["Sections", pe.coff.numberOfSections],
-            ["Timestamp", pe.coff.timeDateStamp + (pe.coff.compileTime ? " — " + pe.coff.compileTime.toUTCString() : "")],
+            ["Timestamp", pe.coff.timeDateStamp + (pe.coff.compileTime ? " — " + new Intl.DateTimeFormat(P.locale.code, { dateStyle: "medium", timeStyle: "medium", timeZone: "UTC" }).format(pe.coff.compileTime) : "")],
             ["Characteristics", pe.coff.characteristicsFlags.join(", ") || "—"],
         ]),
     ));
-    wrap.appendChild(section("Optional header",
+    wrap.appendChild(section(t("section.optional"),
         kv([
             ["Magic", pe.format],
             ["Linker version", o.majorLinkerVersion + "." + o.minorLinkerVersion],
@@ -259,9 +261,9 @@ function buildHeaders(pe) {
         ]),
     ));
     const dd = pe.dataDirectories.filter((d) => d.rva || d.size);
-    wrap.appendChild(section("Data directories",
+    wrap.appendChild(section(t("section.directories"),
         table(["Directory", "RVA", "Size"],
-            dd.map((d) => [d.name, hex(d.rva, 8), d.size.toLocaleString() + " B"])),
+            dd.map((d) => [d.name, hex(d.rva, 8), numberFormat.format(d.size) + " B"])),
     ));
     return wrap;
 }
@@ -270,12 +272,12 @@ function buildSections(pe) {
     const rows = pe.sections.map((s) => [
         el("code", { class: "mono" }, s.name || "(unnamed)"),
         hex(s.virtualAddress, 8),
-        s.virtualSize.toLocaleString(),
-        s.sizeOfRawData.toLocaleString(),
+        numberFormat.format(s.virtualSize),
+        numberFormat.format(s.sizeOfRawData),
         el("span", { class: "perm" }, permStr(s)),
         entropyCell(s.entropy),
     ]);
-    return el("div", null, section("Sections (" + pe.sections.length + ")",
+    return el("div", null, section(t("section.sections", { count: numberFormat.format(pe.sections.length) }),
         table(["Name", "Virtual addr", "Virtual size", "Raw size", "Perms", "Entropy"], rows),
         el("p", { class: "note" }, "Entropy near 8.0 (highlighted) suggests compressed or encrypted data — common in packed binaries."),
     ));
@@ -288,10 +290,10 @@ function permStr(s) {
 }
 
 function buildImports(pe) {
-    if (!pe.imports.length) return el("div", null, section("Imports", el("p", { class: "note" }, "No import table (statically linked, or resolved another way).")));
+    if (!pe.imports.length) return el("div", null, section(t("section.imports"), el("p", { class: "note" }, t("empty.noImports"))));
     const wrap = el("div", null);
     const total = pe.imports.reduce((n, i) => n + i.functions.length, 0);
-    wrap.appendChild(el("p", { class: "note" }, pe.imports.length + " libraries, " + total + " imported symbols. Click a library to expand."));
+    wrap.appendChild(el("p", { class: "note" }, t("note.imports", { libraries: numberFormat.format(pe.imports.length), symbols: numberFormat.format(total) })));
     for (const imp of pe.imports) {
         const list = el("div", { class: "imp-fns" },
             ...imp.functions.map((f) => el("div", { class: "imp-fn" }, f.name || ("Ordinal #" + f.ordinal))));
@@ -308,7 +310,7 @@ function buildImports(pe) {
 function buildExports(pe) {
     const ex = pe.exports;
     if (!ex || !ex.functions.length) {
-        return el("div", null, section("Exports", el("p", { class: "note" }, "No exported functions" + (pe.security.isDll ? "." : " (typical for an .exe)."))));
+        return el("div", null, section(t("section.exports"), el("p", { class: "note" }, t("empty.noExports", { suffix: pe.security.isDll ? "." : " (typical for an .exe)." }))));
     }
     const rows = ex.functions
         .slice()
@@ -322,12 +324,12 @@ function buildSignature(pe) {
     const s = pe.signature;
     const wrap = el("div", null);
     if (!s.present) {
-        wrap.appendChild(section("Digital signature",
+        wrap.appendChild(section(t("section.signature"),
             el("div", { class: "big-status warn" }, "✕ Not digitally signed"),
             el("p", { class: "note" }, "This binary has no embedded Authenticode signature. (A file can also be signed via an external security catalog, which cannot be detected from the file alone.)")));
         return wrap;
     }
-    wrap.appendChild(section("Digital signature",
+    wrap.appendChild(section(t("section.signature"),
         el("div", { class: "big-status ok" }, "✓ Embedded Authenticode signature present"),
         kv([
             ["Certificate type", s.certTypeName],
@@ -337,7 +339,7 @@ function buildSignature(pe) {
         ]),
     ));
     if (s.certNames && s.certNames.length) {
-        wrap.appendChild(section("Certificate names (best-effort)",
+        wrap.appendChild(section(t("section.certificateNames"),
             el("ul", { class: "cn-list" }, ...s.certNames.map((n) => el("li", null, el("code", { class: "mono" }, n)))),
             el("p", { class: "note" }, "Common names scanned from the certificate blob — usually the publisher plus the CA chain. This is not a cryptographic validity check.")));
     }
@@ -345,7 +347,7 @@ function buildSignature(pe) {
 }
 
 function buildHashes(pe) {
-    return el("div", null, section("Hashes",
+    return el("div", null, section(t("section.hashes"),
         kv([
             ["MD5", hashCell("md5")],
             ["SHA-1", hashCell("sha1")],
@@ -361,14 +363,14 @@ function buildDetails(pe) {
     // Version-info string table (everything the resource carries).
     const vi = pe.versionInfo;
     if (vi && vi.strings && Object.keys(vi.strings).length) {
-        wrap.appendChild(section("Version info (all strings)",
+        wrap.appendChild(section(t("section.version"),
             table(["Key", "Value"], Object.keys(vi.strings).map((k) => [k, vi.strings[k]]))));
     }
 
     // Rich header.
     if (pe.richHeader && pe.richHeader.entries.length) {
-        wrap.appendChild(section("Rich header (build provenance)",
-            el("p", { class: "note" }, "Undocumented Microsoft toolchain markers (linker/compiler product & build ids). XOR key " + pe.richHeader.key + "."),
+        wrap.appendChild(section(t("section.richHeader"),
+            el("p", { class: "note" }, t("note.richHeader", { key: pe.richHeader.key })),
             table(["Product id", "Build", "Count"],
                 pe.richHeader.entries.map((e) => [hex(e.prodId, 4), e.buildId, e.count]))));
     }
@@ -376,7 +378,7 @@ function buildDetails(pe) {
     // Debug / PDB.
     if (pe.debug && pe.debug.length) {
         const pdb = pe.debug.find((d) => d.pdbPath);
-        wrap.appendChild(section("Debug",
+        wrap.appendChild(section(t("section.debug"),
             kv([
                 ["Entries", pe.debug.map((d) => d.typeName).join(", ")],
                 ["PDB path", pdb ? el("code", { class: "mono" }, pdb.pdbPath) : null],
@@ -386,11 +388,11 @@ function buildDetails(pe) {
 
     // Embedded application manifest (XML).
     if (pe.manifest) {
-        wrap.appendChild(section("Application manifest",
+        wrap.appendChild(section(t("section.manifest"),
             el("pre", { class: "xml" }, pe.manifest)));
     }
 
-    if (!wrap.childNodes.length) wrap.appendChild(section("Details", el("p", { class: "note" }, "No version-info, manifest, debug, or Rich-header data found in this binary.")));
+    if (!wrap.childNodes.length) wrap.appendChild(section(t("section.details"), el("p", { class: "note" }, t("state.detailsEmpty"))));
     return wrap;
 }
 
@@ -399,9 +401,9 @@ function buildDetails(pe) {
 async function copy(text) {
     try {
         await navigator.clipboard.writeText(text);
-        P.notify("Copied", "success");
+        P.notify(t("toast.copy.success"), "success");
     } catch (err) {
-        P.notify("Copy failed: " + (err && err.message ? err.message : err), "error");
+        P.notify(t("toast.copy.error", { error: err && err.message ? err.message : err }), "error");
     }
 }
 
@@ -432,20 +434,20 @@ async function computeHashes(bytes) {
 
 async function load() {
     try {
-        showState("Loading…");
+        showState(t("state.loading"));
         reloadBtn.disabled = true;
 
         const path = await P.getFilePath();
         currentPath = path || "";
 
         if (!currentPath) {
-            nameEl.textContent = "PE Viewer";
-            showState("No file open.\nOpen an .exe, .dll, .sys, .ocx or .scr file to inspect it here.");
+            nameEl.textContent = t("document.title");
+            showState(t("state.noFile"));
             return;
         }
 
         nameEl.textContent = fileName(currentPath);
-        showState("Loading…");
+        showState(t("state.loading"));
         reloadBtn.disabled = false;
 
         // Force a paint of the "Loading…" overlay before the (synchronous, multi-second on a large
@@ -466,14 +468,14 @@ async function load() {
         // for a 200 MB binary. Hashing the whole file is deferred so the UI never freezes.
         hideState();
         tabDefs = [
-            { id: "overview", label: "Overview", render: () => buildOverview(pe) },
-            { id: "headers", label: "Headers", render: () => buildHeaders(pe) },
-            { id: "sections", label: "Sections", badge: pe.sections.length, render: () => buildSections(pe) },
-            { id: "imports", label: "Imports", badge: pe.imports.length || null, render: () => buildImports(pe) },
-            { id: "exports", label: "Exports", badge: pe.exports ? pe.exports.functions.length : null, render: () => buildExports(pe) },
-            { id: "signature", label: "Signature", render: () => buildSignature(pe) },
-            { id: "hashes", label: "Hashes", render: () => buildHashes(pe) },
-            { id: "details", label: "Details", render: () => buildDetails(pe) },
+            { id: "overview", label: t("tab.overview"), render: () => buildOverview(pe) },
+            { id: "headers", label: t("tab.headers"), render: () => buildHeaders(pe) },
+            { id: "sections", label: t("tab.sections"), badge: pe.sections.length, render: () => buildSections(pe) },
+            { id: "imports", label: t("tab.imports"), badge: pe.imports.length || null, render: () => buildImports(pe) },
+            { id: "exports", label: t("tab.exports"), badge: pe.exports ? pe.exports.functions.length : null, render: () => buildExports(pe) },
+            { id: "signature", label: t("tab.signature"), render: () => buildSignature(pe) },
+            { id: "hashes", label: t("tab.hashes"), render: () => buildHashes(pe) },
+            { id: "details", label: t("tab.details"), render: () => buildDetails(pe) },
         ];
         selectTab("overview");
 
@@ -487,8 +489,8 @@ async function load() {
         if (activeTab === "overview" || activeTab === "hashes") selectTab(activeTab);
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
-        showState("Could not open this file.\n" + message, true);
-        P.notify(message, "error");
+        showState(t("state.openError") + "\n" + message, true);
+        P.notify(t("toast.openError", { error: message }), "error");
     }
 }
 

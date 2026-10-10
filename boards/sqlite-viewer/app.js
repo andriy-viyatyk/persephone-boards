@@ -13,6 +13,8 @@
 // See CLAUDE.md for board-specific notes; read_guide("boards") for the generic bridge API.
 
 const P = window.persephone;
+const t = window.sqliteT;
+const numberFormat = new Intl.NumberFormat(P.locale.code);
 
 // av-grid's UMD build puts the whole module namespace on `window.AVGrid`; the class is
 // `AVGrid.AVGrid` (the helpers — `inferColumns`, `detectColumnWidths`, … — hang off the same
@@ -279,7 +281,7 @@ function renderResult(res) {
 
     if (!res.columns || res.columns.length === 0) {
         searchEl.disabled = true;
-        showState("The statement returned no columns.");
+        showState(t("state.noColumns"));
         return;
     }
 
@@ -311,7 +313,7 @@ async function runQuery(sql) {
     queryRunning = true;
     runBtn.disabled = true;
     stopBtn.disabled = false;
-    setStatus("Running…");
+    setStatus(t("status.running"));
     try {
         const res = await request("query", { sql: text });
         // The reply behind what is on screen. Kept whole (the grid reshapes it into rows keyed by
@@ -319,14 +321,14 @@ async function runQuery(sql) {
         lastResult = { sql: text, columns: res.columns, rows: res.rows, rowCount: res.rowCount, truncated: !!res.truncated, ms: res.ms };
         renderResult(res);
         if (aiVisionModel) aiVisionModel.resultChanged();
-        const cap = res.truncated ? ` (showing first ${res.rowCount.toLocaleString()} — result truncated)` : "";
-        setStatus(`${res.rowCount.toLocaleString()} row${res.rowCount === 1 ? "" : "s"} in ${res.ms} ms${cap}`);
+        const cap = res.truncated ? ` (showing first ${numberFormat.format(res.rowCount)} — result truncated)` : "";
+        setStatus(t("status.rows", { count: res.rowCount, countLabel: numberFormat.format(res.rowCount), msLabel: numberFormat.format(res.ms), truncation: cap }));
     } catch (err) {
         // Query failed — show the SQLite error, keep the previous grid contents. Our own
         // cancellation reasons are not errors (cancelQuery owns the status then).
         const message = (err && err.message) || String(err);
         if (message !== "restarting query server" && message !== "query server stopped") {
-            setStatus("Error: " + message, true);
+            setStatus(t("status.error", { error: message }), true);
         }
     } finally {
         queryRunning = false;
@@ -338,13 +340,13 @@ async function runQuery(sql) {
 /** Stop a running query by restarting the server (SQLite has no cross-process cancel). */
 async function cancelQuery() {
     if (!queryRunning || !currentPath) return;
-    setStatus("Cancelling…");
+    setStatus(t("status.cancelling"));
     try {
         const ready = await startServer(currentPath);
         publishSchema(ready.tables);
-        setStatus("Query cancelled.");
+        setStatus(t("status.cancelled"));
     } catch (err) {
-        setStatus("Error: " + ((err && err.message) || err), true);
+        setStatus(t("status.error", { error: (err && err.message) || err }), true);
     }
 }
 
@@ -376,7 +378,7 @@ function selectTable(tableName) {
 async function loadDb(path, opts) {
     const autoQuery = !opts || opts.autoQuery !== false;
     try {
-        showState("Opening database…");
+        showState(t("state.opening"));
         setStatus("");
         // Opening a DIFFERENT database drops whatever result was on screen — it belonged to the
         // previous file. (A reload passes autoQuery: false and deliberately keeps it, so the user
@@ -399,7 +401,7 @@ async function loadDb(path, opts) {
 
         const tables = ready.tables || [];
         if (tables.length === 0) {
-            showState("This database has no tables.");
+            showState(t("state.noTables"));
             return;
         }
         if (autoQuery) {
@@ -414,14 +416,14 @@ async function loadDb(path, opts) {
         publishSchema([]); // nothing is open — say so, in the panel and to the agent
         searchEl.value = "";
         searchEl.disabled = true;
-        showState("Could not open this database.\n" + message, true);
-        P.notify(message, "error");
+        showState(t("state.openError") + "\n" + message, true);
+        P.notify(t("state.openError") + " " + message, "error");
     }
 }
 
 async function openDialog() {
     const paths = await P.openFileDialog({
-        title: "Open SQLite database",
+        title: t("action.open.title"),
         filters: [
             { name: "SQLite databases", extensions: ["db", "sqlite", "sqlite3", "db3"] },
             { name: "All files", extensions: ["*"] },
@@ -457,8 +459,8 @@ async function boot() {
     if (path) {
         loadDb(path);
     } else {
-        nameEl.textContent = "SQLite Viewer";
-        showState("No database open.\nOpen a .db / .sqlite file, or use the folder button above.");
+        nameEl.textContent = t("document.title");
+        showState(t("state.noDatabase"));
     }
 }
 

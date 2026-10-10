@@ -1,6 +1,8 @@
 "use strict";
 
 const P = window.persephone;
+const t = (key, params) => P.i18n.t(key, params);
+applyI18n(document);
 const $ = (id) => document.getElementById(id);
 
 const stateEl = $("state");
@@ -28,9 +30,9 @@ const processedIntentIds = new Set();
 const PAGE_STATE_KEY = "certificate-chain";
 
 const TAB_DEFS = [
-    { id: "overview", label: "Overview" },
-    { id: "extensions", label: "Extensions" },
-    { id: "details", label: "Raw / Details" },
+    { id: "overview", label: t("tab.overview") },
+    { id: "extensions", label: t("tab.extensions") },
+    { id: "details", label: t("tab.details") },
 ];
 
 // Create elements with text content so file-provided values are never interpreted as markup.
@@ -75,9 +77,9 @@ function appendCard(parent, title, rows) {
         td.appendChild(node("span", row[2] || "", value));
 
         if (row[3]) {
-            const button = node("button", "copy-btn", "Copy");
+            const button = node("button", "copy-btn", t("action.copy"));
             button.type = "button";
-            button.title = "Copy public certificate field";
+            button.title = t("action.copyField.title");
             button.addEventListener("click", () => copy(value));
             td.appendChild(button);
         }
@@ -93,9 +95,9 @@ function appendCard(parent, title, rows) {
 async function copy(text) {
     try {
         await P.clipboard.writeText(text);
-        P.notify("Copied public certificate value", "success");
+        P.notify(t("toast.copy.success"), "success");
     } catch (error) {
-        P.notify("Copy failed: " + errorText(error), "error");
+        P.notify(t("toast.copy.error", {error:errorText(error)}), "error");
     }
 }
 
@@ -113,16 +115,16 @@ function certStatus(cert) {
     const end = new Date(cert.notAfter).getTime();
     const start = new Date(cert.notBefore).getTime();
 
-    if (Number.isFinite(end) && end < now) return ["Expired", "status-expired"];
-    if (Number.isFinite(start) && start > now) return ["Not yet valid", "status-soon"];
+    if (Number.isFinite(end) && end < now) return [t("validity.expired"), "status-expired"];
+    if (Number.isFinite(start) && start > now) return [t("validity.notYet"), "status-soon"];
     if (Number.isFinite(end) && end - now < 30 * 86400000) {
-        return ["Expires within 30 days", "status-soon"];
+        return [t("validity.expiring"), "status-soon"];
     }
-    return ["Within stated validity dates", "status-good"];
+    return [t("validity.within"), "status-good"];
 }
 
 function certName(cert) {
-    return cert.subject || "Certificate";
+    return cert.subject || t("certificate.fallback");
 }
 
 // Build the selectable certificate list and keep its count visible for empty inputs.
@@ -153,7 +155,7 @@ function renderList() {
         listEl.appendChild(button);
     }
 
-    countEl.textContent = certs.length ? String(certs.length) : "none";
+    countEl.textContent = certs.length ? new Intl.NumberFormat(P.locale.code).format(certs.length) : t("count.none");
     // A chain sent by the browser is in Chromium's verified order, so the best-effort note
     // applies only to certificates read from a file.
     $("order-note").hidden = certs.length <= 1 || Boolean(capabilityPayload);
@@ -186,22 +188,22 @@ function renderTabs() {
 function renderOverview(cert) {
     panelEl.textContent = "";
     if (capabilityPayload) {
-        const rows = [["Title", capabilityPayload.title]];
-        if (capabilityPayload.sourceUrl) rows.push(["Opened from", capabilityPayload.sourceUrl]);
-        appendCard(panelEl, "Site certificate", rows);
+        const rows = [[t("field.title"), capabilityPayload.title]];
+        if (capabilityPayload.sourceUrl) rows.push([t("field.opened.from"), capabilityPayload.sourceUrl]);
+        appendCard(panelEl, t("status.siteCertificate"), rows);
     }
 
     const status = certStatus(cert);
-    appendCard(panelEl, "Identity & validity", [
-        ["Subject", cert.subject, "", true],
-        ["Issuer", cert.issuer, "", true],
-        ["Status", status[0], status[1]],
-        ["Valid from", dateText(cert.notBefore)],
-        ["Valid until", dateText(cert.notAfter)],
-        ["Serial number", cert.serial, "mono", true],
-        ["X.509 version", cert.version],
-        ["Signature algorithm", cert.signatureAlgorithm],
-        ["Public key", cert.publicKeyDetails],
+    appendCard(panelEl, t("card.identityValidity"), [
+        [t("field.subject"), cert.subject, "", true],
+        [t("field.issuer"), cert.issuer, "", true],
+        [t("field.status"), status[0], status[1]],
+        [t("field.valid.from"), dateText(cert.notBefore)],
+        [t("field.valid.until"), dateText(cert.notAfter)],
+        [t("field.serial.number"), cert.serial, "mono", true],
+        [t("field.x.509.version"), cert.version],
+        [t("field.signature.algorithm"), cert.signatureAlgorithm],
+        [t("field.public.key"), cert.publicKeyDetails],
     ]);
 
     const keyUsage = ext(cert, "2.5.29.15");
@@ -214,23 +216,23 @@ function renderOverview(cert) {
     const authorityInfo = ext(cert, "1.3.6.1.5.5.7.1.1");
     const policies = ext(cert, "2.5.29.32");
 
-    appendCard(panelEl, "Common extensions", [
-        ["Key usage", keyUsage && keyUsage.decoded],
-        ["Extended key usage", extendedKeyUsage && extendedKeyUsage.decoded],
-        ["Subject alternative names", subjectAltName && subjectAltName.decoded],
-        ["Basic constraints", basicConstraints && basicConstraints.decoded],
-        ["Authority key identifier", authorityKeyId && authorityKeyId.decoded],
-        ["Subject key identifier", subjectKeyId && subjectKeyId.decoded],
-        ["CRL distribution points", crlDistribution && crlDistribution.decoded],
-        ["Authority information access", authorityInfo && authorityInfo.decoded],
-        ["Certificate policies", policies && policies.decoded],
+    appendCard(panelEl, t("card.commonExtensions"), [
+        [t("field.key.usage"), keyUsage && keyUsage.decoded],
+        [t("field.extended.key.usage"), extendedKeyUsage && extendedKeyUsage.decoded],
+        [t("field.subject.alternative.names"), subjectAltName && subjectAltName.decoded],
+        [t("field.basic.constraints"), basicConstraints && basicConstraints.decoded],
+        [t("field.authority.key.identifier"), authorityKeyId && authorityKeyId.decoded],
+        [t("field.subject.key.identifier"), subjectKeyId && subjectKeyId.decoded],
+        [t("field.crl.distribution.points"), crlDistribution && crlDistribution.decoded],
+        [t("field.authority.information.access"), authorityInfo && authorityInfo.decoded],
+        [t("field.certificate.policies"), policies && policies.decoded],
     ]);
 
     const fingerprintCard = node("section", "card");
     fingerprintCard.appendChild(
-        node("h3", "", "Certificate fingerprints (original DER bytes)"),
+        node("h3", "", t("fingerprints.title")),
     );
-    const pending = node("p", "note", "Computing SHA-1 and SHA-256…");
+    const pending = node("p", "note", t("fingerprints.loading"));
     fingerprintCard.appendChild(pending);
     panelEl.appendChild(fingerprintCard);
 
@@ -254,7 +256,7 @@ function renderOverview(cert) {
                 const td = node("td", "value");
                 td.appendChild(node("span", "mono", value));
 
-                const button = node("button", "copy-btn", "Copy");
+                const button = node("button", "copy-btn", t("action.copy"));
                 button.type = "button";
                 button.addEventListener("click", () => copy(value));
                 td.appendChild(button);
@@ -265,7 +267,7 @@ function renderOverview(cert) {
             fingerprintCard.appendChild(table);
         })
         .catch((error) => {
-            pending.textContent = "Fingerprints unavailable: " + errorText(error);
+            pending.textContent = t("fingerprints.error", {error:errorText(error)});
         });
 }
 
@@ -277,12 +279,12 @@ function dateText(date) {
     const value = new Date(date);
     return Number.isFinite(value.getTime())
         ? value.toISOString().replace("T", " ").replace(".000Z", " UTC")
-        : "Unavailable";
+        : t("date.unavailable");
 }
 
 function renderExtensions(cert) {
     if (!cert.extensions || !cert.extensions.length) {
-        panelEl.appendChild(node("p", "note", "No extensions are present."));
+        panelEl.appendChild(node("p", "note", t("extensions.empty")));
         return;
     }
 
@@ -296,10 +298,10 @@ function renderExtensions(cert) {
             node(
                 "pre",
                 "",
-                extension.decoded || "Raw extension value (DER hex; not semantically decoded).",
+                extension.decoded || t("extensions.raw"),
             ),
         );
-        item.appendChild(node("pre", "raw mono", extension.rawHex || "(empty)"));
+        item.appendChild(node("pre", "raw mono", extension.rawHex || t("count.none")));
         panelEl.appendChild(item);
     }
 }
@@ -307,22 +309,22 @@ function renderExtensions(cert) {
 // Raw view of one certificate: its algorithm details and the certificate itself as PEM,
 // built from the original DER bytes. A certificate is public data, so it can be copied.
 function renderDetails(cert) {
-    appendCard(panelEl, "Certificate details", [
-        ["Version", cert.version],
-        ["Signature algorithm", cert.signatureAlgorithm],
-        ["Public key algorithm", cert.publicKeyAlgorithm],
-        ["Public key size / curve", cert.publicKeyDetails],
-        ["Extensions", String((cert.extensions || []).length)],
-        ["DER size", cert.der.length + " bytes"],
+    appendCard(panelEl, t("card.certificateDetails"), [
+        [t("field.version"), cert.version],
+        [t("field.signature.algorithm"), cert.signatureAlgorithm],
+        [t("field.public.key.algorithm"), cert.publicKeyAlgorithm],
+        [t("field.public.key.size.curve"), cert.publicKeyDetails],
+        [t("field.extensions"), String((cert.extensions || []).length)],
+        [t("field.der.size"), new Intl.NumberFormat(P.locale.code).format(cert.der.length) + " " + t("common.bytes")],
     ]);
 
     const pem = certificateToPem(cert.der);
     const card = node("section", "card");
     const heading = node("div", "card-heading");
-    heading.appendChild(node("h3", "", "Certificate (PEM)"));
-    const button = node("button", "copy-btn", "Copy");
+    heading.appendChild(node("h3", "", t("certificate.pem.title")));
+    const button = node("button", "copy-btn", t("action.copy"));
     button.type = "button";
-    button.title = "Copy the certificate as PEM";
+    button.title = t("action.copyPem.title");
     button.addEventListener("click", () => copy(pem));
     heading.appendChild(button);
     card.appendChild(heading);
@@ -343,29 +345,29 @@ function certificateToPem(der) {
 // Summarize PEM requests and unsupported blocks without exposing their raw content.
 function renderRows() {
     const box = node("section", "card");
-    box.appendChild(node("h3", "", "Input contents"));
+    box.appendChild(node("h3", "", t("input.contents")));
 
     for (const row of data.rows || []) {
         let text = "";
         if (row.kind === "private-key") {
-            text = "Private key block detected (" + row.label + "); key material is hidden.";
+            text = t("input.privateKey", {label:row.label});
         } else if (row.kind === "csr") {
-            text = "Certificate request (PKCS#10)";
+            text = t("input.csr");
         } else if (row.kind === "unsupported") {
-            text = "Unsupported PEM block: " + row.label + " (contents hidden).";
+            text = t("input.unsupported", {label:row.label});
         } else {
-            text = "Could not parse " + row.label + ": " + row.error;
+            text = t("input.parseError", {label:row.label,error:row.error});
         }
 
         box.appendChild(node("p", "note", text));
         if (row.kind === "csr") {
-            appendCard(box, "Request summary", [
-                ["Request version", "v1"],
-                ["Subject", row.subject],
-                ["Public key", row.publicKeyDetails],
-                ["Signature algorithm", row.signatureAlgorithm],
+            appendCard(box, t("card.requestSummary"), [
+                [t("field.request.version"), "v1"],
+                [t("field.subject"), row.subject],
+                [t("field.public.key"), row.publicKeyDetails],
+                [t("field.signature.algorithm"), row.signatureAlgorithm],
                 [
-                    "Requested extensions",
+                    t("field.requested.extensions"),
                     (row.extensions || [])
                         .map((item) => {
                             const value = item.decoded || "raw " + item.rawHex;
@@ -391,7 +393,7 @@ function renderSelected() {
 
     if (cert) {
         titleEl.textContent = capabilityPayload
-            ? "Site certificate · " + capabilityPayload.title
+            ? t("title.siteCertificate", {title:capabilityPayload.title})
             : certName(cert);
         if (tab === "overview") renderOverview(cert);
         else if (tab === "extensions") renderExtensions(cert);
@@ -399,7 +401,7 @@ function renderSelected() {
         return;
     }
 
-    titleEl.textContent = data && data.isCsr ? "Certificate request" : "Input summary";
+    titleEl.textContent = data && data.isCsr ? t("status.request") : t("title.inputSummary");
     panelEl.appendChild(renderRows());
 }
 
@@ -411,15 +413,15 @@ function setStatus(text, tone) {
 function setSummary(dataValue) {
     const count = dataValue.certs.length;
     if (capabilityPayload) {
-        const label = count === 1 ? "1 certificate" : count + " certificates";
-        setStatus("Site certificate · " + label + " · " + capabilityPayload.title, "normal");
+        const label = t("status.certificates", {count});
+        setStatus(t("status.siteSummary", {label,title:capabilityPayload.title}), "normal");
         return;
     }
 
-    const parts = [dataValue.format || "Certificate input"];
-    if (count) parts.push(count === 1 ? "1 certificate" : count + " certificates");
-    if (dataValue.isCsr) parts.push("certificate request");
-    setStatus(parts.join(" · "), "normal");
+    const parts = [dataValue.format || t("status.certificateInput")];
+    if (count) parts.push(t("status.certificates", {count}));
+    if (dataValue.isCsr) parts.push(t("status.request"));
+    setStatus(parts.join(t("status.summarySeparator")), "normal");
 }
 
 function setReloadEnabled(enabled) {
@@ -439,7 +441,7 @@ function install(dataValue) {
         const note = node(
             "p",
             "note status-soon summary-note",
-            "Contains a private key (not shown)",
+            t("input.privateKeyNote"),
         );
         document.querySelector(".cert-list-pane").appendChild(note);
     }
@@ -490,7 +492,7 @@ function passwordPrompt(bytes, path) {
                 dialog.close("submit");
                 finish(result);
             } catch (_) {
-                passwordError.textContent = "Password or file was not accepted. Try again, or cancel.";
+                passwordError.textContent = t("password.rejected");
                 passwordInput.focus();
             } finally {
                 submit.disabled = false;
@@ -638,8 +640,8 @@ async function handleIntent(request) {
             data = null;
             capabilityPayload = null;
             activeMode = "intent-error";
-            state("Could not open site certificate.\n" + errorText(error), true);
-            setStatus("Certificate request failed", "error");
+            state(t("errors.openSiteCertificate") + "\n" + errorText(error), true);
+            setStatus(t("status.requestFailed"), "error");
             setReloadEnabled(false);
         }
         request.reject(errorText(error));
@@ -667,15 +669,15 @@ async function reloadCapability() {
     const token = ++loadToken;
     setReloadEnabled(false);
     try {
-        state("Loading saved certificate chain…");
-        setStatus("Loading…");
+        state(t("status.loading"));
+        setStatus(t("status.loading"));
         capabilityPayload = null;
         if (!await restoreCapability()) {
             throw new Error("No saved certificate chain is available.");
         }
     } catch (error) {
-        state("Could not restore the site certificate.\n" + errorText(error), true);
-        setStatus("Certificate restore failed", "error");
+        state(t("errors.restoreSiteCertificate") + "\n" + errorText(error), true);
+        setStatus(t("status.restoreFailed"), "error");
     } finally {
         if (token === loadToken) setReloadEnabled(true);
     }
@@ -687,9 +689,9 @@ async function loadFileOrRestore() {
     setReloadEnabled(false);
 
     try {
-        state("Loading certificate file…");
+        state(t("status.loadingFile"));
         data = null;
-        setStatus("Loading…");
+        setStatus(t("status.loading"));
 
         const path = await P.getFilePath();
         filePath = path || "";
@@ -705,8 +707,8 @@ async function loadFileOrRestore() {
             if (intentSeen || token !== loadToken) return;
             activeMode = "empty";
             capabilityPayload = null;
-            setStatus("No file open");
-            state("Open a .cer, .crt, .der, .pem, .pfx, .p12, .p7b or .p7c file to inspect it.");
+            setStatus(t("status.noFile"));
+            state(t("empty.supportedFormats"));
             return;
         }
         activeMode = "file";
@@ -723,8 +725,8 @@ async function loadFileOrRestore() {
         }
         if (token !== loadToken) return;
         if (!parsed) {
-            state("Password entry cancelled.");
-            setStatus("Password entry cancelled");
+            state(t("status.passwordCancelled"));
+            setStatus(t("status.passwordCancelled"));
             return;
         }
         if (!parsed.certs.length && !parsed.rows.length) {
@@ -735,8 +737,8 @@ async function loadFileOrRestore() {
     } catch (error) {
         if (intentSeen || token !== loadToken) return;
         const message = errorText(error);
-        state("Could not inspect this file.\n" + message, true);
-        P.notify(message, "error");
+        state(t("errors.inspectFile") + "\n" + message, true);
+        P.notify(t("errors.inspectFile"), "error");
     } finally {
         if (token === loadToken) setReloadEnabled(true);
         if (previousFocus && previousFocus.isConnected) {
@@ -750,14 +752,14 @@ async function loadFileOrRestore() {
 // code is fine: the shim queues the calls until the frame's load event, and a reload clears
 // both catalogs, so this script declares them again when it runs.
 P.toolbar.set([
-    { id: "reload", type: "button", title: "Reload certificate", icon: { name: "refresh" } },
+    { id: "reload", type: "button", title: t("toolbar.reload"), icon: { name: "refresh" } },
 ]);
 P.statusBar.set([
-    { id: "summary", type: "text", text: "Loading…", tone: "muted" },
+    { id: "summary", type: "text", text: t("status.loading"), tone: "muted" },
     {
         id: "scope",
         type: "text",
-        text: "Descriptive parsing only · no chain validation or revocation checks",
+        text: t("status.scope"),
         tone: "muted",
         align: "end",
     },

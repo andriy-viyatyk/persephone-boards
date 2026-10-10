@@ -3,6 +3,10 @@
 One line per change, newest first. Keep it short. Record pending changes under a heading for
 the **next version** you'll release (the version `board-manifest.json` will be bumped to).
 
+## 1.2.0
+
+- Interface text moved to a language pack (`lang/en.json`) so the board can be translated; requires Persephone with board bridge 1.36.0.
+
 ## 1.1.1
 
 - Added explicit permissions, sanitized document rendering, and returned AiVision exports.

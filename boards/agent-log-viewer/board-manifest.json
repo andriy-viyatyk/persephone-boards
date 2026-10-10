@@ -4,9 +4,10 @@
   "description": "Readable Claude Code and Codex CLI session logs (.jsonl): a session as a conversation with paired tool calls, diffs and token usage, or a whole folder as a sortable session list with daily usage. Streams large logs (400 MB+) from disk.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minAppVersion": "5.0.8",
-  "minBridgeVersion": "1.30.0",
+  "minBridgeVersion": "1.36.0",
+  "languages": { "folder": "lang", "default": "en" },
   "permissions": {
     "execute": true,
     "service": false,

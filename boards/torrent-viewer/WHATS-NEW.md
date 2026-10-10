@@ -1,5 +1,9 @@
 # What's New — Torrent Viewer
 
+## 1.10.0
+
+- Interface text moved to a language pack (`lang/en.json`) so the board can be translated; requires Persephone with board bridge 1.36.0.
+
 ## 1.9.3
 
 - Declared bridge permissions for the service and user-picked file operations.

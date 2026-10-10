@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>SQLite Viewer</title>
+    <title data-i18n="document.title">SQLite Viewer</title>
     <!-- Load order: shared base → av-grid's stylesheet → this board's overrides (last, so they
          win). av-grid would inject its own <style> at create() time — i.e. AFTER everything on
          this page — so we link it here and pass `injectStyles: false`, which is what makes the
@@ -202,16 +202,16 @@
 </head>
 <body>
     <div id="bar">
-        <span id="name">SQLite Viewer</span>
+        <span id="name" data-i18n="document.title">SQLite Viewer</span>
         <div class="spacer"></div>
-        <input id="search" type="search" placeholder="Search results…" disabled />
-        <button id="open" class="tool-btn" title="Open a SQLite database file…">
+        <input id="search" type="search" placeholder="Search results…" data-i18n-placeholder="search.placeholder" disabled />
+        <button id="open" class="tool-btn" title="Open a SQLite database file…" data-i18n-title="action.open.title">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
             </svg>
         </button>
-        <button id="reload" class="tool-btn" title="Re-open the database from disk" disabled>
+        <button id="reload" class="tool-btn" title="Re-open the database from disk" data-i18n-title="action.reload.title" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <polyline points="23 4 23 10 17 10"></polyline>
@@ -221,11 +221,11 @@
     </div>
     <div id="sqlbox">
         <textarea id="sql" spellcheck="false"
-                  placeholder="SELECT … (pick a table in the Tables sidebar panel, or type a query)"></textarea>
+                  placeholder="SELECT … (pick a table in the Tables sidebar panel, or type a query)" data-i18n-placeholder="query.placeholder"></textarea>
         <div id="sqlbtns">
-            <button id="run" disabled>Run</button>
-            <button id="stop" disabled>Stop</button>
-            <div id="hint">Ctrl+Enter</div>
+            <button id="run" disabled data-i18n="query.run">Run</button>
+            <button id="stop" disabled data-i18n="query.stop">Stop</button>
+            <div id="hint" data-i18n="query.shortcut">Ctrl+Enter</div>
         </div>
     </div>
     <div id="status"></div>
@@ -241,6 +241,7 @@
     <!-- The AiVision agent surface, before app.js: it only defines window.SQLiteAI, and app.js
          constructs the model from it while evaluating. -->
     <script src="./sqlite-aivision.js"></script>
+    <script src="./i18n.js"></script>
     <script src="./app.js"></script>
 </body>
 </html>

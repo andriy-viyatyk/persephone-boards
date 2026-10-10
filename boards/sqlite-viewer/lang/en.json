@@ -1,0 +1,29 @@
+{
+  "messages": {
+    "document.title": "SQLite Viewer",
+    "search.placeholder": "Search results…",
+    "action.open.title": "Open a SQLite database file…",
+    "action.reload.title": "Re-open the database from disk",
+    "query.placeholder": "SELECT … (pick a table in the Tables sidebar panel, or type a query)",
+    "query.run": "Run",
+    "query.stop": "Stop",
+    "query.shortcut": "Ctrl+Enter",
+    "tables.title": "Tables",
+    "tables.empty": "No database open.",
+    "tables.kind": "Tables",
+    "views.kind": "Views",
+    "state.noColumns": "The statement returned no columns.",
+    "status.running": "Running…",
+    "status.rows": {
+      "one": "{countLabel} row in {msLabel} ms{truncation}",
+      "other": "{countLabel} rows in {msLabel} ms{truncation}"
+    },
+    "status.error": "Error: {error}",
+    "status.cancelling": "Cancelling…",
+    "status.cancelled": "Query cancelled.",
+    "state.opening": "Opening database…",
+    "state.noTables": "This database has no tables.",
+    "state.openError": "Could not open this database.",
+    "state.noDatabase": "No database open. Open a .db / .sqlite file, or use the folder button above."
+  }
+}

@@ -21,6 +21,8 @@
 // first). The only consequence for this board is that the call can be slow and can reject.
 
 const P = window.persephone;
+const t = (key, params) => P.i18n.t(key, params);
+applyI18n(document);
 
 const frame = document.getElementById("viewer");
 const statusEl = document.getElementById("status");
@@ -180,8 +182,8 @@ function renderDiagnostics(rows) {
         row.append(heading, verdict, detail);
         table.appendChild(row);
     };
-    for (const r of rows) appendRow(r.label, r.ok ? "works" : "blocked", r.note);
-    if (violations.length) appendRow("CSP violations", "blocked", violations.join("\n"));
+    for (const r of rows) appendRow(r.label, r.ok ? t("status.works") : t("status.blocked"), r.note);
+    if (violations.length) appendRow(t("status.violations"), t("status.blocked"), violations.join("\n"));
     diagnosticsEl.replaceChildren(table);
 }
 
@@ -196,12 +198,12 @@ async function runDiagnostics(frameLoaded) {
     const [worker, wasm] = await Promise.all([probeWorker(), probeWasm()]);
     const rows = [
         {
-            label: "Nested iframe (frame-src)",
+            label: t("probes.iframe"),
             ok: frameLoaded.ok,
             note: frameLoaded.note,
         },
-        { label: "pdf.js worker (worker-src)", ok: worker.ok, note: worker.note },
-        { label: "WebAssembly (wasm-unsafe-eval)", ok: wasm.ok, note: wasm.note },
+        { label: t("probes.worker"), ok: worker.ok, note: worker.note },
+        { label: t("probes.wasm"), ok: wasm.ok, note: wasm.note },
     ];
     renderDiagnostics(rows);
     // Surface the whole verdict in one place for the spike write-up.
@@ -223,7 +225,15 @@ async function loadViewerFrame() {
         setTimeout(() => resolve(false), 10000);
     });
 
-    frame.src = "./lib/pdfjs/web/viewer.html?file=";
+    const localeCode = String(P.locale.code || "en-US").toLowerCase();
+    let viewerLocale = "en-US";
+    try {
+        const catalog = await fetch("./lib/pdfjs/web/locale/locale.json").then((response) => response.json());
+        const baseCode = localeCode.split("-")[0];
+        if (catalog[localeCode]) viewerLocale = P.locale.code;
+        else if (catalog[baseCode]) viewerLocale = baseCode;
+    } catch { /* Keep the stock viewer in English if the vendored catalog cannot be read. */ }
+    frame.src = "./lib/pdfjs/web/viewer.html?file=&locale=" + encodeURIComponent(viewerLocale);
 
     const fired = await loaded;
     if (!fired) return { ok: false, note: "no load event within 10s" };
@@ -261,7 +271,7 @@ async function loadViewerFrame() {
 
 async function main() {
     if (!P) {
-        showStatus("Persephone bridge unavailable", "This board must run inside Persephone.");
+        showStatus(t("errors.bridge"), t("errors.bridgeDetail"));
         return;
     }
 
@@ -276,14 +286,14 @@ async function main() {
     // the source is unreadable (missing archive entry, HTTP failure), which is NOT the same as the
     // `undefined` a plainly-opened board gets. Show a status while it runs, so a remote PDF does not
     // sit on a blank frame with no explanation.
-    showStatus("Opening…", "Resolving the document source.");
+    showStatus(t("status.opening"), t("status.resolving"));
     let filePath;
     try {
         filePath = await P.getFilePath();
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
-        showStatus("Could not read the document", message);
-        P.notify("Failed to read the PDF source: " + message, "error");
+        showStatus(t("errors.read"), message);
+        P.notify(t("toast.read", {error:message}), "error");
         return;
     }
 
@@ -299,24 +309,20 @@ async function main() {
     if (!filePath) {
         // Opened as a plain board rather than as a file's editor. Still useful: show the
         // capability verdict, which is exactly what v1 exists to report.
-        showStatus(
-            "No document",
-            "This board opens PDF files. Open a .pdf file to view it.\n"
-            + "Capability probes for this Persephone build:",
-        );
+        showStatus(t("empty.title"), t("empty.instructions") + "\n" + t("empty.probes"));
         await runDiagnostics(frameResult);
         return;
     }
 
     if (!frameResult.ok) {
-        showStatus("Could not load the PDF viewer", frameResult.note);
+        showStatus(t("errors.viewer"), frameResult.note);
         await runDiagnostics(frameResult);
-        P.notify("PDF viewer frame failed to load — see the board for details.", "error");
+        P.notify(t("toast.viewer"), "error");
         return;
     }
 
     try {
-        showStatus("Reading…", filePath);
+        showStatus(t("status.reading"), filePath);
         const startedRead = performance.now();
         // Bytes straight from the bridge — pdf.js wants a Uint8Array, which is exactly what
         // `encoding: "binary"` returns (app 4.0.21+, declared as minAppVersion). The old base64
@@ -355,9 +361,9 @@ async function main() {
             + " read in " + readMs + "ms, opened in " + openMs + "ms");
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
-        showStatus("Could not open the document", message + "\n" + filePath);
+        showStatus(t("errors.open"), message + "\n" + filePath);
         await runDiagnostics(frameResult);
-        P.notify("Failed to open PDF: " + message, "error");
+        P.notify(t("toast.open", {error:message}), "error");
     }
 }
 

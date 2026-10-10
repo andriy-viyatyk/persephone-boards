@@ -2,6 +2,8 @@
 (function () {
     "use strict";
 
+    applyI18n();
+
     const P = window.persephone;
     const state = {
         rootPath: "",
@@ -137,8 +139,8 @@
 
     function showTrustRequired(error) {
         state.events.generation++;
-        showBoot("Trust this board to explore", "AiVision Explorer needs the host's board trust control before it can read the live model. Trust the board in Persephone, then retry.", true);
-        setOperation(error ? errorMessage(error) : "Board trust is required.", "error");
+        showBoot(t("aiExplorer.trust.title"), t("aiExplorer.trust.message"), true);
+        setOperation(error ? errorMessage(error) : t("aiExplorer.trust.required"), "error");
     }
 
     async function loadDescriptor(path, force) {
@@ -251,7 +253,7 @@
             // it is empty for a leaf, which is also what marks the row as not expandable.
             button.append(node("span", "tree-caret", row.expandable ? (expanded ? "▾" : "›") : ""));
             const glyph = node("span", "tree-kind" + (row.special ? " special" : ""), row.memberKind === "method" ? "ƒ" : "◆");
-            if (row.special) glyph.title = "AiVision-wide — opens its own tab";
+        if (row.special) glyph.title = t("aiExplorer.special.title");
             button.append(glyph);
             button.append(node("span", "tree-label", text(row.label)));
             if (row.restricted || (cached && cached.restricted)) button.append(node("span", "restricted-label", "restricted"));
@@ -274,10 +276,10 @@
         rootButton.title = text(rootDescriptor.summary);
         rootButton.append(node("span", "tree-caret", rootExpanded ? "▾" : "›"));
         rootButton.append(node("span", "tree-kind", "◆"));
-        rootButton.append(node("span", "tree-label", "Persephone root"));
+        rootButton.append(node("span", "tree-label", t("aiExplorer.path.root")));
         refs.tree.append(rootButton);
         renderedPaths.add(state.rootPath);
-        state.treeRows.set(state.rootPath, { path: state.rootPath, label: "Persephone root", expandable: true, source: "root", parentPath: "" });
+        state.treeRows.set(state.rootPath, { path: state.rootPath, label: t("aiExplorer.path.root"), expandable: true, source: t("aiExplorer.path.rootShort"), parentPath: "" });
         if (state.expanded.has(state.rootPath)) {
             descriptorRows(rootDescriptor, state.rootPath).forEach((row) => addRow(row, 1));
         }
@@ -404,7 +406,7 @@
 
     function renderResultForSelection() {
         if (!state.selectedPath) {
-            showPending("The Persephone root has no leaf value; use the tree and the member controls below.");
+            showPending(t("aiExplorer.root.noLeaf"));
             return;
         }
         if (state.values.has(state.selectedPath)) {
@@ -421,26 +423,26 @@
         const card = node("article", "member-card");
         const top = node("div", "member-top");
         top.append(node("span", "member-name", name));
-        top.append(node("span", "member-badge", text(member.kind || "member")));
-        if (member.node === true) top.append(node("span", "member-badge", "node"));
-        if (member.writable === true) top.append(node("span", "member-badge writable", "writable"));
+        top.append(node("span", "member-badge", member.kind ? text(member.kind) : t("aiExplorer.member.member")));
+        if (member.node === true) top.append(node("span", "member-badge", t("aiExplorer.member.node")));
+        if (member.writable === true) top.append(node("span", "member-badge writable", t("aiExplorer.member.writable")));
         card.append(top);
         if (member.summary) card.append(node("div", "member-summary", member.summary));
         if (member.signature) card.append(node("div", "member-signature", member.signature));
-        if (member.caution) card.append(node("div", "caution-box", "Caution: " + member.caution));
+        if (member.caution) card.append(node("div", "caution-box", t("aiExplorer.member.caution", { caution: member.caution })));
 
         const actions = node("div", "member-actions");
         if (member.kind === "method") {
             const args = node("input", "p-input md");
             args.type = "text";
-            args.placeholder = "JSON array, e.g. []";
-            args.setAttribute("aria-label", name + " arguments");
-            const invoke = node("button", "p-btn md" + (member.caution ? " danger" : " primary"), "Invoke");
+            args.placeholder = t("aiExplorer.args.placeholder");
+            args.setAttribute("aria-label", t("aiExplorer.args.label", { name }));
+            const invoke = node("button", "p-btn md" + (member.caution ? " danger" : " primary"), t("aiExplorer.invoke"));
             invoke.type = "button";
             invoke.addEventListener("click", () => runMemberAction(member, path, "invoke", args.value, card, origin));
             actions.append(args, invoke);
         } else {
-            const read = node("button", "p-btn md", "Read");
+            const read = node("button", "p-btn md", t("aiExplorer.read"));
             read.type = "button";
             read.addEventListener("click", () => readMember(path, origin));
             actions.append(read);
@@ -450,9 +452,9 @@
             if (member.writable === true) {
                 const assignment = node("input", "p-input md");
                 assignment.type = "text";
-                assignment.placeholder = "JSON value to assign";
-                assignment.setAttribute("aria-label", name + " value");
-                const assign = node("button", "p-btn md" + (member.caution ? " danger" : " primary"), "Assign");
+                assignment.placeholder = t("aiExplorer.value.placeholder");
+                assignment.setAttribute("aria-label", t("aiExplorer.value.label", { name }));
+                const assign = node("button", "p-btn md" + (member.caution ? " danger" : " primary"), t("aiExplorer.assign"));
                 assign.type = "button";
                 assign.addEventListener("click", () => runMemberAction(member, path, "assign", assignment.value, card, origin));
                 actions.append(assignment, assign);
@@ -485,11 +487,11 @@
     function renderMembers(descriptor) {
         refs.members.replaceChildren();
         const members = ownsDescriptor() ? sortedMembers(descriptor) : [];
-        refs.memberCount.textContent = " [" + members.length + "]";
+        refs.memberCount.textContent = " [" + new Intl.NumberFormat(P.locale.code).format(members.length) + "]";
         if (!members.length) {
             refs.members.append(node("div", "empty-state", ownsDescriptor()
-                ? "No members are declared on this descriptor."
-                : "This path is not a node, so it has no members. Its own controls are on the Agent tab."));
+                ? t("aiExplorer.members.empty")
+                : t("aiExplorer.members.notNode")));
             return;
         }
         members.forEach((member) => refs.members.append(renderMember(member, state.selectedPath, "members")));
@@ -499,7 +501,7 @@
         const descriptor = state.selectedDescriptor;
         // The toolbar carries the selected path; a long one ellipsises and keeps the full
         // value in its tooltip.
-        const shown = state.selectedPath || "\"\" · Persephone root";
+        const shown = state.selectedPath || `"" · ${t("aiExplorer.path.root")}`;
         refs.selectedPath.textContent = shown;
         refs.selectedPath.title = shown;
         refs.selectedKind.textContent = state.selectedMember
@@ -518,15 +520,15 @@
     }
 
     async function readMember(path, origin) {
-        setOperation("Reading " + path + "…");
+        setOperation(t("aiExplorer.operation.reading", { path }));
         try {
             const result = await bridgeCall(path);
             state.values.set(path, result);
-            deliverResult(origin, "Returned value", path, result, false);
-            setOperation("Read " + path, "success");
+            deliverResult(origin, t("aiExplorer.value.title"), path, result, false);
+            setOperation(t("aiExplorer.operation.read", { path }), "success");
         } catch (error) {
             if (isTrustFailure(error)) return showTrustRequired(error);
-            deliverResult(origin, "Read failed", path, errorMessage(error), true);
+            deliverResult(origin, t("aiExplorer.read.failed"), path, errorMessage(error), true);
             reportError(error);
         }
     }
@@ -546,7 +548,7 @@
     }
 
     /**
-     * The Members tab shows its own results HERE, not in the Agent tab's "Returned value"
+     * The Members tab shows its own results HERE, not in the Agent tab's t("aiExplorer.value.title")
      * panel. Those two tabs describe different things — the Agent tab is about the SELECTED
      * node, the Members tab is a list of that node's members — and writing a member's
      * result into the Agent panel made an invoke on one tab silently rewrite the other,
@@ -568,14 +570,14 @@
         box.append(body);
 
         const actions = node("div", "confirm-actions");
-        const copy = node("button", "p-btn md", "Copy");
-        const close = node("button", "p-btn md primary", "Close");
+        const copy = node("button", "p-btn md", t("aiExplorer.copy"));
+        const close = node("button", "p-btn md primary", t("aiExplorer.close"));
         copy.type = close.type = "button";
         copy.addEventListener("click", async () => {
             try {
                 await navigator.clipboard.writeText(formatJson(value));
-                copy.textContent = "Copied";
-                window.setTimeout(() => { copy.textContent = "Copy"; }, 1400);
+                copy.textContent = t("aiExplorer.copied");
+                window.setTimeout(() => { copy.textContent = t("aiExplorer.copy"); }, 1400);
             } catch (error) {
                 notifyInFrame(errorMessage(error), "error");
             }
@@ -614,12 +616,12 @@
             const box = node("div", "confirm-box");
             box.setAttribute("role", "dialog");
             box.setAttribute("aria-modal", "true");
-            box.append(node("div", "confirm-title", "Confirm " + action));
+            box.append(node("div", "confirm-title", t("aiExplorer.confirm.title", { action })));
             box.append(node("div", "confirm-context", path));
             box.append(node("div", "confirm-caution", text(member.caution)));
             const actions = node("div", "confirm-actions");
-            const cancel = node("button", "p-btn md", "Cancel");
-            const proceed = node("button", "p-btn md danger", "Proceed once");
+            const cancel = node("button", "p-btn md", t("aiExplorer.dialog.cancel"));
+            const proceed = node("button", "p-btn md danger", t("aiExplorer.dialog.proceed"));
             cancel.type = proceed.type = "button";
             let settled = false;
             const finish = (value) => {
@@ -650,19 +652,19 @@
         catch (error) { formError(card, errorMessage(error)); return; }
         formError(card, "");
         if (member.caution) {
-            const confirmed = await confirmCaution(member, path, action === "invoke" ? "method invocation" : "assignment");
+            const confirmed = await confirmCaution(member, path, action === "invoke" ? t("aiExplorer.action.invoke") : t("aiExplorer.action.assign"));
             if (!confirmed) { setOperation("Cancelled — no bridge call was made."); return; }
         }
-        setOperation((action === "invoke" ? "Invoking " : "Assigning ") + path + "…");
+        setOperation((action === "invoke" ? t("aiExplorer.operation.invoking") : t("aiExplorer.operation.assigning")) + path + "…");
         try {
             const options = action === "invoke" ? { args: payload } : { value: payload };
             const result = await bridgeCall(path, options);
             state.values.set(path, result);
-            deliverResult(origin, action === "invoke" ? "Returned value" : "Assigned value", path, result, false);
-            setOperation((action === "invoke" ? "Invoked " : "Assigned ") + path, "success");
+            deliverResult(origin, action === "invoke" ? t("aiExplorer.value.title") : t("aiExplorer.assigned.title"), path, result, false);
+            setOperation(t(action === "invoke" ? "aiExplorer.operation.invoked" : "aiExplorer.operation.assigned", { path }), "success");
         } catch (error) {
             if (isTrustFailure(error)) return showTrustRequired(error);
-            deliverResult(origin, action === "invoke" ? "Invocation failed" : "Assignment failed",
+            deliverResult(origin, action === "invoke" ? t("aiExplorer.invoke.failed") : t("aiExplorer.assign.failed"),
                 path, errorMessage(error), true);
             reportError(error);
         }
@@ -676,12 +678,12 @@
             if (token !== state.selectionToken) return;
             state.values.set(path, value);
             showReturned(value);
-            setOperation("Read " + path, "success");
+            setOperation(t("aiExplorer.operation.read", { path }), "success");
         } catch (error) {
             if (token !== state.selectionToken) return;
             if (isTrustFailure(error)) return showTrustRequired(error);
             showReturned("Error: " + errorMessage(error));
-            setOperation("Read failed: " + errorMessage(error), "error");
+            setOperation(t("aiExplorer.operation.readFailed", { error: errorMessage(error) }), "error");
         }
     }
 
@@ -703,21 +705,21 @@
             // resolve, and reading a METHOD path returns its descriptor rather than calling it.
             // `caution` is the one thing that withholds the read.
             if (autoRead || row.source === "help") return readSelectedValue(token);
-            setOperation("Ready", "success");
+            setOperation(t("aiExplorer.ready"), "success");
             return;
         }
 
-        setOperation("Loading " + (path || "the Persephone root") + "…");
+        setOperation(t("aiExplorer.operation.loading", { path: path || t("aiExplorer.path.root") }));
         try {
             state.selectedDescriptor = await loadDescriptor(path);
             renderDescriptor();
             if (autoRead) await readSelectedValue(token);
-            if (state.selectedPath === path) setOperation("Ready", "success");
+            if (state.selectedPath === path) setOperation(t("aiExplorer.ready"), "success");
         } catch (error) {
             if (isTrustFailure(error)) return showTrustRequired(error);
             state.selectedDescriptor = null;
             renderDescriptor();
-            setOperation("Could not describe " + path + ": " + errorMessage(error), "error");
+            setOperation(t("aiExplorer.operation.describeFailed", { path, error: errorMessage(error) }), "error");
         }
     }
 
@@ -729,16 +731,16 @@
             return;
         }
         state.expanded.add(path);
-        setOperation("Expanding " + (path || "root") + "…");
+        setOperation(t("aiExplorer.operation.expanding", { path: path || t("aiExplorer.path.rootShort") }));
         try {
             // This is the only operation used to populate or expand a tree row.
             await loadDescriptor(path);
             renderTree();
-            setOperation("Expanded " + (path || "root"), "success");
+            setOperation(t("aiExplorer.operation.expanded", { path: path || t("aiExplorer.path.rootShort") }), "success");
         } catch (error) {
             state.expanded.delete(path);
             if (isTrustFailure(error)) return showTrustRequired(error);
-            setOperation("Expansion failed: " + errorMessage(error), "error");
+            setOperation(t("aiExplorer.operation.expandFailed", { error: errorMessage(error) }), "error");
         }
     }
 
@@ -776,43 +778,43 @@
         event.preventDefault();
         const query = refs.searchQuery.value.trim();
         if (!query) {
-            refs.searchStatus.textContent = "Enter a non-empty query.";
+            refs.searchStatus.textContent = t("aiExplorer.search.empty");
             return;
         }
         const limit = Number(refs.searchLimit.value) || 20;
-        refs.searchStatus.textContent = "Searching…";
-        setOperation("Searching help…");
+        refs.searchStatus.textContent = t("aiExplorer.search.searching");
+        setOperation(t("aiExplorer.search.operation"));
         try {
             const results = await bridgeCall("helpSearch", { args: [query, limit] });
             state.search = { query, limit, results: Array.isArray(results) ? results : [] };
-            refs.searchStatus.textContent = state.search.results.length + " result" + (state.search.results.length === 1 ? "" : "s");
+            refs.searchStatus.textContent = t("aiExplorer.search.results", { count: new Intl.NumberFormat(P.locale.code).format(state.search.results.length) });
             renderSearch();
-            setOperation("Search complete", "success");
+            setOperation(t("aiExplorer.search.complete"), "success");
         } catch (error) {
             if (isTrustFailure(error)) return showTrustRequired(error);
             state.search.results = [];
             renderSearch();
-            refs.searchStatus.textContent = "Search failed: " + errorMessage(error);
-            setOperation("Search failed: " + errorMessage(error), "error");
+            refs.searchStatus.textContent = t("aiExplorer.search.failed", { error: errorMessage(error) });
+            setOperation(t("aiExplorer.search.failed", { error: errorMessage(error) }), "error");
         }
     });
 
-    /** "Live" is the expected state and says nothing; anything else is worth showing. */
+    /** t("aiExplorer.events.live") is the expected state and says nothing; anything else is worth showing. */
     function setEventsState(label) {
         refs.eventsState.textContent = label;
-        refs.eventsState.hidden = label === "Live";
+        refs.eventsState.hidden = label === t("aiExplorer.events.live");
     }
 
     function renderEvents() {
         refs.events.replaceChildren();
         if (!state.events.items.length) {
-            refs.events.append(node("div", "empty-state", "No retained events yet. New renderer changes will appear here."));
+            refs.events.append(node("div", "empty-state", t("aiExplorer.events.empty")));
             return;
         }
         state.events.items.slice(0, 80).forEach((event) => {
             const item = node("article", "event-item");
             const meta = node("div", "event-meta");
-            meta.append(node("span", "event-type", text(event && (event.kind || event.type || event.name || "event"))));
+            meta.append(node("span", "event-type", text(event && (event.kind || event.type || event.name || t("aiExplorer.events.event")))));
             if (event && event.seq !== undefined) meta.append(node("span", "event-seq", "#" + text(event.seq)));
             if (event && (event.time || event.timestamp)) meta.append(node("time", "event-time", text(event.time || event.timestamp)));
             item.append(meta);
@@ -851,7 +853,7 @@
     async function eventLoop(generation) {
         if (state.events.waiting) return;
         state.events.waiting = true;
-        setEventsState("Live");
+        setEventsState(t("aiExplorer.events.live"));
         try {
             while (generation === state.events.generation) {
                 const result = await bridgeCall("events.wait", { args: [] });
@@ -867,8 +869,8 @@
         } catch (error) {
             if (generation !== state.events.generation) return;
             refs.eventError.hidden = false;
-            refs.eventError.textContent = "Live feed paused: " + errorMessage(error);
-            setEventsState("Paused — the feed stopped; refresh the board to resume.");
+            refs.eventError.textContent = t("aiExplorer.error.liveFeed", { error: errorMessage(error) });
+            setEventsState(t("aiExplorer.events.paused"));
         } finally {
             if (generation === state.events.generation) state.events.waiting = false;
         }
@@ -878,7 +880,7 @@
         const generation = ++state.events.generation;
         state.events.waiting = false;
         refs.eventError.hidden = true;
-        setEventsState("Loading…");
+        setEventsState(t("aiExplorer.events.loading"));
         try {
             const recent = await bridgeCall("events.recent", { args: [50] });
             if (generation !== state.events.generation) return;
@@ -889,8 +891,8 @@
         } catch (error) {
             if (generation !== state.events.generation) return;
             refs.eventError.hidden = false;
-            refs.eventError.textContent = "History unavailable: " + errorMessage(error);
-            setEventsState("Unavailable — the event feed could not be reached.");
+            refs.eventError.textContent = t("aiExplorer.error.history", { error: errorMessage(error) });
+            setEventsState(t("aiExplorer.events.unavailable"));
             renderEvents();
         }
     }
@@ -1007,13 +1009,13 @@
     $("collapse-tree").addEventListener("click", () => {
         state.expanded.clear();
         renderTree();
-        setOperation("Tree collapsed", "success");
+        setOperation(t("aiExplorer.operation.treeCollapsed"), "success");
     });
 
     refs.retry.addEventListener("click", () => boot());
 
     async function boot() {
-        showBoot("Connecting to the live model…", "Reading the Persephone root descriptor.", false);
+        showBoot(t("aiExplorer.boot.connecting"), t("aiExplorer.boot.reading"), false);
         state.events.generation++;
         try {
             // Trust-first preflight: do not render an empty tree before this succeeds.
@@ -1027,11 +1029,11 @@
             refs.shell.hidden = false;
             renderDescriptor();
             await loadEvents();
-            setOperation("Ready", "success");
+            setOperation(t("aiExplorer.ready"), "success");
         } catch (error) {
             if (isTrustFailure(error)) return showTrustRequired(error);
-            showBoot("The live model could not be loaded", "AiVision Explorer could not preflight the Persephone root. Use Retry to try again; the tree stays hidden until a descriptor is available.", true);
-            setOperation("Preflight failed: " + errorMessage(error), "error");
+            showBoot(t("aiExplorer.boot.failedTitle"), t("aiExplorer.boot.failedMessage"), true);
+            setOperation(t("aiExplorer.operation.preflightFailed", { error: errorMessage(error) }), "error");
         }
     }
 

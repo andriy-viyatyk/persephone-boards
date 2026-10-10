@@ -4,9 +4,9 @@
   "description": "Read-only viewer for Word documents (.docx) — page-accurate rendering with headings, lists, tables, and images.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "minAppVersion": "5.0.7",
-  "minBridgeVersion": "1.32.0",
+  "minBridgeVersion": "1.36.0",
   "permissions": {
     "execute": false,
     "service": false,
@@ -22,9 +22,15 @@
   },
   "screenshot": "screenshot.png",
   "guides": "guides",
-  "fileMasks": ["*.docx"],
+  "fileMasks": [
+    "*.docx"
+  ],
   "editorPriority": 200,
   "editorName": "Word",
   "editorKind": "simple",
-  "editorSources": "any"
+  "editorSources": "any",
+  "languages": {
+    "folder": "lang",
+    "default": "en"
+  }
 }

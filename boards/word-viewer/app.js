@@ -6,6 +6,8 @@
 // read_guide("boards") for the generic persephone.* bridge reference.
 
 const P = window.persephone;
+const t = (key, params) => P.i18n.t(key, params);
+applyI18n(document);
 
 // DOM handles.
 const nameEl = document.getElementById("name");
@@ -38,7 +40,7 @@ const zoomCtl = (() => {
 
     function applyZoom() {
         if (wrapper) wrapper.style.zoom = String(zoom);
-        zoomEl.textContent = Math.round(zoom * 100) + "%";
+        zoomEl.textContent = new Intl.NumberFormat(P.locale.code).format(Math.round(zoom * 100)) + "%";
     }
 
     // Set the zoom level, keeping the content point under (clientX, clientY) fixed. With no
@@ -176,7 +178,7 @@ const RENDER_OPTIONS = {
 
 async function load() {
     try {
-        showState("Loading…");
+        showState(t("state.loading"));
         reloadBtn.disabled = true;
         zoomCtl.clear();
         // renderAsync appends into the container; clear any previous render (and its injected
@@ -190,8 +192,8 @@ async function load() {
 
         if (!currentPath) {
             // Opened plainly (not as an editor for a file) — clean empty state, no crash.
-            nameEl.textContent = "Word Viewer";
-            showState("No file open.\nOpen a .docx file to view it here.");
+            nameEl.textContent = t("board.name");
+            showState(t("state.noFile"));
             return;
         }
 
@@ -245,8 +247,8 @@ async function load() {
         const message = err && err.message ? err.message : String(err);
         docEl.innerHTML = "";
         zoomCtl.clear();
-        showState("Could not open this file.\n" + message, true);
-        P.notify(message, "error");
+        showState(t("state.openError", {error:message}), true);
+        P.notify(t("toast.openError", {error:message}), "error");
     }
 }
 

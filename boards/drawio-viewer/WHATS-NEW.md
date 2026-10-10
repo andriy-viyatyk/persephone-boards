@@ -1,5 +1,9 @@
 # What's New — DrawIO Viewer
 
+## 1.2.0
+
+- Interface text moved to a language pack (`lang/en.json`) so the board can be translated; requires Persephone with board bridge 1.36.0.
+
 One line per change, newest first. Keep it short. Record pending changes under a heading for
 the **next version** you'll release (the version `board-manifest.json` will be bumped to) — so
 the number is decided up front and nothing needs renaming at release time.

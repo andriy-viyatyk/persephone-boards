@@ -1,5 +1,9 @@
 # What's New — PE Viewer
 
+## 1.1.0
+
+- Interface text moved to a language pack (`lang/en.json`) so the board can be translated; requires Persephone with board bridge 1.36.0.
+
 ## 1.0.4
 
 - Declared the board's bridge permissions.

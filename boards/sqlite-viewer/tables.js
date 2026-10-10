@@ -7,6 +7,8 @@
 
 const P = window.persephone;
 
+const t = window.sqliteT;
+const numberFormat = new Intl.NumberFormat(P.locale.code);
 const listEl = document.getElementById("list");
 
 function render(s) {
@@ -16,7 +18,7 @@ function render(s) {
     if (!db || !db.tables || db.tables.length === 0) {
         const empty = document.createElement("div");
         empty.className = "empty";
-        empty.textContent = db ? "This database has no tables." : "No database open.";
+        empty.textContent = db ? t("state.noTables") : t("tables.empty");
         listEl.appendChild(empty);
         return;
     }
@@ -31,7 +33,7 @@ function render(s) {
 
         const head = document.createElement("div");
         head.className = "group";
-        head.textContent = `${g.label} (${items.length})`;
+        head.textContent = `${t(g.label === "Tables" ? "tables.kind" : "views.kind")} (${numberFormat.format(items.length)})`;
         listEl.appendChild(head);
 
         for (const t of items) {
@@ -46,7 +48,7 @@ function render(s) {
 
             const rows = document.createElement("span");
             rows.className = "tbl-rows";
-            rows.textContent = t.rows == null ? "—" : t.rows.toLocaleString();
+            rows.textContent = t.rows == null ? "—" : numberFormat.format(t.rows);
             item.appendChild(rows);
 
             item.addEventListener("click", () => {

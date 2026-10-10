@@ -1,4 +1,6 @@
 const P = window.persephone;
+const t = window.torrentT;
+const numberFormat = new Intl.NumberFormat(P.locale.code);
 
 const MAX_DOWNLOAD_BYTES = 256 * 1024 * 1024;
 // Keep torrent metadata small and separate from D6's 512 MiB service RSS threshold; a bad URL
@@ -160,7 +162,7 @@ function clearTimers() {
 
 function formatBytes(value) {
     if (!Number.isFinite(value) || value < 0) return "—";
-    if (value < 1024) return `${value} B`;
+    if (value < 1024) return `${numberFormat.format(value)} B`;
     const units = ["KB", "MB", "GB", "TB"];
     let amount = value;
     let unit = -1;
@@ -169,7 +171,7 @@ function formatBytes(value) {
         unit += 1;
     }
     const digits = amount >= 100 || Number.isInteger(amount) ? 0 : amount >= 10 ? 1 : 2;
-    return `${amount.toFixed(digits)} ${units[unit]}`;
+    return `${numberFormat.format(Number(amount.toFixed(digits)))} ${units[unit]}`;
 }
 
 function formatRate(value) {
@@ -528,9 +530,9 @@ function renderTorrentRow(row, torrent) {
 
 function renderTorrentList() {
     const torrents = sortedTorrents();
-    torrentCount.textContent = String(torrents.length);
+    torrentCount.textContent = numberFormat.format(torrents.length);
     removeAllButton.disabled = removeAllInFlight || torrents.length === 0;
-    syncRows(torrentList, torrents, (torrent) => torrent.rowKey, renderTorrentRow, "No active torrents.");
+    syncRows(torrentList, torrents, (torrent) => torrent.rowKey, renderTorrentRow, t("empty.noTorrents"));
 }
 
 function selectedTorrentRow() {
@@ -555,7 +557,7 @@ function fileDownloaded(torrent, file) {
 function percent(part, whole) {
     if (!(whole > 0)) return 0;
     const value = (part / whole) * 100;
-    return value >= 99.95 ? 100 : value < 10 ? Math.round(value * 10) / 10 : Math.round(value);
+    return numberFormat.format(value >= 99.95 ? 100 : value < 10 ? Math.round(value * 10) / 10 : Math.round(value));
 }
 
 function renderFileRow(row, { torrent, file }) {
@@ -606,10 +608,10 @@ function renderFileList() {
     selectedTorrent.textContent = torrent ? torrentLabel(torrent) : "-";
     const files = sortedFiles(torrent);
     requestFileIcons(files);
-    fileCount.textContent = String(files.length);
-    let emptyText = "The torrent has no files.";
-    if (!torrent) emptyText = "Select a torrent to see its files.";
-    else if (torrent.state !== "ready") emptyText = torrent.message || "Metadata is still resolving.";
+    fileCount.textContent = numberFormat.format(files.length);
+    let emptyText = t("empty.noFiles");
+    if (!torrent) emptyText = t("empty.selectTorrent");
+    else if (torrent.state !== "ready") emptyText = torrent.message || t("status.resolving");
     syncRows(
         fileList,
         files.map((file) => ({ torrent, file })),
@@ -625,15 +627,15 @@ function torrentMenuItems(torrent) {
     if (torrent.state === "ready" && torrent.infoHash
         && (!torrent.requestId || activeResolutions.has(torrent.requestId))) {
         return [
-            { label: "Copy magnet link", action: () => copyText(torrent.magnet, "Magnet link copied."), disabled: !torrent.magnet },
-            { label: "Copy info hash", action: () => copyText(torrent.infoHash, "Info hash copied.") },
-            { label: "Save .torrent…", action: () => saveTorrentFile(torrent) },
-            { label: "Remove", action: () => removeTorrent(torrent), startGroup: true },
+            { label: t("menu.copyMagnet"), action: () => copyText(torrent.magnet, t("toast.magnetCopied")), disabled: !torrent.magnet },
+            { label: t("menu.copyHash"), action: () => copyText(torrent.infoHash, t("toast.hashCopied")) },
+            { label: t("menu.saveTorrent"), action: () => saveTorrentFile(torrent) },
+            { label: t("menu.remove"), action: () => removeTorrent(torrent), startGroup: true },
         ];
     }
     if (torrent.requestId && activeResolutions.has(torrent.requestId)) {
         return [{
-            label: "Cancel",
+            label: t("menu.cancel"),
             action: () => {
                 const job = activeResolutions.get(torrent.requestId);
                 return job ? cancelByUser(job, torrent.rowKey) : undefined;
@@ -643,8 +645,8 @@ function torrentMenuItems(torrent) {
     if (torrent.state === "failed" && torrent.requestId) {
         const items = [];
         const source = failedSourceOf(torrent);
-        if (source) items.push({ label: "Retry", action: () => retryFailed(torrent, source) });
-        items.push({ label: "Remove", action: () => dismissFailed(torrent) });
+        if (source) items.push({ label: t("menu.retry"), action: () => retryFailed(torrent, source) });
+        items.push({ label: t("menu.remove"), action: () => dismissFailed(torrent) });
         return items;
     }
     return [];
@@ -652,9 +654,9 @@ function torrentMenuItems(torrent) {
 
 function fileMenuItems(torrent, file) {
     return [
-        { label: "Open", action: () => openFile(torrent, file) },
-        { label: "Copy link", action: () => copyFileLink(torrent, file) },
-        { label: "Download this file", action: () => downloadFile(torrent, file) },
+        { label: t("menu.open"), action: () => openFile(torrent, file) },
+        { label: t("menu.copyLink"), action: () => copyFileLink(torrent, file) },
+        { label: t("menu.download"), action: () => downloadFile(torrent, file) },
     ];
 }
 
@@ -923,7 +925,7 @@ async function cancelByUser(job, rowKey) {
     await cancelResolution(job);
     serviceTorrents.delete(rowKey);
     renderAll();
-    setStatus("Resolution cancelled.");
+    setStatus(t("status.resolutionCancelled"));
 }
 
 /** A failed row's source: this page's own record first, else the one the service reported, which
@@ -949,7 +951,7 @@ async function dismissFailed(row, { keepSource = false } = {}) {
     }
     serviceTorrents.delete(`request:${requestId}`);
     renderAll();
-    if (!keepSource) setStatus("Removed.");
+    if (!keepSource) setStatus(t("status.removed"));
 }
 
 async function retryFailed(row, source) {
@@ -1000,7 +1002,7 @@ async function resolveSource(rawSource) {
 }
 
 async function resolveSourceInternal(source) {
-    setStatus("Resolving metadata…");
+    setStatus(t("status.resolving"));
     const job = { source, requestId: undefined, cancelled: false };
     try {
         const resolverInput = isHttpTorrentSource(source)
@@ -1038,13 +1040,13 @@ async function resolveSourceInternal(source) {
             else persistAcceptedSources();
         }
         renderAll();
-        setStatus(`${torrent.name ?? infoHash} / ${torrent.files.length} files / metadata only`);
+        setStatus(t("status.torrentSummary", { name: torrent.name ?? infoHash, countLabel: t("status.fileCount", { count: torrent.files.length }) }));
     } catch (error) {
         if (!tearingDown && !job.cancelled) {
             const message = messageFrom(error);
             const { requestId } = job;
             if (requestId) failedSources.set(requestId, source);
-            setStatusWithAction(message, true, "Retry", () => (requestId
+            setStatusWithAction(message, true, t("menu.retry"), () => (requestId
                 ? retryFailed({ requestId }, source)
                 : resolveSource(source)));
             // No toast: the status bar carries the message and the row's "failed" badge marks it.
@@ -1067,7 +1069,7 @@ function magnetFromInfoHash(text) {
 async function addMagnetFromInput() {
     const input = sourceInput.value.trim();
     if (!input) {
-        setStatus("Enter a magnet link, an info hash, or choose a .torrent file.", true);
+        setStatus(t("empty.addInstructions"), true);
         return;
     }
     const source = magnetFromInfoHash(input) || input;
@@ -1079,8 +1081,8 @@ async function addMagnetFromInput() {
 async function chooseTorrent() {
     try {
         const paths = await P.openFileDialog({
-            title: "Choose a torrent file",
-            filters: [{ name: "Torrent files", extensions: ["torrent"] }],
+            title: t("dialog.chooseTorrent"),
+            filters: [{ name: t("dialog.torrentFiles"), extensions: ["torrent"] }],
             multiSelections: false,
         });
         if (paths?.[0]) await resolveSource(paths[0]);
@@ -1125,9 +1127,9 @@ function torrentFileName(torrent) {
 async function saveTorrentFile(torrent) {
     try {
         const savePath = await P.saveFileDialog({
-            title: "Save .torrent",
+            title: t("dialog.saveTorrent"),
             defaultPath: torrentFileName(torrent),
-            filters: [{ name: "Torrent files", extensions: ["torrent"] }],
+            filters: [{ name: t("dialog.torrentFiles"), extensions: ["torrent"] }],
         });
         if (!savePath || tearingDown) return;
         const result = await P.service.request({ op: "torrentFile", infoHash: torrent.infoHash });
@@ -1135,8 +1137,8 @@ async function saveTorrentFile(torrent) {
         if (!tearingDown) setStatus(`Saved ${fileName(savePath.replaceAll("\\", "/"))}.`);
     } catch (error) {
         if (!tearingDown) {
-            setStatus(messageFrom(error, "Could not save the .torrent file."), true);
-            P.notify(messageFrom(error, "Could not save the .torrent file."), "error");
+            setStatus(messageFrom(error, t("errors.saveTorrent")), true);
+            P.notify(messageFrom(error, t("errors.saveTorrent")), "error");
         }
     }
 }
@@ -1144,7 +1146,7 @@ async function saveTorrentFile(torrent) {
 async function copyFileLink(torrent, file) {
     try {
         await P.clipboard.writeText(buildFileLink(torrent, file));
-        if (!tearingDown) setStatus("Torrent link copied.");
+        if (!tearingDown) setStatus(t("toast.torrentLinkCopied"));
     } catch (error) {
         if (!tearingDown) setStatus(messageFrom(error), true);
     }
@@ -1211,12 +1213,12 @@ async function downloadFile(torrent, file) {
 
     try {
         const savePath = await P.saveFileDialog({
-            title: "Save torrent file",
+            title: t("dialog.saveFile"),
             defaultPath: fileName(file.path),
         });
         if (!savePath || tearingDown) return;
 
-        setStatus(`Reading ${fileName(file.path)}…`);
+        setStatus(t("status.readingFile", { name: fileName(file.path) }));
         const resource = await P.content.open(buildFileLink(torrent, file));
         const response = await fetch(resource.url);
         if (!response.ok) throw new Error(`Torrent file read failed (${response.status}).`);
@@ -1225,8 +1227,8 @@ async function downloadFile(torrent, file) {
         if (!tearingDown) setStatus(`Saved ${fileName(file.path)}.`);
     } catch (error) {
         if (!tearingDown) {
-            setStatus(messageFrom(error, "Could not save the torrent file."), true);
-            P.notify(messageFrom(error, "Could not save the torrent file."), "error");
+            setStatus(messageFrom(error, t("errors.saveTorrent")), true);
+            P.notify(messageFrom(error, t("errors.saveTorrent")), "error");
         }
     }
 }
@@ -1415,14 +1417,14 @@ function applyServiceStatus(status) {
         stopSnapshotPolling();
         clearServiceModel();
     }
-    if (nextState === "stopped") setStatus("No active torrents.");
-    else if (nextState === "starting") setStatus("Torrent service starting...");
-    else if (nextState === "stopping") setStatus("Torrent service stopping...");
+    if (nextState === "stopped") setStatus(t("empty.noTorrents"));
+    else if (nextState === "starting") setStatus(t("status.serviceStarting"));
+    else if (nextState === "stopping") setStatus(t("status.serviceStopping"));
     else if (nextState === "failed") {
         setStatusWithAction(
-            status?.reason ? `Torrent service unavailable: ${status.reason}` : "Torrent service unavailable.",
+            status?.reason ? t("status.serviceUnavailableReason", { reason: status.reason }) : t("status.serviceUnavailable"),
             true,
-            "Add torrent",
+            t("toolbar.addTorrent"),
             () => sourceInput.focus(),
         );
     } else if (nextState === "running" && !snapshotInFlight && !snapshotTimer) {
@@ -1459,7 +1461,7 @@ async function pollServiceStatus() {
             serviceState = "failed";
             stopSnapshotPolling();
             clearServiceModel();
-            setStatusWithAction(messageFrom(error), true, "Add torrent", () => sourceInput.focus());
+            setStatusWithAction(messageFrom(error), true, t("toolbar.addTorrent"), () => sourceInput.focus());
         }
     }
 }
@@ -1471,7 +1473,7 @@ async function removeTorrent(torrent) {
     try {
         const result = await P.service.request({ op: "remove", magnetOrTorrentId: torrent.infoHash });
         if (!result.removed) {
-            setStatus(result.reason ? messageFrom(result.reason) : "No matching torrent is active.", true);
+            setStatus(result.reason ? messageFrom(result.reason) : t("status.noMatchingTorrent"), true);
             return;
         }
         removeAcceptedSourcesForInfoHash(result.infoHash || torrent.infoHash);
@@ -1481,7 +1483,7 @@ async function removeTorrent(torrent) {
         // The service is NOT stopped when the list empties: it holds the removal marks that make a
         // page still reading this torrent fail instead of adding it back, and a request would restart
         // a stopped service without them. The service drops its WebTorrent client once it is empty.
-        setStatus("Torrent removed.");
+        setStatus(t("status.torrentRemoved"));
         try {
             while (snapshotInFlight && !tearingDown) await waitFor(25);
             const snapshot = await P.service.request({ op: "snapshot" });
@@ -1515,7 +1517,7 @@ async function removeAllTorrents() {
         }
         if (!tearingDown) {
             const left = serviceTorrents.size;
-            setStatus(left === 0 ? "All torrents removed." : "Some torrents could not be removed.", left !== 0);
+            setStatus(left === 0 ? t("status.allRemoved") : t("status.removeSomeFailed"), left !== 0);
         }
     } finally {
         removeAllInFlight = false;
@@ -1666,19 +1668,19 @@ function renderNetworkState() {
     if (networkSetting.mode === "socks5") {
         P.statusBar.update("network", {
             text: `SOCKS5 ${networkSetting.host}:${networkSetting.port}`,
-            title: "Trackers, peers, and web seeds go through this SOCKS5 proxy. Click to change.",
+            title: t("network.proxyStatusTitle"),
             tone: "accent",
         });
     } else if (networkSetting.mode === "invalid") {
         P.statusBar.update("network", {
-            text: "Network setting invalid",
-            title: `Nothing connects until this is fixed: ${networkSetting.error}. Click to change.`,
+            text: t("network.invalid"),
+            title: t("network.invalidStatusTitle", { error: networkSetting.error }),
             tone: "error",
         });
     } else {
         P.statusBar.update("network", {
             text: "Direct",
-            title: "Trackers and peers are reached directly. Click to use a SOCKS5 proxy.",
+            title: t("network.directStatusTitle"),
             tone: "muted",
         });
     }
@@ -1716,7 +1718,7 @@ function readNetworkForm() {
 
 function onNetworkFormEdited() {
     networkSaveConfirming = false;
-    networkSaveButton.textContent = "Save";
+    networkSaveButton.textContent = t("action.save");
     setNetworkResult("");
 }
 
@@ -1728,34 +1730,34 @@ function openNetworkDialog() {
     networkUsername.value = current?.username ?? "";
     networkPassword.value = current?.password ?? "";
     onNetworkFormEdited();
-    if (networkSetting.mode === "invalid") setNetworkResult(`The saved setting is invalid: ${networkSetting.error}.`, true);
+    if (networkSetting.mode === "invalid") setNetworkResult(t("network.savedInvalid", { error: networkSetting.error }), true);
     syncNetworkFields();
     networkDialog.showModal();
 }
 
 function describeNetworkTest(result) {
-    if (result.direct) return { message: "Direct connection: there is no proxy to test." };
-    if (!result.reachable) return { message: `The proxy could not be reached: ${result.error ?? "no answer"}.`, isError: true };
-    if (result.error) return { message: `The proxy answered, but ${result.error}.`, isError: true };
+    if (result.direct) return { message: t("network.directTest") };
+    if (!result.reachable) return { message: t("network.proxyUnreachable", { error: result.error ?? "no answer" }), isError: true };
+    if (result.error) return { message: t("network.proxyTestFailed", { error: result.error }), isError: true };
     const login = result.auth === "ok" ? ", login accepted" : "";
     return result.udp
-        ? { message: `Proxy reachable${login}. It relays UDP, so UDP trackers work too.` }
-        : { message: `Proxy reachable${login}. It does not relay UDP (${result.udpError ?? "not supported"}): UDP trackers will not work; HTTP trackers and peers will.` };
+        ? { message: t("network.proxyReachableUdp", { login }) }
+        : { message: t("network.proxyReachableNoUdp", { login, error: result.udpError ?? "not supported" }) };
 }
 
 async function testNetworkForm() {
     const candidate = validateNetworkSetting(readNetworkForm());
     if (candidate.mode === "invalid") {
-        setNetworkResult(`Fix the setting first: ${candidate.error}.`, true);
+        setNetworkResult(t("network.fixSetting", { error: candidate.error }), true);
         return;
     }
     networkTestButton.disabled = true;
-    setNetworkResult("Testing the proxy...");
+    setNetworkResult(t("network.testing"));
     try {
         const { message, isError } = describeNetworkTest(await P.service.request({ op: "testNetwork", network: candidate }));
         setNetworkResult(message, isError);
     } catch (error) {
-        setNetworkResult(`The test could not run: ${messageFrom(error)}`, true);
+        setNetworkResult(t("network.testCouldNotRun", { error: messageFrom(error) }), true);
     } finally {
         networkTestButton.disabled = false;
     }
@@ -1764,7 +1766,7 @@ async function testNetworkForm() {
 async function saveNetworkForm() {
     const candidate = validateNetworkSetting(readNetworkForm());
     if (candidate.mode === "invalid") {
-        setNetworkResult(`Fix the setting first: ${candidate.error}.`, true);
+        setNetworkResult(t("network.fixSetting", { error: candidate.error }), true);
         return;
     }
     if (sameNetworkSetting(candidate, networkSetting)) {
@@ -1773,8 +1775,8 @@ async function saveNetworkForm() {
     }
     if (serviceTorrents.size > 0 && !networkSaveConfirming) {
         networkSaveConfirming = true;
-        networkSaveButton.textContent = "Save and restart";
-        setNetworkResult("Saving restarts the torrent service: files playing from these torrents stop and reconnect.");
+        networkSaveButton.textContent = t("network.saveRestart");
+        setNetworkResult(t("network.confirmRestart"));
         return;
     }
     networkDialog.close("save");
@@ -1785,7 +1787,7 @@ async function saveNetworkForm() {
 async function applyNetworkSetting(value) {
     if (networkApplyInFlight) return;
     networkApplyInFlight = true;
-    setStatus("Applying the network setting...");
+    setStatus(t("network.applying"));
     try {
         await P.storage.set(NETWORK_STORAGE_KEY, value);
         networkSetting = value;
@@ -1798,10 +1800,10 @@ async function applyNetworkSetting(value) {
         serviceRestoreNeeded = false;
         restoreSourcesAfterServiceReset();
         setStatus(value.mode === "socks5"
-            ? `Now connecting through SOCKS5 ${value.host}:${value.port}.`
-            : "Now connecting directly.");
+            ? t("network.nowProxy", { host: value.host, port: numberFormat.format(value.port) })
+            : t("network.nowDirect"));
     } catch (error) {
-        setStatus(`The network setting could not be applied: ${messageFrom(error)}`, true);
+        setStatus(t("network.applyError", { error: messageFrom(error) }), true);
     } finally {
         networkApplyInFlight = false;
     }
@@ -1849,12 +1851,12 @@ document.getElementById("add-magnet").addEventListener("click", () => void addMa
 removeAllButton.addEventListener("click", () => void removeAllTorrents());
 // "Open .torrent" lives on Persephone's page toolbar; a reloaded frame must declare it again.
 P.toolbar.set([
-    { id: "open-torrent", type: "button", title: "Open .torrent", icon: { name: "open-file" } },
+    { id: "open-torrent", type: "button", title: t("toolbar.openTorrent"), icon: { name: "open-file" } },
 ]);
 P.statusBar.set([
-    { id: "status", type: "text", text: "Metadata only. No file content is selected.", tone: "muted" },
+    { id: "status", type: "text", text: t("empty.metadataOnly"), tone: "muted" },
     { id: "status-action", type: "button", text: "", hidden: true },
-    { id: "network", type: "button", text: "Direct", tone: "muted", align: "end", title: "Network settings" },
+    { id: "network", type: "button", text: t("network.direct"), tone: "muted", align: "end", title: t("toolbar.networkSettings") },
 ]);
 // Single-colour file icons are drawn in the theme's icon colour: fetch them again on a switch.
 const unsubscribeTheme = P.onThemeChange(() => {
@@ -1909,8 +1911,8 @@ window.addEventListener("beforeunload", teardown, { once: true });
 // own notice and leave the flag unset.
 function notifyPrivateSession() {
     P.notify(networkSetting.mode === "socks5"
-        ? "The metadata was fetched privately; the swarm connection goes through your SOCKS5 proxy, not that session."
-        : "The metadata was fetched privately, but the swarm connection is not anonymous.", "info");
+        ? t("privacy.proxy")
+        : t("privacy.direct"), "info");
 }
 
 unsubscribeSource = P.source.onOpen(({ url, sourceUrl, privateSession }) => {

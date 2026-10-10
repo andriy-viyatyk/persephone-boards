@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AiVision Explorer</title>
+    <title data-i18n="aiExplorer.documentTitle">AiVision Explorer</title>
     <link rel="stylesheet" href="./board-base.css" />
     <link rel="stylesheet" href="./style.css" />
 </head>
@@ -11,44 +11,44 @@
     <div id="boot" class="boot-state" aria-live="polite">
         <div class="boot-card">
             <div class="eyebrow">AiVision Explorer</div>
-            <h1 id="boot-title">Connecting to the live model…</h1>
-            <p id="boot-message">Reading the Persephone root descriptor.</p>
-            <button id="retry" class="p-btn primary" type="button" hidden>Retry</button>
+            <h1 id="boot-title" data-i18n="aiExplorer.boot.connecting">Connecting to the live model…</h1>
+            <p id="boot-message" data-i18n="aiExplorer.boot.reading">Reading the Persephone root descriptor.</p>
+            <button id="retry" data-i18n="aiExplorer.retry" class="p-btn primary" type="button" hidden>Retry</button>
         </div>
     </div>
 
     <div id="app-shell" hidden>
-        <aside class="tree-pane" aria-label="AiVision tree">
+        <aside class="tree-pane" aria-label="AiVision tree" data-i18n-aria-label="aiExplorer.tree.aria">
             <div class="tree-toolbar">
-                <button id="collapse-tree" class="p-btn icon" type="button" title="Collapse all">−</button>
+            <button id="collapse-tree" data-i18n="aiExplorer.collapse" class="p-btn icon" type="button" title="Collapse all" data-i18n-title="aiExplorer.collapse">−</button>
             </div>
-            <nav id="tree" class="tree" aria-label="Model nodes"></nav>
+            <nav id="tree" class="tree" aria-label="Model nodes" data-i18n-aria-label="aiExplorer.nodes.aria"></nav>
         </aside>
 
         <div id="pane-resizer" class="pane-resizer" role="separator" aria-orientation="vertical"
-             tabindex="0" aria-label="Resize the tree panel"></div>
+             tabindex="0" aria-label="Resize the tree panel" data-i18n-aria-label="aiExplorer.resize.aria"></div>
 
         <div class="center-panel">
             <header class="topbar p-toolbar">
-                <code id="selected-path" class="path-chip toolbar-path">Persephone root</code>
+                <code id="selected-path" class="path-chip toolbar-path" data-i18n="aiExplorer.path.root">Persephone root</code>
                 <span class="p-spacer"></span>
-                <span id="operation-status" class="operation-status" aria-live="polite">Ready</span>
-                <button id="refresh" class="p-btn" type="button">Refresh</button>
+                <span id="operation-status" class="operation-status" aria-live="polite" data-i18n="aiExplorer.ready">Ready</span>
+                <button id="refresh" data-i18n="aiExplorer.refresh" class="p-btn" type="button">Refresh</button>
             </header>
 
-            <div class="tab-bar" role="tablist" aria-label="Detail views">
-                <button id="tab-btn-agent" class="tab" type="button" role="tab" data-tab="agent" aria-controls="tab-agent" aria-selected="true">Agent</button>
-                <button id="tab-btn-members" class="tab" type="button" role="tab" data-tab="members" aria-controls="tab-members" aria-selected="false">Members<span id="member-count" class="tab-count"></span></button>
-                <button id="tab-btn-search" class="tab special" type="button" role="tab" data-tab="search" aria-controls="tab-search" aria-selected="false" hidden>Search</button>
-                <button id="tab-btn-events" class="tab special" type="button" role="tab" data-tab="events" aria-controls="tab-events" aria-selected="false" hidden>Events</button>
+            <div class="tab-bar" role="tablist" aria-label="Detail views" data-i18n-aria-label="aiExplorer.tabs.aria">
+                <button id="tab-btn-agent" data-i18n="aiExplorer.tab.agent" class="tab" type="button" role="tab" data-tab="agent" aria-controls="tab-agent" aria-selected="true">Agent</button>
+                <button id="tab-btn-members" data-i18n="aiExplorer.tab.members" class="tab" type="button" role="tab" data-tab="members" aria-controls="tab-members" aria-selected="false">Members<span id="member-count" class="tab-count"></span></button>
+                <button id="tab-btn-search" data-i18n="aiExplorer.tab.search" class="tab special" type="button" role="tab" data-tab="search" aria-controls="tab-search" aria-selected="false" hidden>Search</button>
+                <button id="tab-btn-events" data-i18n="aiExplorer.tab.events" class="tab special" type="button" role="tab" data-tab="events" aria-controls="tab-events" aria-selected="false" hidden>Events</button>
             </div>
 
-            <main class="detail-pane" aria-label="Selected node details">
+            <main class="detail-pane" aria-label="Selected node details" data-i18n-aria-label="aiExplorer.details.aria">
                 <section id="tab-agent" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-agent">
                     <div class="detail-header">
                         <div class="descriptor-line">
                             <span id="selected-kind" class="kind-badge">Persephone</span>
-                            <span id="selected-summary" class="muted">Loading descriptor…</span>
+                            <span id="selected-summary" class="muted" data-i18n="aiExplorer.loading">Loading descriptor…</span>
                         </div>
                     </div>
 
@@ -56,7 +56,7 @@
 
                     <section id="member-ops" class="panel ops-panel" aria-labelledby="ops-title" hidden>
                         <div class="panel-bar">
-                            <h2 id="ops-title">Operate on this member</h2>
+                            <h2 id="ops-title" data-i18n="aiExplorer.ops.title">Operate on this member</h2>
                         </div>
                         <div id="member-ops-body" class="members-list"></div>
                     </section>
@@ -64,17 +64,17 @@
                     <div class="agent-scroll">
                         <section class="panel result-panel" aria-labelledby="result-title">
                             <div class="panel-bar">
-                                <h2 id="result-title">Returned value</h2>
-                                <button id="read-selected" class="p-btn md" type="button" hidden>Read</button>
+                                <h2 id="result-title" data-i18n="aiExplorer.value.title">Returned value</h2>
+                                <button id="read-selected" data-i18n="aiExplorer.read" class="p-btn md" type="button" hidden>Read</button>
                             </div>
-                            <pre id="returned-value" class="code-block">No value read yet.</pre>
+                            <pre id="returned-value" class="code-block" data-i18n="aiExplorer.value.empty">No value read yet.</pre>
                         </section>
 
                         <section id="hint-panel" class="panel hint-panel" aria-labelledby="hint-title">
                             <div class="panel-bar">
-                                <h2 id="hint-title">Hint</h2>
+                                <h2 id="hint-title" data-i18n="aiExplorer.hint.title">Hint</h2>
                             </div>
-                            <pre id="agent-hint" class="code-block hint-block">No descriptor.</pre>
+                            <pre id="agent-hint" class="code-block hint-block" data-i18n="aiExplorer.hint.empty">No descriptor.</pre>
                         </section>
 
                     </div>
@@ -85,20 +85,20 @@
                     <section class="panel search-panel" aria-labelledby="search-title">
                         <div class="section-heading compact">
                             <div>
-                                <div class="eyebrow">Find in help</div>
-                                <h2 id="search-title">Help search</h2>
+                                <div class="eyebrow" data-i18n="aiExplorer.search.eyebrow">Find in help</div>
+                                <h2 id="search-title" data-i18n="aiExplorer.search.title">Help search</h2>
                             </div>
                         </div>
                         <form id="search-form" class="search-form">
-                            <label class="sr-only" for="search-query">Search query</label>
-                            <input id="search-query" class="p-input" type="search" placeholder="Search the live descriptor graph…" autocomplete="off" />
-                            <label class="sr-only" for="search-limit">Result limit</label>
+                            <label class="sr-only" for="search-query" data-i18n="aiExplorer.search.label">Search query</label>
+                            <input id="search-query" data-i18n-placeholder="aiExplorer.search.placeholder" class="p-input" type="search" placeholder="Search the live descriptor graph…" autocomplete="off" />
+                            <label class="sr-only" for="search-limit" data-i18n="aiExplorer.search.limit">Result limit</label>
                             <select id="search-limit" class="p-select">
                                 <option value="10">10</option>
                                 <option value="20" selected>20</option>
                                 <option value="50">50</option>
                             </select>
-                            <button class="p-btn primary" type="submit">Search</button>
+                            <button class="p-btn primary" type="submit" data-i18n="aiExplorer.search.button">Search</button>
                         </form>
                         <div id="search-status" class="inline-status" aria-live="polite"></div>
                         <div id="search-results" class="search-results"></div>
@@ -120,6 +120,7 @@
 
     <div id="dialog-mount"></div>
     <div id="notification-mount" class="notification-mount" aria-live="polite"></div>
+    <script src="./i18n.js"></script>
     <script src="./app.js"></script>
 </body>
 </html>

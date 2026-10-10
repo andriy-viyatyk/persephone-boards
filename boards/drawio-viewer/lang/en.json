@@ -1,0 +1,27 @@
+{
+  "messages": {
+    "document.title": "DrawIO Viewer",
+    "board.name": "DrawIO Viewer",
+    "action.openDrawing.title": "Open in Drawing Editor (edit a copy in Excalidraw)",
+    "action.save.title": "Save current page as an image (SVG or PNG)",
+    "action.copy.title": "Copy diagram as PNG to clipboard",
+    "action.saveSvg": "Save as SVG",
+    "action.savePng": "Save as PNG",
+    "zoom.reset.title": "Reset zoom (double-click diagram)",
+    "toast.copy.success": "Diagram copied to clipboard as PNG.",
+    "toast.copy.error": "Copy failed: {error}",
+    "toast.saveSvg.success": "Diagram saved as SVG.",
+    "toast.saveSvg.error": "Save as SVG failed: {error}",
+    "toast.savePng.success": "Diagram saved as PNG.",
+    "toast.savePng.error": "Save as PNG failed: {error}",
+    "toast.openDrawing.error": "Open in Drawing Editor failed: {error}",
+    "empty.file": "The file is empty.",
+    "errors.render": "Failed to render diagram: {error}",
+    "empty.open": "Open a .drawio file to view it here.",
+    "save.svg.title": "Save as SVG",
+    "save.png.title": "Save as PNG",
+    "save.filter.svg": "SVG Image",
+    "save.filter.png": "PNG Image",
+    "save.filter.all": "All Files"
+  }
+}

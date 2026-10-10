@@ -6,6 +6,8 @@
 // notes and read_guide("boards") for the generic persephone.* bridge reference.
 
 const P = window.persephone;
+const t = window.powerpointT;
+const numberFormat = new Intl.NumberFormat(P.locale.code);
 
 // DOM handles.
 const nameEl = document.getElementById("name");
@@ -81,7 +83,7 @@ const resizeObserver = new ResizeObserver(fitToWidth);
 // ---- slide navigation ----------------------------------------------------------------------
 
 function updateCounter() {
-    counterEl.textContent = slideEls.length ? `${currentIndex + 1} / ${slideEls.length}` : "–";
+    counterEl.textContent = slideEls.length ? `${numberFormat.format(currentIndex + 1)} / ${numberFormat.format(slideEls.length)}` : t("slides.counter.empty");
     prevBtn.disabled = currentIndex <= 0;
     nextBtn.disabled = currentIndex >= slideEls.length - 1;
 }
@@ -131,7 +133,7 @@ function resetView() {
 
 async function load() {
     try {
-        showState("Loading…");
+        showState(t("state.loading"));
         reloadBtn.disabled = true;
         resetView();
         currentBytes = null;
@@ -142,8 +144,8 @@ async function load() {
 
         if (!currentPath) {
             // Opened plainly (not as an editor for a file) — clean empty state, no crash.
-            nameEl.textContent = "PowerPoint Viewer";
-            showState("No file open.\nOpen a .pptx file to view it here.");
+            nameEl.textContent = t("document.title");
+            showState(t("state.noFile"));
             return;
         }
 
@@ -184,7 +186,7 @@ async function load() {
 
         slideEls = Array.from(slidesEl.querySelectorAll(".pptx-preview-slide-wrapper"));
         if (slideEls.length === 0) {
-            showState("This deck has no slides.");
+            showState(t("state.noSlides"));
             return;
         }
 
@@ -206,8 +208,8 @@ async function load() {
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
         resetView();
-        showState("Could not open this file.\n" + message, true);
-        P.notify(message, "error");
+        showState(t("state.openError") + "\n" + message, true);
+        P.notify(t("toast.openError", { error: message }), "error");
     }
 }
 

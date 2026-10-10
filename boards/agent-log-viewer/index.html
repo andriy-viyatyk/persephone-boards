@@ -2,23 +2,23 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Agent Log Viewer</title>
+    <title data-i18n="logs.documentTitle">Agent Log Viewer</title>
     <link rel="stylesheet" href="./board-base.css" />
     <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
     <div id="bar" class="p-toolbar">
-        <button id="back" class="p-btn icon ghost" title="Back to the session list (Backspace)" hidden>
+        <button id="back" class="p-btn icon ghost" title="Back to the session list (Backspace)" data-i18n-title="logs.back.title" hidden>
             <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
-        <span id="source" title="">No source</span>
+        <span id="source" data-i18n="logs.source.none" title="">No source</span>
         <span class="p-spacer"></span>
-        <button id="openFiles" class="p-btn" title="Open one or more session log files">Files…</button>
-        <button id="openFolder" class="p-btn" title="Open a folder of session logs">Folder…</button>
-        <button id="presetClaude" class="p-btn" title="All Claude Code sessions">Claude Code</button>
-        <button id="presetCodex" class="p-btn" title="All Codex sessions">Codex</button>
-        <select id="recent" class="p-select" title="Recent sources"><option value="">Recent…</option></select>
-        <button id="reload" class="p-btn icon ghost" title="Reload from disk" disabled>
+        <button id="openFiles" data-i18n="logs.open.files" class="p-btn" title="Open one or more session log files" data-i18n-title="logs.open.files.title">Files…</button>
+        <button id="openFolder" data-i18n="logs.open.folder" class="p-btn" title="Open a folder of session logs" data-i18n-title="logs.open.folder.title">Folder…</button>
+        <button id="presetClaude" class="p-btn" title="All Claude Code sessions" data-i18n-title="logs.preset.claude.title" data-i18n="logs.agent.claude">Claude Code</button>
+        <button id="presetCodex" class="p-btn" title="All Codex sessions" data-i18n-title="logs.preset.codex.title" data-i18n="logs.agent.codex">Codex</button>
+        <select id="recent" class="p-select" title="Recent sources" data-i18n-title="logs.recent.title"><option value="" data-i18n="logs.recent">Recent…</option></select>
+        <button id="reload" class="p-btn icon ghost" title="Reload from disk" data-i18n-title="logs.reload.title" disabled>
             <svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M20.5 15a9 9 0 1 1-2.1-9.4L23 10"/></svg>
         </button>
     </div>
@@ -26,20 +26,20 @@
     <!-- Multi-session view: several files or a folder -->
     <section id="listView" hidden>
         <div id="listTools">
-            <input id="filter" class="p-input" type="search" placeholder="Filter by title or project…" />
-            <select id="agentFilter" class="p-select" title="Agent">
-                <option value="">All agents</option>
+            <input id="filter" data-i18n-placeholder="logs.filter.placeholder" class="p-input" type="search" placeholder="Filter by title or project…" />
+            <select id="agentFilter" class="p-select" title="Agent" data-i18n-title="logs.agent.title">
+                <option value="" data-i18n="logs.agent.all">All agents</option>
                 <option value="claude">Claude Code</option>
                 <option value="codex">Codex</option>
             </select>
-            <select id="groupBy" class="p-select" title="Group rows">
-                <option value="">No grouping</option>
-                <option value="project">By project</option>
-                <option value="day">By day</option>
+            <select id="groupBy" class="p-select" title="Group rows" data-i18n-title="logs.group.title">
+                <option value="" data-i18n="logs.group.none">No grouping</option>
+                <option value="project" data-i18n="logs.group.project">By project</option>
+                <option value="day" data-i18n="logs.group.day">By day</option>
             </select>
-            <label class="chk" title="Include subagent sessions"><input id="showSub" type="checkbox" /> Subagents</label>
+            <label class="chk" title="Include subagent sessions" data-i18n-title="logs.subagents.title"><input id="showSub" type="checkbox" /> <span data-i18n="logs.subagents">Subagents</span></label>
             <span class="p-spacer"></span>
-            <input id="contentSearch" class="p-input" type="search" placeholder="Search prompts and answers…" title="Scans the files (Enter)" />
+            <input id="contentSearch" data-i18n-placeholder="logs.search.placeholder" class="p-input" type="search" placeholder="Search prompts and answers…" title="Scans the files (Enter)" data-i18n-title="logs.search.title" />
         </div>
         <div id="summary">
             <div id="totals"></div>
@@ -56,19 +56,19 @@
             <div id="sessTitle"></div>
             <div id="sessMeta"></div>
             <div id="sessTools">
-                <label class="chk"><input type="checkbox" data-filter="user" checked /> Prompts</label>
-                <label class="chk"><input type="checkbox" data-filter="assistant" checked /> Answers</label>
-                <label class="chk"><input type="checkbox" data-filter="thinking" checked /> Thinking</label>
-                <label class="chk"><input type="checkbox" data-filter="tool" checked /> Tool calls</label>
-                <label class="chk"><input type="checkbox" data-filter="meta" /> System</label>
-                <label class="chk"><input type="checkbox" id="errorsOnly" /> Errors only</label>
+                <label class="chk"><input type="checkbox" data-filter="user" checked /> <span data-i18n="logs.filter.prompts">Prompts</span></label>
+                <label class="chk"><input type="checkbox" data-filter="assistant" checked /> <span data-i18n="logs.filter.answers">Answers</span></label>
+                <label class="chk"><input type="checkbox" data-filter="thinking" checked /> <span data-i18n="logs.filter.thinking">Thinking</span></label>
+                <label class="chk"><input type="checkbox" data-filter="tool" checked /> <span data-i18n="logs.filter.tools">Tool calls</span></label>
+                <label class="chk"><input type="checkbox" data-filter="meta" /> <span data-i18n="logs.filter.system">System</span></label>
+                <label class="chk"><input type="checkbox" id="errorsOnly" /> <span data-i18n="logs.filter.errorsOnly">Errors only</span></label>
                 <span class="p-spacer"></span>
-                <button id="expandAll" class="p-btn" title="Expand all tool calls">Expand</button>
-                <button id="collapseAll" class="p-btn" title="Collapse all">Collapse</button>
-                <input id="find" class="p-input" type="search" placeholder="Find in session…" title="Enter: search, then n / p" />
+                <button id="expandAll" data-i18n="logs.expandAll" class="p-btn" title="Expand all tool calls" data-i18n-title="logs.expandAll.title">Expand</button>
+                <button id="collapseAll" data-i18n="logs.collapseAll" class="p-btn" title="Collapse all" data-i18n-title="logs.collapseAll.title">Collapse</button>
+                <input id="find" data-i18n-placeholder="logs.find.placeholder" class="p-input" type="search" placeholder="Find in session…" title="Enter: search, then n / p" data-i18n-title="logs.find.title" />
                 <span id="findInfo"></span>
-                <button id="findPrev" class="p-btn icon ghost" title="Previous match (p)"><svg viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg></button>
-                <button id="findNext" class="p-btn icon ghost" title="Next match (n)"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+                <button id="findPrev" class="p-btn icon ghost" title="Previous match (p)" data-i18n-title="logs.find.previous.title"><svg viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg></button>
+                <button id="findNext" class="p-btn icon ghost" title="Next match (n)" data-i18n-title="logs.find.next.title"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
             </div>
         </div>
         <div id="sessBody">
@@ -81,6 +81,7 @@
 
     <script src="./lib/marked.umd.js"></script>
     <script src="./lib/purify.min.js"></script>
+    <script src="./i18n.js"></script>
     <script src="./app.js"></script>
 </body>
 </html>

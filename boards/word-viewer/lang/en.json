@@ -1,0 +1,12 @@
+{
+  "messages": {
+    "document.title": "Word Viewer",
+    "board.name": "Word Viewer",
+    "toolbar.reload.title": "Reload the file from disk",
+    "zoom.help": "Zoom: Ctrl + Mouse Wheel (or Ctrl and + / - / 0). Click here to reset to 100%.",
+    "state.loading": "Loading...",
+    "state.noFile": "No file open. Open a .docx file to view it here.",
+    "state.openError": "Could not open this file.",
+    "toast.openError": "Could not open this file: {error}"
+  }
+}

@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Torrent Viewer</title>
+    <title data-i18n="document.title">Torrent Viewer</title>
     <link rel="stylesheet" href="./board-base.css" />
     <link rel="stylesheet" href="./dialog.css" />
     <style>
@@ -16,7 +16,7 @@
             background: var(--p-bg);
         }
 
-        /* ── Workspace: torrents | splitter | files ─────────────────────────────── */
+        /* â”€â”€ Workspace: torrents | splitter | files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
         .workspace {
             min-height: 0;
             flex: 1 1 auto;
@@ -69,7 +69,7 @@
         .pane-count { flex: 0 0 auto; color: var(--p-text-muted); font-size: var(--p-font-sm); }
         .pane-action { flex: 0 0 auto; margin-left: auto; }
 
-        /* ── Lists: Explorer-tree rows (22px, tree selection colours) ────────────── */
+        /* â”€â”€ Lists: Explorer-tree rows (22px, tree selection colours) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
         .list {
             min-height: 0;
             flex: 1 1 auto;
@@ -165,8 +165,8 @@
             font-size: var(--p-font-sm);
         }
 
-        /* ── Status bar ──────────────────────────────────────────────────────────── */
-        /* ── Network (BT-028): the status-bar indicator and its dialog ─────────────── */
+        /* â”€â”€ Status bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+        /* â”€â”€ Network (BT-028): the status-bar indicator and its dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
         #network-dialog { width: min(440px, 92vw); }
         .network-form { display: grid; grid-template-columns: max-content 1fr; gap: var(--p-space-sm) var(--p-space-md); align-items: center; }
         .network-form label { color: var(--p-text-muted); }
@@ -176,7 +176,7 @@
         .network-result.error { color: var(--p-error); }
         .dialog-footer .network-test { margin-right: auto; }
 
-        /* ── Tooltip ─────────────────────────────────────────────────────────────── */
+        /* â”€â”€ Tooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
         .tooltip {
             position: fixed;
             z-index: 20;
@@ -217,7 +217,7 @@
             white-space: nowrap;
         }
 
-        /* ── Context menu: Persephone's Menu in a Popover shell ──────────────────── */
+        /* â”€â”€ Context menu: Persephone's Menu in a Popover shell â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
         .context-menu {
             position: fixed;
             z-index: 10;
@@ -268,75 +268,76 @@
     <main class="workspace">
         <section class="pane torrents-pane" aria-labelledby="torrents-title">
             <header class="pane-header">
-                <h1 id="torrents-title" class="pane-title">Torrents</h1>
+                <h1 id="torrents-title" class="pane-title" data-i18n="panes.torrents">Torrents</h1>
                 <span id="torrent-count" class="pane-count">0</span>
-                <button id="remove-all" class="p-btn ghost sm pane-action" type="button" title="Remove every torrent from the board" disabled>Remove all</button>
+                <button id="remove-all" class="p-btn ghost sm pane-action" type="button" title="Remove every torrent from the board" data-i18n-title="action.removeAll.title" disabled data-i18n="action.removeAll">Remove all</button>
             </header>
-            <ul id="torrent-list" class="list" tabindex="0" role="listbox" aria-label="Session torrents"></ul>
+            <ul id="torrent-list" class="list" tabindex="0" role="listbox" aria-label="Session torrents" data-i18n-aria-label="list.session.aria"></ul>
             <div class="add-row">
                 <input
                     id="source-input"
                     class="p-input"
                     type="text"
-                    placeholder="magnet:?xt=..., an info hash, or a .torrent path"
+                    placeholder="magnet:?xt=..., an info hash, or a .torrent path" data-i18n-placeholder="magnet.placeholder"
                     autocomplete="off"
-                    aria-label="Magnet link, info hash, or torrent path"
+                    aria-label="Magnet link, info hash, or torrent path" data-i18n-aria-label="magnet.aria"
                 />
-                <button id="add-magnet" class="p-btn primary sm" type="button">Add</button>
+                <button id="add-magnet" class="p-btn primary sm" type="button" data-i18n="action.add">Add</button>
             </div>
         </section>
 
-        <div id="splitter" class="splitter" role="separator" aria-orientation="vertical" aria-label="Resize torrent list"></div>
+        <div id="splitter" class="splitter" role="separator" aria-orientation="vertical" aria-label="Resize torrent list" data-i18n-aria-label="splitter.aria"></div>
 
         <section class="pane files-pane" aria-labelledby="files-title">
             <header class="pane-header">
-                <h2 id="files-title" class="pane-title">Files in <span id="selected-torrent">-</span></h2>
+                <h2 id="files-title" class="pane-title"><span data-i18n="panes.files">Files in</span> <span id="selected-torrent">-</span></h2>
                 <span id="file-count" class="pane-count">0</span>
             </header>
-            <ul id="file-list" class="list" tabindex="0" role="listbox" aria-label="Torrent files"></ul>
+            <ul id="file-list" class="list" tabindex="0" role="listbox" aria-label="Torrent files" data-i18n-aria-label="list.files.aria"></ul>
         </section>
     </main>
 
     <dialog id="network-dialog" aria-labelledby="network-dialog-title">
         <form id="network-form" method="dialog">
             <div class="dialog-header">
-                <span id="network-dialog-title">Network</span>
-                <button class="dialog-close" type="button" data-close aria-label="Close">✕</button>
+                <span id="network-dialog-title" data-i18n="network.title">Network</span>
+                <button class="dialog-close" type="button" data-close aria-label="Close" data-i18n-aria-label="action.close">×</button>
             </div>
             <div class="dialog-body">
                 <div class="network-form">
-                    <label for="network-mode">Connection</label>
+                    <label for="network-mode" data-i18n="network.connection">Connection</label>
                     <select id="network-mode" class="p-select">
-                        <option value="direct">Direct</option>
-                        <option value="socks5">SOCKS5 proxy</option>
+                        <option value="direct" data-i18n="network.direct">Direct</option>
+                        <option value="socks5" data-i18n="network.socks5">SOCKS5 proxy</option>
                     </select>
-                    <label class="proxy-field" for="network-host">Host</label>
+                    <label class="proxy-field" for="network-host" data-i18n="network.host">Host</label>
                     <input id="network-host" class="p-input proxy-field" type="text" autocomplete="off" spellcheck="false" placeholder="127.0.0.1" />
-                    <label class="proxy-field" for="network-port">Port</label>
+                    <label class="proxy-field" for="network-port" data-i18n="network.port">Port</label>
                     <input id="network-port" class="p-input proxy-field" type="number" min="1" max="65535" placeholder="1080" />
-                    <label class="proxy-field" for="network-username">Username</label>
-                    <input id="network-username" class="p-input proxy-field" type="text" autocomplete="off" spellcheck="false" placeholder="optional" />
-                    <label class="proxy-field" for="network-password">Password</label>
-                    <input id="network-password" class="p-input proxy-field" type="password" autocomplete="off" placeholder="optional" />
-                    <p class="network-note proxy-field">The username and password are stored in plain text in this board's storage.</p>
-                    <p class="network-note proxy-field">Every tracker, peer, and web-seed connection goes through the proxy, and nothing
+                    <label class="proxy-field" for="network-username" data-i18n="network.username">Username</label>
+                    <input id="network-username" class="p-input proxy-field" type="text" autocomplete="off" spellcheck="false" placeholder="optional" data-i18n-placeholder="network.optional" />
+                    <label class="proxy-field" for="network-password" data-i18n="network.password">Password</label>
+                    <input id="network-password" class="p-input proxy-field" type="password" autocomplete="off" placeholder="optional" data-i18n-placeholder="network.optional" />
+                    <p class="network-note proxy-field" data-i18n="network.credentialsWarning">The username and password are stored in plain text in this board's storage.</p>
+                    <p class="network-note proxy-field" data-i18n="network.proxyWarning">Every tracker, peer, and web-seed connection goes through the proxy, and nothing
                         connects directly if it fails. DHT, uTP, local discovery, and incoming peers are off, so magnet
                         links without trackers may not load, and downloads find fewer peers. UDP trackers need a proxy
                         that relays UDP.</p>
-                    <p class="network-note direct-field">Trackers and peers are reached directly: the swarm sees your IP address.</p>
+                    <p class="network-note direct-field" data-i18n="network.directWarning">Trackers and peers are reached directly: the swarm sees your IP address.</p>
                 </div>
                 <p id="network-result" class="network-result" role="status" aria-live="polite"></p>
             </div>
             <div class="dialog-footer">
-                <button id="network-test" class="network-test proxy-field" type="button">Test</button>
-                <button type="button" data-close>Cancel</button>
-                <button id="network-save" class="primary" type="submit">Save</button>
+                <button id="network-test" class="network-test proxy-field" type="button" data-i18n="network.test">Test</button>
+                <button type="button" data-close data-i18n="action.cancel">Cancel</button>
+                <button id="network-save" class="primary" type="submit" data-i18n="action.save">Save</button>
             </div>
         </form>
     </dialog>
 
     <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
     <div id="context-menu" class="context-menu" role="menu" hidden></div>
+    <script src="./i18n.js"></script>
     <script src="./app.js"></script>
 </body>
 </html>

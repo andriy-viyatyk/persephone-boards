@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>PE Viewer</title>
+    <title data-i18n="document.title">PE Viewer</title>
     <!-- Shared base: page bg, themed scrollbars, monospace default. Linked first; styles below
          build on it. Everything is driven by the --p-* theme contract (fallbacks keep it readable
          before the palette applies). -->
@@ -261,8 +261,8 @@
 </head>
 <body>
     <div id="bar">
-        <span id="name">PE Viewer</span>
-        <button id="reload" class="tool-btn" title="Reload the file from disk" disabled>
+        <span id="name" data-i18n="document.title">PE Viewer</span>
+        <button id="reload" class="tool-btn" title="Reload the file from disk" data-i18n-title="toolbar.reload.title" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <polyline points="23 4 23 10 17 10"></polyline>
@@ -277,6 +277,7 @@
     <!-- Offline; CSP forbids remote network. md5 (for imphash) before the parser, then the app. -->
     <script src="./lib/md5.js"></script>
     <script src="./pe-parser.js"></script>
+    <script src="./i18n.js"></script>
     <script src="./app.js"></script>
 </body>
 </html>

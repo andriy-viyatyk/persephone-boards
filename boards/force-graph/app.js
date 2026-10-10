@@ -6,6 +6,8 @@
 // the UI in graph-ui.js / graph-panels.js — none of them should be redesigned here.
 (() => {
     const P = window.persephone;
+    const t = (key, params) => window.forceGraphT(key, params);
+    applyI18n(document);
     const FG = window.FG;
 
     // -- Models ----------------------------------------------------------
@@ -119,7 +121,7 @@
             P.host.setContent(text);
             lastWritten = text;
         } catch (e) {
-            notify("Force Graph: failed to save - " + errText(e), "error");
+            notify(t("toast.save.error", {error:errText(e)}), "error");
         }
         if (aiVisionModel) aiVisionModel.refresh();
     }
@@ -247,8 +249,8 @@
         const total = visibilityModel.totalNodeCount;
         if (total > 1000) {
             const ok = await FG.showConfirmationDialog({
-                title: "Expand All Nodes",
-                message: "This graph has " + total + " nodes. Expanding all may cause performance issues. Continue?",
+                title: t("dialog.expandAll.title"),
+                message: t("dialog.expandAll.message", { count: total }),
             });
             if (ok !== "Yes") return;
         }
@@ -413,7 +415,7 @@
 
     async function openContent(params) {
         if (!P || typeof P.openContent !== "function") {
-            notify("Force Graph: this Persephone build cannot open content in another editor.", "warning");
+            notify(t("toast.openEditor.unsupported"), "warning");
             return undefined;
         }
         try {
@@ -428,11 +430,11 @@
                         title: params.title, content: params.content,
                     });
                 } catch (inner) {
-                    notify("Force Graph: could not open the extracted graph - " + errText(inner), "error");
+                    notify(t("toast.openExtracted.error", {error:errText(inner)}), "error");
                     return undefined;
                 }
             }
-            notify("Force Graph: could not open a new page - " + errText(e), "error");
+            notify(t("toast.openPage.error", {error:errText(e)}), "error");
             return undefined;
         }
     }
@@ -456,10 +458,10 @@
         try {
             const blob = await canvasBlob();
             await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-            notify("Graph image copied to the clipboard.", "success");
+            notify(t("toast.copy.success"), "success");
             return true;
         } catch (e) {
-            notify("Force Graph: could not copy the image - " + errText(e), "error");
+            notify(t("toast.copy.error", {error:errText(e)}), "error");
             return false;
         }
     }
@@ -516,11 +518,11 @@
     async function openInDrawingEditor() {
         const canvas = $("canvas");
         if (!canvas) {
-            notify("Force Graph: the graph canvas is not mounted.", "error");
+            notify(t("toast.canvasMissing"), "error");
             return undefined;
         }
         const dataUrl = canvas.toDataURL("image/png");
-        const title = (fileName || "Graph").replace(/\.fg\.json$/i, "") + ".excalidraw";
+        const title = (fileName || t("board.name")).replace(/\.fg\.json$/i, "") + ".excalidraw";
         const json = buildExcalidrawJsonWithImage(dataUrl, "image/png", canvas.width, canvas.height);
         try {
             return await P.openContent({ editor: "draw-view", language: "json", title, content: json });
@@ -531,7 +533,7 @@
                 P.openRawLink(dataUrl, { editor: "draw-view" });
                 return undefined;
             } catch (inner) {
-                notify("Force Graph: could not open the drawing - " + errText(inner), "error");
+                notify(t("toast.openDrawing.error", {error:errText(inner)}), "error");
                 return undefined;
             }
         }
@@ -641,7 +643,7 @@
                             links,
                             onOpen: (href) => {
                                 try { P.openRawLink(FG.toNavigableHref(href)); }
-                                catch (e) { notify("Force Graph: could not open the link - " + errText(e), "error"); }
+                                catch (e) { notify(t("toast.openLink.error", {error:errText(e)}), "error"); }
                             },
                         }
                         : undefined,
@@ -704,8 +706,8 @@
 
     function recordsCount() {
         const total = (dataModel.sourceData && dataModel.sourceData.nodes.length) || 0;
-        if (!visibilityModel.active) return total + " nodes";
-        return renderer.getNodes().length + " of " + total + " nodes";
+        if (!visibilityModel.active) return t("status.nodeCount", {count:total});
+        return t("status.visibleNodes", {visible:renderer.getNodes().length,total});
     }
 
     function hasGroups() {
@@ -726,7 +728,7 @@
             errorPanel.textContent = "";
             const title = document.createElement("div");
             title.className = "error-title";
-            title.textContent = "This file is not valid JSON.";
+            title.textContent = t("state.invalidJson");
             errorPanel.appendChild(title);
             errorPanel.appendChild(document.createTextNode(parseError));
         }
@@ -735,7 +737,7 @@
         const grouping = $("toggle-grouping");
         grouping.disabled = !hasGroups();
         grouping.classList.toggle("off", !groupingEnabled);
-        grouping.title = groupingEnabled ? "Disable grouping" : "Enable grouping";
+        grouping.title = groupingEnabled ? t("toolbar.grouping.disable") : t("toolbar.grouping.enable");
 
         $("expand-all").disabled = !visibilityModel.active;
         $("settings").classList.toggle("selected", !!panels && panels.state.panel === "settings");
@@ -763,12 +765,12 @@
         $("search-clear").hidden = !searchQuery;
 
         $("search-info").textContent = searchInfo
-            ? searchInfo.visible + " visible / " + searchInfo.hidden + " hidden / " + searchInfo.total + " total"
+            ? t("search.summary", searchInfo)
             : "";
 
         const selInfo = $("selection-info");
         selInfo.hidden = selectedNodes.length === 0;
-        selInfo.textContent = selectedNodes.length + " selected ▾";
+        selInfo.textContent = t("selection.count", {count:selectedNodes.length}) + " ?";
 
         if (legend) legend.update();
         if (detail) detail.update();
@@ -933,7 +935,7 @@
             text = await P.host.getContent();
         } catch (e) {
             loading = false;
-            $("empty-hint").textContent = "Open a .fg.json file to view it here.";
+            $("empty-hint").textContent = t("empty.open");
             refreshChrome();
             return;
         }

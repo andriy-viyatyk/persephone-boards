@@ -2,22 +2,22 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Agent Chess</title>
+    <title data-i18n="chess.documentTitle">Agent Chess</title>
     <link rel="stylesheet" href="./board-base.css" />
     <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
     <div id="bar" class="p-toolbar">
-        <button id="newWhite" class="p-btn" data-name="new-white" title="Start a new game: you play White and move first">New game: I'm White</button>
-        <button id="newBlack" class="p-btn" data-name="new-black" title="Start a new game: you play Black, the agent moves first">New game: I'm Black</button>
+        <button id="newWhite" data-i18n="chess.game.newWhite" class="p-btn" data-name="new-white" title="Start a new game: you play White and move first" data-i18n-title="chess.game.newWhite.title">New game: I'm White</button>
+        <button id="newBlack" data-i18n="chess.game.newBlack" class="p-btn" data-name="new-black" title="Start a new game: you play Black, the agent moves first" data-i18n-title="chess.game.newBlack.title">New game: I'm Black</button>
         <span class="p-sep"></span>
-        <button id="takeback" class="p-btn" data-name="takeback" title="Take back your last move (and the agent's reply to it)">Take back</button>
-        <button id="resign" class="p-btn" data-name="resign" title="Resign this game">Resign</button>
+        <button id="takeback" data-i18n="chess.game.takeback" class="p-btn" data-name="takeback" title="Take back your last move (and the agent's reply to it)" data-i18n-title="chess.game.takeback.title">Take back</button>
+        <button id="resign" data-i18n="chess.game.resign" class="p-btn" data-name="resign" title="Resign this game" data-i18n-title="chess.game.resign.title">Resign</button>
         <span class="p-spacer"></span>
-        <button id="flip" class="p-btn icon ghost" title="Flip the board">
+        <button id="flip" class="p-btn icon ghost" title="Flip the board" data-i18n-title="chess.board.flip.title">
             <svg viewBox="0 0 24 24"><path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3"/></svg>
         </button>
-        <button id="copyPgn" class="p-btn" title="Copy the game as PGN">Copy PGN</button>
+        <button id="copyPgn" data-i18n="chess.pgn.copy" class="p-btn" title="Copy the game as PGN" data-i18n-title="chess.pgn.copy.title">Copy PGN</button>
     </div>
 
     <main id="main">
@@ -40,13 +40,14 @@
             <div id="moves" data-name="moves"></div>
             <div id="chat" data-name="chat"></div>
             <form id="chatForm">
-                <input id="chatInput" data-name="chat-input" class="p-input" placeholder="Message your agent…" autocomplete="off" />
+                <input id="chatInput" data-i18n-placeholder="chess.chat.placeholder" data-name="chat-input" class="p-input" placeholder="Message your agent…" autocomplete="off" />
             </form>
         </aside>
     </main>
 
     <div id="sprite" hidden></div>
     <script src="./lib/chess.js"></script>
+    <script src="./i18n.js"></script>
     <script src="./app.js"></script>
 </body>
 </html>

@@ -26,3 +26,7 @@ first — the plumbing has usually been solved once already.
 - The generic board authoring reference (the `persephone.*` bridge, `--p-*` theme contract, CSP,
   reload/test loop) lives in the Persephone app — from inside Persephone use the
   **`read_guide("boards")`** MCP tool. These recipes are the *specific* cases that guide points to.
+- Board UI languages (`lang/<code>.json` packs, `persephone.i18n.t()`, the `manifest.*` keys and
+  the steps for adding a language to a board) are covered in the **Languages** section of that
+  same guide (`guides.agents.boards` over MCP, or the `persephone://guides/boards` resource). A
+  board that uses `persephone.locale` or `persephone.i18n` needs `minBridgeVersion: "1.36.0"`.

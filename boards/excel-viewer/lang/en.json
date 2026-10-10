@@ -1,0 +1,14 @@
+{
+  "messages": {
+    "document.title": "Excel Viewer",
+    "search.placeholder": "Search…",
+    "toolbar.reload.title": "Reload the file from disk",
+    "state.sheetEmpty": "This sheet is empty.",
+    "state.loading": "Loading…",
+    "state.noFile": "No file open.",
+    "state.supportedTypes": "Open an .xlsx or .xls file to view it here.",
+    "state.noSheets": "This workbook has no sheets.",
+    "state.openError": "Could not open this file.",
+    "toast.openError": "Could not open this file: {error}"
+  }
+}

@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>PDF Viewer</title>
+    <title data-i18n="document.title">PDF Viewer</title>
     <link rel="stylesheet" href="./board-base.css" />
     <style>
         html, body {
@@ -70,7 +70,7 @@
     </style>
 </head>
 <body>
-    <iframe id="viewer" title="PDF document"></iframe>
+    <iframe id="viewer" title="PDF document" data-i18n-title="frame.title"></iframe>
 
     <div id="status" class="visible">
         <div id="status-title">Loading…</div>
@@ -79,6 +79,7 @@
     </div>
 
     <script src="./pdf-aivision.js"></script>
+    <script src="./i18n.js"></script>
     <script src="./app.js"></script>
 </body>
 </html>

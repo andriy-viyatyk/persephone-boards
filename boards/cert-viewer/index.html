@@ -3,22 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Certificate Viewer</title>
+  <title data-i18n="document.title">Certificate Viewer</title>
   <link rel="stylesheet" href="./board-base.css">
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
   <main id="main" class="main">
-    <section id="state" class="state" aria-live="polite">Open a certificate file to inspect it.</section>
+    <section id="state" class="state" aria-live="polite" data-i18n="empty.open">Open a certificate file to inspect it.</section>
     <section id="report" class="report" hidden>
       <aside class="cert-list-pane">
-        <div class="section-heading"><strong>Certificates</strong><span id="cert-count" class="muted"></span></div>
+        <div class="section-heading"><strong data-i18n="list.title">Certificates</strong><span id="cert-count" class="muted"></span></div>
         <div id="cert-list" class="cert-list"></div>
-        <p id="order-note" class="note" hidden>Order is best-effort from subject and issuer names. It does not establish trust or validate a chain.</p>
+        <p id="order-note" class="note" data-i18n="order.note" hidden>Order is best-effort from subject and issuer names. It does not establish trust or validate a chain.</p>
       </aside>
       <article class="detail-pane">
         <div id="selection-title" class="selection-title"></div>
-        <nav id="tabs" class="tabs" aria-label="Certificate report sections"></nav>
+        <nav id="tabs" class="tabs" aria-label="Certificate report sections" data-i18n-aria-label="tabs.aria"></nav>
         <div id="panel" class="panel"></div>
       </article>
     </section>
@@ -26,18 +26,19 @@
 
   <dialog id="password-dialog" aria-labelledby="password-title">
     <form id="password-form" method="dialog">
-      <h2 id="password-title">PKCS#12 password</h2>
-      <p>This file may be encrypted. Enter its password to list public certificates.</p>
-      <label for="password-input">Password</label>
+      <h2 id="password-title" data-i18n="password.title">PKCS#12 password</h2>
+      <p data-i18n="password.help">This file may be encrypted. Enter its password to list public certificates.</p>
+      <label for="password-input" data-i18n="password.label">Password</label>
       <input id="password-input" class="p-input" type="password" autocomplete="current-password">
       <div id="password-error" class="password-error" role="status"></div>
-      <div class="dialog-actions"><button id="password-cancel" class="p-btn" value="cancel" type="button">Cancel</button><button class="p-btn primary" value="submit" type="submit">Open</button></div>
+      <div class="dialog-actions"><button id="password-cancel" class="p-btn" value="cancel" type="button" data-i18n="password.cancel">Cancel</button><button class="p-btn primary" value="submit" type="submit" data-i18n="password.open">Open</button></div>
     </form>
   </dialog>
 
   <script src="./x509-reflect-shim.js"></script>
   <script src="./lib/peculiar-x509/x509.js"></script>
   <script src="./cert-parser.js"></script>
-  <script src="./app.js"></script>
+  <script src="./i18n.js"></script>
+    <script src="./app.js"></script>
 </body>
 </html>

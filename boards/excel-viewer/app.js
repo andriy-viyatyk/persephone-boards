@@ -6,6 +6,7 @@
 // read_guide("boards") for the generic persephone.* bridge reference.
 
 const P = window.persephone;
+const t = window.excelT;
 
 // av-grid's UMD build puts the whole module namespace on `window.AVGrid`; the class is
 // `AVGrid.AVGrid` (the helpers — `inferColumns`, `detectColumnWidths`, … — hang off the same
@@ -240,7 +241,7 @@ function renderSheet(name) {
     searchEl.disabled = rows.length === 0;
 
     if (rows.length === 0) {
-        showState("This sheet is empty.");
+        showState(t("state.sheetEmpty"));
         // Still a view change worth announcing: the active sheet is now this one, and the agent
         // surface reports there is no grid rather than describing the previous sheet's.
         if (aiVisionModel) aiVisionModel.sheetChanged();
@@ -275,7 +276,7 @@ function renderSheet(name) {
 
 async function load() {
     try {
-        showState("Loading…");
+        showState(t("state.loading"));
         // Every cache in the agent surface belongs to the workbook being replaced.
         if (aiVisionModel) aiVisionModel.workbookChanged();
         reloadBtn.disabled = true;
@@ -290,9 +291,9 @@ async function load() {
             fileBytes = null;
             activeSheet = null;
             destroyGrid();
-            nameEl.textContent = "Excel Viewer";
+            nameEl.textContent = t("document.title");
             renderTabs();
-            showState("No file open.\nOpen a .xlsx or .xls file to view it here.");
+            showState(t("state.noFile") + "\n" + t("state.supportedTypes"));
             return;
         }
 
@@ -316,7 +317,7 @@ async function load() {
 
         const names = workbook.SheetNames || [];
         if (names.length === 0) {
-            showState("This workbook has no sheets.");
+            showState(t("state.noSheets"));
             renderTabs();
             return;
         }
@@ -328,8 +329,8 @@ async function load() {
         const message = err && err.message ? err.message : String(err);
         fileBytes = null;
         destroyGrid();
-        showState("Could not open this file.\n" + message, true);
-        P.notify(message, "error");
+        showState(t("state.openError") + "\n" + message, true);
+        P.notify(t("toast.openError", { error: message }), "error");
     }
 }
 

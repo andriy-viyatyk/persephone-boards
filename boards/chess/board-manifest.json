@@ -4,9 +4,10 @@
   "description": "Play chess against your own AI agent. You move with the mouse; the agent connected to Persephone (Claude Code, Codex, …) reads the position and moves through the board's model, talks to you in the side chat and draws arrows to explain its ideas. Illegal moves are rejected.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minAppVersion": "5.0.8",
-  "minBridgeVersion": "1.30.0",
+  "minBridgeVersion": "1.36.0",
+  "languages": { "folder": "lang", "default": "en" },
   "permissions": {
     "execute": false,
     "service": false,

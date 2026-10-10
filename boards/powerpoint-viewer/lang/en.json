@@ -1,0 +1,14 @@
+{
+  "messages": {
+    "document.title": "PowerPoint Viewer",
+    "slides.counter.empty": "–",
+    "slides.previous.title": "Previous slide",
+    "slides.next.title": "Next slide",
+    "toolbar.reload.title": "Reload the file from disk",
+    "state.loading": "Loading…",
+    "state.noFile": "No file open. Open a .pptx file to view it here.",
+    "state.noSlides": "This deck has no slides.",
+    "state.openError": "Could not open this file.",
+    "toast.openError": "Could not open this file: {error}"
+  }
+}

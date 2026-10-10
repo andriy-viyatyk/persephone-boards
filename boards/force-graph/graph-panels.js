@@ -11,6 +11,7 @@
 // refresh is cheap next to a canvas repaint.
 (() => {
     const FG = (window.FG = window.FG || {});
+    const t = window.forceGraphT;
     const el = (...args) => FG.el(...args);
 
     const SHAPES = ["circle", "square", "diamond", "triangle", "star", "hexagon"];
@@ -36,7 +37,7 @@
         let descriptionTimers = new Map();
         let appliedSignature = "";
 
-        const title = el("span", { class: "fg-panel-title", text: "Legend" });
+        const title = el("span", { class: "fg-panel-title", text: t("legend.title") });
         const chevron = el("span", { class: "fg-chevron", text: "▲" });
         const header = el("div", { class: "fg-panel-header", "data-name": "graph-legend-toggle" }, title, chevron);
         const body = el("div", { class: "fg-legend-body" });
@@ -54,7 +55,7 @@
             for (const tab of ["selection", "level", "shape"]) {
                 const button = el("button", {
                     class: "fg-tab", type: "button", "data-name": "graph-legend-tab-" + tab,
-                    text: tab.charAt(0).toUpperCase() + tab.slice(1),
+                    text: t("legend.tab." + tab),
                     onclick: () => { state.activeTab = tab; update(); },
                 });
                 if (state.activeTab === tab) button.dataset.active = "";
@@ -95,7 +96,7 @@
             if (isLevel) {
                 for (const level of LEVELS) keys.push({ key: String(level), label: "Level " + level, icon: () => FG.createLevelIconElement(level, 14) });
             } else {
-                for (const shape of SHAPES) keys.push({ key: shape, label: shape.charAt(0).toUpperCase() + shape.slice(1), icon: () => FG.createShapeIconElement(shape, 14) });
+                for (const shape of SHAPES) keys.push({ key: shape, label: t("legend.shape." + shape), icon: () => FG.createShapeIconElement(shape, 14) });
             }
 
             const rows = el("div", { class: "fg-legend-content" });
@@ -177,8 +178,8 @@
             if (state.expanded) {
                 if (ctx.getSearchQuery()) {
                     body.append(el("div", { class: "fg-legend-notice" },
-                        el("span", { text: "Search highlighting is active" }),
-                        el("button", { class: "p-btn link sm", text: "Clear search", onclick: () => ctx.setSearchQuery("") }),
+                        el("span", { text: t("search.highlightActive") }),
+                        el("button", { class: "p-btn link sm", text: t("search.clear"), onclick: () => ctx.setSearchQuery("") }),
                     ));
                 } else {
                     body.append(tabStrip());
@@ -224,7 +225,7 @@
         let propsStatus = "";
         let appliedLinksSignature = null;
 
-        const title = el("span", { class: "fg-panel-title", text: "select node for edit" });
+        const title = el("span", { class: "fg-panel-title", text: t("detail.selectNode") });
         const chevron = el("span", { class: "fg-chevron", text: "▼" });
         const header = el("div", { class: "fg-panel-header", "data-name": "graph-detail-toggle" }, title, chevron);
         const body = el("div", { class: "fg-detail-body" });
@@ -303,7 +304,7 @@
             const value = state.editId.trim();
             if (value === node.id) { state.idError = ""; update(); return; }
             if (!value) { state.editId = node.id; state.idError = ""; update(); return; }
-            state.idError = ctx.actions.renameNode(node.id, value) ? "" : "ID already exists";
+            state.idError = ctx.actions.renameNode(node.id, value) ? "" : t("detail.idExists");
             update();
         }
 
@@ -349,7 +350,7 @@
             const levels = new Set(nodes.map((n) => (n.level == null ? 5 : n.level)));
             const shapes = new Set(nodes.map((n) => n.shape || "circle"));
             return el("div", { class: "fg-detail-info" },
-                el("div", { class: "fg-detail-note", text: "Batch edit level and shape for " + nodes.length + " selected nodes" }),
+                el("div", { class: "fg-detail-note", text: t("detail.batchEdit", {count:nodes.length}) }),
                 field("Level", iconRow("level",
                     (level) => ctx.actions.batchUpdateNodeProps(ids, { level }),
                     (level) => levels.size === 1 && levels.has(level),
@@ -396,9 +397,9 @@
         function linksTab(node) {
             const host = el("div", { class: "fg-grid-host" });
             const actionsRow = el("div", { class: "fg-grid-actions" });
-            const cancel = el("button", { class: "p-btn sm ghost", text: "Cancel", onclick: () => { seedLinks(ctx.getLinkedNodes()); update(); } });
+            const cancel = el("button", { class: "p-btn sm ghost", text: t("dialog.cancel"), onclick: () => { seedLinks(ctx.getLinkedNodes()); update(); } });
             const apply = el("button", {
-                class: "p-btn sm primary", text: "Apply",
+                class: "p-btn sm primary", text: t("dialog.apply"),
                 onclick: () => {
                     const rows = (linksGrid ? linksGrid.getRows() : linksRows).map((row) => {
                         const copy = Object.assign({}, row);
@@ -500,9 +501,9 @@
             const status = el("div", { class: "fg-detail-status", text: propsStatus });
             status.hidden = !propsStatus;
             const actionsRow = el("div", { class: "fg-grid-actions" });
-            const cancel = el("button", { class: "p-btn sm ghost", text: "Cancel", onclick: () => { seedProperties(nodes); update(); } });
+            const cancel = el("button", { class: "p-btn sm ghost", text: t("dialog.cancel"), onclick: () => { seedProperties(nodes); update(); } });
             const apply = el("button", {
-                class: "p-btn sm primary", text: "Apply",
+                class: "p-btn sm primary", text: t("dialog.apply"),
                 onclick: () => {
                     const rows = propsGrid ? propsGrid.getRows() : propsRows;
                     const propsToSet = {};
@@ -563,9 +564,9 @@
                                 const row = rows.find((item) => item._rowKey === focus.rowKey);
                                 const info = row && row.key ? propsMultiInfo.get(row.key) : undefined;
                                 if (!info) propsStatus = "";
-                                else if (info.allSame) propsStatus = "All nodes have the same value";
-                                else if (!info.uniqueValues.length) propsStatus = "No nodes have this property";
-                                else propsStatus = "Values: " + info.uniqueValues.slice(0, 2).map((v) => '"' + v + '"').join(", ") + (info.uniqueValues.length > 2 ? ", ..." : "");
+                                else if (info.allSame) propsStatus = t("detail.allSame");
+                                else if (!info.uniqueValues.length) propsStatus = t("detail.noValues");
+                                else propsStatus = t("detail.values", {values:info.uniqueValues.slice(0, 2).map((v) => '"' + v + '"').join(", ") + (info.uniqueValues.length > 2 ? ", ..." : "")});
                             }
                             status.textContent = propsStatus;
                             status.hidden = !propsStatus;
@@ -590,7 +591,7 @@
             for (const tab of ["info", "properties", "links"]) {
                 const button = el("button", {
                     class: "fg-tab", type: "button", "data-name": "graph-detail-tab-" + tab,
-                    text: tab.charAt(0).toUpperCase() + tab.slice(1),
+                    text: t("detail.tab." + tab),
                     onclick: () => { if (!dirty()) { state.activeTab = tab; update(); } },
                 });
                 button.hidden = tab === "links" && nodes.length !== 1;
@@ -636,8 +637,8 @@
             }
 
             const headerText = nodes.length > 1
-                ? nodes.length + " nodes selected"
-                : nodes.length === 1 ? FG.nodeLabel(nodes[0]) : "select node for edit";
+                ? t("detail.selectedNodes", {count:nodes.length})
+                : nodes.length === 1 ? FG.nodeLabel(nodes[0]) : t("detail.selectNode");
             title.textContent = headerText;
             title.title = headerText;
             chevron.hidden = nodes.length === 0;
@@ -754,7 +755,7 @@
                     el("span", { class: "fg-tuning-label", text: definition.label }), slider, readout));
             }
             panel.append(el("div", { class: "fg-tuning-actions" },
-                el("button", { class: "p-btn sm ghost", "data-name": "tuning-reset", text: "Reset", onclick: () => { ctx.resetForceParams(); update(); } })));
+                el("button", { class: "p-btn sm ghost", "data-name": "tuning-reset", text: t("tuning.reset"), onclick: () => { ctx.resetForceParams(); update(); } })));
             return panel;
         }
 
@@ -766,14 +767,14 @@
                 .slice()
                 .sort((a, b) => FG.nodeLabel(a).localeCompare(FG.nodeLabel(b)))
                 .map((node) => ({ value: node.id, label: FG.nodeLabel(node) }));
-            options.unshift({ value: AUTO_ROOT, label: "(auto — lowest level)" });
+            options.unshift({ value: AUTO_ROOT, label: t("expansion.autoRoot") });
 
             const current = ctx.getExpansionOptions().rootNode || AUTO_ROOT;
             const selectedOption = options.find((item) => item.value === current) || options[0];
 
             const input = el("input", {
                 class: "p-input sm fg-combo-input", type: "text", spellcheck: "false",
-                "data-name": "graph-expansion-root", placeholder: "Filter nodes…",
+                "data-name": "graph-expansion-root", placeholder: t("expansion.filterNodes"),
             });
             input.value = selectedOption.label;
             const list = el("div", { class: "fg-combo-list" });
@@ -789,7 +790,7 @@
                     ? options.filter((item) => item.label.toLowerCase().includes(needle) || String(item.value).toLowerCase().includes(needle))
                     : options;
                 if (matches.length === 0) {
-                    list.append(el("div", { class: "fg-combo-empty", text: "No matching node" }));
+                    list.append(el("div", { class: "fg-combo-empty", text: t("expansion.noNode") }));
                     return;
                 }
                 for (const item of matches.slice(0, 200)) {
@@ -843,18 +844,18 @@
         function expansionPanel() {
             const opts = ctx.getExpansionOptions();
             const panel = el("div", { class: "fg-panel fg-expansion", "data-name": "graph-expansion-settings" });
-            panel.append(el("div", { class: "fg-expansion-row" }, el("span", { class: "fg-expansion-label", text: "Root Node" }), createRootCombo()));
+            panel.append(el("div", { class: "fg-expansion-row" }, el("span", { class: "fg-expansion-label", text: t("expansion.rootNode") }), createRootCombo()));
             panel.append(el("div", { class: "fg-expansion-row" },
-                el("span", { class: "fg-expansion-label", text: "Expand Depth" }),
+                el("span", { class: "fg-expansion-label", text: t("expansion.depth") }),
                 numberField("graph-expansion-depth", "∞ (unlimited)",
                     () => (opts.expandDepth !== undefined ? String(opts.expandDepth) : ""),
                     (value) => ctx.updateExpansionOptions({ expandDepth: value }), 1)));
             panel.append(el("div", { class: "fg-expansion-row" },
-                el("span", { class: "fg-expansion-label", text: "Max Visible" }),
-                numberField("graph-expansion-max", "500 (default)",
+                el("span", { class: "fg-expansion-label", text: t("expansion.maxVisible") }),
+                numberField("graph-expansion-max", t("expansion.visiblePlaceholder"),
                     () => (opts.maxVisible !== undefined ? String(opts.maxVisible) : ""),
                     (value) => ctx.updateExpansionOptions({ maxVisible: value }), 10)));
-            panel.append(el("div", { class: "fg-expansion-note", text: "Depth and max visible apply when file is reopened" }));
+            panel.append(el("div", { class: "fg-expansion-note", text: t("expansion.reopenNote") }));
             return panel;
         }
 
@@ -865,7 +866,7 @@
             const query = ctx.getSearchQuery();
 
             if (!results || results.length === 0) {
-                panel.append(el("div", { class: "fg-results-empty", text: query ? "No results" : "Type to search" }));
+                panel.append(el("div", { class: "fg-results-empty", text: query ? t("search.noResults") : t("search.typeToSearch") }));
             } else {
                 const rows = el("div", { class: "fg-results-rows" });
                 const displayed = results.slice(0, MAX_DISPLAYED_RESULTS);
@@ -887,18 +888,18 @@
                 });
                 panel.append(rows);
                 const extra = results.length - MAX_DISPLAYED_RESULTS;
-                if (extra > 0) panel.append(el("div", { class: "fg-results-empty", text: "and " + extra + " more..." }));
+                if (extra > 0) panel.append(el("div", { class: "fg-results-empty", text: t("search.more", {count:extra}) }));
             }
 
             const info = ctx.getSearchInfo();
             if (info) {
-                const status = el("div", { class: "fg-results-status" }, el("span", { text: info.visible + " visible" }));
+                const status = el("div", { class: "fg-results-status" }, el("span", { text: t("search.visible", {count:info.visible}) }));
                 if (info.hidden > 0) {
-                    status.append(el("button", { class: "p-btn link sm", "data-name": "graph-reveal-hidden", text: "[+" + info.hidden + " hidden]", onclick: () => ctx.revealHiddenMatches() }));
+                    status.append(el("button", { class: "p-btn link sm", "data-name": "graph-reveal-hidden", text: t("search.hidden", {count:info.hidden}), onclick: () => ctx.revealHiddenMatches() }));
                 }
                 status.append(el("button", {
                     class: "p-btn link sm", "data-name": "graph-select-results",
-                    text: ctx.renderer.selectedIds.size > 0 ? "[add to selection]" : "[select all]",
+                    text: ctx.renderer.selectedIds.size > 0 ? t("search.addSelection") : t("search.selectAll"),
                     onclick: () => ctx.selectSearchResults(),
                 }));
                 panel.append(status);

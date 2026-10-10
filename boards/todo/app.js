@@ -11,6 +11,7 @@
 // authoritative state.init(); every frame reads via onChange and computes its own
 // view from the shared parsed data + shared selection.
 (() => {
+    applyI18n();
     const P = window.persephone;
     const role = (P && P.view) || "main"; // "main" | "lists"
 
@@ -134,7 +135,7 @@
             P.host.setContent(text);
             lastWritten = text;
         } catch (e) {
-            P.notify("Todo board: failed to save — " + (e && e.message ? e.message : e), "error");
+            P.notify(t("todo.error.save", { error: e && e.message ? e.message : e }), "error");
         }
     }
 
@@ -265,7 +266,7 @@
     async function deleteItem(id) {
         const it = item(id);
         if (!it) return;
-        if (!(await confirmAction(`Delete "${it.title || "this item"}"?`))) return;
+        if (!(await confirmAction(t("todo.confirm.deleteItem", { title: it.title || "this item" })))) return;
         deleteItemCore(id);
     }
 
@@ -296,7 +297,7 @@
         render();
     }
     async function deleteList(name) {
-        if (!(await confirmAction(`Delete list "${name}"? Its items become unassigned.`))) return;
+        if (!(await confirmAction(t("todo.confirm.deleteList", { name })))) return;
         deleteListCore(name);
     }
 
@@ -333,7 +334,7 @@
         render();
     }
     async function deleteTag(name) {
-        if (!(await confirmAction(`Delete tag "${name}"?`))) return;
+        if (!(await confirmAction(t("todo.confirm.deleteTag", { name })))) return;
         deleteTagCore(name);
     }
 
@@ -735,8 +736,8 @@
         const now = new Date();
         const sameDay = d.toDateString() === now.toDateString();
         return sameDay
-            ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-            : d.toLocaleDateString();
+            ? d.toLocaleTimeString(persephone.locale.code, { hour: "2-digit", minute: "2-digit" })
+            : d.toLocaleDateString(persephone.locale.code);
     }
 
     // Preserve focus + caret across a list rebuild (a cross-frame content change can
@@ -765,8 +766,8 @@
             const done = (v) => { overlay.remove(); resolve(v); };
             box.appendChild(el("div", { class: "confirm-msg", text: message }));
             const row = el("div", { class: "confirm-actions" });
-            row.appendChild(el("button", { class: "btn", text: "Cancel", onclick: () => done(false) }));
-            row.appendChild(el("button", { class: "btn danger", text: "Delete", onclick: () => done(true) }));
+            row.appendChild(el("button", { class: "btn", text: t("todo.confirm.cancel"), onclick: () => done(false) }));
+            row.appendChild(el("button", { class: "btn danger", text: t("todo.confirm.confirm"), onclick: () => done(true) }));
             box.appendChild(row);
             overlay.appendChild(box);
             overlay.addEventListener("click", (e) => { if (e.target === overlay) done(false); });
@@ -785,7 +786,7 @@
         Promise.resolve(P.getFilePath && P.getFilePath())
             .then((fp) => {
                 fileName = fp ? fp.replace(/^.*[\\/]/, "") : "";
-                if (fileName) $("file-name").textContent = fileName;
+                if (fileName) $("file-name").textContent = fileName; else $("file-name").textContent = t("todo.documentTitle");
             })
             .catch(() => {});
     }
@@ -799,7 +800,7 @@
 
         // Header list switch — always shows the current list ("All" when none selected). Clicking
         // it opens the list picker (see wireMainChrome/openListSwitch).
-        $("list-name").textContent = sel.selectedList || "All";
+        $("list-name").textContent = sel.selectedList || t("todo.list.all");
 
         const qa = $("quick-add-input");
         const locked = !sel.selectedList;
@@ -808,7 +809,7 @@
         // the built-in editor just disables the input, which hides where to pick a list.
         qa.readOnly = locked;
         qa.classList.toggle("locked", locked);
-        qa.placeholder = locked ? "Select a list to add items…" : "Add an item…";
+        qa.placeholder = locked ? t("todo.item.add.locked") : t("todo.item.add.placeholder");
 
         const { undone, done } = filteredItems();
         const totalAll = data.items.length;
@@ -816,26 +817,26 @@
         // Item count → the host footer via persephone.setStatusText (mirrors the built-in Todo,
         // which shows the count in its footer). Optional-call: on an app build without the method
         // the count simply doesn't show (minAppVersion 4.0.17 guarantees it), never throws.
-        P.setStatusText?.(shown === totalAll ? `${totalAll} items` : `${shown} of ${totalAll} items`);
+        P.setStatusText?.(shown === totalAll ? t("todo.status.itemCount", { count: totalAll }) : t("todo.status.filteredCount", { shown, count: totalAll }));
 
         const empty = $("main-empty");
         const list = $("todo-list");
         if (parseError) {
             list.hidden = true;
             empty.hidden = false;
-            empty.textContent = "This file isn't valid JSON — fix it in Monaco to edit here.";
+            empty.textContent = t("todo.error.invalidJson");
             return;
         }
         if (totalAll === 0) {
             list.hidden = true;
             empty.hidden = false;
-            empty.textContent = "No items yet. Create a list in the Lists & Tags panel, then add items.";
+            empty.textContent = t("todo.empty.new");
             return;
         }
         if (shown === 0) {
             list.hidden = true;
             empty.hidden = false;
-            empty.textContent = "No items match the current filter.";
+            empty.textContent = t("todo.empty.filtered");
             return;
         }
         empty.hidden = true;
@@ -845,7 +846,7 @@
         clear(list);
         for (const it of undone) list.appendChild(renderItemRow(it));
         if (done.length) {
-            list.appendChild(el("div", { class: "done-separator", text: "Done" }));
+            list.appendChild(el("div", { class: "done-separator", text: t("todo.separator.done") }));
             for (const it of done) list.appendChild(renderItemRow(it));
         }
         restoreFocus(focus);
@@ -858,7 +859,7 @@
         const checkbox = el("input", {
             class: "checkbox",
             type: "checkbox",
-            title: it.done ? "Mark not done" : "Mark done",
+            title: t(it.done ? "todo.item.markNotDone" : "todo.item.markDone"),
             onchange: () => toggleItem(it.id),
         });
         checkbox.checked = it.done;
@@ -877,7 +878,7 @@
         // Comment: `null` = no comment (show the add button); otherwise the same view/edit swap.
         if (it.comment === null) {
             col.appendChild(
-                el("button", { class: "add-comment", text: "+ Add comment", onclick: () => addComment(it.id) }),
+                el("button", { class: "add-comment", text: t("todo.item.addComment"), onclick: () => addComment(it.id) }),
             );
         } else if (editingField && editingField.itemId === it.id && editingField.field === "comment") {
             col.appendChild(buildCommentEditor(it));
@@ -894,12 +895,12 @@
         right.appendChild(
             el("span", {
                 class: "item-date",
-                title: `Created ${formatDate(it.createdDate)}${it.doneDate ? " · Done " + formatDate(it.doneDate) : ""}`,
+                title: t("todo.date.created", { created: formatDate(it.createdDate), done: it.doneDate ? formatDate(it.doneDate) : "" }),
                 text: it.done ? formatDate(it.doneDate) : formatDate(it.createdDate),
             }),
         );
         right.appendChild(
-            el("button", { class: "icon-btn delete", title: "Delete item", text: "✕", onclick: () => deleteItem(it.id) }),
+            el("button", { class: "icon-btn delete", title: t("todo.item.delete.title"), text: "✕", onclick: () => deleteItem(it.id) }),
         );
         row.appendChild(right);
         return row;
@@ -989,7 +990,7 @@
     function buildCommentView(it) {
         const view = el("div", { class: "item-comment item-view" });
         if (it.comment) appendHighlighted(view, it.comment, sel.searchText);
-        else { view.classList.add("placeholder"); view.textContent = "Comment…"; }
+        else { view.classList.add("placeholder"); view.textContent = t("todo.comment.placeholder"); }
         view.addEventListener("mousedown", (e) => {
             e.preventDefault();
             beginEdit(view, it, "comment", caretOffsetFromClick(view, e));
@@ -999,7 +1000,7 @@
 
     function buildCommentEditor(it) {
         const comment = el("textarea", {
-            class: "item-comment", rows: "1", placeholder: "Comment…",
+            class: "item-comment", rows: "1", placeholder: t("todo.comment.placeholder"),
             "data-item-id": it.id, "data-field": "comment",
         });
         comment.value = it.comment;
@@ -1050,13 +1051,13 @@
     function renderTagChip(it) {
         const wrap = el("div", { class: "tag-chip-wrap" });
         const current = it.tag ? data.tags.find((t) => t.name === it.tag) : null;
-        const chip = el("button", { class: "tag-chip", title: "Set tag" });
+        const chip = el("button", { class: "tag-chip", title: t("todo.tag.set.title") });
         if (current) {
             if (current.color) chip.appendChild(el("span", { class: "dot", style: `background:${current.color}` }));
             chip.appendChild(document.createTextNode(current.name));
             if (matchesSearch(current.name)) chip.classList.add("hl-chip");
         } else {
-            chip.textContent = "＋ tag";
+            chip.textContent = t("todo.tag.add");
             chip.classList.add("muted");
         }
         chip.addEventListener("click", () => openTagMenu(wrap, it));
@@ -1075,7 +1076,7 @@
             opt.addEventListener("click", () => { setItemTag(it.id, name); menu.remove(); });
             menu.appendChild(opt);
         };
-        add("No tag", null, "");
+        add(t("todo.tag.none"), null, "");
         for (const t of data.tags) add(t.name, t.name, t.color);
         anchor.appendChild(menu);
         setTimeout(() => {
@@ -1094,7 +1095,7 @@
 
         body.appendChild(
             selectableRow({
-                label: "All",
+                label: t("todo.list.all"),
                 selected: sel.selectedList === "",
                 count: counts[""],
                 onclick: () => setSelectedList(""),
@@ -1124,7 +1125,7 @@
 
         body.appendChild(
             selectableRow({
-                label: "All Tags",
+                label: t("todo.list.allTags"),
                 selected: sel.selectedTag === "",
                 onclick: () => setSelectedTag(""),
             }),
@@ -1162,17 +1163,17 @@
         }
         const actions = el("div", { class: "row-actions" });
         if (opts.onColor) {
-            const btn = el("button", { class: "icon-btn tiny", title: "Set color", text: "🎨" });
+            const btn = el("button", { class: "icon-btn tiny", title: t("todo.tag.color"), text: "🎨" });
             btn.addEventListener("click", (e) => { e.stopPropagation(); opts.onColor(row); });
             actions.appendChild(btn);
         }
         if (opts.onRename) {
-            const btn = el("button", { class: "icon-btn tiny", title: "Rename", text: "✎" });
+            const btn = el("button", { class: "icon-btn tiny", title: t("todo.tag.rename"), text: "✎" });
             btn.addEventListener("click", (e) => { e.stopPropagation(); opts.onRename(); });
             actions.appendChild(btn);
         }
         if (opts.onDelete) {
-            const btn = el("button", { class: "icon-btn tiny", title: "Delete", text: "✕" });
+            const btn = el("button", { class: "icon-btn tiny", title: t("todo.tag.delete"), text: "✕" });
             btn.addEventListener("click", (e) => { e.stopPropagation(); opts.onDelete(); });
             actions.appendChild(btn);
         }
@@ -1206,7 +1207,7 @@
             opt.addEventListener("click", () => { setTagColor(tagName, color); menu.remove(); });
             menu.appendChild(opt);
         };
-        add("No color", "");
+        add(t("todo.color.none"), "");
         for (const c of TAG_COLORS) add(c, c);
         anchor.appendChild(menu);
         setTimeout(() => {
@@ -1240,7 +1241,7 @@
         if (data.lists.length) {
             for (const name of data.lists) addOpt(name, name);
         } else {
-            menu.appendChild(el("div", { class: "tag-menu-empty", text: "No lists yet — add one in the Lists & Tags panel." }));
+            menu.appendChild(el("div", { class: "tag-menu-empty", text: t("todo.listPicker.empty") }));
         }
         host.appendChild(menu);
         setTimeout(() => {
@@ -1281,7 +1282,7 @@
                 $("todo-list").hidden = true;
                 const empty = $("main-empty");
                 empty.hidden = false;
-                empty.textContent = "Open a .todo.json file to edit it here.";
+                empty.textContent = t("todo.empty.openFile");
             }
             return;
         }

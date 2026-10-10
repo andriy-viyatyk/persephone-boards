@@ -5,6 +5,8 @@
 // 400 MB log costs the frame a few hundred KB.
 "use strict";
 
+applyI18n();
+
 const P = window.persephone;
 const $ = (id) => document.getElementById(id);
 const WINDOW = 8; // turns fetched per request
@@ -35,7 +37,7 @@ function costOf(tokensByModel) {
 }
 
 // ---- formatting ------------------------------------------------------------------------------
-const nf = new Intl.NumberFormat();
+const nf = new Intl.NumberFormat(P.locale.code);
 function fmtTokens(n) {
     if (!n) return "0";
     if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
@@ -61,11 +63,11 @@ function fmtDuration(ms) {
 function fmtDate(iso) {
     if (!iso) return "";
     const d = new Date(iso);
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) + " "
-        + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleDateString(P.locale.code, { year: "numeric", month: "short", day: "numeric" }) + " "
+        + d.toLocaleTimeString(P.locale.code, { hour: "2-digit", minute: "2-digit" });
 }
 function fmtTime(iso) {
-    return iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
+    return iso ? new Date(iso).toLocaleTimeString(P.locale.code, { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
 }
 /** Local calendar day as YYYY-MM-DD (groups and chart follow the viewer's time zone). */
 function localDay(iso) {
@@ -73,7 +75,7 @@ function localDay(iso) {
     const d = new Date(iso);
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
-const plural = (n, word) => nf.format(n) + " " + word + (n === 1 ? "" : "s");
+const plural = (n, kind) => globalThis.t(`logs.count.${kind}`, { count: nf.format(n) });
 const totalOf = (t) => t ? t.input + t.output + t.cacheRead + t.cacheWrite : 0;
 const baseName = (p) => String(p || "").split(/[\\/]/).filter(Boolean).pop() || "";
 const agentLabel = (f) => f === "claude" ? "Claude Code" : f === "codex" ? "Codex" : "?";
@@ -133,7 +135,7 @@ function startServer() {
             for (const p of pending.values()) p.reject(new Error(message));
             pending.clear();
             if (!ready) reject(new Error(message));
-            else showError("The log server stopped: " + message);
+            else showError(globalThis.t("logs.error.serverStopped", { error: message }));
         };
         h.on("exit", () => fail("exited"));
         h.on("error", (e) => fail((e && e.message) || "failed to start"));
@@ -167,7 +169,7 @@ function showProgress(label, done, total) {
     bar.max = total || 1;
     bar.value = done || 0;
     box.append(bar);
-    if (total) box.append(el("div", "", total > 1e5 ? fmtBytes(done) + " of " + fmtBytes(total) : done + " of " + total));
+    if (total) box.append(el("div", "", globalThis.t("logs.progress.count", { done: total > 1e5 ? fmtBytes(done) : nf.format(done), total: total > 1e5 ? fmtBytes(total) : nf.format(total) })));
     showState(box);
 }
 
@@ -177,10 +179,10 @@ function setStatus(text, tone) {
 
 function emptyState() {
     const box = el("div");
-    box.append(el("div", "big", "Open Claude Code or Codex session logs"));
-    box.append(el("div", "", "A single log opens as a conversation; several files or a folder open as a session list."));
+    box.append(el("div", "big", globalThis.t("logs.empty.heading")));
+    box.append(el("div", "", globalThis.t("logs.empty.description")));
     const row = el("div", "row");
-    for (const [id, label] of [["openFiles", "Files…"], ["openFolder", "Folder…"], ["presetClaude", "Claude Code sessions"], ["presetCodex", "Codex sessions"]]) {
+    for (const [id, label] of [["openFiles", globalThis.t("logs.open.files")], ["openFolder", globalThis.t("logs.open.folder")], ["presetClaude", globalThis.t("logs.preset.claude")], ["presetCodex", globalThis.t("logs.preset.codex")]]) {
         const b = el("button", "p-btn" + (id.startsWith("preset") ? " primary" : ""), label);
         b.onclick = () => $(id).click();
         if (id === "presetClaude") b.disabled = !(presets.claude && presets.claude.exists);
@@ -199,7 +201,7 @@ let source = null; // { paths: [...], kind: "file" | "files" | "folder", label }
 function describe(paths, kind) {
     if (kind === "file") return paths[0];
     if (kind === "folder") return paths[0];
-    return paths.length + " files";
+    return globalThis.t("logs.source.files", { count: nf.format(paths.length) });
 }
 
 async function openSource(src, opts = {}) {
@@ -242,7 +244,7 @@ const COLUMNS = [
     { key: "turns", name: "Turns", num: true, get: (h) => h.turns || 0 },
     { key: "tools", name: "Tools", num: true, get: (h) => h.toolCalls || 0 },
     { key: "errors", name: "Errors", num: true, get: (h) => h.errors || 0 },
-    { key: "tokens", name: "Tokens", num: true, get: (h) => totalOf(h.tokens) },
+    { key: globalThis.t("logs.tokens"), name: "Tokens", num: true, get: (h) => totalOf(h.tokens) },
     { key: "output", name: "Output", num: true, get: (h) => (h.tokens && h.tokens.output) || 0 },
     { key: "cost", name: "Est. cost", num: true, cost: true, get: (h) => costOf(h.tokensByModel) || 0 },
     { key: "size", name: "Size", num: true, get: (h) => h.size || 0 },
@@ -265,7 +267,7 @@ async function openList(paths) {
             for (const s of m.summaries) byFile.set(s.header.file, s.header);
             list.rows = [...byFile.values()];
             showProgress("Reading sessions…", m.done, m.total);
-            setStatus("Reading " + m.done + " of " + m.total + " sessions…", "muted");
+    setStatus(globalThis.t("logs.progress.sessions", { done: nf.format(m.done), total: nf.format(m.total) }), "muted");
         } else if (m.ev === "progress") {
             showProgress("Reading sessions…", m.done, m.total);
         }
@@ -277,7 +279,7 @@ async function openList(paths) {
         list.rows = [...byFile.values()];
         hideState();
         renderList();
-        if (!list.rows.length) showState("No .jsonl session logs found in\n" + paths.join("\n"));
+        if (!list.rows.length) showState(globalThis.t("logs.empty.noLogs", { paths: paths.join("\n") }));
     } catch (e) {
         showError(e.message);
     } finally {
@@ -333,7 +335,7 @@ function renderList() {
     const frag = document.createDocumentFragment();
     for (const h of rows) {
         if (group) {
-            const g = group === "project" ? (h.cwd || "(no project)") : (h.start ? new Date(h.start).toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" }) : "(no date)");
+            const g = group === "project" ? (h.cwd || globalThis.t("logs.noProject")) : (h.start ? new Date(h.start).toLocaleDateString(P.locale.code, { weekday: "short", year: "numeric", month: "short", day: "numeric" }) : globalThis.t("logs.noDate"));
             if (g !== lastGroup) {
                 lastGroup = g;
                 const gtr = el("tr", "group");
@@ -357,7 +359,7 @@ function renderList() {
                 case "project": td.textContent = baseName(h.cwd); td.title = h.cwd || ""; break;
                 case "title": {
                     if (h.error) { td.textContent = h.error; td.className += " err"; break; }
-                    td.textContent = h.title || h.agentName || "(no prompt)";
+                    td.textContent = h.title || h.agentName || globalThis.t("logs.noPrompt");
                     const hit = searchHits && searchHits.get(h.file);
                     if (hit) {
                         td.append(el("span", "snippet", "  — " + hit.count + "× “" + hit.snippet + "”"));
@@ -418,7 +420,7 @@ function renderTotals(rows) {
     const box = $("totals");
     box.innerHTML = "";
     for (const [k, v] of pairs) { box.append(el("span", "k", k)); box.append(el("span", "v", v)); }
-    setStatus(nf.format(rows.length) + " sessions · " + fmtTokens(totalOf(t)) + " tokens");
+    setStatus(nf.format(rows.length) + " sessions · " + fmtTokens(totalOf(t)) + ` ${globalThis.t("logs.tokens")}`);
 }
 
 /** Daily total tokens for the last 60 days with activity, stacked Claude / Codex. */
@@ -454,7 +456,7 @@ function renderChart(rows) {
             r.setAttribute("height", String(h));
             r.setAttribute("class", "bar-" + part);
             const t = document.createElementNS(ns, "title");
-            t.textContent = k + " · " + agentLabel(part) + " " + fmtTokens(v[part]) + " tokens";
+            t.textContent = k + " · " + agentLabel(part) + " " + fmtTokens(v[part]) + ` ${globalThis.t("logs.tokens")}`;
             r.append(t);
             svg.append(r);
             y -= h;
@@ -473,7 +475,7 @@ function renderChart(rows) {
     const peak = document.createElementNS(ns, "text");
     peak.setAttribute("x", "0");
     peak.setAttribute("y", "9");
-    peak.textContent = "Tokens per day · peak " + fmtTokens(max);
+    peak.textContent = globalThis.t("logs.chart.peak", { count: fmtTokens(max) });
     svg.append(peak);
 }
 
@@ -482,9 +484,9 @@ async function runContentSearch() {
     if (!q) { searchHits = null; renderList(); return; }
     const files = list.rows.filter((h) => !h.error).map((h) => h.file);
     const id = nextId + 1;
-    const onEv = (m) => { if (m.id === id && m.ev === "progress") setStatus("Searching " + m.done + " of " + m.total + " files…", "muted"); };
+    const onEv = (m) => { if (m.id === id && m.ev === "progress") setStatus(globalThis.t("logs.progress.files", { done: nf.format(m.done), total: nf.format(m.total) }), "muted"); };
     eventHandlers.add(onEv);
-    setStatus("Searching…", "muted");
+    setStatus(globalThis.t("logs.find.progress"), "muted");
     try {
         const res = await request("search", { files, query: q });
         if (res.cancelled) return;
@@ -537,7 +539,7 @@ async function openSession(file, opts = {}) {
     try {
         res = await request("open", { file });
     } catch (e) {
-        showError("Cannot open " + file + "\n\n" + e.message);
+        showError(globalThis.t("logs.error.openFile", { file, error: e.message }));
         return;
     } finally {
         eventHandlers.delete(onEv);
@@ -579,12 +581,12 @@ function renderHeader() {
     if (h.errors) add("errors", nf.format(h.errors));
     if (h.compactions) add("compactions", h.compactions);
     if (h.subagents) add("subagents", h.subagents);
-    add("tokens", fmtTokens(totalOf(h.tokens)), tokenTitle(h.tokens));
+    add(globalThis.t("logs.tokens"), fmtTokens(totalOf(h.tokens)), tokenTitle(h.tokens));
     add("output", fmtTokens(h.tokens.output));
     if (showCost) { const c = costOf(h.tokensByModel); if (c != null) add("est.", "$" + c.toFixed(2), "Estimated API cost"); }
     add("", fmtBytes(h.size || 0), sess.file);
     if (sess.live) meta.append(el("span", "live", "● live"));
-    setStatus(agentLabel(h.format) + " · " + nf.format(h.turns) + " turns · " + fmtTokens(totalOf(h.tokens)) + " tokens");
+    setStatus(agentLabel(h.format) + " · " + nf.format(h.turns) + " turns · " + fmtTokens(totalOf(h.tokens)) + ` ${globalThis.t("logs.tokens")}`);
 }
 
 /** Display numbers: prompted turns count from 1; a turn without a prompt has none. */
@@ -604,7 +606,7 @@ function renderOutline() {
         row.append(el("span", "p", t.prompt || "(session start)"));
         if (t.errors) row.append(el("span", "e", "✕" + t.errors));
         if (t.compacted) row.append(el("span", "c", "⇣"));
-        row.title = (t.prompt || "") + "\n" + fmtDate(t.ts) + " · " + plural(t.tools, "tool call") + " · " + fmtTokens(totalOf(t.tokens)) + " tokens";
+        row.title = (t.prompt || "") + "\n" + fmtDate(t.ts) + " · " + plural(t.tools, "toolCalls") + " · " + fmtTokens(totalOf(t.tokens)) + ` ${globalThis.t("logs.tokens")}`;
         row.onclick = () => jumpTo(t.i);
         frag.append(row);
     }
@@ -682,17 +684,17 @@ function renderTurn(turn) {
     box.dataset.i = String(turn.i);
     if (meta.errors) box.classList.add("has-error");
     const head = el("div", "turn-head");
-    head.append(el("span", "tn", meta.no ? "Turn " + meta.no : turn.i === 0 ? "Session start" : "Continued"));
+    head.append(el("span", "tn", meta.no ? globalThis.t("logs.turn.number", { number: nf.format(meta.no) }) : turn.i === 0 ? globalThis.t("logs.turn.sessionStart") : globalThis.t("logs.turn.continued")));
     head.append(el("span", "", fmtDate(meta.ts)));
     const dur = meta.ts && meta.endTs ? Date.parse(meta.endTs) - Date.parse(meta.ts) : 0;
     if (dur > 0) head.append(el("span", "", fmtDuration(dur)));
-    if (meta.tools) head.append(el("span", "", plural(meta.tools, "tool call")));
+    if (meta.tools) head.append(el("span", "", plural(meta.tools, "toolCalls")));
     if (totalOf(meta.tokens)) {
-        const tk = el("span", "", fmtTokens(totalOf(meta.tokens)) + " tokens · " + fmtTokens(meta.tokens.output) + " out");
+        const tk = el("span", "", fmtTokens(totalOf(meta.tokens)) + " tokens · " + fmtTokens(meta.tokens.output) + ` ${globalThis.t("logs.output.short")}`);
         tk.title = tokenTitle(meta.tokens);
         head.append(tk);
     }
-    if (meta.errors) head.append(el("span", "err", plural(meta.errors, "error")));
+    if (meta.errors) head.append(el("span", "err", plural(meta.errors, "errors")));
     box.append(head);
     for (const item of turn.items) box.append(renderItem(item));
     return box;
@@ -701,14 +703,14 @@ function renderTurn(turn) {
 function rawButton(wrap, item) {
     if (!item.refs || !item.refs.length) return;
     const b = el("button", "raw-btn", "{ }");
-    b.title = "Show the raw log record(s)";
+    b.title = globalThis.t("logs.raw.title");
     b.onclick = async (e) => {
         e.stopPropagation();
         const shown = wrap.querySelector(":scope > .raw");
         if (shown) { shown.remove(); return; }
         try {
             const res = await request("raw", { file: sess.file, refs: item.refs });
-            const pre = el("pre", "raw mono", res.raw.map((r) => r.text + (r.truncated ? "\n… (record is " + fmtBytes(r.truncated) + "; first 2 MB shown)" : "")).join("\n\n"));
+    const pre = el("pre", "raw mono", res.raw.map((r) => r.text + (r.truncated ? "\n" + globalThis.t("logs.content.rawTruncated", { size: fmtBytes(r.truncated) }) : "")).join("\n\n"));
             wrap.append(pre);
         } catch (err) {
             setStatus(err.message, "error");
@@ -718,7 +720,7 @@ function rawButton(wrap, item) {
 }
 
 function truncNote(item) {
-    return item.truncated ? el("div", "truncated", "Showing the first " + nf.format(item.text.length) + " of " + nf.format(item.truncated) + " characters — { } shows the full record") : null;
+        return item.truncated ? el("div", "truncated", globalThis.t("logs.content.truncated", { shown: nf.format(item.text.length), total: nf.format(item.truncated) })) : null;
 }
 
 function renderItem(item) {
@@ -727,7 +729,7 @@ function renderItem(item) {
     switch (item.k) {
         case "user": {
             const box = el("div", "user");
-            box.append(el("div", "who", item.label || "Prompt"));
+            box.append(el("div", "who", item.label || globalThis.t("logs.filter.prompts")));
             box.append(markdown(item.text));
             const n = truncNote(item);
             if (n) box.append(n);
@@ -744,7 +746,7 @@ function renderItem(item) {
         }
         case "thinking": {
             const d = el("details", "fold thinking");
-            const s = el("summary", "", "Thinking — " + (item.text || "").replace(/[*`#_]+/g, "").replace(/\s+/g, " ").slice(0, 140));
+            const s = el("summary", "", globalThis.t("logs.content.thinking", { text: (item.text || "").replace(/[*`#_]+/g, "").replace(/\s+/g, " ").slice(0, 140) }));
             d.append(s);
             const body = el("div", "body");
             d.addEventListener("toggle", () => { if (d.open && !body.childNodes.length) body.append(markdown(item.text)); }, { once: false });
@@ -757,7 +759,7 @@ function renderItem(item) {
             const d = el("details", "fold tool" + (item.error ? " error" : ""));
             const s = el("summary");
             s.append(el("span", "st" + (item.error ? " err" : "")));
-            s.append(el("span", "name", "Tool result"));
+            s.append(el("span", "name", globalThis.t("logs.content.toolResult")));
             s.append(el("span", "sum", (item.text || "").replace(/\s+/g, " ").slice(0, 140)));
             d.append(s);
             const body = el("div", "body");
@@ -770,20 +772,20 @@ function renderItem(item) {
             const div = el("div", "divider " + (item.kind || ""));
             if (item.text && item.text !== "Context compacted" && item.kind === "compact" || (item.kind === "compact" && item.text && item.text.length > 20)) {
                 const d = el("details");
-                d.append(el("summary", "", item.kind === "compact" ? "Context compacted — summary" : item.text));
+            d.append(el("summary", "", item.kind === "compact" ? globalThis.t("logs.content.compactedSummary") : item.text));
                 const body = el("div", "body");
                 d.addEventListener("toggle", () => { if (d.open && !body.childNodes.length) body.append(markdown(item.text)); });
                 d.append(body);
                 div.append(d);
             } else {
-                div.append(el("span", "", item.kind === "model" ? "Model: " + item.text : item.text || "Context compacted"));
+                div.append(el("span", "", item.kind === "model" ? globalThis.t("logs.content.model", { model: item.text }) : item.text || globalThis.t("logs.content.compacted")));
             }
             wrap.append(div);
             break;
         }
         default: {
             const m = el("div", "meta");
-            m.append(el("span", "ml", item.label || "meta"));
+            m.append(el("span", "ml", item.label || globalThis.t("logs.content.meta")));
             if (item.text) {
                 if (item.text.length < 160 && !item.text.includes("\n")) m.append(document.createTextNode(" " + item.text));
                 else m.append(el("pre", "mono", item.text));
@@ -800,7 +802,7 @@ function renderTool(item) {
     const d = el("details", "fold tool" + (r && r.error ? " error" : ""));
     const s = el("summary");
     s.append(el("span", "st" + (!r ? " none" : r.error ? " err" : "")));
-    s.append(el("span", "name", item.name || "tool"));
+    s.append(el("span", "name", item.name || globalThis.t("logs.content.tool")));
     s.append(el("span", "sum", item.summary || ""));
     if (r && r.ts && item.ts) {
         const ms = Date.parse(r.ts) - Date.parse(item.ts);
@@ -814,21 +816,21 @@ function renderTool(item) {
         if (item.diff) body.append(renderDiff(item.diff));
         // A patch given as plain text is already shown as the diff above.
         if (!(item.diff && typeof item.input === "string")) {
-            body.append(el("div", "lbl", "Input"));
+            body.append(el("div", "lbl", globalThis.t("logs.content.input")));
             const input = typeof item.input === "string" ? item.input : JSON.stringify(item.input, null, 2);
             body.append(el("pre", "out mono", input && input.length > 20000 ? input.slice(0, 20000) + "\n…" : input));
         }
         if (r) {
-            body.append(el("div", "lbl", r.error ? "Result — error" : "Result"));
-            body.append(el("pre", "out mono" + (r.error ? " err" : ""), r.text || "(empty)"));
+        body.append(el("div", "lbl", globalThis.t(r.error ? "logs.content.resultError" : "logs.content.result")));
+            body.append(el("pre", "out mono" + (r.error ? " err" : ""), r.text || globalThis.t("logs.content.empty")));
             const n = truncNote(r);
             if (n) body.append(n);
         } else {
-            body.append(el("div", "lbl", "No result in this window"));
+            body.append(el("div", "lbl", globalThis.t("logs.content.noResult")));
         }
         const agentFile = (r && r.agentFile) || item.agentFile;
         if (agentFile) {
-            const b = el("button", "p-btn sm subagent-btn", "Open subagent log");
+            const b = el("button", "p-btn sm subagent-btn", globalThis.t("logs.content.openSubagent"));
             b.title = agentFile;
             b.onclick = () => openSubagent(agentFile);
             body.append(b);
@@ -904,8 +906,8 @@ async function runFind() {
     if (!sess) return;
     sess.query = q;
     for (const r of $("outline").querySelectorAll(".ot.hit")) r.classList.remove("hit");
-    if (!q) { sess.hits = []; $("findInfo").textContent = ""; clearMarks(); return; }
-    $("findInfo").textContent = "…";
+    $("findInfo").textContent = globalThis.t("logs.find.progress");
+    $("findInfo").textContent = globalThis.t("logs.find.progress");
     const res = await request("find", { file: sess.file, query: q });
     sess.hits = res.hits;
     sess.hitPos = -1;
@@ -913,7 +915,7 @@ async function runFind() {
         const row = $("outline").querySelector(`.ot[data-i="${i}"]`);
         if (row) row.classList.add("hit");
     }
-    $("findInfo").textContent = sess.hits.length ? sess.hits.length + " turns" : "no match";
+    $("findInfo").textContent = sess.hits.length ? globalThis.t("logs.find.count", { count: sess.hits.length }) : globalThis.t("logs.find.none");
     if (sess.hits.length) stepFind(1);
 }
 
@@ -921,7 +923,7 @@ async function stepFind(dir) {
     if (!sess || !sess.hits.length) return;
     sess.hitPos = (sess.hitPos + dir + sess.hits.length) % sess.hits.length;
     const i = sess.hits[sess.hitPos];
-    $("findInfo").textContent = (sess.hitPos + 1) + " / " + sess.hits.length;
+    $("findInfo").textContent = globalThis.t("logs.find.position", { current: nf.format(sess.hitPos + 1), total: nf.format(sess.hits.length) });
     await jumpTo(i);
     const node = $("transcript").querySelector(`.turn[data-i="${i}"]`);
     if (node) {
@@ -990,18 +992,18 @@ eventHandlers.add((m) => {
 // ---- wiring ----------------------------------------------------------------------------------
 function wire() {
     $("openFiles").onclick = async () => {
-        const res = await P.openFileDialog({ title: "Open session logs", multiSelections: true, filters: [{ name: "Session logs", extensions: ["jsonl"] }, { name: "All files", extensions: ["*"] }] });
+        const res = await P.openFileDialog({ title: globalThis.t("logs.dialog.openFiles"), multiSelections: true, filters: [{ name: globalThis.t("logs.dialog.sessionLogs"), extensions: ["jsonl"] }, { name: globalThis.t("logs.dialog.allFiles"), extensions: ["*"] }] });
         const paths = Array.isArray(res) ? res : res ? (res.filePaths || [res]) : [];
         if (!paths.length) return;
         openSource({ paths, kind: paths.length === 1 ? "file" : "files" });
     };
     $("openFolder").onclick = async () => {
-        const res = await P.openFolderDialog({ title: "Open a folder of session logs" });
+        const res = await P.openFolderDialog({ title: globalThis.t("logs.dialog.openFolder") });
         const p = Array.isArray(res) ? res[0] : res && res.filePaths ? res.filePaths[0] : res;
         if (p) openSource({ paths: [p], kind: "folder" });
     };
-    $("presetClaude").onclick = () => presets.claude && openSource({ paths: [presets.claude.path], kind: "folder", label: "Claude Code sessions — " + presets.claude.path });
-    $("presetCodex").onclick = () => presets.codex && openSource({ paths: [presets.codex.path], kind: "folder", label: "Codex sessions — " + presets.codex.path });
+    $("presetClaude").onclick = () => presets.claude && openSource({ paths: [presets.claude.path], kind: "folder", label: globalThis.t("logs.preset.label.claude", { path: presets.claude.path }) });
+    $("presetCodex").onclick = () => presets.codex && openSource({ paths: [presets.codex.path], kind: "folder", label: globalThis.t("logs.preset.label.codex", { path: presets.codex.path }) });
     $("recent").onchange = () => {
         const r = recent[Number($("recent").value)];
         $("recent").value = "";
@@ -1061,7 +1063,7 @@ function wire() {
 async function boot() {
     wire();
     try {
-        P.statusBar.set([{ id: "status", type: "text", text: "Starting…", tone: "muted" }]);
+        P.statusBar.set([{ id: "status", type: "text", text: globalThis.t("logs.status.starting"), tone: "muted" }]);
     } catch { /* older host */ }
     try {
         showCost = !!(await P.settings.get("showCost"));
@@ -1072,7 +1074,7 @@ async function boot() {
             renderList();
         });
     } catch { /* settings unavailable */ }
-    showState("Starting the log reader…");
+    showState(globalThis.t("logs.status.startingReader"));
     try {
         await startServer();
         const hello = await request("hello", {});
@@ -1084,7 +1086,7 @@ async function boot() {
         $("presetCodex").disabled = !presets.codex.exists;
         $("presetCodex").title = presets.codex.path;
     } catch (e) {
-        showError("Could not start the log reader: " + e.message);
+        showError(globalThis.t("logs.error.startReader", { error: e.message }));
         return;
     }
     const file = await P.getFilePath();

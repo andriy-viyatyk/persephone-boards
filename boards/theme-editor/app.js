@@ -1,6 +1,9 @@
 (() => {
     "use strict";
 
+    applyI18n();
+    const uiNumber = new Intl.NumberFormat(persephone.locale.code, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
     const GROUPS = [
         { name: "Backgrounds", keys: ["--color-bg-default", "--color-bg-dark", "--color-bg-light", "--color-bg-selection", "--color-bg-tree-selection", "--color-bg-scrollbar", "--color-bg-scrollbar-thumb", "--color-bg-message", "--color-bg-overlay", "--color-bg-overlay-hover", "--color-bg-webview", "--color-bg-backdrop"] },
         { name: "Text", keys: ["--color-text-default", "--color-text-dark", "--color-text-light", "--color-text-selection", "--color-text-strong"] },
@@ -17,28 +20,28 @@
         { key: "text", label: "Text", required: true },
         { key: "accent", label: "Accent", required: true },
         { key: "link", label: "Link" },
-        { key: "error", label: "Error" },
-        { key: "warning", label: "Warning" },
-        { key: "success", label: "Success" },
+        { key: "error", label: "theme.contrast.label.error" },
+        { key: "warning", label: "theme.contrast.label.warning" },
+        { key: "success", label: "theme.contrast.label.success" },
     ];
     const CONTRAST_LABELS = {
-        "text-default/bg-default": "Text / background",
-        "text-light/bg-default": "Light text / background",
-        "text-strong/bg-default": "Strong text / background",
-        "text-selection/bg-selection": "Selection text / selection",
-        "text-selection/bg-tree-selection": "Selection text / tree selection",
-        "grid-header-color/grid-header-bg": "Grid header",
-        "grid-data-color/grid-data-bg": "Grid data",
-        "graph-label-text/graph-label-bg": "Graph label",
-        "misc-link/bg-default": "Link / background",
+        "text-default/bg-default": "theme.contrast.label.textDefault",
+        "text-light/bg-default": "theme.contrast.label.textLight",
+        "text-strong/bg-default": "theme.contrast.label.textStrong",
+        "text-selection/bg-selection": "theme.contrast.label.selection",
+        "text-selection/bg-tree-selection": "theme.contrast.label.treeSelection",
+        "grid-header-color/grid-header-bg": "theme.contrast.label.gridHeader",
+        "grid-data-color/grid-data-bg": "theme.contrast.label.gridData",
+        "graph-label-text/graph-label-bg": "theme.contrast.label.graphLabel",
+        "misc-link/bg-default": "theme.contrast.label.link",
         "error-text/error-bg": "Error",
         "success-text/success-bg": "Success",
         "warning-text/warning-bg": "Warning",
-        "primary-text/primary-bg": "Primary",
-        "primary-text-hover/primary-bg": "Primary hover",
-        "error-text-hover/error-bg": "Error hover",
-        "success-text-hover/success-bg": "Success hover",
-        "warning-text-hover/warning-bg": "Warning hover",
+        "primary-text/primary-bg": "theme.contrast.label.primary",
+        "primary-text-hover/primary-bg": "theme.contrast.label.primaryHover",
+        "error-text-hover/error-bg": "theme.contrast.label.errorHover",
+        "success-text-hover/success-bg": "theme.contrast.label.successHover",
+        "warning-text-hover/warning-bg": "theme.contrast.label.warningHover",
     };
     const GENERATOR_BLOCKS = [
         { key: "background", label: "Background", required: true, strip: ["--color-bg-default", "--color-bg-dark", "--color-bg-light", "--color-bg-scrollbar", "--color-bg-message", "--color-bg-overlay", "--color-bg-overlay-hover", "--color-bg-webview", "--color-bg-backdrop", "--color-grid-header-bg", "--color-grid-data-bg", "--color-graph-bg", "--color-border-default", "--color-border-light", "--color-grid-sel-border-light", "--color-icon-disabled", "--color-highlight-active-match", "--color-error-bg", "--color-error-border", "--color-success-bg", "--color-success-border", "--color-warning-bg", "--color-warning-border", "--color-primary-bg", "--color-primary-border"] },
@@ -149,22 +152,22 @@
         const heading = document.createElement("div");
         heading.className = "generator-block-heading";
         const title = document.createElement("h2");
-        title.textContent = block.label;
+        title.textContent = t(`theme.base.${block.key}`);
         const actions = document.createElement("div");
         actions.className = "generator-actions";
         const reroll = document.createElement("button");
         reroll.type = "button";
         reroll.className = "p-btn sm";
-        reroll.textContent = "Reroll";
+        reroll.textContent = t("theme.reroll");
         reroll.dataset.name = `reroll-${block.key}`;
-        reroll.setAttribute("aria-label", `Reroll ${block.label} color`);
+        reroll.setAttribute("aria-label", t("theme.reroll.aria", { block: t(`theme.base.${block.key}`) }));
         const lock = document.createElement("button");
         lock.type = "button";
         lock.className = "p-btn sm lock-button";
-        lock.textContent = "Unlocked";
+        lock.textContent = t("theme.lock.unlocked");
         lock.dataset.name = `lock-${block.key}`;
         lock.setAttribute("aria-pressed", "false");
-        lock.setAttribute("aria-label", `Lock ${block.label} generator block`);
+        lock.setAttribute("aria-label", t("theme.lock.aria", { action: t("theme.lock.lock"), block: t(`theme.base.${block.key}`) }));
         actions.append(reroll, lock);
         heading.append(title, actions);
         const controls = document.createElement("div");
@@ -176,13 +179,13 @@
         picker.className = "generator-color-well";
         picker.dataset.role = "picker";
         picker.dataset.name = `generator-${block.key}-well`;
-        picker.setAttribute("aria-label", `${block.label} color well`);
+        picker.setAttribute("aria-label", t("theme.picker.aria", { block: t(`theme.base.${block.key}`) }));
         const hex = document.createElement("input");
         hex.type = "text";
         hex.className = "p-input sm generator-hex";
         hex.dataset.role = "hex";
         hex.dataset.name = `generator-${block.key}-hex`;
-        hex.setAttribute("aria-label", `${block.label} CSS color`);
+        hex.setAttribute("aria-label", t("theme.cssColor.aria", { block: t(`theme.base.${block.key}`) }));
         hex.autocomplete = "off";
         colorRow.append(picker, hex);
         controls.append(colorRow);
@@ -192,7 +195,7 @@
             const row = document.createElement("label");
             row.className = "hsl-row";
             const label = document.createElement("span");
-            label.textContent = component.toUpperCase();
+            label.textContent = t(`theme.color.${{ h: "hue", s: "saturation", l: "lightness" }[component]}`);
             const range = document.createElement("input");
             range.type = "range";
             range.min = "0";
@@ -200,7 +203,7 @@
             range.step = "1";
             range.dataset.role = `hsl-${component}`;
             range.dataset.name = `generator-${block.key}-${component}`;
-            range.setAttribute("aria-label", `${block.label} ${component.toUpperCase()}`);
+            range.setAttribute("aria-label", t("theme.color.componentAria", { block: t(`theme.base.${block.key}`), component: t(`theme.color.${{ h: "hue", s: "saturation", l: "lightness" }[component]}`) }));
             const output = document.createElement("output");
             output.dataset.role = `value-${component}`;
             output.textContent = "0";
@@ -217,10 +220,10 @@
             const mode = document.createElement("div");
             mode.className = "generator-mode";
             mode.dataset.name = "generator-background-mode";
-            for (const [value, text] of [["auto", "Auto"], ["dark", "Dark"], ["light", "Light"]]) {
+            for (const [value, text] of [["auto", "theme.mode.auto"], ["dark", "theme.mode.dark"], ["light", "theme.mode.light"]]) {
                 const button = document.createElement("button");
                 button.type = "button";
-                button.textContent = text;
+                button.textContent = t(text);
                 button.dataset.mode = value;
                 button.setAttribute("aria-pressed", "false");
                 button.addEventListener("click", () => {
@@ -232,13 +235,13 @@
         } else if (!block.required) {
             const stateLabel = document.createElement("label");
             stateLabel.className = "semantic-state";
-            stateLabel.textContent = "Color source";
+            stateLabel.textContent = t("theme.colorSource");
             const select = document.createElement("select");
             select.className = "p-select sm";
             select.dataset.role = "semantic-state";
             select.dataset.name = `generator-${block.key}-state`;
-            select.setAttribute("aria-label", `${block.label} color source`);
-            select.innerHTML = '<option value="auto">Auto</option><option value="custom">Custom</option>';
+            select.setAttribute("aria-label", t("theme.colorSource.aria", { block: t(`theme.base.${block.key}`) }));
+            select.innerHTML = `<option value="auto">${t("theme.source.auto")}</option><option value="custom">${t("theme.source.custom")}</option>`;
             select.addEventListener("change", () => {
                 if (select.value === "auto") mutateBaseColor(block.key, null);
                 else mutateBaseColor(block.key, hex.value.trim() || generatorInputValue(block));
@@ -251,7 +254,7 @@
         strip.className = "generator-strip";
         strip.dataset.name = `generator-strip-${block.key}`;
         const stripTitle = document.createElement("h3");
-        stripTitle.textContent = "Derived colors";
+        stripTitle.textContent = t("theme.derivedColors");
         strip.append(stripTitle);
         const tokens = document.createElement("div");
         tokens.className = "generator-tokens";
@@ -262,14 +265,14 @@
             token.dataset.name = `strip-${key.replaceAll(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "")}`;
             const swatch = document.createElement("span");
             swatch.className = "generator-token-swatch";
-            swatch.setAttribute("aria-label", `${key} derived theme color`);
+            swatch.setAttribute("aria-label", t("theme.swatch.derived", { key }));
             const label = document.createElement("span");
             label.className = "generator-token-label";
             label.textContent = key.replace(/^--color-/, "");
             label.title = key;
             const pin = document.createElement("span");
             pin.className = "pinned-marker";
-            pin.textContent = "Pinned";
+            pin.textContent = t("theme.override.pinned");
             pin.hidden = true;
             token.append(swatch, label, pin);
             tokens.append(token);
@@ -284,7 +287,7 @@
             hex.setAttribute("aria-invalid", hex.value && !valid ? "true" : "false");
             if (valid) setGeneratorColor(block, hex.value.trim());
             else {
-                ui.generatorMessage.textContent = `Enter a valid CSS color for ${block.label}. The last valid preview is unchanged.`;
+                ui.generatorMessage.textContent = t("theme.error.invalidCssColor", { block: t(`theme.base.${block.key}`) });
                 ui.generatorMessage.hidden = false;
             }
         });
@@ -312,10 +315,10 @@
         state.locks[key] = locked;
         const button = ui.generator.querySelector(`[data-block="${key}"] .lock-button`);
         if (!button) return;
-        button.textContent = locked ? "Locked" : "Unlocked";
+        button.textContent = t(locked ? "theme.lock.locked" : "theme.lock.unlocked");
         button.classList.toggle("locked", locked);
         button.setAttribute("aria-pressed", String(locked));
-        button.setAttribute("aria-label", `${locked ? "Unlock" : "Lock"} ${GENERATOR_BLOCKS.find((block) => block.key === key).label} generator block`);
+        button.setAttribute("aria-label", t("theme.lock.aria", { action: t(locked ? "theme.lock.unlock" : "theme.lock.lock"), block: GENERATOR_BLOCKS.find((block) => block.key === key).label }));
         for (const button of ui.generateButtons) button.disabled = state.busy || GENERATOR_BLOCKS.slice(0, 3).every((block) => state.locks[block.key]);
     }
     function syncGeneratorControls() {
@@ -354,7 +357,7 @@
                     badge.className = "generator-contrast";
                     card.querySelector(".generator-strip").prepend(badge);
                 }
-                badge.textContent = item ? `Text / background: ${Number(item.ratio).toFixed(2)}:1 · ${item.meetsAA ? "AA" : "Fail"}` : "Text / background contrast pending";
+                badge.textContent = item ? t("theme.contrast.summary", { ratio: uiNumber.format(Number(item.ratio)), result: t(item.meetsAA ? "theme.contrast.aa" : "theme.contrast.fail") }) : t("theme.contrast.pending");
                 badge.classList.toggle("pass", !!item?.meetsAA);
             }
         }
@@ -366,7 +369,7 @@
         }
         const handSetCount = Object.keys(state.draft.overrides).filter((key) => !state.sourceExact.has(key)).length;
         ui.overrideNotice.hidden = handSetCount === 0;
-        ui.overrideNoticeText.textContent = `${handSetCount} ${handSetCount === 1 ? "color was" : "colors were"} set in Details and won't follow the generator`;
+        ui.overrideNoticeText.textContent = t("theme.override.notice", { count: handSetCount });
         for (const button of ui.generateButtons) button.disabled = state.busy || GENERATOR_BLOCKS.slice(0, 3).every((block) => state.locks[block.key]);
     }
     function setView(view) {
@@ -376,7 +379,7 @@
         for (const panel of document.querySelectorAll("[data-view-panel]")) panel.hidden = panel.dataset.viewPanel !== view;
         // Generator and Set replace the sidebar's base-color controls; Contrast remains visible.
         ui.startingPalette.hidden = view !== "details";
-        if (view === "set") void ensureGeneratedSet().catch((error) => reportError(error, "Could not generate theme variants"));
+        if (view === "set") void ensureGeneratedSet().catch((error) => reportError(error, t("theme.error.generate")));
     }
     function setGeneratedView() { setView("set"); return ensureGeneratedSet(); }
     function randomBetween(min, max, random = Math.random) { return min + random() * (max - min); }
@@ -489,7 +492,7 @@
         tile.dataset.index = String(index);
         tile.dataset.name = `set-tile-${index + 1}`;
         tile.setAttribute("aria-pressed", String(index === state.selectedSetIndex));
-        tile.setAttribute("aria-label", `Variant ${index + 1}, ${variant.isDark ? "dark" : "light"}`);
+        tile.setAttribute("aria-label", t("theme.variant.aria", { index: new Intl.NumberFormat(persephone.locale.code).format(index + 1), mode: t(variant.isDark ? "theme.mode.dark" : "theme.mode.light") }));
         const mock = document.createElement("span");
         mock.className = "mini-window";
         mock.setAttribute("aria-hidden", "true");
@@ -506,10 +509,10 @@
         mock.style.setProperty("--tile-primary-text", c["--color-primary-text"] || "#ffffff");
         mock.style.setProperty("--tile-selection", c["--color-bg-selection"] || "transparent");
         mock.style.setProperty("--tile-selection-text", c["--color-text-selection"] || c["--color-text-default"] || "#222222");
-        mock.innerHTML = '<span class="mini-title"><i></i><i></i><i></i><b>Theme</b></span><span class="mini-toolbar"><i></i><i></i><i></i></span><span class="mini-content"><b>Sample heading</b><i class="mini-line"></i><i class="mini-line short"></i><span class="mini-selection">Selected item</span><span class="mini-accent">Action</span><small>Muted helper text</small></span>';
+        mock.innerHTML = `<span class="mini-title"><i></i><i></i><i></i><b>${t("theme.mini.theme")}</b></span><span class="mini-toolbar"><i></i><i></i><i></i></span><span class="mini-content"><b>${t("theme.mini.heading")}</b><i class="mini-line"></i><i class="mini-line short"></i><span class="mini-selection">${t("theme.mini.selected")}</span><span class="mini-accent">${t("theme.mini.action")}</span><small>${t("theme.mini.helper")}</small></span>`;
         const caption = document.createElement("span");
         caption.className = "set-caption";
-        caption.textContent = `Variant ${index + 1} · ${variant.isDark ? "Dark" : "Light"}`;
+        caption.textContent = t("theme.variant.caption", { index: new Intl.NumberFormat(persephone.locale.code).format(index + 1), mode: t(variant.isDark ? "theme.mode.dark" : "theme.mode.light") });
         tile.append(mock, caption);
         return tile;
     }
@@ -547,7 +550,7 @@
         const keys = GENERATOR_BLOCKS.map((block) => block.key);
         const variants = [];
         ui.setTiles.replaceChildren();
-        ui.setStatus.textContent = "Generating 0 of 100…";
+        ui.setStatus.textContent = t("theme.set.generating", { count: new Intl.NumberFormat(persephone.locale.code).format(0) });
         ui.setRegenerate.disabled = true;
         for (const button of ui.setModeButtons) button.disabled = true;
         try {
@@ -573,7 +576,7 @@
                         return { draft: best, contrast: bestReport, rank: bestRank, isDark: chosenMode, derivedColors: derived?.colors || {}, hue: backgroundHsl.h, lightness: backgroundHsl.l };
                     });
                     variants.push(...await Promise.all(batch));
-                    ui.setStatus.textContent = `Generating ${variants.length} of 100…`;
+                    ui.setStatus.textContent = t("theme.set.generating", { count: new Intl.NumberFormat(persephone.locale.code).format(variants.length) });
                 }
                 // The hue wheel wraps: crimson and rose (330–359°) look red, so they lead the set with red;
                 // the set then runs orange, yellow, green, cyan, blue and ends on violet/magenta (to 329°).
@@ -582,12 +585,12 @@
                 state.generatedSet = variants;
                 renderGeneratedSet();
                 const duration = ((performance.now() - startedAt) / 1000).toFixed(2);
-                ui.setStatus.textContent = `100 variants ready in ${duration}s.`;
+                ui.setStatus.textContent = t("theme.set.ready", { seconds: uiNumber.format(duration) });
                 return variants;
             })();
             return await state.setPromise;
         } catch (error) {
-            ui.setStatus.textContent = "Generation failed. Select Regenerate to try again.";
+            ui.setStatus.textContent = t("theme.set.failed");
             throw error;
         } finally {
             state.generatingSet = false;
@@ -652,15 +655,15 @@
             await applyGeneratedDraft(best, { polarity: best.isDark, allowBusy: true });
             state.contrast = bestReport;
             if (accepted) {
-                ui.generatorMessage.textContent = blocks ? "Rerolled color passes all four AA checks." : `Generated ${mode || "random"} theme passes all four AA checks.`;
+                ui.generatorMessage.textContent = blocks ? t("theme.generation.passes") : t("theme.generation.modePasses", { mode: mode || "random" });
             } else {
-                ui.generatorMessage.textContent = `Best candidate after 20 tries passes ${bestRank.passes} of 4 required AA checks; some pairs still fail.`;
+                ui.generatorMessage.textContent = t("theme.generation.best", { passes: new Intl.NumberFormat(persephone.locale.code).format(bestRank.passes) });
             }
             ui.generatorMessage.hidden = false;
             return { accepted, passes: bestRank?.passes || 0, total: REQUIRED_RANDOM_PAIR_COUNT, lowest: bestRank?.lowest || 0, contrast: bestReport };
         } finally { markBusy(false); }
     }
-    async function randomize(blocks, mode) { try { return await randomizeCore({ blocks, mode }); } catch (error) { reportError(error, "Could not generate a contrast-checked theme"); return false; } }
+    async function randomize(blocks, mode) { try { return await randomizeCore({ blocks, mode }); } catch (error) { reportError(error, t("theme.error.generate")); return false; } }
     function themeSignature(theme) {
         return JSON.stringify({ id: theme?.id, isDark: theme?.isDark, colors: theme?.colors, monaco: theme?.monaco });
     }
@@ -690,7 +693,7 @@
         const wasDirty = state.dirty;
         state.dirty = draftIsDirty();
         const overrideCount = state.draft ? Object.keys(state.draft.overrides).length : 0;
-        ui.clearOverrides.textContent = overrideCount ? `Clear overrides (${overrideCount})` : "Clear overrides";
+        ui.clearOverrides.textContent = overrideCount ? t("theme.overrides.clearCount", { count: new Intl.NumberFormat(persephone.locale.code).format(overrideCount) }) : t("theme.overrides.clearAll");
         ui.clearOverrides.disabled = state.busy || !overrideCount;
         ui.generatorClearOverrides.disabled = state.busy || !overrideCount;
         syncPageToolbar();
@@ -705,17 +708,17 @@
     // board only declares them and keeps their enabled state current. The theme name fills the
     // toolbar's read-only text slot (the dirty dot is on the page tab).
     const MENU_ITEMS = [
-        { id: "delete", label: "Delete theme" },
-        { id: "export", label: "Export JSON" },
-        { id: "import", label: "Import JSON" },
+        { id: "delete", label: t("theme.toolbar.delete") },
+        { id: "export", label: t("theme.toolbar.export") },
+        { id: "import", label: t("theme.toolbar.import") },
     ];
     let pageToolbarKey = "";
     function declarePageToolbar() {
         persephone.toolbar.set([
-            { id: "rename", type: "button", label: "Rename", title: "Rename this theme", disabled: true },
-            { id: "save", type: "button", label: "Save", title: "Save changes and keep this theme applied", disabled: true },
-            { id: "save-as", type: "button", label: "Save as", title: "Save as a new custom theme", disabled: true },
-            { id: "revert", type: "button", label: "Revert", title: "Discard unsaved changes", disabled: true },
+            { id: "rename", type: "button", label: t("theme.toolbar.rename"), title: t("theme.toolbar.renameTitle"), disabled: true },
+            { id: "save", type: "button", label: t("theme.toolbar.save"), title: t("theme.toolbar.saveTitle"), disabled: true },
+            { id: "save-as", type: "button", label: t("theme.toolbar.saveAs"), title: t("theme.toolbar.saveAsTitle"), disabled: true },
+            { id: "revert", type: "button", label: t("theme.toolbar.revert"), title: t("theme.toolbar.revertTitle"), disabled: true },
             { id: "theme", type: "menu", placement: "board-menu", items: MENU_ITEMS },
         ]);
         pageToolbarKey = "";
@@ -731,7 +734,7 @@
             { id: "revert", disabled: !ready || (!state.dirty && !state.hasPreview) },
             { id: "theme", items: MENU_ITEMS.map((item) => ({ ...item, disabled: item.id === "delete" ? !ready || !custom : !ready })) },
         ];
-        const text = state.draft ? `Theme: ${state.draft.name}` : "";
+        const text = state.draft ? t("theme.toolbar.text", { name: state.draft.name }) : "";
         const key = JSON.stringify([controls, text]);
         if (key === pageToolbarKey) return;
         pageToolbarKey = key;
@@ -752,13 +755,13 @@
     function scheduleDraftPersistence() {
         clearTimeout(state.persistTimer);
         if (!state.dirty || !state.draft) {
-            void persephone.pageState.remove("draft").catch((error) => reportError(error, "Could not clear restored draft state"));
+            void persephone.pageState.remove("draft").catch((error) => reportError(error, t("theme.error.clearDraft")));
             return;
         }
         state.persistTimer = setTimeout(() => {
             if (!state.dirty || !state.draft) return;
             const saved = JSON.stringify({ sourceId: state.sourceId, sourceKind: state.sourceKind, draft: state.draft, baseline: state.baseline, sourceExact: [...state.sourceExact] });
-            void persephone.pageState.set("draft", saved).catch((error) => reportError(error, "Could not preserve unsaved changes"));
+            void persephone.pageState.set("draft", saved).catch((error) => reportError(error, t("theme.error.preserveDraft")));
         }, 500);
     }
     function parseableColor(value) {
@@ -776,18 +779,18 @@
             const label = document.createElement("label");
             label.className = field.required ? "" : "optional-label";
             label.htmlFor = `base-${field.key}`;
-            label.textContent = field.label;
+            label.textContent = t(`theme.base.${field.key}`);
             const picker = document.createElement("input");
             picker.type = "color";
             picker.dataset.role = "picker";
-            picker.setAttribute("aria-label", `${field.label} color picker`);
+            picker.setAttribute("aria-label", t("theme.base.colorPicker", { label: t(`theme.base.${field.key}`) }));
             const text = document.createElement("input");
             text.type = "text";
             text.id = `base-${field.key}`;
             text.className = "p-input sm";
             text.dataset.role = "value";
             text.dataset.name = `base-${field.key}`;
-            text.placeholder = field.required ? "Required" : "Omit default";
+            text.placeholder = t(field.required ? "theme.base.required" : "theme.base.omit");
             text.autocomplete = "off";
             row.append(label, picker, text);
             ui.base.append(row);
@@ -812,7 +815,7 @@
         label.title = overrideKey;
         const swatch = document.createElement("span");
         swatch.className = "swatch";
-        swatch.setAttribute("aria-label", `${overrideKey} swatch`);
+        swatch.setAttribute("aria-label", t("theme.override.swatch", { key: overrideKey }));
         const input = document.createElement("input");
         input.type = "text";
         input.className = "p-input sm";
@@ -823,11 +826,11 @@
         const picker = document.createElement("input");
         picker.type = "color";
         picker.dataset.role = "picker";
-        picker.setAttribute("aria-label", `Pick ${overrideKey}`);
+        picker.setAttribute("aria-label", t("theme.override.picker", { key: overrideKey }));
         const reset = document.createElement("button");
         reset.type = "button";
         reset.className = "p-btn ghost reset";
-        reset.textContent = "Reset";
+        reset.textContent = t("theme.reset");
         reset.dataset.name = `reset-${overrideKey.replaceAll(":", "-")}`;
         row.append(label, swatch, input, picker, reset);
         input.addEventListener("input", () => {
@@ -850,12 +853,12 @@
             section.className = "color-group";
             section.dataset.name = `palette-${group.name.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-")}`;
             const heading = document.createElement("h2");
-            heading.textContent = group.name;
+            heading.textContent = t(`theme.group.${{ "Backgrounds": "backgrounds", "Text": "text", "Icons": "icons", "Borders & shadow": "borders", "Grid": "grid", "Status": "status", "Editor": "editor", "Graph": "graph" }[group.name]}`);
             section.append(heading);
             if (group.monaco) {
                 const note = document.createElement("p");
                 note.className = "monaco-note";
-                note.textContent = "Monaco base follows the inferred light/dark mode.";
+                note.textContent = t("theme.monaco.inferred");
                 section.append(note);
             }
             for (const key of group.keys) section.append(makeColorRow(key));
@@ -1001,21 +1004,21 @@
             input.setAttribute("aria-invalid", value && !parseableColor(value) ? "true" : "false");
             row.querySelector('[data-role="picker"]').value = colorPickerValue(value);
             row.querySelector(".reset").disabled = !(key in state.draft.overrides);
-            row.querySelector(".reset").title = `Reset to ${derivedValue || "derived value"}`;
+            row.querySelector(".reset").title = t("theme.override.resetTo", { value: derivedValue || t("theme.reset.toDerived") });
         }
         const isDark = state.displayed?.isDark ?? state.derived?.isDark;
-        ui.mode.textContent = isDark ? "Dark inferred" : "Light inferred";
+        ui.mode.textContent = t(isDark ? "theme.mode.darkInferred" : "theme.mode.lightInferred");
         ui.mode.classList.toggle("dark", !!isDark);
         ui.mode.classList.toggle("light", !isDark);
         const monacoBase = state.displayed?.monaco?.base || state.derived?.monaco?.base;
         const note = ui.groups.querySelector(".monaco-note");
-        if (note && monacoBase) note.textContent = `Monaco base: ${monacoBase} (follows inferred mode).`;
+        if (note && monacoBase) note.textContent = t("theme.monaco.base", { base: monacoBase });
         syncGeneratorControls();
     }
     function renderContrast(report) {
         ui.contrast.replaceChildren();
         if (!report || !Object.keys(report).length) {
-            ui.contrast.innerHTML = '<p class="muted">No measurements returned.</p>';
+            ui.contrast.textContent = t("theme.contrast.none");
             return;
         }
         for (const [key, item] of Object.entries(report)) {
@@ -1023,15 +1026,15 @@
             row.className = "contrast-row";
             const name = document.createElement("span");
             name.className = "contrast-name";
-            name.textContent = CONTRAST_LABELS[key] || key;
+            name.textContent = CONTRAST_LABELS[key] ? t(CONTRAST_LABELS[key]) : key;
             name.title = key;
             const ratio = document.createElement("span");
             ratio.className = "contrast-ratio";
-            ratio.textContent = `${Number(item.ratio).toFixed(2)}:1`;
+            ratio.textContent = `${uiNumber.format(Number(item.ratio))}:1`;
             const badge = document.createElement("span");
             badge.className = `contrast-badge${item.meetsAA ? " pass" : ""}`;
-            badge.textContent = item.meetsAA ? "AA" : "Fail";
-            badge.setAttribute("aria-label", item.meetsAA ? "Passes AA" : "Does not pass AA");
+            badge.textContent = t(item.meetsAA ? "theme.contrast.aa" : "theme.contrast.fail");
+            badge.setAttribute("aria-label", t(item.meetsAA ? "theme.contrast.passAria" : "theme.contrast.failAria"));
             row.append(name, ratio, badge);
             ui.contrast.append(row);
         }
@@ -1046,11 +1049,11 @@
         state.themes = await persephone.themes.list();
         if (selected && state.draft && state.dirty) {
             if (!state.themes.some((theme) => theme.id === selected)) {
-                setMessage("This theme was removed elsewhere. Your unsaved changes are kept; use Save as to keep them.", true);
+                setMessage(t("theme.message.removed"), true);
             } else if (state.sourceKind === "custom") {
                 const latest = await persephone.themes.file(selected);
                 if (latest && JSON.stringify(latest) !== JSON.stringify(state.baseline)) {
-                    setMessage("This theme changed elsewhere. Your unsaved changes are kept; use Revert to load the saved version.");
+                    setMessage(t("theme.message.changed"));
                 }
             }
         }
@@ -1116,7 +1119,7 @@
     }
     async function loadSource(id) {
         try { return await loadSourceCore(id); }
-        catch (error) { reportError(error, "Could not load theme"); return false; }
+        catch (error) { reportError(error, t("theme.error.load")); return false; }
     }
     function validateThemeEditIntent(request) {
         if (!request || request.id !== "theme.edit" || request.version !== 1) return null;
@@ -1201,7 +1204,7 @@
             renderEditorFields();
             updateActiveLabel(state.current);
             await queueDraftRefresh({ preview: true, delay: 0 });
-            setMessage("New theme draft created from the active theme.");
+            setMessage(t("theme.message.newDraft"));
         } finally {
             markBusy(false);
         }
@@ -1246,7 +1249,7 @@
                 await initializationPromise;
                 await processThemeEditIntent(intent);
             } catch (error) {
-                reportError(error, "Could not handle Theme Editor request");
+                reportError(error, t("theme.error.handleRequest"));
             } finally {
                 state.intentPending = Math.max(0, state.intentPending - 1);
                 if (state.intentPending === 0) scheduleExternalRefresh();
@@ -1299,7 +1302,7 @@
                     renderContrast(contrast);
                     renderDirty();
                 }).catch((error) => {
-                    if (op === state.previewGeneration) reportError(error, "Could not update theme preview");
+                    if (op === state.previewGeneration) reportError(error, t("theme.error.updatePreview"));
                 }).finally(() => {
                     if (state.previewResolve === resolve) state.previewResolve = null;
                     resolve();
@@ -1345,14 +1348,14 @@
             state.current = await persephone.themes.current();
             await refreshThemes();
             renderEditorFields();
-            setMessage(saveAs ? "Theme saved as a new custom theme and applied." : "Theme saved and applied.");
+            setMessage(t(saveAs ? "theme.message.savedAs" : "theme.message.saved"));
             return true;
         }
         finally { markBusy(false); }
     }
     async function saveDraft(saveAs, name) {
         try { return await saveDraftCore(saveAs, name); }
-        catch (error) { reportError(error, "Could not save theme"); return false; }
+        catch (error) { reportError(error, t("theme.error.save")); return false; }
     }
     async function revertDraftCore() {
         if (state.busy) throw new Error("Theme Editor is busy with another operation; try again when it finishes.");
@@ -1388,27 +1391,27 @@
             renderEditorFields();
             renderContrast(state.contrast);
             updateActiveLabel(state.current);
-            setMessage(superseded ? "Draft reverted; another selection remains active." : "Draft reverted. The persisted theme is active.");
+            setMessage(t(superseded ? "theme.message.revertedSuperseded" : "theme.message.reverted"));
         } catch (error) { throw error; }
         finally { markBusy(false); }
     }
     async function revertDraft() {
         try { return await revertDraftCore(); }
-        catch (error) { reportError(error, "Could not revert draft"); return false; }
+        catch (error) { reportError(error, t("theme.error.revert")); return false; }
     }
     function openNameDialog(mode) {
         if (!state.draft || state.busy) return;
         state.nameDialogMode = mode;
         const saveAs = mode === "saveAs";
-        ui.renameTitle.textContent = saveAs ? "Save as a new theme" : "Rename theme";
-        ui.renameConfirm.textContent = saveAs ? "Save" : "Rename";
+        ui.renameTitle.textContent = t(saveAs ? "theme.saveAs.title" : "theme.rename.title");
+        ui.renameConfirm.textContent = t(saveAs ? "theme.unsaved.save" : "theme.rename.confirm");
         ui.renameInput.value = saveAs && state.sourceKind === "custom" ? `${state.draft.name} copy` : state.draft.name;
         ui.renameDialog.showModal();
         ui.renameInput.select();
     }
     async function deleteTheme() {
         if (state.sourceKind !== "custom" || !state.sourceId) return;
-        ui.deleteCopy.textContent = `“${state.draft.name}” will be removed from the saved custom themes.`;
+        ui.deleteCopy.textContent = t("theme.delete.confirmCopy", { name: state.draft.name });
         ui.deleteDialog.showModal();
     }
     // A saved custom theme is renamed in place (unsaved edits stay a draft); an unsaved copy of a
@@ -1421,7 +1424,7 @@
         if (state.sourceKind !== "custom" || !state.sourceId) {
             state.draft.name = normalized;
             renderEditorFields();
-            setMessage("Name changed. Save to keep it as a custom theme.");
+            setMessage(t("theme.message.nameChanged"));
             return { id: null, name: normalized };
         }
         markBusy(true);
@@ -1433,7 +1436,7 @@
             else { state.draft.name = normalized; state.baseline.name = normalized; }
             await refreshThemes();
             renderEditorFields();
-            setMessage("Theme renamed.");
+            setMessage(t("theme.message.renamed"));
             return { id, name: normalized };
         } finally { markBusy(false); }
     }
@@ -1460,7 +1463,7 @@
         // The board always edits the theme the window shows, so it follows Persephone's fallback.
         await loadSourceCore(state.current.id);
         updateActiveLabel(state.current);
-        setMessage("Custom theme deleted.");
+        setMessage(t("theme.message.deleted"));
         return { nextSourceId: state.sourceId };
     }
     async function exportTheme() {
@@ -1485,8 +1488,8 @@
             link.click();
             link.remove();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
-            setMessage("Theme JSON export started.");
-        } catch (error) { reportError(error, "Could not export theme"); }
+            setMessage(t("theme.message.exported"));
+        } catch (error) { reportError(error, t("theme.error.export")); }
     }
     function looseImportShape(value) {
         return value && typeof value === "object" && !Array.isArray(value) && value.schemaVersion === 1 &&
@@ -1515,8 +1518,8 @@
             await refreshThemes();
             renderEditorFields();
             updateActiveLabel(state.current);
-            setMessage("Imported as a new custom theme and applied.");
-        } catch (error) { reportError(error, "Could not import theme"); }
+            setMessage(t("theme.message.imported"));
+        } catch (error) { reportError(error, t("theme.error.import")); }
         finally { ui.importFile.value = ""; }
     }
     function scheduleExternalRefresh() {
@@ -1542,7 +1545,7 @@
                             JSON.stringify(await persephone.themes.file(active.id)) !== JSON.stringify(state.baseline));
                         if (!state.intentPending && stale && !state.dirty && !state.busy) await loadSource(active.id);
                     }
-                } catch (error) { reportError(error, "Could not refresh theme choices"); }
+                } catch (error) { reportError(error, t("theme.error.refresh")); }
             })();
         }, 250);
     }
@@ -1702,13 +1705,13 @@
         ui.generateButtons[1].addEventListener("click", () => { void randomize(undefined, "light"); });
         for (const button of ui.setModeButtons) button.addEventListener("click", () => {
             if (state.busy || button.dataset.mode === state.setMode) return;
-            void setGeneratedSetMode(button.dataset.mode).catch((error) => reportError(error, "Could not generate theme variants"));
+            void setGeneratedSetMode(button.dataset.mode).catch((error) => reportError(error, t("theme.error.generate")));
         });
-        ui.setRegenerate.addEventListener("click", () => { void ensureGeneratedSet(true).catch((error) => reportError(error, "Could not generate theme variants")); });
+        ui.setRegenerate.addEventListener("click", () => { void ensureGeneratedSet(true).catch((error) => reportError(error, t("theme.error.generate"))); });
         ui.setTiles.addEventListener("click", (event) => {
             const tile = event.target.closest(".set-tile");
             if (!tile || state.busy) return;
-            void applySetTile(Number(tile.dataset.index)).catch((error) => reportError(error, "Could not apply theme variant"));
+            void applySetTile(Number(tile.dataset.index)).catch((error) => reportError(error, t("theme.error.apply")));
         });
         for (const tab of document.querySelectorAll(".view-tab")) tab.addEventListener("click", () => setView(tab.dataset.view));
         setView(state.view);
@@ -1719,13 +1722,13 @@
         ui.deleteDialog.addEventListener("close", async () => {
             if (ui.deleteDialog.returnValue !== "delete") return;
             try { await deleteThemeCore(); }
-            catch (error) { reportError(error, "Could not delete theme"); }
+            catch (error) { reportError(error, t("theme.error.delete")); }
         });
         ui.renameDialog.addEventListener("close", async () => {
             if (ui.renameDialog.returnValue !== "confirm") return;
             if (state.nameDialogMode === "saveAs") { void saveDraft(true, ui.renameInput.value); return; }
             try { await renameThemeCore(ui.renameInput.value); }
-            catch (error) { reportError(error, "Could not rename theme"); }
+            catch (error) { reportError(error, t("theme.error.rename")); }
         });
         try {
             state.themes = await persephone.themes.list();
@@ -1746,9 +1749,9 @@
                 state.restoredDraft = true;
                 renderEditorFields();
                 await queueDraftRefresh();
-                ui.generatorMessage.textContent = "Restored unsaved changes. Revert is available in the toolbar.";
+                ui.generatorMessage.textContent = t("theme.message.restoredToolbar");
                 ui.generatorMessage.hidden = false;
-                setMessage("Restored unsaved changes.");
+                setMessage(t("theme.message.restored"));
             } else if (!state.intentPending) {
                 await loadSource(state.current.id);
             }
@@ -1764,7 +1767,7 @@
             updateActiveLabel(state.current);
             state.unlistenTheme = persephone.onThemeChange(scheduleExternalRefresh);
             exposeAiVisionModel();
-        } catch (error) { reportError(error, "Theme Editor could not connect to Persephone"); }
+        } catch (error) { reportError(error, t("theme.error.connect")); }
     }
     window.addEventListener("beforeunload", () => {
         clearTimeout(state.externalTimer);

@@ -1,0 +1,27 @@
+{
+  "messages": {
+    "document.title": "PDF Viewer",
+    "frame.title": "PDF document",
+    "status.loading": "Loading...",
+    "errors.bridge": "Persephone bridge unavailable",
+    "errors.bridgeDetail": "This board must run inside Persephone.",
+    "status.opening": "Opening...",
+    "status.resolving": "Resolving the document source.",
+    "errors.read": "Could not read the document",
+    "toast.read": "Failed to read the PDF source: {error}",
+    "empty.instructions": "This board opens PDF files. Open a .pdf file to view it.",
+    "empty.title": "No document",
+    "empty.probes": "Capability probes for this Persephone build:",
+    "errors.viewer": "Could not load the PDF viewer",
+    "toast.viewer": "The PDF viewer frame failed to load - see the board for details.",
+    "status.reading": "Reading...",
+    "errors.open": "Could not open the document",
+    "toast.open": "Failed to open PDF: {error}",
+    "probes.iframe": "Nested iframe (frame-src)",
+    "probes.worker": "pdf.js worker (worker-src)",
+    "probes.wasm": "WebAssembly (wasm-unsafe-eval)",
+    "status.works": "works",
+    "status.blocked": "blocked",
+    "status.violations": "CSP violations"
+  }
+}

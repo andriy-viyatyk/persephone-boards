@@ -3,7 +3,7 @@
   "boards": [
     {
       "id": "agent-log-viewer",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "name": "Agent Log Viewer",
       "description": "Readable Claude Code and Codex CLI session logs (.jsonl): a session as a conversation with paired tool calls, diffs and token usage, or a whole folder as a sortable session list with daily usage. Streams large logs (400 MB+) from disk.",
       "fileMasks": [
@@ -12,31 +12,171 @@
       "editorName": "Agent Logs",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "5.0.8",
+      "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/agent-log-viewer-v1.0.0/agent-log-viewer.zip",
-        "size": 71459,
-        "sha256": "b80c1c1bbb49ab9600923e7372a4f66a1f49e2a6d9b0bba795cce1c0ff250433"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/agent-log-viewer-v1.1.0/agent-log-viewer.zip",
+        "size": 110042,
+        "sha256": "7c952a5976c9df4ada1dad06c55d79540bca276b684b73d249011f4b4cfb5919"
+      },
+      "localized": {
+        "be": {
+          "name": "Прагляд журналаў агентаў",
+          "description": "Чытэльныя журналы сеансаў Claude Code і Codex CLI (.jsonl): асобны сеанс — як размова з парамі выклікаў інструментаў, розніцамі і выкарыстаннем токенаў; цэлая папка — як упарадкаваны спіс сеансаў з выкарыстаннем за дзень. Чытае з дыска вялікія журналы (ад 400 МБ)."
+        },
+        "de": {
+          "name": "Agent Log Viewer",
+          "description": "Gut lesbare Claude Code- und Codex CLI-Sitzungsprotokolle (.jsonl): einzelne Sitzungen als Unterhaltung mit Tool-Aufrufen, Unterschieden und Tokenverbrauch oder ganze Ordner als sortierbare Sitzungsliste mit Tagesverbrauch. Liest große Protokolle (über 400 MB) von Datenträger."
+        },
+        "es": {
+          "name": "Visor de registros de agentes",
+          "description": "Consulta registros de sesiones de Claude Code y Codex CLI (.jsonl): abre una sesión como conversación con llamadas a herramientas emparejadas, diferencias y uso de tokens, o una carpeta como lista de sesiones ordenable con el uso diario. Lee desde el disco registros de gran tamaño (más de 400 MB)."
+        },
+        "et": {
+          "name": "Agent Log Viewer",
+          "description": "Claude Code’i ja Codex CLI seansilogide (.jsonl) lugemiseks: seanss vestlusena, kus kuvatakse seotud tööriistakutsed, erinevused ja tokenite kasutus, või terve kaust sorteeritava seansside loendina koos päevase kasutusega. Laadib kettalt ka suuri logisid (üle 400 MB)."
+        },
+        "fr": {
+          "name": "Visionneuse de journaux d’agent",
+          "description": "Journaux de session lisibles de Claude Code et de l’interface CLI Codex (.jsonl) : une session sous forme de conversation avec appels d’outils associés, différences et consommation de jetons, ou un dossier entier sous forme de liste de sessions triable avec consommation quotidienne. Lit les grands journaux (plus de 400 MB) en continu depuis le disque."
+        },
+        "hu": {
+          "name": "Ügynöknapló-megjelenítő",
+          "description": "Claude Code- és Codex CLI-munkamenetnaplók (.jsonl) áttekinthető megjelenítése: egy munkamenet beszélgetésként, eszközhívásokkal, különbségekkel és tokenhasználattal, vagy egy teljes mappa rendezhető munkamenetlistaként. Nagy, akár 400 MB-nál nagyobb naplókat is streamel a lemezről."
+        },
+        "it": {
+          "name": "Visualizzatore log agenti",
+          "description": "Leggi i log di sessione di Claude Code e Codex CLI (.jsonl): una sessione come conversazione con chiamate agli strumenti, differenze e uso dei token, oppure un’intera cartella come elenco di sessioni ordinabile con statistiche giornaliere. Legge in streaming anche i log più grandi (oltre 400 MB)."
+        },
+        "ja": {
+          "name": "エージェント ログ ビューアー",
+          "description": "Claude CodeとCodex CLIのセッション ログ（.jsonl）を読みやすく表示します。ツール呼び出し、差分、トークン使用量を含む会話表示、または並べ替え可能なセッション一覧と日別使用量に対応します。大容量ログ（400 MB以上）をディスクからストリーミングします。"
+        },
+        "ko": {
+          "name": "에이전트 로그 뷰어",
+          "description": "Claude Code 및 Codex CLI 세션 로그(.jsonl)를 읽기 편하게 확인합니다. 도구 호출, 차이점, 토큰 사용량이 함께 표시되는 대화형 세션이나, 날짜별 사용량을 정렬해 볼 수 있는 폴더 목록을 제공합니다. 디스크의 대용량 로그(400MB 이상)를 읽습니다."
+        },
+        "lt": {
+          "name": "Agentų žurnalų peržiūros programa",
+          "description": "Patogiai peržiūrėkite Claude Code ir Codex CLI seansų žurnalus (.jsonl): vieną seansą kaip pokalbį su susietais įrankių iškvietimais, pakeitimais ir žetonų naudojimu arba visą aplanką kaip rikiuojamą seansų sąrašą su dienos naudojimo duomenimis. Dideli žurnalai (400 MB ir daugiau) skaitomi iš disko srautu."
+        },
+        "lv": {
+          "name": "Aģentu žurnālu skatītājs",
+          "description": "Claude Code un Codex CLI sesiju žurnālu (.jsonl) ērta pārlūkošana: sesija kā saruna ar pārī savienotiem rīku izsaukumiem, izmaiņām un tokenu lietojumu vai mape kā kārtojams sesiju saraksts ar dienas lietojuma datiem. Lasa arī lielus žurnālus (vairāk nekā 400 MB) no diska."
+        },
+        "pl": {
+          "name": "Podgląd dzienników agentów",
+          "description": "Przeglądaj dzienniki sesji Claude Code i Codex."
+        },
+        "pt-BR": {
+          "name": "Agent Log Viewer",
+          "description": "Leia logs de sessão do Claude Code e Codex CLI (.jsonl): veja uma sessão como conversa com chamadas de ferramentas, diferenças e uso de tokens, ou uma pasta como lista de sessões. Lê arquivos grandes do disco."
+        },
+        "ro": {
+          "name": "Vizualizator de jurnale ale agenților",
+          "description": "Jurnale de sesiune Claude Code și Codex CLI (.jsonl) ușor de citit: o sesiune ca o conversație cu apeluri de instrumente asociate, diferențe și utilizarea tokenurilor sau un folder întreg ca listă de sesiuni sortabilă, cu utilizare zilnică. Citește fluxuri mari (peste 400 MB) de pe disc."
+        },
+        "sk": {
+          "name": "Agent Log Viewer",
+          "description": "Prehľadné denníky relácií Claude Code a Codex CLI (.jsonl): jednotlivá relácia ako konverzácia so spárovanými volaniami nástrojov, rozdielmi a využitím tokenov alebo celý priečinok ako zoraditeľný zoznam relácií s dennou spotrebou. Načíta veľké denníky (400 MB+) z disku."
+        },
+        "uk": {
+          "name": "Перегляд журналів агентів",
+          "description": "Зручний перегляд журналів сеансів Claude Code і Codex CLI (.jsonl): окремий сеанс як розмова зі зіставленими викликами інструментів, різницями та використанням токенів або папка як сортуваний список сеансів із денним використанням. Читає великі журнали (понад 400 МБ) із диска."
+        },
+        "zh-CN": {
+          "name": "智能体日志查看器",
+          "description": "查看 Claude Code 和 Codex CLI 会话日志（.jsonl）：单个会话以对话形式显示，并配对展示工具调用、差异和令牌用量；整个文件夹则显示可排序的会话列表和每日用量。支持从磁盘读取大型日志（400 MB 以上）。"
+        }
       }
     },
     {
       "id": "aivision-explorer",
-      "version": "1.0.6",
+      "version": "1.1.0",
       "name": "AiVision Explorer",
       "description": "Explore Persephone's live AiVision model with descriptor-safe tree browsing, help, events, and explicit member operations.",
       "standalone": true,
-      "minAppVersion": "5.0.7",
+      "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/aivision-explorer-v1.0.6/aivision-explorer.zip",
-        "size": 28311,
-        "sha256": "bb4741cfe00e78952d41ec5ce0ccd523033d1fb69f295a18c22a415db690655f"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/aivision-explorer-v1.1.0/aivision-explorer.zip",
+        "size": 66215,
+        "sha256": "f19ae4727fc9d6df758121b07c527e244001d3c2ba24bcef8f2f18aae21005b8"
+      },
+      "localized": {
+        "be": {
+          "name": "Аглядальнік AiVision",
+          "description": "Даследуйце актуальную мадэль AiVision у Persephone: прагляд дрэва паводле бяспечных апісанняў, даведка, падзеі і яўныя дзеянні з элементамі."
+        },
+        "de": {
+          "name": "AiVision Explorer",
+          "description": "Erkunden Sie Persephones Live-AiVision-Modell mit deskriptorsicherer Baumnavigation, Hilfe, Ereignissen und expliziten Elementaktionen."
+        },
+        "es": {
+          "name": "Explorador de AiVision",
+          "description": "Explora el modelo AiVision en tiempo real de Persephone: navega por el árbol de descriptores, consulta la ayuda y los eventos, y opera explícitamente en los miembros."
+        },
+        "et": {
+          "name": "AiVision Explorer",
+          "description": "Uurige Persephone reaalajas AiVisioni mudelit kirjelduste abil navigeeritava puu, spikri, sündmuste ja liikmete selgesõnaliste toimingutega."
+        },
+        "fr": {
+          "name": "Explorateur AiVision",
+          "description": "Explorez le modèle AiVision en direct de Persephone grâce à la navigation dans l’arborescence des descripteurs, à l’aide, aux événements et aux opérations explicites sur les membres."
+        },
+        "hu": {
+          "name": "AiVision Explorer",
+          "description": "Fedezd fel a Persephone élő AiVision-modelljét leíróbiztos fanézettel, súgóval, eseményekkel és kifejezett tagműveletekkel."
+        },
+        "it": {
+          "name": "Esplora AiVision",
+          "description": "Esplora il modello AiVision attivo di Persephone con una navigazione ad albero sicura per i descrittori, guida, eventi e operazioni esplicite sui membri."
+        },
+        "ja": {
+          "name": "AiVision Explorer",
+          "description": "ツリー表示、ヘルプ、イベント、明示的なメンバー操作を使って、PersephoneのライブAiVisionモデルを探索します。"
+        },
+        "ko": {
+          "name": "AiVision 탐색기",
+          "description": "Persephone의 실시간 AiVision 모델을 탐색합니다. 안전한 트리 탐색과 도움말, 이벤트 확인 및 명시적인 구성원 작업을 지원합니다."
+        },
+        "lt": {
+          "name": "AiVision naršyklė",
+          "description": "Tyrinėkite veikiantį Persephone AiVision modelį naudodami deskriptoriams saugų medžio naršymą, žinyną, įvykius ir aiškiai pasirenkamus veiksmus su elementais."
+        },
+        "lv": {
+          "name": "AiVision pārlūks",
+          "description": "Persephone darbības AiVision modeļa pārlūkošana: navigācija kokā, palīdzība, notikumi un tieša darbību izpilde ar modeļa elementiem."
+        },
+        "pl": {
+          "name": "Eksplorator AiVision",
+          "description": "Przeglądaj działający model AiVision w Persephone."
+        },
+        "pt-BR": {
+          "name": "AiVision Explorer",
+          "description": "Explore o modelo AiVision em tempo real do Persephone com navegação segura por descritores, ajuda, eventos e operações explícitas em membros."
+        },
+        "ro": {
+          "name": "Explorator AiVision",
+          "description": "Explorați modelul AiVision live din Persephone cu navigare în arbore sigură pentru descriptori, ajutor, evenimente și operațiuni explicite asupra membrilor."
+        },
+        "sk": {
+          "name": "AiVision Explorer",
+          "description": "Preskúmajte živý model AiVision v Persephone: prechádzajte stromom deskriptorov, pomocníkom a udalosťami a vykonávajte operácie s členmi podľa vlastného výberu."
+        },
+        "uk": {
+          "name": "Огляд AiVision",
+          "description": "Перегляд активної моделі AiVision у Persephone: навігація деревом, довідка, події та явне виконання дій з елементами."
+        },
+        "zh-CN": {
+          "name": "AiVision 浏览器",
+          "description": "浏览 Persephone 实时 AiVision 模型：探索对象树、检查成员、查看帮助并搜索描述符。"
+        }
       }
     },
     {
       "id": "cert-viewer",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "name": "Certificate Viewer",
       "description": "Offline, read-only inspection of X.509 certificates, requests, and certificate bundles.",
       "fileMasks": [
@@ -52,31 +192,171 @@
       "editorName": "Certificate Viewer",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "5.0.8",
+      "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/cert-viewer-v1.0.1/cert-viewer.zip",
-        "size": 164743,
-        "sha256": "fae675b6a7916d7aca87e808286e4120be25ce041e514cdd51e3c9eca22eec76"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/cert-viewer-v1.1.0/cert-viewer.zip",
+        "size": 204986,
+        "sha256": "934d885acd79a7653e57c2e2d6cb32fd45940a97af315852dc5cfddd06e09a85"
+      },
+      "localized": {
+        "be": {
+          "name": "Прагляд сертыфікатаў",
+          "description": "Афлайн-прагляд сертыфікатаў X.509, запытаў і набораў сертыфікатаў без рэдагавання."
+        },
+        "de": {
+          "name": "Zertifikat-Viewer",
+          "description": "Offline-Viewer zum schreibgeschützten Prüfen von X.509-Zertifikaten, Anforderungen und Zertifikatpaketen."
+        },
+        "es": {
+          "name": "Visor de certificados",
+          "description": "Inspección sin conexión y de solo lectura de certificados X.509, solicitudes y conjuntos de certificados."
+        },
+        "et": {
+          "name": "Sertifikaadivaatur",
+          "description": "X.509 sertifikaatide, taotluste ja sertifikaadipakettide võrguühenduseta kirjutuskaitstud uurimine."
+        },
+        "fr": {
+          "name": "Visionneuse de certificats",
+          "description": "Examen hors ligne et en lecture seule des certificats X.509, des demandes de certificat et des lots de certificats."
+        },
+        "hu": {
+          "name": "Tanúsítvány-megjelenítő",
+          "description": "X.509-tanúsítványok, kérelmek és tanúsítványcsomagok offline, csak olvasási célú vizsgálata."
+        },
+        "it": {
+          "name": "Visualizzatore certificati",
+          "description": "Esamina offline e in sola lettura certificati X.509, richieste e raccolte di certificati."
+        },
+        "ja": {
+          "name": "証明書ビューアー",
+          "description": "X.509証明書、証明書要求、証明書バンドルをオフラインで読み取り専用で確認します。"
+        },
+        "ko": {
+          "name": "인증서 뷰어",
+          "description": "X.509 인증서, 요청 및 인증서 묶음을 오프라인에서 읽기 전용으로 확인합니다."
+        },
+        "lt": {
+          "name": "Sertifikatų peržiūros programa",
+          "description": "Tik skaitymui skirta X.509 sertifikatų, užklausų ir sertifikatų rinkinių tikrinimo priemonė. Veikia neprisijungus."
+        },
+        "lv": {
+          "name": "Sertifikātu skatītājs",
+          "description": "X.509 sertifikātu, pieprasījumu un sertifikātu kopu pārbaude bez tīkla savienojuma; tikai lasīšanai."
+        },
+        "pl": {
+          "name": "Podgląd certyfikatów",
+          "description": "Sprawdzaj certyfikaty X.509, żądania i zestawy offline, bez modyfikowania danych."
+        },
+        "pt-BR": {
+          "name": "Visualizador de certificados",
+          "description": "Inspeção offline e somente leitura de certificados, solicitações e pacotes X.509."
+        },
+        "ro": {
+          "name": "Vizualizator de certificate",
+          "description": "Inspectare offline, doar pentru citire, a certificatelor X.509, a solicitărilor și a colecțiilor de certificate."
+        },
+        "sk": {
+          "name": "Certificate Viewer",
+          "description": "Offline kontrola certifikátov X.509, žiadostí a balíkov certifikátov. Iba na čítanie."
+        },
+        "uk": {
+          "name": "Перегляд сертифікатів",
+          "description": "Перегляд сертифікатів X.509, запитів і наборів сертифікатів без підключення до мережі; лише читання."
+        },
+        "zh-CN": {
+          "name": "证书查看器",
+          "description": "离线、只读地检查 X.509 证书、证书请求和证书包。"
+        }
       }
     },
     {
       "id": "chess",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "name": "Agent Chess",
       "description": "Play chess against your own AI agent. You move with the mouse; the agent connected to Persephone (Claude Code, Codex, …) reads the position and moves through the board's model, talks to you in the side chat and draws arrows to explain its ideas. Illegal moves are rejected.",
       "standalone": true,
-      "minAppVersion": "5.0.8",
+      "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/chess-v1.0.0/chess.zip",
-        "size": 54730,
-        "sha256": "f38e1b368105aff1a8bfe5830f237f81e9de8577740f26b040339d2a0ef25c15"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/chess-v1.1.0/chess.zip",
+        "size": 80470,
+        "sha256": "93953ddb31bbce37ae813b1fc5dc6a9df37af3b6633c55c32d10c55ba3f0840c"
+      },
+      "localized": {
+        "be": {
+          "name": "Шахматы з агентам",
+          "description": "Гуляйце ў шахматы са сваім AI-агентам. Вы робіце хады мышшу; агент, падлучаны да Persephone (Claude Code, Codex і інш.), атрымлівае пазіцыю і ходзіць праз мадэль дошкі, размаўляе з вамі ў бакавым чаце і малюе стрэлкі, каб растлумачыць свае ідэі. Недапушчальныя хады адхіляюцца."
+        },
+        "de": {
+          "name": "Agent Chess",
+          "description": "Spielen Sie Schach gegen Ihren KI-Agenten. Sie ziehen mit der Maus. Der mit Persephone verbundene Agent (Claude Code, Codex usw.) liest die Stellung, zieht über das Board-Modell, schreibt im Seitenchat mit Ihnen und erklärt seine Ideen mit Pfeilen. Ungültige Züge werden abgewiesen."
+        },
+        "es": {
+          "name": "Ajedrez con agente",
+          "description": "Juega al ajedrez contra tu propio agente de IA. Mueves con el ratón; el agente conectado a Persephone (Claude Code, Codex, …) lee la posición y mueve mediante el modelo del tablero, conversa contigo en el chat lateral y dibuja flechas para explicar sus ideas. Se rechazan las jugadas ilegales."
+        },
+        "et": {
+          "name": "Agent Chess",
+          "description": "Mängige malet oma AI-agendi vastu. Liigutage hiirega; Persephonega ühendatud agent (Claude Code, Codex, …) loeb seisu ja teeb käike tahvli mudeli kaudu, vestleb külgvestluses ning joonistab ideede selgitamiseks nooli. Keelatud käigud lükatakse tagasi."
+        },
+        "fr": {
+          "name": "Échecs avec agent",
+          "description": "Jouez aux échecs contre votre agent IA. Déplacez les pièces à la souris ; l’agent connecté à Persephone (Claude Code, Codex, …) lit la position et joue via le modèle du tableau, vous répond dans le volet de discussion et trace des flèches pour expliquer ses idées. Les coups illégaux sont refusés."
+        },
+        "hu": {
+          "name": "Ügynök sakk",
+          "description": "Sakktábla, ahol a Persephone alkalmazáshoz csatlakozó AI-ügynökkel játszhatsz."
+        },
+        "it": {
+          "name": "Scacchi con agente",
+          "description": "Gioca a scacchi contro il tuo agente IA. Muovi con il mouse; l’agente connesso a Persephone (Claude Code, Codex, …) legge la posizione e muove tramite il modello della bacheca, ti scrive nella chat laterale e disegna frecce per spiegare le sue idee. Le mosse non valide vengono rifiutate."
+        },
+        "ja": {
+          "name": "Agent Chess",
+          "description": "自分のAIエージェントとチェスをプレイします。マウスで指すと、Persephoneに接続されたエージェントがボードのモデルから局面を読み取って指し、サイド チャットで会話し、考えを説明する矢印を描きます。不正な手は拒否されます。"
+        },
+        "ko": {
+          "name": "에이전트 체스",
+          "description": "AI 에이전트와 체스를 두세요. 마우스로 수를 두면 Persephone에 연결된 에이전트가 보드 모델에서 현재 위치를 읽고 수를 둡니다. 에이전트는 사이드 채팅으로 대화하고 화살표로 생각을 설명합니다. 규칙에 맞지 않는 수는 거부됩니다."
+        },
+        "lt": {
+          "name": "Šachmatai su agentu",
+          "description": "Žaiskite šachmatais su savo DI agentu. Ėjimus atlikite pele, o prie Persephone prijungtas agentas (Claude Code, Codex ir kt.) nuskaito poziciją, atlieka ėjimus ir pokalbyje paaiškina savo mintis rodyklėmis. Neteisėti ėjimai atmetami."
+        },
+        "lv": {
+          "name": "Šahs ar aģentu",
+          "description": "Spēlējiet šahu pret savu AI aģentu. Jūs veicat gājienus ar peli; ar Persephone savienotais aģents nolasa pozīciju, izdara gājienus, tērzē ar jums sānjoslā un zīmē bultiņas, lai izskaidrotu savas ieceres. Nederīgi gājieni tiek noraidīti."
+        },
+        "pl": {
+          "name": "Szachy z agentem",
+          "description": "Graj w szachy z agentem AI na tablicy Persephone."
+        },
+        "pt-BR": {
+          "name": "Agent Chess",
+          "description": "Jogue xadrez contra seu próprio agente de IA. Você move as peças com o mouse; o agente conectado ao Persephone lê a posição, faz os lances pelo modelo do quadro, conversa no chat lateral e desenha setas para explicar suas ideias. Lances ilegais são rejeitados."
+        },
+        "ro": {
+          "name": "Șah cu agentul",
+          "description": "Jucați șah împotriva agentului AI în Persephone."
+        },
+        "sk": {
+          "name": "Agent Chess",
+          "description": "Zahrajte si šach proti vlastnému AI agentovi. Ťahy robíte myšou; agent pripojený k Persephone (Claude Code, Codex, …) číta pozíciu a ťahá cez model dosky, komunikuje s vami v bočnom chate a vysvetľuje svoje nápady šípkami. Neplatné ťahy sa odmietnu."
+        },
+        "uk": {
+          "name": "Шахи з агентом",
+          "description": "Грайте в шахи проти власного AI-агента. Ви ходите мишею; підключений до Persephone агент читає позицію та робить ходи через модель дошки, спілкується з вами в бічному чаті й малює стрілки, щоб пояснити свої ідеї. Недопустимі ходи відхиляються."
+        },
+        "zh-CN": {
+          "name": "智能体国际象棋",
+          "description": "与自己的 AI 智能体对弈。您用鼠标走棋；连接到 Persephone 的智能体（Claude Code、Codex 等）会读取局面，通过面板模型走棋，在侧边聊天中与您交流，并用箭头说明思路。非法走棋将被拒绝。"
+        }
       }
     },
     {
       "id": "drawio-viewer",
-      "version": "1.1.2",
+      "version": "1.2.0",
       "name": "DrawIO Viewer",
       "description": "Read-only viewer for diagrams.net / draw.io (.drawio) diagrams.",
       "fileMasks": [
@@ -85,17 +365,87 @@
       "editorName": "DrawIO",
       "editorKind": "content-host",
       "standalone": false,
-      "minAppVersion": "5.0.7",
+      "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/drawio-viewer-v1.1.2/drawio-viewer.zip",
-        "size": 888719,
-        "sha256": "bd635af174537653dd97082352ecfd8e7af7e040275b7d8867899e8589ab2a93"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/drawio-viewer-v1.2.0/drawio-viewer.zip",
+        "size": 901616,
+        "sha256": "5cd35f7b560fc1323e305f08a8456bf3f7cab404afedc7a669faaf6c1f9705a8"
+      },
+      "localized": {
+        "be": {
+          "name": "Прагляд draw.io",
+          "description": "Прагляд дыяграм diagrams.net / draw.io (.drawio) без рэдагавання."
+        },
+        "de": {
+          "name": "DrawIO-Viewer",
+          "description": "Schreibgeschützter Viewer für diagrams.net- und draw.io-Diagramme (.drawio)."
+        },
+        "es": {
+          "name": "Visor de draw.io",
+          "description": "Visor de solo lectura para diagramas de diagrams.net / draw.io (.drawio)."
+        },
+        "et": {
+          "name": "DrawIO vaatur",
+          "description": "Ainult vaatamiseks mõeldud vaatur diagrams.neti / draw.io (.drawio) diagrammidele."
+        },
+        "fr": {
+          "name": "Visionneuse DrawIO",
+          "description": "Visionneuse en lecture seule pour les diagrammes diagrams.net / draw.io (.drawio)."
+        },
+        "hu": {
+          "name": "DrawIO-megjelenítő",
+          "description": "Draw.io-diagramok megtekintése; a diagramokat PNG- vagy SVG-képként mentheted, illetve Excalidrawban szerkesztheted."
+        },
+        "it": {
+          "name": "Visualizzatore DrawIO",
+          "description": "Visualizzatore in sola lettura per diagrammi diagrams.net / draw.io (.drawio)."
+        },
+        "ja": {
+          "name": "draw.io ビューアー",
+          "description": "diagrams.net / draw.io（.drawio）図を表示するための読み取り専用ビューアー。"
+        },
+        "ko": {
+          "name": "draw.io 뷰어",
+          "description": "diagrams.net / draw.io(.drawio) 다이어그램을 읽기 전용으로 확인합니다."
+        },
+        "lt": {
+          "name": "DrawIO peržiūros programa",
+          "description": "Tik skaitymui skirta diagrams.net / draw.io (.drawio) diagramų peržiūros programa."
+        },
+        "lv": {
+          "name": "draw.io skatītājs",
+          "description": "diagrams.net / draw.io (.drawio) diagrammu skatītājs bez rediģēšanas."
+        },
+        "pl": {
+          "name": "Podgląd draw.io",
+          "description": "Wyświetlaj diagramy draw.io i zapisuj je jako obrazy."
+        },
+        "pt-BR": {
+          "name": "Visualizador do DrawIO",
+          "description": "Visualizador somente leitura de diagramas do diagrams.net / draw.io (.drawio)."
+        },
+        "ro": {
+          "name": "Vizualizator draw.io",
+          "description": "Vizualizator draw.io"
+        },
+        "sk": {
+          "name": "Prehliadač draw.io",
+          "description": "Prehliadač diagramov diagrams.net / draw.io (.drawio) bez možnosti úprav."
+        },
+        "uk": {
+          "name": "Перегляд draw.io",
+          "description": "Перегляд діаграм diagrams.net / draw.io (.drawio) без редагування."
+        },
+        "zh-CN": {
+          "name": "DrawIO 查看器",
+          "description": "只读查看 diagrams.net / draw.io（.drawio）图表。"
+        }
       }
     },
     {
       "id": "excel-viewer",
-      "version": "1.2.2",
+      "version": "1.3.0",
       "name": "Excel Viewer",
       "description": "Read-only viewer for Excel spreadsheets (.xlsx / .xls) — one tab per worksheet, sortable/filterable grid.",
       "fileMasks": [
@@ -105,17 +455,87 @@
       "editorName": "Excel",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "5.0.7",
+      "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/excel-viewer-v1.2.2/excel-viewer.zip",
-        "size": 462985,
-        "sha256": "7ad7d30c93dacc6c814154708273bfadb1e566a859621f73f8945316deb03881"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/excel-viewer-v1.3.0/excel-viewer.zip",
+        "size": 472808,
+        "sha256": "ba1470f279008640433337752d9fdc9bcac3fec0c44272f74b26ad1ff7ca399f"
+      },
+      "localized": {
+        "be": {
+          "name": "Прагляд Excel",
+          "description": "Прагляд табліц Excel (.xlsx / .xls) без рэдагавання: асобная ўкладка для кожнага аркуша, табліцу можна сартаваць і фільтраваць."
+        },
+        "de": {
+          "name": "Excel-Viewer",
+          "description": "Schreibgeschützter Viewer für Excel-Tabellen (.xlsx / .xls) mit einem Register pro Arbeitsblatt und sortierbarem, filterbarem Raster."
+        },
+        "es": {
+          "name": "Visor de Excel",
+          "description": "Visor de libros de Excel de solo lectura."
+        },
+        "et": {
+          "name": "Exceli vaatur",
+          "description": "Ainult vaatamiseks mõeldud Exceli arvutustabelite (.xlsx / .xls) vaatur — iga tööleht avaneb eraldi vahekaardil filtreeritavas ja sorditavas ruudustikus."
+        },
+        "fr": {
+          "name": "Visionneuse Excel",
+          "description": "Visionneuse en lecture seule pour les feuilles de calcul Excel (.xlsx / .xls), avec un onglet par feuille et une grille triable et filtrable."
+        },
+        "hu": {
+          "name": "Excel-megjelenítő",
+          "description": "Csak olvasásra használható Excel-munkafüzet-megjelenítő kereséssel és az összes munkalap lapfüleivel."
+        },
+        "it": {
+          "name": "Visualizzatore Excel",
+          "description": "Visualizzatore in sola lettura per fogli di calcolo Excel (.xlsx / .xls), con una scheda per ogni foglio e una griglia ordinabile e filtrabile."
+        },
+        "ja": {
+          "name": "Excel ビューアー",
+          "description": "Excelブックを編集せずに表示します。"
+        },
+        "ko": {
+          "name": "Excel 뷰어",
+          "description": "Excel 통합 문서를 읽기 전용으로 확인합니다."
+        },
+        "lt": {
+          "name": "Excel peržiūros programa",
+          "description": "Tik skaitymui skirta Excel skaičiuoklių (.xlsx / .xls) peržiūros programa – po skirtuką kiekvienam darbalapiui, rikiuojamas ir filtruojamas tinklelis."
+        },
+        "lv": {
+          "name": "Excel skatītājs",
+          "description": "Excel darbgrāmatu skatītājs bez rediģēšanas."
+        },
+        "pl": {
+          "name": "Podgląd Excela",
+          "description": "Wyświetlaj pliki arkuszy kalkulacyjnych Excel."
+        },
+        "pt-BR": {
+          "name": "Visualizador do Excel",
+          "description": "Visualizador somente leitura de planilhas do Excel (.xlsx / .xls) — uma guia por planilha, em grade classificável e filtrável."
+        },
+        "ro": {
+          "name": "Vizualizator Excel",
+          "description": "Vizualizator Excel"
+        },
+        "sk": {
+          "name": "Excel Viewer",
+          "description": "Prehliadač tabuliek Excel bez možnosti úprav (.xlsx / .xls) – samostatná karta pre každý hárok a mriežka s radením a filtrami."
+        },
+        "uk": {
+          "name": "Перегляд Excel",
+          "description": "Перегляд книг Excel без редагування."
+        },
+        "zh-CN": {
+          "name": "Excel 查看器",
+          "description": "只读 Excel 电子表格查看器（.xlsx / .xls），每个工作表各占一个选项卡，并提供可排序和筛选的网格。"
+        }
       }
     },
     {
       "id": "force-graph",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "name": "Force Graph",
       "description": "Force-directed graph viewer and editor for .fg.json files - a content-host board with a canvas renderer, a live d3-force simulation, six node shapes, five levels, group containers and BFS visibility for large graphs.",
       "fileMasks": [
@@ -124,17 +544,87 @@
       "editorName": "Force Graph",
       "editorKind": "content-host",
       "standalone": false,
-      "minAppVersion": "5.0.7",
+      "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/force-graph-v1.0.1/force-graph.zip",
-        "size": 199525,
-        "sha256": "feec38064a534fdae2be51622733e682127a69d8e03ceb954b3fa8865e195cea"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/force-graph-v1.1.0/force-graph.zip",
+        "size": 253958,
+        "sha256": "d1116d6320ebe5941420f680c5ae434b85e163fb9355d0a95ff2c56711ea1fc5"
+      },
+      "localized": {
+        "be": {
+          "name": "Граф сілавога поля",
+          "description": "Прагляд і рэдагаванне графаў сілавога поля ў файлах .fg.json: палатно з візуалізацыяй і жывой сімуляцыяй d3-force, шэсць формаў вузлоў, пяць узроўняў, кантэйнеры груп і бачнасць на аснове BFS для вялікіх графаў."
+        },
+        "de": {
+          "name": "Force Graph",
+          "description": "Kraftgerichteter Graph-Viewer und -Editor für .fg.json-Dateien: Canvas-Darstellung, laufende d3-force-Simulation, sechs Knotenformen, fünf Ebenen, Gruppencontainer und BFS-Sichtbarkeit für große Graphen."
+        },
+        "es": {
+          "name": "Force Graph",
+          "description": "Visor y editor de grafos de fuerzas para archivos .fg.json, con lienzo, simulación d3-force en tiempo real, seis formas de nodo, cinco niveles, grupos y visibilidad BFS para grafos grandes."
+        },
+        "et": {
+          "name": "Force Graph",
+          "description": "Jõupõhine graafide vaatur ja redaktor .fg.json-failidele — sisuredaktor lõuendirenderdaja, reaalajas d3-force simulatsiooni, kuue sõlmekuju, viie taseme, rühmakonteinerite ja suurte graafide BFS-nähtavusega."
+        },
+        "fr": {
+          "name": "Graphe de forces",
+          "description": "Visionneuse et éditeur de graphes orientés par des forces pour les fichiers .fg.json : tableau hôte de contenu avec rendu sur canevas, simulation d3-force en direct, six formes de nœud, cinq niveaux, groupes conteneurs et visibilité BFS pour les grands graphes."
+        },
+        "hu": {
+          "name": "Erőgráf",
+          "description": "Csomópontokból és hivatkozásokból álló interaktív gráfok létrehozása, csoportosítása és megjelenítése."
+        },
+        "it": {
+          "name": "Grafo delle forze",
+          "description": "Visualizzatore e editor di grafi con layout a forze per file .fg.json: bacheca per contenuti con renderer su area di disegno, simulazione d3-force attiva, sei forme per i nodi, cinque livelli, gruppi contenitore e visibilità BFS per grafi di grandi dimensioni."
+        },
+        "ja": {
+          "name": "Force Graph",
+          "description": ".fg.jsonファイル用の力指向グラフ ビューアー/エディター。キャンバス描画、リアルタイムのd3-forceシミュレーション、6種類のノード形状、5段階、グループ コンテナー、大規模グラフ向けBFS表示に対応します。"
+        },
+        "ko": {
+          "name": "Force Graph",
+          "description": "노드, 그룹, 연결을 사용해 대화형 그래프를 만듭니다."
+        },
+        "lt": {
+          "name": "Jėgų grafas",
+          "description": ".fg.json failų jėgų modeliu pagrįsta grafo peržiūros ir redagavimo priemonė su drobės atvaizdavimu, veikiančia d3-force simuliacija, šešiomis mazgų formomis, penkiais lygiais, grupių konteineriais ir BFS matomumu dideliuose grafuose."
+        },
+        "lv": {
+          "name": "Force Graph",
+          "description": "Interaktīvs grafs ar mezgliem, grupām un saitēm."
+        },
+        "pl": {
+          "name": "Graf siłowy",
+          "description": "Twórz i przeglądaj interaktywne grafy węzłów i połączeń."
+        },
+        "pt-BR": {
+          "name": "Force Graph",
+          "description": "Visualizador e editor de grafos de força para arquivos .fg.json — quadro com renderizador em tela, simulação d3-force em tempo real, seis formas de nós, cinco níveis, grupos e visibilidade BFS para grafos grandes."
+        },
+        "ro": {
+          "name": "Graf de forțe",
+          "description": "Editor interactiv pentru grafuri de noduri și legături."
+        },
+        "sk": {
+          "name": "Force Graph",
+          "description": "Interaktívny silovo riadený graf pre súbory .fg.json – doska s plátnom, živou simuláciou d3-force, šiestimi tvarmi uzlov, piatimi úrovňami, skupinami a zobrazením veľkých grafov pomocou BFS."
+        },
+        "uk": {
+          "name": "Граф сил",
+          "description": "Інтерактивний граф із вузлами, групами та зв’язками."
+        },
+        "zh-CN": {
+          "name": "力导向图",
+          "description": ".fg.json 文件的力导向图查看器和编辑器 — 内容面板使用画布呈现、运行实时 d3-force 模拟，支持六种节点形状、五个层级、组容器，以及面向大型图的 BFS 可见性控制。"
+        }
       }
     },
     {
       "id": "pdf-viewer",
-      "version": "1.1.1",
+      "version": "1.2.0",
       "name": "PDF Viewer",
       "description": "Viewer for PDF documents — the stock pdf.js viewer with search, thumbnails, outline, zoom/fit, rotate and print.",
       "fileMasks": [
@@ -143,17 +633,87 @@
       "editorName": "PDF",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "5.0.7",
+      "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pdf-viewer-v1.1.1/pdf-viewer.zip",
-        "size": 3531889,
-        "sha256": "424d7d8466ee8782b8b8e4e73f77bdf9cd85e560fe9e1bc10a4c7b05390d8c5e"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pdf-viewer-v1.2.0/pdf-viewer.zip",
+        "size": 3546357,
+        "sha256": "6051f88302c060491afd0936b3d207a682f902f6cbf97f1fc8531b9fb30527cb"
+      },
+      "localized": {
+        "be": {
+          "name": "Прагляд PDF",
+          "description": "Прагляд дакументаў PDF у стандартным праглядальніку pdf.js з пошукам, мініяцюрамі, структурай дакумента, маштабаваннем і падганяннем, паваротам і друкам."
+        },
+        "de": {
+          "name": "PDF-Viewer",
+          "description": "Viewer für PDF-Dokumente mit dem Standard-Viewer von pdf.js: Suche, Miniaturansichten, Gliederung, Zoom und Anpassen, Drehen und Drucken."
+        },
+        "es": {
+          "name": "Visor de PDF",
+          "description": "Visor de documentos PDF de solo lectura."
+        },
+        "et": {
+          "name": "PDF-vaatur",
+          "description": "PDF-dokumentide vaatur — algne pdf.js-vaatur otsingu, pisipiltide, liigendusvaate, suumimise ja sobitamise, pööramise ning printimisega."
+        },
+        "fr": {
+          "name": "Visionneuse PDF",
+          "description": "Visionneuse de documents PDF avec la visionneuse pdf.js standard : recherche, miniatures, plan, zoom et ajustement, rotation et impression."
+        },
+        "hu": {
+          "name": "PDF-megjelenítő",
+          "description": "Beépített PDF-megjelenítő PDF-dokumentumok megnyitásához és olvasásához."
+        },
+        "it": {
+          "name": "Visualizzatore PDF",
+          "description": "Visualizzatore di documenti PDF con il visualizzatore pdf.js standard, ricerca, anteprime, struttura, zoom e adattamento, rotazione e stampa."
+        },
+        "ja": {
+          "name": "PDF ビューアー",
+          "description": "検索、サムネイル、アウトライン、ズームとページ合わせ、回転、印刷に対応したPDFドキュメントの読み取り専用ビューアー。"
+        },
+        "ko": {
+          "name": "PDF 뷰어",
+          "description": "PDF 문서를 읽기 전용으로 확인합니다."
+        },
+        "lt": {
+          "name": "PDF peržiūros programa",
+          "description": "PDF dokumentų peržiūros programa su standartine pdf.js peržiūros programa, kurioje yra ieška, miniatiūros, struktūra, mastelio pritaikymas, pasukimas ir spausdinimas."
+        },
+        "lv": {
+          "name": "PDF skatītājs",
+          "description": "PDF dokumentu skatītājs bez rediģēšanas."
+        },
+        "pl": {
+          "name": "Podgląd PDF",
+          "description": "Otwieraj pliki PDF i wyświetlaj ich zawartość."
+        },
+        "pt-BR": {
+          "name": "Visualizador de PDF",
+          "description": "Visualizador de documentos PDF com o visualizador padrão do pdf.js, pesquisa, miniaturas, estrutura de tópicos, zoom/ajuste, rotação e impressão."
+        },
+        "ro": {
+          "name": "Vizualizator PDF",
+          "description": "Vizualizator PDF"
+        },
+        "sk": {
+          "name": "PDF Viewer",
+          "description": "Prehliadač dokumentov PDF – štandardný prehliadač pdf.js s vyhľadávaním, miniatúrami, obsahom, priblížením, prispôsobením, otáčaním a tlačou."
+        },
+        "uk": {
+          "name": "Перегляд PDF",
+          "description": "Перегляд PDF-документів без редагування."
+        },
+        "zh-CN": {
+          "name": "PDF 查看器",
+          "description": "PDF 文档查看器 — 使用标准 PDF.js 查看器，支持搜索、缩略图、文档大纲、缩放/适合页面、旋转和打印。"
+        }
       }
     },
     {
       "id": "pe-viewer",
-      "version": "1.0.4",
+      "version": "1.1.0",
       "name": "PE Viewer",
       "description": "Read-only inspector for Windows PE binaries (.exe / .dll / .sys / .ocx / .scr) — version info, headers, sections, imports/exports, digital signature, hashes, and more.",
       "fileMasks": [
@@ -166,17 +726,87 @@
       "editorName": "PE Viewer",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "5.0.7",
+      "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pe-viewer-v1.0.4/pe-viewer.zip",
-        "size": 29307,
-        "sha256": "7bf242587898f9d8e4cd3c6773c3aba9a4426e468c2388ac7f243df1c708eced"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pe-viewer-v1.1.0/pe-viewer.zip",
+        "size": 58383,
+        "sha256": "3090db4c36c9e608691fd4bc5abbe3389778c45d9e56d51515994689c98edeb3"
+      },
+      "localized": {
+        "be": {
+          "name": "Прагляд PE",
+          "description": "Агляд файлаў PE для Windows без рэдагавання (.exe / .dll / .sys / .ocx / .scr): звесткі пра версію, загалоўкі, секцыі, імпарт і экспарт, лічбавы подпіс, хэшы і іншае."
+        },
+        "de": {
+          "name": "PE-Viewer",
+          "description": "Schreibgeschützter Prüfer für Windows-PE-Binärdateien (.exe / .dll / .sys / .ocx / .scr) mit Versionsinformationen, Headern, Abschnitten, Importen und Exporten, digitaler Signatur, Hashes und mehr."
+        },
+        "es": {
+          "name": "Visor de PE",
+          "description": "Inspecciona la estructura PE/COFF, los encabezados, las secciones, las importaciones, las exportaciones, las firmas y los hashes de archivos ejecutables sin modificarlos."
+        },
+        "et": {
+          "name": "PE-vaatur",
+          "description": "Windowsi PE-kahendfailide (.exe / .dll / .sys / .ocx / .scr) kirjutuskaitstud uurimine — versiooniteave, päised, jaotised, impordid ja ekspordid, digitaalallkiri, räsid jm."
+        },
+        "fr": {
+          "name": "Visionneuse PE",
+          "description": "Inspecteur en lecture seule des fichiers binaires PE Windows (.exe / .dll / .sys / .ocx / .scr) : informations de version, en-têtes, sections, importations et exportations, signature numérique, hachages et plus encore."
+        },
+        "hu": {
+          "name": "PE-megjelenítő",
+          "description": "Hordozható PE/COFF binárisok offline vizsgálata: fejlécek, szakaszok, importok, digitális aláírások, kivonatok és verzióadatok."
+        },
+        "it": {
+          "name": "Visualizzatore PE",
+          "description": "Strumento in sola lettura per file binari Windows PE (.exe / .dll / .sys / .ocx / .scr): informazioni sulla versione, intestazioni, sezioni, importazioni ed esportazioni, firma digitale, hash e altro."
+        },
+        "ja": {
+          "name": "PE ビューアー",
+          "description": "Windows実行可能ファイルのPE/COFF構造、ヘッダー、セクション、インポート/エクスポート、デジタル署名、ハッシュなどを読み取り専用で確認します。"
+        },
+        "ko": {
+          "name": "PE 뷰어",
+          "description": "실행 파일의 PE/COFF 구조, 헤더, 섹션, 가져오기, 내보내기, 서명 및 해시를 읽기 전용으로 확인합니다."
+        },
+        "lt": {
+          "name": "PE peržiūros programa",
+          "description": "Tik skaitymui skirtas Windows PE dvejetainių failų (.exe / .dll / .sys / .ocx / .scr) tikrintuvas – versijos informacija, antraštės, sekcijos, importai ir eksportai, skaitmeninis parašas, maišos reikšmės ir kt."
+        },
+        "lv": {
+          "name": "PE skatītājs",
+          "description": "Windows PE/COFF bināro failu (.exe / .dll / .sys / .ocx / .scr) pārbaude bez rediģēšanas — versijas informācija, galvenes, sadaļas, imports un eksports, digitālais paraksts, jaucējvērtības un cita informācija."
+        },
+        "pl": {
+          "name": "Podgląd plików PE",
+          "description": "Sprawdzaj strukturę, podpisy i skróty plików PE/COFF."
+        },
+        "pt-BR": {
+          "name": "Visualizador de PE",
+          "description": "Inspecione binários PE do Windows (.exe / .dll / .sys / .ocx / .scr) em modo somente leitura: informações de versão, cabeçalhos, seções, importações/exportações, assinatura digital, hashes e muito mais."
+        },
+        "ro": {
+          "name": "Vizualizator PE",
+          "description": "Inspectați fișiere executabile PE/COFF, antete, secțiuni, importuri, exporturi, semnături și hashuri."
+        },
+        "sk": {
+          "name": "PE Viewer",
+          "description": "Prehliadač štruktúry PE/COFF, hlavičiek, sekcií, importov a exportov, digitálnych podpisov a hašov spustiteľných súborov. Iba na čítanie."
+        },
+        "uk": {
+          "name": "Перегляд PE",
+          "description": "Перегляд структури PE/COFF, заголовків, розділів, імпорту, експорту, підписів і хешів виконуваних файлів без редагування."
+        },
+        "zh-CN": {
+          "name": "PE 查看器",
+          "description": "只读检查 Windows PE 二进制文件（.exe / .dll / .sys / .ocx / .scr），查看版本信息、标头、节、导入/导出、数字签名、哈希等内容。"
+        }
       }
     },
     {
       "id": "powerpoint-viewer",
-      "version": "1.1.1",
+      "version": "1.2.0",
       "name": "PowerPoint Viewer",
       "description": "Read-only viewer for PowerPoint decks (.pptx) — scrollable slide view rendered offline.",
       "fileMasks": [
@@ -185,17 +815,87 @@
       "editorName": "PowerPoint",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "5.0.7",
+      "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/powerpoint-viewer-v1.1.1/powerpoint-viewer.zip",
-        "size": 509232,
-        "sha256": "c2a4eb76592bf0305f790eefa45e21d5b70c71922766ea66c1d199c8e3ef7906"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/powerpoint-viewer-v1.2.0/powerpoint-viewer.zip",
+        "size": 518714,
+        "sha256": "89dfd2dc49c9e95b87490d47b2d94768b64a660cb5035401a3f02650f78b8873"
+      },
+      "localized": {
+        "be": {
+          "name": "Прагляд PowerPoint",
+          "description": "Прагляд прэзентацый PowerPoint без рэдагавання."
+        },
+        "de": {
+          "name": "PowerPoint-Viewer",
+          "description": "Schreibgeschützter Viewer für PowerPoint-Präsentationen (.pptx) mit offline gerenderten, durchlaufbaren Folien."
+        },
+        "es": {
+          "name": "Visor de PowerPoint",
+          "description": "Visor de presentaciones de PowerPoint de solo lectura."
+        },
+        "et": {
+          "name": "PowerPointi vaatur",
+          "description": "Ainult vaatamiseks mõeldud PowerPointi esitluste (.pptx) vaatur — keritavad slaidid renderdatakse võrguühenduseta."
+        },
+        "fr": {
+          "name": "Visionneuse PowerPoint",
+          "description": "Visionneuse en lecture seule pour les présentations PowerPoint (.pptx), avec défilement des diapositives et rendu hors ligne."
+        },
+        "hu": {
+          "name": "PowerPoint-megjelenítő",
+          "description": "Csak olvasásra használható PowerPoint-bemutató-megjelenítő dia-navigálással."
+        },
+        "it": {
+          "name": "Visualizzatore PowerPoint",
+          "description": "Visualizzatore in sola lettura per presentazioni PowerPoint (.pptx), con diapositive scorrevoli visualizzate offline."
+        },
+        "ja": {
+          "name": "PowerPoint ビューアー",
+          "description": "PowerPointプレゼンテーション（.pptx）をオフラインで表示する読み取り専用ビューアー。"
+        },
+        "ko": {
+          "name": "PowerPoint 뷰어",
+          "description": "PowerPoint 프레젠테이션을 읽기 전용으로 확인합니다."
+        },
+        "lt": {
+          "name": "PowerPoint peržiūros programa",
+          "description": "Tik skaitymui skirta PowerPoint pateikčių (.pptx) peržiūros programa – skaidrės atvaizduojamos neprisijungus ir slenkamos."
+        },
+        "lv": {
+          "name": "PowerPoint skatītājs",
+          "description": "PowerPoint prezentāciju skatītājs bez rediģēšanas."
+        },
+        "pl": {
+          "name": "Podgląd programu PowerPoint",
+          "description": "Wyświetlaj prezentacje programu PowerPoint."
+        },
+        "pt-BR": {
+          "name": "Visualizador do PowerPoint",
+          "description": "Visualizador somente leitura de apresentações do PowerPoint (.pptx), com slides roláveis renderizados offline."
+        },
+        "ro": {
+          "name": "Vizualizator PowerPoint",
+          "description": "Vizualizator PowerPoint"
+        },
+        "sk": {
+          "name": "PowerPoint Viewer",
+          "description": "Prehliadač prezentácií PowerPoint bez možnosti úprav (.pptx) – posúvateľné zobrazenie snímok vykreslené offline."
+        },
+        "uk": {
+          "name": "Перегляд PowerPoint",
+          "description": "Перегляд презентацій PowerPoint без редагування."
+        },
+        "zh-CN": {
+          "name": "PowerPoint 查看器",
+          "description": "只读 PowerPoint 演示文稿查看器（.pptx）。"
+        }
       }
     },
     {
       "id": "sqlite-viewer",
-      "version": "1.1.1",
+      "version": "1.2.0",
       "name": "SQLite Viewer",
       "description": "Read-only SQL browser for SQLite databases (.db / .sqlite / .sqlite3 / .db3) — tables in the sidebar, free-form SELECT queries (FTS5 included), results in a sortable/filterable grid.",
       "fileMasks": [
@@ -207,31 +907,171 @@
       "editorName": "SQLite",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "5.0.7",
+      "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/sqlite-viewer-v1.1.1/sqlite-viewer.zip",
-        "size": 270223,
-        "sha256": "c866e1e368e0ea1ee25d6c737f4e6724c4e089206edaf6047e8e346d7748cfc3"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/sqlite-viewer-v1.2.0/sqlite-viewer.zip",
+        "size": 285478,
+        "sha256": "c6b519e60ed24ae116f0b194de367540cf0cc552c7f4d6f7f61b24490fa482be"
+      },
+      "localized": {
+        "be": {
+          "name": "Прагляд SQLite",
+          "description": "Прагляд баз даных SQLite толькі для чытання (.db / .sqlite / .sqlite3 / .db3): табліцы на бакавой панэлі, адвольныя запыты SELECT (у тым ліку FTS5), вынікі ў табліцы з сартаваннем і фільтраваннем."
+        },
+        "de": {
+          "name": "SQLite-Viewer",
+          "description": "Schreibgeschützter SQL-Browser für SQLite-Datenbanken (.db / .sqlite / .sqlite3 / .db3) mit Tabellen in der Seitenleiste, freien SELECT-Abfragen (einschließlich FTS5) und sortierbarem, filterbarem Ergebnisraster."
+        },
+        "es": {
+          "name": "Visor de SQLite",
+          "description": "Visor de bases de datos SQLite y ejecución de consultas SQL."
+        },
+        "et": {
+          "name": "SQLite-vaatur",
+          "description": "Ainult lugemiseks mõeldud SQLite-andmebaaside SQL-brauser (.db / .sqlite / .sqlite3 / .db3) — tabelid külgribal, vabad SELECT-päringud (sh FTS5) ja sorditavad ning filtreeritavad tulemused."
+        },
+        "fr": {
+          "name": "Visionneuse SQLite",
+          "description": "Explorateur SQL en lecture seule pour les bases de données SQLite (.db / .sqlite / .sqlite3 / .db3), avec tables dans le panneau latéral, requêtes SELECT libres (FTS5 inclus) et grille de résultats triable et filtrable."
+        },
+        "hu": {
+          "name": "SQLite-megjelenítő",
+          "description": "SQLite-adatbázisok megnyitása, táblák böngészése és lekérdezések futtatása."
+        },
+        "it": {
+          "name": "Visualizzatore SQLite",
+          "description": "Esplora database SQLite in sola lettura (.db / .sqlite / .sqlite3 / .db3): tabelle nel pannello laterale, query SELECT libere (incluso FTS5) e risultati in una griglia ordinabile e filtrabile."
+        },
+        "ja": {
+          "name": "SQLite ビューアー",
+          "description": "SQLiteデータベースを表示、検索し、SQLクエリを実行します。"
+        },
+        "ko": {
+          "name": "SQLite 뷰어",
+          "description": "SQLite 데이터베이스를 살펴보고 SQL 쿼리를 실행합니다."
+        },
+        "lt": {
+          "name": "SQLite peržiūros programa",
+          "description": "Tik skaitymui skirta SQLite duomenų bazių SQL naršyklė (.db / .sqlite / .sqlite3 / .db3) – lentelės šoninėje juostoje, laisvos formos SELECT užklausos (įskaitant FTS5), rezultatai rikiuojamame ir filtruojamame tinklelyje."
+        },
+        "lv": {
+          "name": "SQLite skatītājs",
+          "description": "SQLite datubāzu skatītājs un SQL vaicājumu izpilde."
+        },
+        "pl": {
+          "name": "Podgląd SQLite",
+          "description": "Przeglądaj tabele i wykonuj zapytania do baz danych SQLite."
+        },
+        "pt-BR": {
+          "name": "Visualizador de SQLite",
+          "description": "Navegador SQL somente leitura para bancos de dados SQLite (.db / .sqlite / .sqlite3 / .db3) — tabelas na barra lateral, consultas SELECT livres (inclui FTS5) e resultados em grade classificável e filtrável."
+        },
+        "ro": {
+          "name": "Vizualizator SQLite",
+          "description": "Explorați bazele de date SQLite și rulați interogări."
+        },
+        "sk": {
+          "name": "SQLite Viewer",
+          "description": "Prehliadač databáz SQLite a spúšťanie dotazov SQL. Iba na čítanie; tabuľky sú na bočnom paneli, dotazy SELECT možno zadávať voľne a výsledky zobraziť v mriežke s radením a filtrami."
+        },
+        "uk": {
+          "name": "Перегляд SQLite",
+          "description": "Перегляд баз даних SQLite і виконання запитів SQL."
+        },
+        "zh-CN": {
+          "name": "SQLite 查看器",
+          "description": "只读浏览 SQLite 数据库（.db / .sqlite / .sqlite3 / .db3），在侧边栏查看表，并运行自由格式的 SELECT 查询（包括 FTS5）；结果显示在可排序和筛选的网格中。"
+        }
       }
     },
     {
       "id": "theme-editor",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "name": "Theme Editor",
       "description": "Create your own Persephone color themes. Pick a background, text and accent color and every other color is derived for you; adjust any derived color, check text contrast, preview live, then save, rename, import or export named themes you can select in Settings.",
       "standalone": true,
-      "minAppVersion": "5.0.9",
+      "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/theme-editor-v1.1.0/theme-editor.zip",
-        "size": 39300,
-        "sha256": "5be310c72c241c28e8ddbec1cca95efb754b174b7f3aa19c845cde45c31410bb"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/theme-editor-v1.2.0/theme-editor.zip",
+        "size": 104944,
+        "sha256": "16a05312332379fd55b2f298e60d02a9c98c6a2653e74ea8827934d7695dedf3"
+      },
+      "localized": {
+        "be": {
+          "name": "Рэдактар тэм",
+          "description": "Стварайце ўласныя каляровыя тэмы Persephone. Выберыце фон, тэкст і акцэнт, а астатнія колеры будуць вылічаны аўтаматычна; змяняйце любы вытворны колер, правярайце кантраст тэксту, праглядайце змены і захоўвайце, пераймяноўвайце, імпартуйце або экспартуйце тэмы, якія можна выбраць у Параметрах."
+        },
+        "de": {
+          "name": "Theme Editor",
+          "description": "Erstellen Sie eigene Persephone-Farbdesigns. Wählen Sie Hintergrund, Text und Akzentfarbe; die übrigen Farben werden daraus abgeleitet. Passen Sie abgeleitete Farben an, prüfen Sie den Textkontrast, sehen Sie Änderungen live in der Vorschau und speichern, benennen, importieren oder exportieren Sie Designs, die Sie in den Einstellungen auswählen können."
+        },
+        "es": {
+          "name": "Editor de temas",
+          "description": "Crea temas de color para Persephone: elige el fondo, el texto y el acento; ajusta los demás colores derivados, comprueba el contraste, previsualiza los cambios y guarda, cambia el nombre, importa o exporta temas."
+        },
+        "et": {
+          "name": "Theme Editor",
+          "description": "Looge Persephonele oma värvikujundusi. Valige tausta-, teksti- ja rõhuvärv ning ülejäänud värvid tuletatakse nende põhjal; kohandage värve, kontrollige teksti kontrastsust, vaadake eelvaadet ning salvestage, nimetage ümber, importige või eksportige kujundusi, mida saate valida jaotises Sätted."
+        },
+        "fr": {
+          "name": "Éditeur de thèmes",
+          "description": "Créez vos thèmes de couleurs Persephone. Choisissez une couleur d’arrière-plan, de texte et d’accentuation ; les autres couleurs sont dérivées automatiquement. Ajustez-les, vérifiez le contraste du texte, affichez un aperçu en direct, puis enregistrez, renommez, importez ou exportez des thèmes à sélectionner dans Paramètres."
+        },
+        "hu": {
+          "name": "Témaszerkesztő",
+          "description": "Saját Persephone-színtémák létrehozása. Válassz háttér-, szöveg- és kiemelőszínt, a többi szín automatikusan származtatva lesz; módosítsd a színeket, ellenőrizd a kontrasztot, tekintsd meg élőben, majd mentsd, nevezd át, importáld vagy exportáld a beállításokban választható témákat."
+        },
+        "it": {
+          "name": "Editor dei temi",
+          "description": "Crea temi colore per Persephone. Scegli sfondo, testo e risalto: tutti gli altri colori vengono derivati automaticamente. Modifica i colori derivati, controlla il contrasto del testo, visualizza l’anteprima e salva, rinomina, importa o esporta i temi da scegliere in Impostazioni."
+        },
+        "ja": {
+          "name": "テーマ エディター",
+          "description": "Persephoneのカラーテーマを作成します。背景、文字、アクセントの色を選ぶと、ほかの色が自動生成されます。生成色の調整、文字のコントラスト確認、ライブ プレビューの後、設定から選べる名前付きテーマとして保存、名前変更、インポート、エクスポートできます。"
+        },
+        "ko": {
+          "name": "테마 편집기",
+          "description": "Persephone 색 테마를 만드세요. 배경, 텍스트, 강조 색을 선택하면 나머지 색이 자동으로 정해집니다. 파생 색을 조정하고 텍스트 대비를 확인하며 미리 볼 수 있습니다. 테마를 저장, 이름 변경, 가져오기 또는 내보내기할 수 있습니다."
+        },
+        "lt": {
+          "name": "Temų rengyklė",
+          "description": "Kurkite savo Persephone spalvų temas. Pasirinkite fono, teksto ir akcento spalvas, o likusias spalvas sistema parinks automatiškai. Koreguokite spalvas, tikrinkite teksto kontrastą, peržiūrėkite pakeitimus ir įrašykite, pervadinkite, importuokite ar eksportuokite temas, kurias galėsite pasirinkti Parametruose."
+        },
+        "lv": {
+          "name": "Motīva redaktors",
+          "description": "Izveidojiet savus Persephone krāsu motīvus. Izvēlieties fona, teksta un akcenta krāsu, un pārējās krāsas tiks atvasinātas automātiski. Pielāgojiet tās, pārbaudiet kontrastu, priekšskatiet un saglabājiet, pārdēvējiet, importējiet vai eksportējiet motīvus."
+        },
+        "pl": {
+          "name": "Edytor motywów",
+          "description": "Twórz i dostosowuj motywy kolorów Persephone. Wybierz kolory tła, tekstu i akcentu, sprawdź kontrast, wyświetl podgląd oraz zapisuj, importuj i eksportuj motywy."
+        },
+        "pt-BR": {
+          "name": "Theme Editor",
+          "description": "Crie seus próprios temas de cores do Persephone. Escolha as cores de plano de fundo, texto e destaque; as demais serão derivadas. Ajuste as cores derivadas, verifique o contraste do texto, visualize as alterações e salve, renomeie, importe ou exporte temas para selecionar em Configurações."
+        },
+        "ro": {
+          "name": "Editor de teme",
+          "description": "Creați teme de culori Persephone. Alegeți culorile de fundal, text și accent, iar restul paletei se generează automat; ajustați culorile, verificați contrastul textului, previzualizați și salvați teme denumite."
+        },
+        "sk": {
+          "name": "Editor motívov",
+          "description": "Vytvárajte vlastné farebné motívy Persephone. Vyberte farbu pozadia, textu a akcentu; ostatné farby sa odvodia automaticky. Upravujte ich, kontrolujte kontrast textu, zobrazujte živú ukážku a potom motívy ukladajte, premenúvajte, importujte alebo exportujte. Vybrať si ich môžete v Nastaveniach."
+        },
+        "uk": {
+          "name": "Редактор тем",
+          "description": "Створюйте власні кольорові теми Persephone. Виберіть колір тла, тексту й акценту — решту буде підібрано автоматично. Налаштовуйте похідні кольори, перевіряйте контрастність, переглядайте тему та зберігайте, перейменовуйте, імпортуйте чи експортуйте теми."
+        },
+        "zh-CN": {
+          "name": "主题编辑器",
+          "description": "创建自己的 Persephone 颜色主题。选择背景色、文本色和强调色，其余颜色会自动派生；您可以调整任意派生颜色、检查文本对比度、实时预览，然后保存、重命名、导入或导出主题，并在“设置”中选择主题。"
+        }
       }
     },
     {
       "id": "todo",
-      "version": "1.2.1",
+      "version": "1.3.0",
       "name": "Todo",
       "description": "Todo list editor for .todo.json files — a content-host board with a Lists & Tags sidebar, search with match highlighting, tags, and per-item comments.",
       "fileMasks": [
@@ -240,17 +1080,87 @@
       "editorName": "Todo",
       "editorKind": "content-host",
       "standalone": false,
-      "minAppVersion": "5.0.7",
+      "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/todo-v1.2.1/todo.zip",
-        "size": 34304,
-        "sha256": "23d2c452eb752e29faf6642d972c0eb8e5c500a542b4e42fee4857808b0d8fb2"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/todo-v1.3.0/todo.zip",
+        "size": 55707,
+        "sha256": "a7dd989fc19dcf72673aba181f6e1dff3c8989cf3e56c83674ae0e3dff7f9949"
+      },
+      "localized": {
+        "be": {
+          "name": "Дошка задач",
+          "description": "Рэдактар спісаў задач для файлаў .todo.json: бакавая панэль «Спісы і тэгі», пошук з падсвятленнем супадзенняў, тэгі і каментарыі да асобных элементаў."
+        },
+        "de": {
+          "name": "Todo",
+          "description": "Editor für Todo-Listen in .todo.json-Dateien mit Seitenleiste für Listen und Tags, Suche mit Trefferhervorhebung, Tags und Kommentaren zu einzelnen Elementen."
+        },
+        "es": {
+          "name": "Lista de tareas",
+          "description": "Editor de listas de tareas para archivos .todo.json, con lienzo propio, panel lateral de listas y etiquetas, búsqueda con resaltado de coincidencias, y etiquetas y comentarios en los elementos."
+        },
+        "et": {
+          "name": "Todo",
+          "description": "Todo-loendite redaktor .todo.json-failidele — loendid ja sildid külgribal, otsing vastete esiletõstmisega, sildid ja üksusepõhised kommentaarid."
+        },
+        "fr": {
+          "name": "Liste de tâches",
+          "description": "Éditeur de listes de tâches pour les fichiers .todo.json, avec un panneau latéral Listes et étiquettes, une recherche avec surlignage des résultats, des étiquettes et des commentaires par élément."
+        },
+        "hu": {
+          "name": "Teendők",
+          "description": "Teendőlisták szerkesztése .todo.json fájlokban: listák, címkék, keresés és elemenkénti megjegyzések."
+        },
+        "it": {
+          "name": "Elenco attività",
+          "description": "Editor di elenchi di attività per file .todo.json: una bacheca per contenuti con pannello laterale Elenchi e tag, ricerca con corrispondenze evidenziate, tag e commenti per elemento."
+        },
+        "ja": {
+          "name": "Todo",
+          "description": ".todo.jsonファイル用のTodoリスト エディター。リストとタグのサイドバー、検索結果の強調表示、タグ、項目ごとのコメントに対応します。"
+        },
+        "ko": {
+          "name": "할 일 목록",
+          "description": ".todo.json 파일용 할 일 목록 편집기입니다. 목록 및 태그 사이드 패널, 일치 항목 강조 검색, 태그, 항목별 메모를 지원합니다."
+        },
+        "lt": {
+          "name": "Užduočių sąrašas",
+          "description": ".todo.json failų užduočių sąrašo rengyklė. Lentoje pateikiamas turinys, šoninė sąrašų ir žymių sritis, ieška su rastų žodžių paryškinimu, žymės ir kiekvienos užduoties komentarai."
+        },
+        "lv": {
+          "name": "Uzdevumu saraksts",
+          "description": "Uzdevumu sarakstu redaktors .todo.json failiem — tāfele ar satura apgabalu, sarakstu un atzīmju sānjoslu, meklēšanu ar rezultātu izcelšanu un komentāriem pie uzdevumiem."
+        },
+        "pl": {
+          "name": "Lista zadań",
+          "description": "Organizuj zadania na listach z tagami i komentarzami."
+        },
+        "pt-BR": {
+          "name": "Tarefas",
+          "description": "Editor de listas de tarefas para arquivos .todo.json — quadro com listas e tags na barra lateral, pesquisa com realce de correspondências, tags e comentários por item."
+        },
+        "ro": {
+          "name": "De făcut",
+          "description": "Editor de liste de activități pentru fișiere .todo.json, cu panou lateral Liste și etichete, căutare cu evidențiere și comentarii pentru fiecare element."
+        },
+        "sk": {
+          "name": "Todo",
+          "description": "Editor zoznamov úloh pre súbory .todo.json – doska s vlastným obsahom, bočným panelom Zoznamy a značky, vyhľadávaním so zvýraznením zhôd, značkami a komentármi pri každej položke."
+        },
+        "uk": {
+          "name": "Список справ",
+          "description": "Редактор списків справ для файлів .todo.json — дошка з власним вмістом, бічною панеллю списків і тегів, пошуком із підсвічуванням збігів, тегами й коментарями до елементів."
+        },
+        "zh-CN": {
+          "name": "待办事项列表",
+          "description": "用于 .todo.json 文件的待办事项列表编辑器，包含列表和标签侧边栏、匹配项高亮搜索、标签和项目评论。"
+        }
       }
     },
     {
       "id": "torrent-viewer",
-      "version": "1.9.3",
+      "version": "1.10.0",
       "name": "Torrent Viewer",
       "description": "Browse a torrent's files and open them in Persephone, streamed from the swarm. Metadata only until you open something.",
       "fileMasks": [
@@ -259,17 +1169,87 @@
       "editorName": "Torrent Viewer",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "5.0.7",
+      "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/torrent-viewer-v1.9.3/torrent-viewer.zip",
-        "size": 582802,
-        "sha256": "477fa3d3812efd451edc85f43afca6d7c4ba1c29f71eb72d09ea00496d98a3ae"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/torrent-viewer-v1.10.0/torrent-viewer.zip",
+        "size": 624496,
+        "sha256": "839dc3035507cd8c8118220bbe55f90c1e0d71ff44251c8bd6306ea26c08bb3e"
+      },
+      "localized": {
+        "be": {
+          "name": "Прагляд торэнтаў",
+          "description": "Прагляд файлаў торэнта і іх адкрыццё ў Persephone з атрыманнем даных з раздачы. Пакуль вы не адкрыеце файл, атрымліваюцца толькі метаданыя."
+        },
+        "de": {
+          "name": "Torrent-Viewer",
+          "description": "Dateien eines Torrents durchsuchen und in Persephone öffnen; die Daten werden aus dem Schwarm übertragen. Bis zum Öffnen einer Datei werden nur Metadaten geladen."
+        },
+        "es": {
+          "name": "Visor de torrents",
+          "description": "Consulta archivos torrent y ábrelos en Persephone para obtener datos de la red de pares. Antes de abrir los archivos solo se descargan metadatos."
+        },
+        "et": {
+          "name": "Torrentivaatur",
+          "description": "Sirvige torrenti faile ja avage need Persephones; sisu voogedastatakse sülemist. Faile ei valita enne avamist, hangitakse ainult metaandmed."
+        },
+        "fr": {
+          "name": "Visionneuse BitTorrent",
+          "description": "Parcourez les fichiers d’un torrent et ouvrez-les dans Persephone, en les diffusant depuis le réseau pair-à-pair. Seules les métadonnées sont chargées tant que vous n’ouvrez aucun fichier."
+        },
+        "hu": {
+          "name": "Torrent-megjelenítő",
+          "description": "Torrentfájlok böngészése és megnyitása a Persephone alkalmazásban, a swarmból streamelve. A tartalom csak akkor töltődik le, amikor megnyitsz egy fájlt."
+        },
+        "it": {
+          "name": "Visualizzatore torrent",
+          "description": "Esplora i file di un torrent e aprili in Persephone, trasmessi dallo swarm. I contenuti restano nei soli metadati finché non apri un file."
+        },
+        "ja": {
+          "name": "Torrent ビューアー",
+          "description": "Torrent内のファイルを参照し、スウォームからストリーミングしてPersephoneで開きます。ファイルを開くまではメタデータのみを扱います。"
+        },
+        "ko": {
+          "name": "토렌트 뷰어",
+          "description": "스웜에서 스트리밍하는 토렌트 파일을 살펴보고 Persephone에서 엽니다. 파일을 열기 전에는 메타데이터만 가져옵니다."
+        },
+        "lt": {
+          "name": "Torrent peržiūros programa",
+          "description": "Naršykite torrento failus ir atidarykite juos Persephone aplinkoje – duomenys perduodami iš dalijimosi tinklo. Iki failo atidarymo gaunami tik metaduomenys."
+        },
+        "lv": {
+          "name": "Torrentu skatītājs",
+          "description": "Pārlūkojiet torrent failus un atveriet tos programmā Persephone, lejupielādējot datus no bara. Pirms faila atvēršanas tiek iegūti tikai metadati."
+        },
+        "pl": {
+          "name": "Podgląd torrentów",
+          "description": "Przeglądaj pliki torrentów i otwieraj je w Persephone. Zawartość jest pobierana z roju dopiero po otwarciu pliku."
+        },
+        "pt-BR": {
+          "name": "Visualizador de torrents",
+          "description": "Navegue pelos arquivos de um torrent e abra-os no Persephone, transmitidos pela rede swarm. Somente metadados até você abrir um arquivo."
+        },
+        "ro": {
+          "name": "Vizualizator de torrente",
+          "description": "Răsfoiți fișierele unui torrent și deschideți-le în Persephone, transmise din swarm. Sunt afișate doar metadatele până când deschideți un element."
+        },
+        "sk": {
+          "name": "Torrent Viewer",
+          "description": "Prehliadajte súbory torrentu a otvárajte ich v Persephone; dáta sa prenášajú z torrentovej siete. Kým niečo neotvoríte, načítajú sa iba metadáta."
+        },
+        "uk": {
+          "name": "Перегляд торрентів",
+          "description": "Переглядайте файли торрента й відкривайте їх у Persephone, отримуючи дані з розподіленої мережі. До відкриття файлів завантажуються лише метадані."
+        },
+        "zh-CN": {
+          "name": "Torrent 查看器",
+          "description": "浏览 Torrent 中的文件，并从群集流式传输到 Persephone 中打开。打开文件前只读取元数据。"
+        }
       }
     },
     {
       "id": "word-viewer",
-      "version": "1.1.1",
+      "version": "1.2.0",
       "name": "Word Viewer",
       "description": "Read-only viewer for Word documents (.docx) — page-accurate rendering with headings, lists, tables, and images.",
       "fileMasks": [
@@ -278,12 +1258,82 @@
       "editorName": "Word",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "5.0.7",
+      "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/word-viewer-v1.1.1/word-viewer.zip",
-        "size": 103416,
-        "sha256": "69c193d85fb9c43c44551ba37480713c5b910aecb6db0ed9204d8690563cb05c"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/word-viewer-v1.2.0/word-viewer.zip",
+        "size": 113484,
+        "sha256": "7251081b351c8bb59b4ac53efae5662babf60e39a769dde15f31368044d017ac"
+      },
+      "localized": {
+        "be": {
+          "name": "Прагляд Word",
+          "description": "Прагляд дакументаў Word (.docx) без рэдагавання з дакладным адлюстраваннем старонак, загалоўкаў, спісаў, табліц і выяў."
+        },
+        "de": {
+          "name": "Word-Viewer",
+          "description": "Schreibgeschützter Viewer für Word-Dokumente (.docx) mit seitengetreuer Darstellung von Überschriften, Listen, Tabellen und Bildern."
+        },
+        "es": {
+          "name": "Visor de Word",
+          "description": "Visor de solo lectura para documentos de Word (.docx), con representación precisa de páginas, encabezados, listas, tablas e imágenes."
+        },
+        "et": {
+          "name": "Wordi vaatur",
+          "description": "Ainult vaatamiseks mõeldud Wordi dokumentide (.docx) vaatur — lehekülgede täpne renderdamine pealkirjade, loendite, tabelite ja piltidega."
+        },
+        "fr": {
+          "name": "Visionneuse Word",
+          "description": "Visionneuse en lecture seule pour les documents Word (.docx), avec un rendu fidèle des pages, des titres, des listes, des tableaux et des images."
+        },
+        "hu": {
+          "name": "Word-megjelenítő",
+          "description": "Csak olvasásra használható Word-dokumentum-megjelenítő (.docx) pontos oldaltördeléssel, címsorokkal, listákkal, táblázatokkal és képekkel."
+        },
+        "it": {
+          "name": "Visualizzatore Word",
+          "description": "Visualizzatore in sola lettura per documenti Word (.docx), con resa accurata delle pagine, titoli, elenchi, tabelle e immagini."
+        },
+        "ja": {
+          "name": "Word ビューアー",
+          "description": "Word文書（.docx）を編集せずに表示します。見出し、リスト、表、画像を含むページ単位の表示に対応します。"
+        },
+        "ko": {
+          "name": "Word 뷰어",
+          "description": "Word 문서(.docx)를 읽기 전용으로 확인합니다. 제목, 목록, 표, 이미지를 페이지에 정확하게 표시합니다."
+        },
+        "lt": {
+          "name": "Word peržiūros programa",
+          "description": "Tik skaitymui skirta Word dokumentų (.docx) peržiūros programa – tiksliai atvaizduojami puslapiai su antraštėmis, sąrašais, lentelėmis ir vaizdais."
+        },
+        "lv": {
+          "name": "Word skatītājs",
+          "description": "Word dokumentu (.docx) skatītājs bez rediģēšanas: precīzs lapu attēlojums ar virsrakstiem, sarakstiem, tabulām un attēliem."
+        },
+        "pl": {
+          "name": "Podgląd programu Word",
+          "description": "Wyświetlaj dokumenty programu Word."
+        },
+        "pt-BR": {
+          "name": "Visualizador do Word",
+          "description": "Visualizador somente leitura de documentos do Word (.docx), com renderização fiel às páginas, títulos, listas, tabelas e imagens."
+        },
+        "ro": {
+          "name": "Vizualizator Word",
+          "description": "Vizualizator doar pentru citire pentru documente Word (.docx), cu redare fidelă paginilor, titluri, liste, tabele și imagini."
+        },
+        "sk": {
+          "name": "Word Viewer",
+          "description": "Prehliadač dokumentov Word (.docx) iba na čítanie – zobrazenie strán so zachovaným rozložením, nadpismi, zoznamami, tabuľkami a obrázkami."
+        },
+        "uk": {
+          "name": "Перегляд Word",
+          "description": "Перегляд документів Word (.docx) без редагування: точне відображення сторінок із заголовками, списками, таблицями та зображеннями."
+        },
+        "zh-CN": {
+          "name": "Word 查看器",
+          "description": "只读 Word 文档查看器（.docx），按页面精确呈现标题、列表、表格和图像。"
+        }
       }
     }
   ]

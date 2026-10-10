@@ -3,6 +3,16 @@
   "id": "aivision-explorer",
   "versions": [
     {
+      "version": "1.1.0",
+      "date": "2026-10-10",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/aivision-explorer-v1.1.0/aivision-explorer.zip",
+        "size": 66215,
+        "sha256": "f19ae4727fc9d6df758121b07c527e244001d3c2ba24bcef8f2f18aae21005b8"
+      },
+      "minAppVersion": "5.0.10"
+    },
+    {
       "version": "1.0.6",
       "date": "2026-10-03",
       "archive": {

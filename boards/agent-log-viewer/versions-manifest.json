@@ -3,6 +3,16 @@
   "id": "agent-log-viewer",
   "versions": [
     {
+      "version": "1.1.0",
+      "date": "2026-10-10",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/agent-log-viewer-v1.1.0/agent-log-viewer.zip",
+        "size": 110042,
+        "sha256": "7c952a5976c9df4ada1dad06c55d79540bca276b684b73d249011f4b4cfb5919"
+      },
+      "minAppVersion": "5.0.10"
+    },
+    {
       "version": "1.0.0",
       "date": "2026-10-06",
       "archive": {

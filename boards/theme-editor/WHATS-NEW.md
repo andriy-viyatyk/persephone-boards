@@ -3,24 +3,23 @@
 ## 1.2.0
 - Interface languages: Ukrainian, Polish, Lithuanian, Latvian, Estonian, Belarusian, Romanian, Slovak, Hungarian, German, French, Spanish, Italian, Portuguese (Brazil), Chinese (Simplified), Japanese, Korean.
 - Interface text moved to a language pack (`lang/en.json`) so the board can be translated; requires Persephone with board bridge 1.36.0.
+- Generated Set now varies only Background, Text and Accent, like Generate: Link, Error, Warning and Success keep their colors (adjust them in Generator or Details).
+
+## 1.1.0
 - Added a Generated Set tab with 100 contrast-ranked, hue-sorted variants and live preview on selection, plus a Both / Dark / Light switch and a Regenerate button.
 - Settings new-theme requests now open Generated Set in Auto mode.
 
-## 1.2.0
-- Interface text moved to a language pack (`lang/en.json`) so the board can be translated; requires Persephone with board bridge 1.36.0.
+## 1.0.3
 - About one Generate click in five now picks a strongly colored background (a deep red, blue or green; a pastel tint in light mode) instead of a muted one.
 
-## 1.2.0
-- Interface text moved to a language pack (`lang/en.json`) so the board can be translated; requires Persephone with board bridge 1.36.0.
+## 1.0.2
 - Editing a theme opens its exact colors with no pinned-colors notice; the generator takes over only when you move a slider, change the mode, or generate.
 - The color blocks keep an even margin on both sides when the editor area shows a scrollbar.
 
-## 1.2.0
-- Interface text moved to a language pack (`lang/en.json`) so the board can be translated; requires Persephone with board bridge 1.36.0.
+## 1.0.1
 - A new theme from Settings (+) now starts from the active theme's base colors with nothing pinned, so the generator drives every color.
 
-## 1.2.0
-- Interface text moved to a language pack (`lang/en.json`) so the board can be translated; requires Persephone with board bridge 1.36.0.
+## 1.0.0
 - Added an offline editor for Persephone custom themes.
 - Added a generator view with randomized foundation colors, locks, and derived color strips.
 - Added a live AiVision model for inspecting and editing the open theme draft.

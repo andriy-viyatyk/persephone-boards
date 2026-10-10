@@ -547,7 +547,9 @@
         markBusy(true);
         const startedAt = performance.now();
         const source = generatorSource();
-        const keys = GENERATOR_BLOCKS.map((block) => block.key);
+        // Like Generate, the set varies only the foundation colors; Link, Error, Warning and Success keep
+        // the draft's values because their hues carry meaning (error is red, warning amber).
+        const keys = ["background", "text", "accent"];
         const variants = [];
         ui.setTiles.replaceChildren();
         ui.setStatus.textContent = t("theme.set.generating", { count: new Intl.NumberFormat(persephone.locale.code).format(0) });

@@ -1,0 +1,12 @@
+{
+  "name": "audio-player-board-build",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:metadata": "node scripts/build-metadata-bundle.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.27.2",
+    "music-metadata": "12.1.0"
+  }
+}

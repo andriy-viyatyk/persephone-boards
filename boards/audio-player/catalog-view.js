@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector);
   const pathParent = (path) => String(path || "").replace(/[\\/][^\\/]*$/, "");
   function create(store, queue, playTrack, onStatus, onShowList = () => {}, onQueueChange = () => {}) {
-    let filter = { kind: "all", value: "" }, selectedId = "", editingOriginal = null, importer = null, shownCatalogName = null, searchText = "", shownCount = null, openSection;
+    let filter = { kind: "all", value: "" }, selectedId = "", editingOriginal = null, importer = null, shownCatalogName = null, searchText = "", shownCount = null, openSection, panelFilter = "", lastNav = null;
     void window.getPrefs?.().then((prefs) => { if (prefs && "catalogSection" in prefs && openSection === undefined) { openSection = prefs.catalogSection; if (store.document) render(); } });
     const titleOf = (track) => track.title || track.href.split(/[\\/]/).pop();
     // The search box is Persephone's toolbar input; keep it in step when the board clears or restores it.
@@ -10,16 +10,21 @@
     // The catalog panel is an accordion like Persephone's sidebar: "All tracks" on top, then one
     // collapsible section per browse kind, at most one open; the open one takes the free height.
     function renderNav(sections, total, search) {
+      lastNav = [sections, total, search];
+      // The panel's own filter box narrows the entries by label only; it never touches the track list.
+      const needle = panelFilter.trim().toLocaleLowerCase();
+      if (needle) sections = sections.map((section) => ({ ...section, entries: section.entries.filter((entry) => !entry.notSet && entry.label.toLocaleLowerCase().includes(needle)) })).filter((section) => section.entries.length);
       const nav = $("#catalog-nav-list"), previousBody = nav.querySelector(".catalog-section-body"), scrollTop = previousBody?.scrollTop || 0, scrolledSection = previousBody?.parentElement.dataset.section;
       // Until the user picks one (or preferences restore it), the first section is open.
-      const current = openSection === undefined ? sections[0]?.id || null : openSection;
+      let current = openSection === undefined ? sections[0]?.id || null : openSection;
+      if (needle && current && !sections.some((section) => section.id === current)) current = sections[0]?.id || null;
       const navButton = (entry) => {
         const button = document.createElement("button"); button.type = "button";
         // While a search is active its entry is the selected one; clearing it brings back the panel selection.
         const selected = search ? entry.kind === "search" : filter.kind === entry.kind && String(filter.value) === String(entry.value);
         button.className = `catalog-nav-item${selected ? " selected" : ""}`;
         const label = document.createElement("span"), count = document.createElement("span");
-        label.className = "catalog-nav-label"; label.textContent = entry.label;
+        label.className = `catalog-nav-label${entry.notSet ? " not-set" : ""}`; label.textContent = entry.label;
         if (entry.kind === "search") label.insertAdjacentHTML("afterbegin", '<svg class="catalog-nav-icon" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="3.8"/><path d="M8.8 8.8l3 3"/></svg>'); count.className = "catalog-nav-count"; count.textContent = String(entry.count ?? "");
         button.append(label, count); button.title = entry.label; button.style.paddingLeft = `${6 + (entry.depth || 0) * 12}px`;
         if (entry.kind === "search") { button.dataset.name = "catalog-search-results"; button.addEventListener("click", onShowList); }
@@ -35,7 +40,7 @@
         header.type = "button"; header.className = "catalog-section-header"; header.setAttribute("aria-expanded", String(open)); header.dataset.name = `catalog-section-${section.id}`;
         header.innerHTML = '<svg class="catalog-section-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>';
         const title = document.createElement("span"), count = document.createElement("span");
-        title.className = "catalog-section-title"; title.textContent = section.title; count.className = "catalog-section-count"; count.textContent = String(section.entries.length);
+        title.className = "catalog-section-title"; title.textContent = section.title; count.className = "catalog-section-count"; count.textContent = String(section.entries.filter((entry) => !entry.notSet).length);
         header.append(title, count);
         header.addEventListener("click", () => { openSection = open ? null : section.id; window.updatePrefs?.({ catalogSection: openSection }); render(); });
         element.append(header);
@@ -76,16 +81,23 @@
         items = def ? window.AudioPlaylistQueues.smart(tracks, id) : [];
         queueMeta = { kind: "playlist", sourcePath: filter.value, label: def ? window.audioPlayerT(def.key) : "" };
       }
-      renderNav([
+      const sections = [
         { id: "category", title: window.audioPlayerT("catalog.filter.category"), entries: categories.map((value) => ({ kind: "category", value, depth: Math.max(0, value.split("/").length - 1), label: value.split("/").join(" › "), count: countOf("category", value) })) },
         { id: "tag", title: window.audioPlayerT("catalog.filter.tag"), entries: tags.map((value) => ({ kind: "tag", value, label: `# ${value}`, count: countOf("tag", value) })) },
         { id: "artist", title: window.audioPlayerT("catalog.filter.artist"), entries: artists.map((value) => ({ kind: "artist", value, label: value, count: countOf("artist", value) })) },
         { id: "year", title: window.audioPlayerT("catalog.filter.year"), entries: years.map((value) => ({ kind: "year", value, label: String(value), count: countOf("year", value) })) },
         { id: "decade", title: window.audioPlayerT("catalog.filter.decade"), entries: [...new Set(years.map((year) => Math.floor(year / 10) * 10))].map((value) => ({ kind: "decade", value, label: String(value), count: countOf("decade", value) })) },
         { id: "smart", title: window.audioPlayerT("playlist.smart.heading"), entries: smart.map((item) => ({ kind: "playlist", value: `smart:${item.id}`, label: window.audioPlayerT(item.key), count: window.AudioPlaylistQueues.smart(tracks, item.id).length })) },
-      ].filter((section) => section.entries.length), tracks.length, query ? { query, count: items.length } : null);
+      ];
+      // Each browse kind starts with a "Not set" entry for tracks without that value, when there are any.
+      for (const section of sections) {
+        if (section.id === "smart") continue;
+        const count = tracks.filter((track) => window.AudioCatalogSearch.missing(track, section.id)).length;
+        if (count) section.entries.unshift({ kind: "missing", value: section.id, label: window.audioPlayerT("catalog.notSet"), count, notSet: true });
+      }
+      renderNav(sections.filter((section) => section.entries.length), tracks.length, query ? { query, count: items.length } : null);
       const kind = query ? "search" : filter.kind, value = query || filter.value;
-      const label = queueMeta?.label || (query ? window.audioPlayerT("catalog.searchLabel", { query }) : filter.kind === "all" ? window.audioPlayerT("catalog.all") : window.audioPlayerT("catalog.filterLabel", { filter: window.audioPlayerT(`catalog.filter.${filter.kind}`), value: filter.value }));
+      const label = queueMeta?.label || (query ? window.audioPlayerT("catalog.searchLabel", { query }) : filter.kind === "all" ? window.audioPlayerT("catalog.all") : filter.kind === "missing" ? window.audioPlayerT("catalog.filterLabel", { filter: window.audioPlayerT(`catalog.filter.${filter.value}`), value: window.audioPlayerT("catalog.notSet") }) : window.audioPlayerT("catalog.filterLabel", { filter: window.audioPlayerT(`catalog.filter.${filter.kind}`), value: filter.value }));
       queue.setCatalog(items, queueMeta || { kind, sourcePath: value || kind, label }, { preserve: !rebuildQueue });
       $("#catalog-overlay-title").textContent = label;
       window.AudioPlayerInstance?.refreshNext?.(); onQueueChange();
@@ -174,11 +186,16 @@
     function restoreQueue(saved) {
       if (!saved) return;
       if (saved.kind === "search") { filter = { kind: "all", value: "all" }; setSearchText(saved.sourcePath || ""); }
-      else if (["category", "tag", "artist", "year", "decade", "smart", "playlist"].includes(saved.kind)) { filter = { kind: saved.kind, value: saved.sourcePath || "" }; }
+      else if (["category", "tag", "artist", "year", "decade", "missing", "smart", "playlist"].includes(saved.kind)) { filter = { kind: saved.kind, value: saved.sourcePath || "" }; }
       else { filter = { kind: "all", value: "all" }; }
       if (store.document) render();
     }
     function setImporter(value) { importer = value; }
+    const filterInput = $("#catalog-nav-filter"), filterClear = $("#catalog-nav-filter-clear");
+    const applyPanelFilter = (value) => { panelFilter = value; filterClear.hidden = !value; if (lastNav) renderNav(...lastNav); };
+    filterInput.addEventListener("input", () => applyPanelFilter(filterInput.value));
+    filterInput.addEventListener("keydown", (event) => { if (event.key === "Escape" && filterInput.value) { event.stopPropagation(); filterInput.value = ""; applyPanelFilter(""); } });
+    filterClear.addEventListener("click", () => { filterInput.value = ""; applyPanelFilter(""); filterInput.focus(); });
     return { render, restoreQueue, editTrack, setImporter, setSearch(value) { searchText = String(value || ""); render({ rebuildQueue: true }); onShowList(); }, get filter() { return filter; }, setFilter(value) { filter = value; setSearchText(""); render({ rebuildQueue: true }); } };
   }
   window.AudioCatalogView = { create };

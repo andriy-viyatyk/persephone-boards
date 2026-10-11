@@ -25,7 +25,8 @@
 - Persist original hrefs and queue cursors in `persephone.pageState`. Do not persist temporary
   `board://` URLs. Device preferences belong in `persephone.storage`.
 - The manifest requests `fileSystem: "full"`, granted once when the user trusts the board, so every
-  local track is playable and the board has no per-path access UI or folder list. (Under `"full"`,
+  local track is playable and the board has no per-path access UI. The last three "Add from folder"
+  paths are kept in `prefs.recentFolders` and listed in the catalog dialog with a rescan button. (Under `"full"`,
   `rememberFolder`/`rememberFile` resolve `true` without a prompt.)
 - The catalog is ordinary Link Editor JSON. `catalog-store.js` checks `persephone.getFileAccess(path)`
   on open and refresh; a read-only catalog then means the file itself is read-only on disk. Use the
@@ -35,6 +36,8 @@
   shows the `#catalog-nav` panel (`prefs.catalogPanel`); a panel entry or any toolbar search change
   opens `#catalog-overlay`, the track list over 96% of the visualizer, closed by its × button. The
   view never changes the playing queue; starting playback from a list does.
+  The panel's own `#catalog-nav-filter` box narrows the panel entries by label (hiding "Not set"
+  rows and empty sections); it is separate from the toolbar track search and never changes the list.
 - Page chrome lives in Persephone, not the board: the toolbar holds the catalog button
   (`placement: "start"`, labelled with the catalog file name or "No catalog"; it opens
   `#catalog-dialog` with catalog stats and Open/New), the search input and the Import menu; the

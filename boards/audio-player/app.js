@@ -54,6 +54,8 @@
   function renderMuteButton() {
     const button = $("#mute"), label = t(prefs.muted ? "control.unmute" : "control.mute");
     button.dataset.muted = String(!!prefs.muted); button.title = label; button.setAttribute("aria-label", label);
+    // The page tab shows the same mute state, like the built-in Video Player.
+    P.page.setMuted?.(!!prefs.muted);
   }
   // The seek and volume sliders draw their played part like the Video Player's: a filled track up to the thumb.
   function paintRanges() {
@@ -202,6 +204,18 @@
     $("#catalog-dialog-needed").hidden = !needed && !!doc;
     const stats = $("#catalog-stats"); stats.replaceChildren(); stats.hidden = needed || !doc;
     if (doc) for (const [key, value] of catalogStats(doc.links || [])) { const term = document.createElement("dt"), detail = document.createElement("dd"); term.textContent = t(key); detail.textContent = value; stats.append(term, detail); }
+    // Remembered "Add from folder" paths, each with a rescan button that imports any new files.
+    const folders = !needed && doc ? recentFolders() : [];
+    $("#catalog-folders").hidden = !folders.length;
+    $("#catalog-folders-list").replaceChildren(...folders.map((path) => {
+      const item = document.createElement("li"), label = document.createElement("span"), rescan = document.createElement("button");
+      label.className = "catalog-folder-path"; label.textContent = path; label.title = path;
+      rescan.type = "button"; rescan.className = "catalog-folder-rescan"; rescan.title = t("folders.rescan"); rescan.setAttribute("aria-label", `${t("folders.rescan")}: ${path}`); rescan.dataset.name = "catalog-folder-rescan";
+      rescan.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.6 6.2A4.7 4.7 0 0 0 3.2 3.9L2.2 5"/><path d="M2 2.4V5h2.6"/><path d="M2.4 7.8a4.7 4.7 0 0 0 8.4 2.3l1-1.1"/><path d="M12 11.6V9H9.4"/></svg>';
+      rescan.addEventListener("click", () => { rescanFolder = path; dialog.close(); });
+      item.append(label, rescan); return item;
+    }));
+    let rescanFolder = null;
     // Without a catalog, creating one is the likely next step, so New is the primary action.
     $("#catalog-dialog-new").classList.toggle("primary", !doc);
     return new Promise((resolve) => {
@@ -209,19 +223,28 @@
         dialog.removeEventListener("close", onClose); if (dialog.open) dialog.close();
         resolve(action ? await action() : false);
       };
-      const onClose = () => void finish(null);
+      const onClose = () => void finish(rescanFolder ? () => importFolder(rescanFolder) : null);
       $("#catalog-dialog-open").onclick = () => void finish(openCatalog);
       $("#catalog-dialog-new").onclick = () => void finish(newCatalog);
       $("#catalog-dialog-close").onclick = () => void finish(null);
       dialog.addEventListener("close", onClose); dialog.showModal();
     });
   }
-  async function importFolder() {
+  // The last three "Add from folder" paths, newest first, kept with the device preferences.
+  function recentFolders() { return Array.isArray(prefs.recentFolders) ? prefs.recentFolders.filter((path) => typeof path === "string" && path).slice(0, 3) : []; }
+  function rememberFolder(path) {
+    const key = (value) => value.replace(/[\\/]+$/, "").toLowerCase();
+    prefs.recentFolders = [path, ...recentFolders().filter((item) => key(item) !== key(path))].slice(0, 3);
+    void persistPrefs();
+  }
+  async function importFolder(root) {
     if (!catalog.document && !(await catalogDialog({ needed: true }))) return;
-    const paths = await P.openFolderDialog({ title: t("folders.choose") }); if (!paths?.[0]) return;
+    if (!root) { const paths = await P.openFolderDialog({ title: t("folders.choose") }); root = paths?.[0]; }
+    if (!root) return;
+    rememberFolder(root);
     importCancelled = false; $("#import-dialog").showModal(); $("#import-cancel").disabled = false;
     try {
-      const result = await window.AudioFolderImport.importFolder(P, catalog, paths[0], (state) => {
+      const result = await window.AudioFolderImport.importFolder(P, catalog, root, (state) => {
         const key = state.phase === "scan" ? "folders.progressScan" : "folders.progressImport";
         $("#import-progress").textContent = t(key, state);
       }, () => importCancelled);
@@ -283,6 +306,8 @@
     P.statusBar.onAction(async ({ id }) => { if (id !== "undo") return; const result = await catalog.undoLastBulkEdit(); if (result.changed) setStatus("catalog.undoDone"); else setStatus(result.conflict ? "catalog.undoConflict" : "catalog.undoUnavailable"); });
     $("#shuffle").addEventListener("click", async () => { prefs.shuffle = !prefs.shuffle; queue.setShuffle(prefs.shuffle); player.refreshNext(); renderQueue(); renderPlayModes(); await persistPrefs(); });
     $("#repeat").addEventListener("click", async () => { prefs.repeat = prefs.repeat === "off" ? "track" : prefs.repeat === "track" ? "all" : "off"; renderPlayModes(); await persistPrefs(); player.refreshNext(); });
+    // A click on the page tab's mute button works like the board's own Mute button.
+    P.page.onMuteToggle?.(() => $("#mute").click());
     $("#mute").addEventListener("click", () => { prefs.muted=!prefs.muted; player.setMuted(prefs.muted); renderMuteButton(); void persistPrefs(); }); $("#volume").addEventListener("input", (event) => { prefs.volume=Number(event.target.value); player.setVolume(prefs.volume); void persistPrefs(); });
     for (const input of document.querySelectorAll(".transport input[type=range]")) input.addEventListener("input", paintRanges);
     paintRanges();

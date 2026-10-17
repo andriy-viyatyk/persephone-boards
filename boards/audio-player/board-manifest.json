@@ -6,9 +6,10 @@
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
   "version": "1.0.0",
   "minAppVersion": "5.0.11",
-  "minBridgeVersion": "1.38.0",
+  "minBridgeVersion": "1.40.0",
   "languages": { "folder": "lang", "default": "en" },
   "singleInstance": true,
+  "singleInstanceMasks": ["*.music.link.json", "*.m3u", "*.pls"],
   "permissions": {
     "execute": false,
     "service": false,

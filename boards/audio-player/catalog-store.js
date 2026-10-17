@@ -1,8 +1,9 @@
 (() => {
   const P = window.persephone, Catalog = window.AudioCatalog;
   const same = (a, b) => a === b;
-  function create(onChange = () => {}) {
-    let path = "", catalogDoc = null, readOnly = true, grantSource = false, textSnapshot = "", operations = [], busy = Promise.resolve(), timer = 0, undoRecord = null;
+  function create(onChange = () => {}, { isLight = () => false } = {}) {
+    let path = "", catalogDoc = null, readOnly = true, grantSource = false, textSnapshot = "", operations = [], busy = Promise.resolve(), undoRecord = null;
+    let watchDispose = null, watchSerial = 0;
     const publish = (extra = {}) => onChange({ path, document: catalogDoc, readOnly, operations: operations.length, undoAvailable: !!undoRecord, ...extra });
     const fieldsEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     function undoStillApplies(document, record = undoRecord) {
@@ -27,7 +28,6 @@
         if (!access || typeof access.write !== "boolean") readOnly = true;
         else readOnly = !access.write;
       } catch { readOnly = true; }
-      // The 4-second refresh checks access every time; publish only a change, or every check redraws the view.
       if (readOnly !== wasReadOnly) publish();
       return !readOnly;
     }
@@ -43,6 +43,46 @@
     function serializeWrites(task) {
       const result = busy.then(task, task); busy = result.catch(() => {}); return result;
     }
+    const normalizedPath = (value) => String(value || "").replace(/\\/g, "/").replace(/\/$/, "").toLocaleLowerCase();
+    function isNotFound(error) { return error?.code === "not-found" || /not[ -]?found/i.test(String(error?.message || error)); }
+    async function stopWatching() {
+      ++watchSerial;
+      const dispose = watchDispose; watchDispose = null;
+      if (dispose) { try { await dispose(); } catch {} }
+    }
+    async function watchPath(target, folder = false) {
+      if (!target || !P.watch) return;
+      const catalogPath = path;
+      const serial = ++watchSerial;
+      let dispose;
+      const callback = (event = {}) => {
+        if (serial !== watchSerial || catalogPath !== path) return;
+        if (folder) {
+          const changes = Array.isArray(event.changes) ? event.changes : [];
+          const found = changes.some((entry) => normalizedPath(entry.path || entry.filePath || entry.href) === normalizedPath(path)
+            && ["created", "changed"].includes(entry.kind || entry.type || entry.change));
+          if (!found && !event.rescan) return;
+          void (async () => { await stopWatching(); await watchPath(path, false); await refresh(); })();
+          return;
+        }
+        if (event.ended === "removed") { void (async () => { await stopWatching(); await watchParent(target); })(); return; }
+        if (event.ended === "revoked" || event.ended === "error") { void stopWatching(); return; }
+        if (event.rescan || (event.changes || []).some((entry) => ["changed", "created"].includes(entry.kind || entry.type || entry.change))) void refresh();
+      };
+      try {
+        dispose = await P.watch(target, callback, folder ? { recursive: false } : undefined);
+        if (serial !== watchSerial || catalogPath !== path) { try { await dispose?.(); } catch {} return; }
+        watchDispose = typeof dispose === "function" ? dispose : null;
+      } catch (error) {
+        if (serial !== watchSerial || catalogPath !== path) return;
+        if (!folder && isNotFound(error)) await watchParent(target);
+      }
+    }
+    async function watchParent(target) {
+      const parent = String(target).replace(/[\\/][^\\/]*$/, "");
+      if (parent && parent !== target) await watchPath(parent, true);
+    }
+    async function selectPath(target) { await stopWatching(); path = target; }
     function enqueue(operation, { requestFileGrant = true } = {}) {
       return serializeWrites(async () => {
         if (!path) return false;
@@ -58,25 +98,28 @@
       });
     }
     async function open(pathValue) {
-      path = pathValue; grantSource = false; readOnly = true; operations = []; undoRecord = null;
-      const loaded = await read(pathValue);
-      await P.storage.set("audio-player", { ...(await P.storage.get("audio-player") || {}), catalogPath: pathValue });
-      publish(); return loaded;
+      await selectPath(pathValue); grantSource = false; readOnly = true; operations = []; undoRecord = null;
+      try {
+        const loaded = await read(pathValue);
+        if (!isLight()) await P.storage.set("audio-player", { ...(await P.storage.get("audio-player") || {}), catalogPath: pathValue });
+        publish(); await watchPath(pathValue); return loaded;
+      } catch (error) { if (isNotFound(error)) await watchParent(pathValue); throw error; }
     }
     async function openDelivered(pathValue) {
-      path = pathValue; grantSource = true; readOnly = true; operations = []; undoRecord = null;
-      await read(pathValue); publish(); return catalogDoc;
+      await selectPath(pathValue); grantSource = true; readOnly = true; operations = []; undoRecord = null;
+      try { await read(pathValue); publish(); await watchPath(pathValue); return catalogDoc; }
+      catch (error) { if (isNotFound(error)) await watchParent(pathValue); throw error; }
     }
     async function createFile(pathValue) {
-      path = pathValue; grantSource = false; operations = []; undoRecord = null; catalogDoc = { type: "link-editor", links: [], state: {} }; readOnly = true;
+      await selectPath(pathValue); grantSource = false; operations = []; undoRecord = null; catalogDoc = { type: "link-editor", links: [], state: {} }; readOnly = true;
       if (!(await requestGrant(pathValue))) return false;
       await P.writeFile(pathValue, Catalog.serialize(catalogDoc), { encoding: "utf8" });
       textSnapshot = Catalog.serialize(catalogDoc);
-      await P.storage.set("audio-player", { ...(await P.storage.get("audio-player") || {}), catalogPath: pathValue });
-      publish(); return true;
+      if (!isLight()) await P.storage.set("audio-player", { ...(await P.storage.get("audio-player") || {}), catalogPath: pathValue });
+      publish(); await watchPath(pathValue); return true;
     }
     async function refresh() {
-      if (!path || globalThis.document.hidden) return false;
+      if (!path) return false;
       try {
         await refreshAccess(path);
         const latestText = await P.readFile(path, { encoding: "utf8" });
@@ -84,17 +127,16 @@
         textSnapshot = latestText; catalogDoc = Catalog.apply(Catalog.parse(latestText), operations);
         if (undoRecord && !undoStillApplies(catalogDoc)) undoRecord = null;
         publish({ external: true }); return true;
-      } catch (error) { onChange({ path, document: catalogDoc, readOnly, error }); return false; }
-    }
-    function startObserving() {
-      clearInterval(timer); timer = setInterval(() => { if (!globalThis.document.hidden && globalThis.document.visibilityState !== "hidden") void refresh(); }, 4000);
+      } catch (error) {
+        onChange({ path, document: catalogDoc, readOnly, error });
+        if (isNotFound(error)) { await stopWatching(); await watchParent(path); }
+        return false;
+      }
     }
     async function restore() {
       const prefs = await P.storage.get("audio-player").catch(() => undefined);
       if (prefs?.catalogPath) { try { await open(prefs.catalogPath); } catch (error) { onChange({ path: prefs.catalogPath, error, readOnly: true }); } }
-      startObserving();
     }
-    window.addEventListener("focus", () => void refresh()); globalThis.document.addEventListener("visibilitychange", () => { if (!globalThis.document.hidden) void refresh(); });
     return {
       open, openDelivered, createFile, restore, refresh,
       add(link) { return enqueue({ type: "add", link: Catalog.normalizeTrack(link) }); },
@@ -153,9 +195,9 @@
       },
       incrementPlay(id, at = new Date().toISOString()) { return enqueue({ type: "play", id, at, count: 1 }, { requestFileGrant: false }); },
       updateAudioState(patch) { return enqueue({ type: "audio-state", patch }); },
-      async remove() { path = ""; catalogDoc = null; operations = []; readOnly = true; clearInterval(timer); await P.storage.set("audio-player", { ...(await P.storage.get("audio-player") || {}), catalogPath: "" }); publish(); },
+      async remove() { await stopWatching(); path = ""; catalogDoc = null; operations = []; readOnly = true; if (!isLight()) await P.storage.set("audio-player", { ...(await P.storage.get("audio-player") || {}), catalogPath: "" }); publish(); },
       get path() { return path; }, get document() { return catalogDoc; }, get readOnly() { return readOnly; }, get grantSource() { return grantSource; },
-      get operations() { return operations.slice(); }, dispose() { clearInterval(timer); },
+      get operations() { return operations.slice(); }, dispose() { void stopWatching(); },
     };
   }
   window.AudioCatalogStore = { create };

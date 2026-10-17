@@ -6,6 +6,10 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 body { background: var(--p-bg, #1e1e1e); color: var(--p-text, #e0e0e0); font: 13px/1.45 var(--p-font-family, system-ui, sans-serif); }
 button, input { font: inherit; }
 .player-shell { width: 100%; height: 100%; display: flex; flex-direction: column; min-height: 0; background: var(--p-bg, #1e1e1e); }
+.light-mode #catalog-nav, .light-mode #catalog-toggle, .light-mode #catalog-overlay,
+.light-mode #catalog-dialog, .light-mode #import-dialog, .light-mode #playlist-import-dialog { display: none !important; }
+.light-mode .track-chip { opacity: 1; pointer-events: auto; }
+.light-mode .track-chip-title { max-width: min(60vw, 560px); }
 .content { display: flex; flex: 1; min-height: 0; background: var(--p-bg-dark, #181818); }
 /* Scrollbars as in Persephone's .scroll-container: thin, and hidden until the scrolling area is hovered.
    (The standard scrollbar-* properties take precedence over board-base's ::-webkit-scrollbar rules.) */
@@ -14,7 +18,7 @@ button, input { font: inherit; }
 /* board-base gives .p-btn a display value, which beats the UA [hidden] rule. */
 .p-btn[hidden] { display: none; }
 /* Catalog panel: a bordered, rounded column at the left; the player area shrinks beside it. */
-.catalog-nav { flex: 0 0 25%; min-height: 0; margin: 8px 0 8px 8px; display: flex; flex-direction: column; overflow: hidden; padding: 6px; border: 1px solid var(--p-border, #3c3c3c); border-radius: 6px; background: var(--p-bg-dark, #181818); box-shadow: var(--accent-glow); }
+.catalog-nav { --catalog-tint: color-mix(in srgb, var(--p-accent, #0078d4) 14%, var(--p-bg, #1e1e1e)); flex: 0 0 25%; min-height: 0; margin: 8px 0 8px 8px; display: flex; flex-direction: column; overflow: hidden; padding: 6px; border: 1px solid var(--p-border, #3c3c3c); border-radius: 6px; background: var(--p-bg-dark, #181818); box-shadow: var(--accent-glow); }
 .catalog-nav-filter { position: relative; flex: 0 0 auto; display: flex; align-items: center; margin-bottom: 4px; }
 .catalog-nav-filter-icon { position: absolute; left: 7px; width: 12px; height: 12px; color: var(--p-text-muted, #969696); pointer-events: none; }
 #catalog-nav-filter { flex: 1; min-width: 0; height: 26px; padding: 0 24px 0 24px; border: 1px solid var(--p-border, #3c3c3c); border-radius: 4px; color: var(--p-text, #ddd); background: var(--p-bg, #1e1e1e); font: inherit; font-size: 12px; outline: none; }
@@ -23,6 +27,15 @@ button, input { font: inherit; }
 .catalog-nav-filter-clear:hover { color: var(--p-text-strong, #fff); }
 .catalog-nav-filter-clear[hidden] { display: none; }
 .catalog-nav-filter-clear svg { width: 11px; height: 11px; }
+/* The list now playing, pinned under the sections on a lighter accent tint. */
+.catalog-playing { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 6px; padding: 5px 8px; border: 1px solid var(--p-border, #3c3c3c); border-radius: 4px; color: var(--p-text, #ddd); background: var(--catalog-tint); text-align: left; cursor: pointer; }
+.catalog-playing[hidden] { display: none; }
+.catalog-playing:hover:not(:disabled) { border-color: var(--p-accent-hover, #007acc); }
+.catalog-playing:disabled { cursor: default; }
+.catalog-playing-icon { flex: 0 0 auto; width: 14px; height: 14px; color: var(--p-accent-hover, #007acc); }
+.catalog-playing-text { display: flex; flex: 1; min-width: 0; flex-direction: column; line-height: 1.3; }
+.catalog-playing-text small { color: var(--p-text-muted, #969696); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+#catalog-playing-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #catalog-nav-list { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .catalog-section { display: flex; flex: 0 0 auto; flex-direction: column; min-height: 0; margin-top: 2px; }
 .catalog-section.open { flex: 1 1 0; }
@@ -39,11 +52,12 @@ button, input { font: inherit; }
 .catalog-nav-item { display: flex; align-items: center; gap: 8px; width: 100%; border: 1px solid transparent; border-radius: 4px; padding: 4px 6px; color: var(--p-text, #ddd); background: transparent; text-align: left; white-space: nowrap; cursor: pointer; }
 .catalog-nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .catalog-nav-count { flex: 0 0 auto; color: var(--p-text-muted, #aaa); font-size: 11px; font-variant-numeric: tabular-nums; }
-/* Borders instead of fills: default border on hover, accent border on the selected entry. */
+/* Hovered entries get the default border; the selected one is styled below. */
 .catalog-nav-label.not-set { color: var(--p-text-muted, #969696); font-style: italic; }
 .catalog-nav-icon { width: 12px; height: 12px; margin-right: 5px; vertical-align: -1px; color: var(--p-text-muted, #969696); }
 .catalog-nav-item:hover { border-color: var(--p-border, #3c3c3c); }
-.catalog-nav-item.selected { border-color: var(--p-accent-hover, #007acc); color: var(--p-text-strong, #fff); }
+/* The selected entry looks like the Now playing panel: default border on a light accent tint. */
+.catalog-nav-item.selected { border-color: var(--p-border, #3c3c3c); color: var(--p-text-strong, #fff); background: var(--catalog-tint); }
 #catalog-list { flex: 1; overflow: auto; list-style: none; margin: 0; padding: 0 12px 8px; }
 /* Track rows: no dividers; the playing row has a border, a hovered row an accent border. */
 .catalog-row { display: flex; align-items: flex-start; gap: 4px; margin: 2px 0; padding-right: 4px; border: 1px solid transparent; border-radius: 4px; }

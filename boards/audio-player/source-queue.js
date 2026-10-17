@@ -9,11 +9,12 @@
     }
     return sourceUrl ? { kind: "file", sourcePath: sourceUrl, label: sourceUrl.split(/[\\/]/).pop() || sourceUrl, items: [{ href: sourceUrl, title: sourceUrl.split(/[\\/]/).pop() || sourceUrl }], index: 0 } : null;
   }
-  function createQueue(context, sourceUrl) {
+  function createQueue(context, sourceUrl, isLight = () => false) {
     const queues = { source: normalize(context, sourceUrl), catalog: null };
     let mode = "source", shuffle = false;
     const active = () => queues[mode];
     async function save() {
+      if (isLight()) return;
       const saved = await window.persephone.pageState.get("audio-queues"); let all = {};
       try { all = saved ? JSON.parse(saved) : {}; } catch {}
       for (const key of ["source", "catalog"]) {
@@ -33,6 +34,7 @@
         void save(); return queues.source;
       },
       async restore() {
+        if (isLight()) return;
         const saved = await window.persephone.pageState.get("audio-queues"); if (!saved) return;
         try {
           const state = JSON.parse(saved);

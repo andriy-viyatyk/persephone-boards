@@ -1,30 +1,28 @@
 (() => {
   const P = window.persephone, t = window.audioPlayerT, $ = (selector) => document.querySelector(selector);
-  const audio = $("#audio"), queue = window.AudioSourceQueue.create(P.source.initialSourceContext, ""), visualizer = window.AudioVisualizer;
+  const audio = $("#audio"), visualizer = window.AudioVisualizer;
+  let queue, light = false;
   let prefs = { volume: .8, muted: false, shuffle: false, repeat: "off", visualizer: "bars", equalizer: { enabled: false, bandsDb: Array(10).fill(0), preset: "flat" }, crossfadeSeconds: 0, gapless: true, catalogPath: "", catalogPanel: false };
-  // Persephone's footer: the player status at the left (always present, so the footer always shows),
-  // the catalog list count (while the list is open) and the agent bulk-edit undo at the right.
   let shownStatus = { text: t("empty.instructions"), error: false };
-  P.statusBar.set([
+  let fullFooter = [
     { id: "status", type: "text", text: shownStatus.text, tone: "muted" },
     { id: "count", type: "text", text: "", tone: "muted", hidden: true, align: "end" },
     { id: "undo", type: "button", text: t("catalog.undo"), hidden: true, align: "end" },
-  ]);
+  ];
   let undoShown = false;
-  // Persephone's page toolbar: the catalog button at the left, search and Import at the right.
-  P.toolbar.set([
+  const fullToolbar = [
     { id: "catalog", type: "button", placement: "start", label: t("catalog.none"), title: t("catalog.title") },
     { id: "search", type: "input", placeholder: t("catalog.search"), value: "" },
     { id: "import", type: "menu", label: t("import.menu"), items: [{ id: "folder", label: t("import.fromFolder") }, { id: "playlist", label: t("import.fromPlaylist") }] },
-  ]);
-  let player, catalogView, aiVisionModel, audioSettings, importCancelled = false, disposed = false, coverUrl = "", tagReadId = 0, statusTimer = 0;
+  ];
+  let player, catalogView, aiVisionModel, audioSettings, importCancelled = false, disposed = false, coverUrl = "", tagReadId = 0, statusTimer = 0, navigationStarted = false, navigateFallbackLogged = false;
   const catalog = window.AudioCatalogStore.create((state) => {
     if (catalogView) catalogView.render();
-    if (!!state.undoAvailable !== undoShown) { undoShown = !!state.undoAvailable; P.statusBar.update("undo", { hidden: !undoShown }); }
+    if (!light && !!state.undoAvailable !== undoShown) { undoShown = !!state.undoAvailable; P.statusBar.update("undo", { hidden: !undoShown }); }
     if (state.error) setStatus("catalog.openError", { error: state.error.message }, true);
     else if (state.external) setStatus("catalog.externalChange");
     aiVisionModel?.refresh();
-  });
+  }, { isLight: () => light });
   const playCounts = window.AudioPlayCounts.create(catalog);
   const dialogs = window.AudioCatalogDialogs.create(P, catalog, (key, error) => setStatus(key, { error: error?.message || "" }, !!error));
   window.getPrefs = async () => prefs;
@@ -36,7 +34,7 @@
     const data = queue.queue, titleOf = (item) => item?.title || item?.href?.split(/[\/]/).pop() || "";
     const previous = data && data.index > 0 ? data.items[data.index - 1] : null;
     const next = data ? data.items[queue.peekNextIndex()] : null;
-    $("#previous").disabled = !previous; $("#next").disabled = !next;
+    $("#previous").disabled = !previous; $("#next").disabled = !next; catalogView?.renderPlaying();
     $("#previous").title = previous ? t("control.previousTitle", { title: titleOf(previous) }) : t("control.previous");
     $("#next").title = next ? t("control.nextTitle", { title: titleOf(next) }) : t("control.next");
   }
@@ -74,10 +72,12 @@
   // One screen: the catalog panel at the left picks a list, and the list opens over the visualizer.
   // Neither changes playback; the playing queue changes when playback starts from a list.
   function setCatalogPanel(open) {
-    prefs.catalogPanel = !!open; void persistPrefs();
+    if (light) open = false;
+    prefs.catalogPanel = !!open; if (!light) void persistPrefs();
     $("#catalog-nav").hidden = !open; $("#catalog-toggle").classList.toggle("active", !!open); $("#catalog-toggle").setAttribute("aria-pressed", String(!!open));
   }
   function showCatalogList(show, { allowNoCatalog = false } = {}) {
+    if (light) return;
     if (show && !catalog.document && !allowNoCatalog) { setStatus("catalog.noCatalog"); return; }
     if (show && $("#catalog-overlay").hidden) { audioSettings?.close(); catalogView?.render(); }
     $("#catalog-overlay").hidden = !show; P.statusBar.update("count", { hidden: !show });
@@ -86,14 +86,38 @@
     if (!("mediaSession" in navigator)) return;
     const info = visualizer.trackInfo || {};
     navigator.mediaSession.metadata = new MediaMetadata({ title: info.title || item?.title || item?.href?.split(/[\\/]/).pop() || "", artist: info.artist || item?.artist || "", album: item?.album || "" });
-    navigator.mediaSession.setActionHandler("play", () => player.resume().catch(() => {})); navigator.mediaSession.setActionHandler("pause", () => player.pause());
-    navigator.mediaSession.setActionHandler("previoustrack", () => changeTrack(queue.previous())); navigator.mediaSession.setActionHandler("nexttrack", () => changeTrack(queue.next()));
-    navigator.mediaSession.setActionHandler("seekto", (event) => player.seek(event.seekTime || 0));
+    navigator.mediaSession.setActionHandler("play", () => { if (!navigationStarted) player.resume().catch(() => {}); }); navigator.mediaSession.setActionHandler("pause", () => { if (!navigationStarted) player.pause(); });
+    navigator.mediaSession.setActionHandler("previoustrack", () => { if (!navigationStarted) changeTrack(queue.previous()); }); navigator.mediaSession.setActionHandler("nexttrack", () => { if (!navigationStarted) changeTrack(queue.next()); });
+    navigator.mediaSession.setActionHandler("seekto", (event) => { if (!navigationStarted) player.seek(event.seekTime || 0); });
   }
-  function changeTrack(item, stream = false) {
+  function playTrackInPage(item, stream = false) {
     if (!item) return;
     player?.cancelTransition();
     renderQueue(); setStatus(""); void player.play(item, stream);
+  }
+  function changeTrack(item, stream = false, { inPlace = false } = {}) {
+    if (!item || navigationStarted) return;
+    if (light && !inPlace) {
+      const navigate = P.source?.navigate;
+      if (typeof navigate === "function") {
+        navigationStarted = true;
+        let result;
+        try { result = navigate.call(P.source, item.href); }
+        catch (error) { return fallbackNavigation(item, error); }
+        if (result && typeof result.then === "function") {
+          result.catch((error) => fallbackNavigation(item, error));
+          return;
+        }
+        return fallbackNavigation(item, new Error("source.navigate did not return a promise"));
+      }
+      return fallbackNavigation(item, new Error("source.navigate is unavailable"));
+    }
+    playTrackInPage(item, stream);
+  }
+  function fallbackNavigation(item, error) {
+    navigationStarted = false;
+    if (!navigateFallbackLogged) { navigateFallbackLogged = true; console.warn("Audio source navigation failed; continuing playback in this page", error); }
+    playTrackInPage(item);
   }
   function playModelItem(item) {
     const found = item?.id ? catalog.document?.links.find((link) => link.id === item.id) : catalog.document?.links.find((link) => window.AudioCatalog.normalizedHref(link.href) === window.AudioCatalog.normalizedHref(item?.href));
@@ -107,9 +131,10 @@
     }
   }
   function handlePlayerEvent(type, detail) {
+    if (light && navigationStarted) return;
     if (type === "track") {
       if (Number.isInteger(detail.queueIndex)) queue.select(detail.queueIndex);
-      visualizer.setTrack(detail); updateMediaSession(detail); setStatus(""); void queue.save(); renderQueue();
+      visualizer.setTrack(detail); updateMediaSession(detail); setStatus(""); if (!light) void queue.save(); renderQueue();
       const found = catalog.document?.links.find((link) => window.AudioCatalog.normalizedHref(link.href) === window.AudioCatalog.normalizedHref(detail.href));
       catalogView?.render(); setStatus(found ? "catalog.member" : "catalog.notMember");
       if (found) playCounts.record(detail.activationId, found);
@@ -121,7 +146,7 @@
     if (type === "timeupdate") { const active=detail?.audio||player.audio; $("#elapsed").textContent = prettyTime(active.currentTime); if (!$("#seek").matches(":active")) $("#seek").value = active.currentTime || 0; }
     if (type === "durationchange" || type === "loadedmetadata") { const active=detail?.audio||player.audio; $("#duration").textContent = prettyTime(active.duration); $("#seek").max = Number.isFinite(active.duration) ? active.duration : 0; }
     if (type === "ended") {
-      if (prefs.repeat === "track") changeTrack(queue.current);
+      if (prefs.repeat === "track") changeTrack(queue.current, false, { inPlace: true });
       else { const next = queue.next(); if (next) changeTrack(next); else if (prefs.repeat === "all" && queue.queue?.items.length) changeTrack(queue.select(0)); }
     }
     if (type === "preloadFailure") setStatus("effects.preloadFailed");
@@ -156,7 +181,10 @@
       try {
         const stored = await P.storage.get("audio-player").catch(() => undefined) || {};
         const { catalogPath, ...owned } = prefs, { musicFolders, lastMode, ...kept } = stored;
-        await P.storage.set("audio-player", { ...kept, ...owned });
+        // A light page owns only the visualizer and equalizer choices; its copy of the
+        // other preferences is a startup snapshot that must not overwrite the full player's.
+        const written = light ? { visualizer: prefs.visualizer, equalizer: prefs.equalizer } : owned;
+        await P.storage.set("audio-player", { ...kept, ...written });
       } catch {}
     };
     prefsWrite = prefsWrite.then(write, write); return prefsWrite;
@@ -235,7 +263,7 @@
   function rememberFolder(path) {
     const key = (value) => value.replace(/[\\/]+$/, "").toLowerCase();
     prefs.recentFolders = [path, ...recentFolders().filter((item) => key(item) !== key(path))].slice(0, 3);
-    void persistPrefs();
+    if (!light) void persistPrefs();
   }
   async function importFolder(root) {
     if (!catalog.document && !(await catalogDialog({ needed: true }))) return;
@@ -254,10 +282,17 @@
     } catch (error) { $("#import-progress").textContent = error.message; setTimeout(() => $("#import-dialog").close(), 1200); }
   }
   async function start() {
+    const sourceUrl = await P.getSourceUrl().catch(() => undefined);
+    light = !!sourceUrl && !isCatalogSource(sourceUrl) && !isPlaylistSource(sourceUrl);
+    document.documentElement.classList.toggle("light-mode", light);
+    document.body.dataset.mode = light ? "light" : "full";
+    queue = window.AudioSourceQueue.create(P.source.initialSourceContext, sourceUrl || "", () => light);
+    P.statusBar.set(light ? [fullFooter[0]] : fullFooter);
+    P.toolbar.set(light ? [] : fullToolbar);
     try { prefs = { ...prefs, ...(await P.storage.get("audio-player") || {}) }; } catch {}
     delete prefs.musicFolders; delete prefs.lastMode; // retired Music folders list and Source/Catalog tab; persistPrefs also drops the stored copies
     visualizer.attach([audio,$("#audio-next")]); player = window.AudioPlayer.create(audio, handlePlayerEvent, visualizer); window.AudioPlayerInstance = player;
-    catalogView = window.AudioCatalogView.create(catalog, queue, (item) => { if (queue.mode !== "catalog") queue.setMode("catalog"); changeTrack(item); }, (key, params) => setStatus(key, params), () => showCatalogList(true), () => renderQueue());
+    catalogView = window.AudioCatalogView.create(catalog, queue, (item) => { if (queue.mode !== "catalog") queue.setMode("catalog"); changeTrack(item); }, (key, params) => setStatus(key, params), () => showCatalogList(true), () => renderQueue(), { isLight: () => light });
     const playlistImport = window.AudioPlaylistImport.create(P, catalog, (key, params) => setStatus(key, params), (items) => {
       showCatalogList(true, { allowNoCatalog: true });
       const meta = { kind: "playlist", sourcePath: `import:${Date.now()}`, label: t("playlist.import.queue") };
@@ -266,12 +301,12 @@
       changeTrack(item);
     });
     catalogView.setImporter(playlistImport);
-    P.toolbar.onAction(({ id, value }) => { if (id === "catalog") { void catalogDialog(); return; } if (id === "search") { catalogView.setSearch(value); return; } if (id !== "import") return; if (value === "folder") void importFolder(); else if (value === "playlist") void playlistImport.pick(); });
+    if (!light) P.toolbar.onAction(({ id, value }) => { if (id === "catalog") { void catalogDialog(); return; } if (id === "search") { catalogView.setSearch(value); return; } if (id !== "import") return; if (value === "folder") void importFolder(); else if (value === "playlist") void playlistImport.pick(); });
     visualizer.setEffect(prefs.visualizer || "bars");
-    audioSettings=window.AudioPlayerSettings.create(prefs,(value)=>{prefs={...prefs,...value};visualizer.applyEqualizer(value.equalizer);player.setTransitionSettings(value);void persistPrefs();});
+    audioSettings=window.AudioPlayerSettings.create(prefs,(value)=>{prefs={...prefs,...value};visualizer.applyEqualizer(value.equalizer);player.setTransitionSettings({crossfadeSeconds:light?0:prefs.crossfadeSeconds,gapless:light?false:prefs.gapless});void persistPrefs();},{ transitionsEnabled: !light });
     document.querySelectorAll(".effects-toggle").forEach((button) => button.addEventListener("click", () => audioSettings.toggle(button)));
-    prefs={...prefs,...audioSettings.value}; visualizer.applyEqualizer(prefs.equalizer); player.setTransitionSettings(prefs);
-    aiVisionModel = window.AudioPlayerAiVision.create({
+    prefs={...prefs,...audioSettings.value}; visualizer.applyEqualizer(prefs.equalizer); player.setTransitionSettings({crossfadeSeconds:light?0:prefs.crossfadeSeconds,gapless:light?false:prefs.gapless});
+    if (!light) aiVisionModel = window.AudioPlayerAiVision.create({
       audio: player, player, queue, catalog,
       play: playModelItem,
       // The agent's setMode picks the playing queue and shows (catalog) or closes (source) the catalog list.
@@ -279,20 +314,19 @@
       refreshView: () => { catalogView?.render(); renderQueue(); },
       refreshQueue: () => { renderQueue(); catalogView?.render(); },
     });
-    aiVisionModel.expose();
+    aiVisionModel?.expose();
     prefs.volume=Math.max(0,Math.min(1,Number(prefs.volume))); prefs.muted=!!prefs.muted; player.setVolume(prefs.volume); player.setMuted(prefs.muted); $("#volume").value = prefs.volume; renderMuteButton();
-    player.setNextProvider(()=>{const q=queue.queue;if(!q?.items?.length||prefs.repeat==="track")return null;let index=queue.peekNextIndex();if(index<0&&!prefs.shuffle&&prefs.repeat==="all")index=0;if(index<0||index>=q.items.length)return null;const item=q.items[index];return {item,index};});
-    queue.setShuffle(!!prefs.shuffle); await queue.restore(); catalogView.restoreQueue(queue.queues.catalog); await catalog.restore();
-    const sourceUrl = await P.getSourceUrl().catch(() => undefined);
+    player.setNextProvider(()=>{if(light)return null;const q=queue.queue;if(!q?.items?.length||prefs.repeat==="track")return null;let index=queue.peekNextIndex();if(index<0&&!prefs.shuffle&&prefs.repeat==="all")index=0;if(index<0||index>=q.items.length)return null;const item=q.items[index];return {item,index};});
+    queue.setShuffle(!!prefs.shuffle); if (!light) { await queue.restore(); catalogView.restoreQueue(queue.queues.catalog); catalogView.restorePlaying(prefs.playingList); } await catalog.restore();
     const initialContext = P.source.initialSourceContext;
     const initialHref = sourceUrl || initialContext?.items?.[initialContext.index]?.href || initialContext?.items?.[0]?.href;
     if (initialHref && isCatalogSource(initialHref)) await openDeliveredCatalog(initialHref);
     else if (initialHref && isPlaylistSource(initialHref)) await playlistImport.openPath(initialHref);
     else if (P.source.initialSourceContext || initialHref) {
       queue.set(P.source.initialSourceContext, initialHref);
-      renderQueue(); if (queue.current) changeTrack(queue.current, !!sourceUrl);
+      renderQueue(); if (queue.current) changeTrack(queue.current, !!sourceUrl, { inPlace: true });
     } else renderQueue();
-    P.source.onOpen(({ sourceUrl: href, context }) => {
+    if (!light) P.source.onOpen(({ sourceUrl: href, context }) => {
       if (disposed || !href) return;
       if (isCatalogSource(href)) { void openDeliveredCatalog(href); return; }
       if (isPlaylistSource(href)) { void playlistImport.openPath(href); return; }
@@ -302,16 +336,19 @@
     $("#catalog-toggle").addEventListener("click", () => { if (!catalog.document) void catalogDialog(); else setCatalogPanel($("#catalog-nav").hidden); });
     $("#catalog-overlay-close").addEventListener("click", () => showCatalogList(false));
     $("#import-cancel").addEventListener("click", () => { importCancelled = true; $("#import-cancel").disabled = true; });
-    $("#play").addEventListener("click", () => player.toggle()); $("#next").addEventListener("click", () => changeTrack(queue.next())); $("#previous").addEventListener("click", () => changeTrack(queue.previous()));
-    P.statusBar.onAction(async ({ id }) => { if (id !== "undo") return; const result = await catalog.undoLastBulkEdit(); if (result.changed) setStatus("catalog.undoDone"); else setStatus(result.conflict ? "catalog.undoConflict" : "catalog.undoUnavailable"); });
-    $("#shuffle").addEventListener("click", async () => { prefs.shuffle = !prefs.shuffle; queue.setShuffle(prefs.shuffle); player.refreshNext(); renderQueue(); renderPlayModes(); await persistPrefs(); });
-    $("#repeat").addEventListener("click", async () => { prefs.repeat = prefs.repeat === "off" ? "track" : prefs.repeat === "track" ? "all" : "off"; renderPlayModes(); await persistPrefs(); player.refreshNext(); });
+    // With nothing loaded yet (a restored list), Play starts the queue's current track.
+    $("#play").addEventListener("click", () => { if (navigationStarted) return; if (!player.current && queue.current) changeTrack(queue.current); else player.toggle(); }); $("#next").addEventListener("click", () => { if (!navigationStarted) changeTrack(queue.next()); }); $("#previous").addEventListener("click", () => { if (!navigationStarted) changeTrack(queue.previous()); });
+    if (!light) P.statusBar.onAction(async ({ id }) => { if (id !== "undo") return; const result = await catalog.undoLastBulkEdit(); if (result.changed) setStatus("catalog.undoDone"); else setStatus(result.conflict ? "catalog.undoConflict" : "catalog.undoUnavailable"); });
+    $("#shuffle").addEventListener("click", async () => { if (navigationStarted) return; prefs.shuffle = !prefs.shuffle; queue.setShuffle(prefs.shuffle); player.refreshNext(); renderQueue(); renderPlayModes(); if (!light) await persistPrefs(); });
+    $("#repeat").addEventListener("click", async () => { if (navigationStarted) return; prefs.repeat = prefs.repeat === "off" ? "track" : prefs.repeat === "track" ? "all" : "off"; renderPlayModes(); if (!light) await persistPrefs(); player.refreshNext(); });
     // A click on the page tab's mute button works like the board's own Mute button.
     P.page.onMuteToggle?.(() => $("#mute").click());
-    $("#mute").addEventListener("click", () => { prefs.muted=!prefs.muted; player.setMuted(prefs.muted); renderMuteButton(); void persistPrefs(); }); $("#volume").addEventListener("input", (event) => { prefs.volume=Number(event.target.value); player.setVolume(prefs.volume); void persistPrefs(); });
+    // A double click on the visualizer itself opens the playing list, like the panel's Now playing entry.
+    if (!light) $("#visualizer").addEventListener("dblclick", (event) => { if (event.target.closest("button, input, select, a, dialog, .transport, #catalog-overlay, .effect-picker")) return; catalogView.showPlaying(); });
+    $("#mute").addEventListener("click", () => { if (navigationStarted) return; prefs.muted=!prefs.muted; player.setMuted(prefs.muted); renderMuteButton(); if (!light) void persistPrefs(); }); $("#volume").addEventListener("input", (event) => { if (navigationStarted) return; prefs.volume=Number(event.target.value); player.setVolume(prefs.volume); if (!light) void persistPrefs(); });
     for (const input of document.querySelectorAll(".transport input[type=range]")) input.addEventListener("input", paintRanges);
     paintRanges();
-    $("#seek").addEventListener("input", (event) => { player.seek(Number(event.target.value)); $("#elapsed").textContent = prettyTime(player.currentTime); });
+    $("#seek").addEventListener("input", (event) => { if (navigationStarted) return; player.seek(Number(event.target.value)); $("#elapsed").textContent = prettyTime(player.currentTime); });
     if (!["off", "track", "all"].includes(prefs.repeat)) prefs.repeat = "off"; renderPlayModes();
     setCatalogPanel(!!prefs.catalogPanel && !!catalog.document); renderQueue(); window.addEventListener("pagehide", teardown, { once: true });
   }

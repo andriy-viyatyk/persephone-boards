@@ -38,6 +38,11 @@
   view never changes the playing queue; starting playback from a list does.
   The panel's own `#catalog-nav-filter` box narrows the panel entries by label (hiding "Not set"
   rows and empty sections); it is separate from the toolbar track search and never changes the list.
+  `#catalog-playing` at the bottom of the panel names the playing catalog queue (`queue.queues.catalog`
+  in catalog mode) and reopens it on click, as does a double click on the bare visualizer. Rendering a list only refreshes that queue when it is the
+  same list (`kind` + `sourcePath`); a row click is what makes the viewed list the playing queue.
+  The playing list is also saved as `prefs.playingList` (`kind`, `sourcePath`, `label`, `href`) and
+  rebuilt from the catalog by a new page that has no page-state queue (`restorePlaying`).
 - Page chrome lives in Persephone, not the board: the toolbar holds the catalog button
   (`placement: "start"`, labelled with the catalog file name or "No catalog"; it opens
   `#catalog-dialog` with catalog stats and Open/New), the search input and the Import menu; the
@@ -57,6 +62,15 @@
   selected item. Keep the audio element alive across track changes.
 - Chromium does not decode WMA. Keep its row and show the unsupported-format message.
 
+## Full and light pages
+
+- A source URL that is an audio file starts in light mode. Catalog JSON and M3U/PLS sources, and a page with no source URL, start in full mode. `singleInstanceMasks` routes catalog and playlist opens to the full singleton; audio-file opens use their own page with the source context captured by Persephone. A light page does not subscribe to later `source.onOpen()` events; Explorer audio opens rebuild it through platform routing.
+- Light mode keeps the visualizer with its effect picker and audio-effects popover, transport, track title, and current-track catalog add/edit button when a catalog is loaded. It hides catalog browsing and dialogs and toolbar catalog/search/import controls. The page tab keeps the opened filename; only the in-board title follows playback.
+- Light mode reads shared player preferences and the remembered catalog, and writes only the `visualizer` and `equalizer` keys of `audio-player` (merged onto the stored value); it never writes `audio-queues` page state. Its volume, mute, shuffle, and repeat changes are local. It starts from its initial source context instead of restoring saved queues or lists. Catalog edits, tag fills, and play counts still use the merge-safe catalog store.
+- Light-mode Next, Previous, track-end advance, repeat-all wrap, and media-session previous/next navigate with `persephone.source.navigate(item.href)` using the selected item from the initial source context. Persephone rebuilds a light page for that item. Repeat-track replays in place; shuffle picks a random item other than the current track with no bag. If `source.navigate()` is missing or rejects, the player falls back to in-page playback and logs that fallback once. After a navigation call, the page ignores further transport and ended events to prevent duplicate navigation. Full mode continues changing tracks in place.
+- Light mode does not preload a next deck or apply crossfade/gapless transitions. The effects popover may display those settings as disabled; their stored values remain unchanged and continue to apply in full mode. Equalizer controls still work. Light-page preference writes are limited to `visualizer` and `equalizer`.
+- Both modes synchronize an open catalog through `persephone.watch()`. Changes and rescans refresh the document; a missing or removed file is watched through its parent folder until it reappears. Revoked or failed watches stop without retrying. Watch subscriptions are disposed when the catalog path changes and when the page closes.
+
 ## Visualizer
 
 Keep the original effect palettes and canvas geometry. Theme changes affect board chrome and the
@@ -69,8 +83,18 @@ effect settings live in `persephone.storage`. Crossfade overlaps at most two tra
 incoming item active when its fade begins; preloading alone does not count a play. Skip, queue/mode
 change, seek, and pause cancel pending work. Gapless can preload with crossfade off. Unsupported or
 stalled next sources report a status and fall back to ordinary end/next handling. Decoder support
-follows Chromium; WMA remains unsupported. The visualizer suspends RAF while hidden and disposes its
-observers, RAF, effects, nodes, and shared audio context on page teardown.
+follows Chromium; WMA remains unsupported. The visualizer suspends RAF while outside the viewport
+or while the page is hidden. It reads `persephone.page.visible` (defaulting to true when absent)
+and, when available, subscribes through `persephone.page.onVisibilityChange()`; hiding cancels RAF
+and clears the canvas, while showing remeasures and restarts drawing when the effect is selected
+and the visualizer is intersecting. Without `onVisibilityChange`, it keeps the existing
+intersection-only behavior. Page visibility does not pause playback, suspend the AudioContext, or
+change the analyser graph. The visualizer disposes its visibility subscription, observers, RAF,
+effects, nodes, and shared audio context on page teardown.
+
+In light mode, each track change navigates to a fresh page, so no next deck is preloaded and
+crossfade/gapless settings have no effect. Those controls are disabled in the effects popover;
+their stored values remain unchanged and continue to apply in full mode.
 
 The canonical bridge reference is `persephone://guides/boards`; agent-facing author guidance is
 `C:/projects/persephone/assets/guides/agents/boards.md`.

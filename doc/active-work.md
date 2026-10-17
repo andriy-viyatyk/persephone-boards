@@ -14,6 +14,7 @@ Overview of active and planned board work in this repo.
 - [ ] [BT-038: Audio Player — player, queue, volume, visualizer, source mode](tasks/BT-038-audio-player/README.md)
 - [ ] [BT-039: Audio Player — music catalog and catalog mode](tasks/BT-039-audio-catalog/README.md)
 - [ ] [BT-043: Audio Player — ai-vision model](tasks/BT-043-audio-aivision/README.md)
+- [ ] [BT-044: Audio Player — light mode, `singleInstanceMasks`, watch-based catalog refresh](tasks/BT-044-audio-light-mode/README.md)
 
 ## Planned
 

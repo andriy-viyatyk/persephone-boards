@@ -1,15 +1,19 @@
 (() => {
   const $ = (selector) => document.querySelector(selector);
   const pathParent = (path) => String(path || "").replace(/[\\/][^\\/]*$/, "");
-  function create(store, queue, playTrack, onStatus, onShowList = () => {}, onQueueChange = () => {}) {
-    let filter = { kind: "all", value: "" }, selectedId = "", editingOriginal = null, importer = null, shownCatalogName = null, searchText = "", shownCount = null, openSection, panelFilter = "", lastNav = null;
-    void window.getPrefs?.().then((prefs) => { if (prefs && "catalogSection" in prefs && openSection === undefined) { openSection = prefs.catalogSection; if (store.document) render(); } });
+  function create(store, queue, playTrack, onStatus, onShowList = () => {}, onQueueChange = () => {}, { isLight = () => false } = {}) {
+    let filter = { kind: "all", value: "" }, selectedId = "", editingOriginal = null, importer = null, shownCatalogName = null, searchText = "", shownCount = null, openSection, panelFilter = "", lastNav = null, viewList = null, pendingPlaying = null, savedPlaying;
+    // A list is the same list when its kind and source match, whatever its tracks are now.
+    const sameList = (a, b) => !!a && !!b && a.kind === b.kind && a.sourcePath === b.sourcePath;
+    // Kinds the panel can open again; agent queues and imported playlists have no panel entry.
+    const sectionOf = (q) => q.kind === "playlist" ? (String(q.sourcePath).startsWith("smart:") ? "smart" : undefined) : q.kind === "missing" ? q.sourcePath : ["category", "tag", "artist", "year", "decade"].includes(q.kind) ? q.kind : q.kind === "all" || q.kind === "search" ? null : undefined;
+    if (!isLight()) void window.getPrefs?.().then((prefs) => { if (prefs && "catalogSection" in prefs && openSection === undefined) { openSection = prefs.catalogSection; if (store.document) render(); } });
     const titleOf = (track) => track.title || track.href.split(/[\\/]/).pop();
     // The search box is Persephone's toolbar input; keep it in step when the board clears or restores it.
-    function setSearchText(value) { if (searchText === value) return; searchText = value; window.persephone.toolbar.update([{ id: "search", value }]); }
+    function setSearchText(value) { if (searchText === value) return; searchText = value; if (!isLight()) window.persephone.toolbar.update([{ id: "search", value }]); }
     // The catalog panel is an accordion like Persephone's sidebar: "All tracks" on top, then one
     // collapsible section per browse kind, at most one open; the open one takes the free height.
-    function renderNav(sections, total, search) {
+    function renderNav(sections, total, search, { reveal = false } = {}) {
       lastNav = [sections, total, search];
       // The panel's own filter box narrows the entries by label only; it never touches the track list.
       const needle = panelFilter.trim().toLocaleLowerCase();
@@ -52,9 +56,18 @@
         children.push(element);
       }
       nav.replaceChildren(...children);
+      if (reveal) requestAnimationFrame(() => nav.querySelector(".catalog-nav-item.selected")?.scrollIntoView({ block: "nearest" }));
     }
-    function render({ rebuildQueue = false } = {}) {
+    function render({ rebuildQueue = false, reveal = false } = {}) {
       const doc = store.document, tracks = (doc?.links || []).filter(window.AudioCatalog.validLink), list = $("#catalog-list");
+      if (isLight()) {
+        const member = !!currentCatalogTrack(), addCurrent = $("#add-current");
+        addCurrent.hidden = !window.AudioPlayerInstance?.current || !doc;
+        addCurrent.dataset.state = member ? "edit" : "add";
+        addCurrent.title = window.audioPlayerT(member ? "catalog.editTrack" : "catalog.addCurrent");
+        addCurrent.setAttribute("aria-label", addCurrent.title);
+        return;
+      }
       // Redraws keep the list where the user scrolled it; only a different list starts at the top.
       const keptScroll = rebuildQueue ? 0 : list.scrollTop;
       list.replaceChildren();
@@ -95,16 +108,26 @@
         const count = tracks.filter((track) => window.AudioCatalogSearch.missing(track, section.id)).length;
         if (count) section.entries.unshift({ kind: "missing", value: section.id, label: window.audioPlayerT("catalog.notSet"), count, notSet: true });
       }
-      renderNav(sections.filter((section) => section.entries.length), tracks.length, query ? { query, count: items.length } : null);
+      renderNav(sections.filter((section) => section.entries.length), tracks.length, query ? { query, count: items.length } : null, { reveal });
       const kind = query ? "search" : filter.kind, value = query || filter.value;
       const label = queueMeta?.label || (query ? window.audioPlayerT("catalog.searchLabel", { query }) : filter.kind === "all" ? window.audioPlayerT("catalog.all") : filter.kind === "missing" ? window.audioPlayerT("catalog.filterLabel", { filter: window.audioPlayerT(`catalog.filter.${filter.value}`), value: window.audioPlayerT("catalog.notSet") }) : window.audioPlayerT("catalog.filterLabel", { filter: window.audioPlayerT(`catalog.filter.${filter.kind}`), value: filter.value }));
-      queue.setCatalog(items, queueMeta || { kind, sourcePath: value || kind, label }, { preserve: !rebuildQueue });
+      viewList = { items, meta: queueMeta || { kind, sourcePath: value || kind, label } };
+      // Viewing a list never replaces the playing queue; the playing list itself is refreshed in place.
+      const playing = queue.queues.catalog;
+      if (!playing || sameList(playing, viewList.meta)) queue.setCatalog(items, viewList.meta, { preserve: !!playing });
+      // A list saved by an earlier page becomes the playing queue again, at the track that was playing.
+      if (pendingPlaying && sameList(queue.queues.catalog, viewList.meta)) {
+        const q = queue.queues.catalog, index = q.items.findIndex((item) => hrefKey(item.href) === hrefKey(pendingPlaying.href));
+        if (index >= 0) q.index = index;
+        pendingPlaying = null; queue.setMode("catalog");
+      }
+      renderPlaying();
       $("#catalog-overlay-title").textContent = label;
       window.AudioPlayerInstance?.refreshNext?.(); onQueueChange();
       for (const track of items) {
         const row = document.createElement("li"), main = document.createElement("button"), details = document.createElement("span"), meta = document.createElement("small"), edit = document.createElement("button");
         row.className = "catalog-row"; if (window.AudioPlayerInstance?.current && hrefKey(window.AudioPlayerInstance.current.href) === hrefKey(track.href)) { row.dataset.name = "playing-track"; row.classList.add("playing"); } main.type = "button"; main.className = "catalog-track"; details.textContent = titleOf(track); const lastPlayed = track.lastPlayed && Number.isFinite(Date.parse(track.lastPlayed)) ? window.audioPlayerT("catalog.lastPlayed", { date: new Date(track.lastPlayed).toLocaleDateString() }) : ""; meta.textContent = [track.artist, track.album, track.year, `★ ${track.rating || 0}`, `${track.playCount || 0} ${window.audioPlayerT("catalog.plays")}`, lastPlayed].filter(Boolean).join(" · ");
-        main.append(details, meta); main.addEventListener("click", () => { if (queue.mode !== "catalog") queue.setMode("catalog"); const idx = queue.queue.items.findIndex((item) => item.id === track.id); const item = queue.select(idx); if (!item) return; playTrack(item); });
+        main.append(details, meta); main.addEventListener("click", () => { if (!sameList(queue.queues.catalog, viewList.meta)) queue.setCatalog(viewList.items, viewList.meta); if (queue.mode !== "catalog") queue.setMode("catalog"); renderPlaying(); const idx = queue.queue.items.findIndex((item) => item.id === track.id); const item = queue.select(idx); if (!item) return; playTrack(item); });
         edit.type = "button"; edit.className = "catalog-edit"; edit.title = window.audioPlayerT("catalog.editTrack"); edit.setAttribute("aria-label", edit.title);
         edit.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.6 2.2l2.2 2.2-7 7H2.6V9.2z"/><path d="M8.2 3.6l2.2 2.2"/></svg>'; edit.addEventListener("click", () => editTrack(track));
         row.append(main, edit);
@@ -184,6 +207,7 @@
     $("#track-cancel").addEventListener("click", () => $("#track-dialog").close());
     $("#add-current").addEventListener("click", () => editTrack(currentCatalogTrack()));
     function restoreQueue(saved) {
+      if (isLight()) return;
       if (!saved) return;
       if (saved.kind === "search") { filter = { kind: "all", value: "all" }; setSearchText(saved.sourcePath || ""); }
       else if (["category", "tag", "artist", "year", "decade", "missing", "smart", "playlist"].includes(saved.kind)) { filter = { kind: saved.kind, value: saved.sourcePath || "" }; }
@@ -191,12 +215,38 @@
       if (store.document) render();
     }
     function setImporter(value) { importer = value; }
+    // The bottom of the panel names the list that is playing; a click opens that list again.
+    function renderPlaying() {
+      if (isLight()) { $("#catalog-playing").hidden = true; return; }
+      const q = queue.mode === "catalog" ? queue.queues.catalog : null, button = $("#catalog-playing");
+      button.hidden = !q?.items.length; if (button.hidden) return;
+      $("#catalog-playing-label").textContent = q.label; $("#catalog-playing-count").textContent = String(q.items.length);
+      button.title = q.label; button.disabled = sectionOf(q) === undefined;
+      // Remembered in the board's storage, so a new Audio Player page can restore it.
+      const saved = button.disabled ? null : { kind: q.kind, sourcePath: q.sourcePath, label: q.label, href: q.items[q.index]?.href || "" }, key = JSON.stringify(saved);
+      if (key !== savedPlaying) { savedPlaying = key; window.updatePrefs?.({ playingList: saved }); }
+    }
+    function restorePlaying(saved) {
+      if (isLight()) return;
+      if (!saved || queue.queues.catalog || sectionOf(saved) === undefined) return;
+      savedPlaying = JSON.stringify(saved); pendingPlaying = saved; restoreQueue(saved);
+    }
+    function showPlaying() {
+      if (isLight()) return;
+      const q = queue.queues.catalog, section = q && sectionOf(q); if (!q || section === undefined) return;
+      if (q.kind === "search") { filter = { kind: "all", value: "all" }; setSearchText(q.sourcePath || ""); }
+      else { filter = { kind: q.kind, value: q.kind === "all" ? "all" : q.sourcePath }; setSearchText(""); }
+      if (section && section !== openSection) { openSection = section; if (!isLight()) window.updatePrefs?.({ catalogSection: section }); }
+      if (panelFilter) { $("#catalog-nav-filter").value = ""; panelFilter = ""; $("#catalog-nav-filter-clear").hidden = true; }
+      render({ reveal: true }); onShowList();
+    }
+    $("#catalog-playing").addEventListener("click", showPlaying);
     const filterInput = $("#catalog-nav-filter"), filterClear = $("#catalog-nav-filter-clear");
     const applyPanelFilter = (value) => { panelFilter = value; filterClear.hidden = !value; if (lastNav) renderNav(...lastNav); };
     filterInput.addEventListener("input", () => applyPanelFilter(filterInput.value));
     filterInput.addEventListener("keydown", (event) => { if (event.key === "Escape" && filterInput.value) { event.stopPropagation(); filterInput.value = ""; applyPanelFilter(""); } });
     filterClear.addEventListener("click", () => { filterInput.value = ""; applyPanelFilter(""); filterInput.focus(); });
-    return { render, restoreQueue, editTrack, setImporter, setSearch(value) { searchText = String(value || ""); render({ rebuildQueue: true }); onShowList(); }, get filter() { return filter; }, setFilter(value) { filter = value; setSearchText(""); render({ rebuildQueue: true }); } };
+    return { render, renderPlaying, showPlaying, restoreQueue, restorePlaying, editTrack, setImporter, setSearch(value) { searchText = String(value || ""); render({ rebuildQueue: true }); onShowList(); }, get filter() { return filter; }, setFilter(value) { filter = value; setSearchText(""); render({ rebuildQueue: true }); } };
   }
   window.AudioCatalogView = { create };
 })();

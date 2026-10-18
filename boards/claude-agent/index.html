@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="board.title">Claude Agent</title>
+  <link rel="stylesheet" href="./board-base.css">
+  <link rel="stylesheet" href="./app.css">
+</head>
+<body>
+  <main id="app">
+    <header class="topbar"><div class="brand"><img src="./icon.svg" alt=""><strong data-i18n="board.title">Claude Agent</strong></div><span id="status" data-i18n="idle">Ready</span></header>
+    <section id="consent" class="card hidden" aria-live="polite">
+      <h1 data-i18n="consent.title">Install Claude Agent SDK</h1>
+      <p data-i18n="consent.body"></p>
+      <div class="actions"><button id="accept" class="primary" data-i18n="consent.accept"></button><button id="decline" data-i18n="consent.decline"></button></div>
+    </section>
+    <section id="intro" class="card">
+      <p data-i18n="cli.required"></p>
+      <p data-i18n="permissions"></p><p data-i18n="settings"></p>
+      <div class="fields">
+        <label><span data-i18n="cwd"></span><input id="cwd" type="text" placeholder="C:\\work\\project" autocomplete="off"></label>
+        <label><span data-i18n="model"></span><select id="model"><option value="">Default</option></select></label>
+        <label><span data-i18n="effort"></span><select id="effort"><option value="">Default</option></select></label>
+        <label><span data-i18n="permission"></span><select id="permission"><option value="read-only">read-only</option><option value="ask">ask</option><option value="auto-edit">auto-edit</option><option value="full-auto">full-auto</option></select></label>
+      </div>
+      <div class="actions"><button id="start" class="primary" data-i18n="start"></button><button id="refresh-sessions" data-i18n="sessions"></button></div>
+      <div id="session-list" class="session-list"></div>
+    </section>
+    <p id="error" class="error hidden" role="alert"></p>
+    <section id="chat" class="chat hidden">
+      <div class="session-head"><span id="session-id"></span><button id="show-instructions" class="quiet" data-i18n="instructions"></button><button id="interrupt" data-i18n="interrupt"></button><button id="close" data-i18n="close"></button></div>
+      <pre id="instructions-view" class="instructions hidden"></pre>
+      <div id="transcript" class="transcript" aria-live="polite"></div>
+      <div id="approvals" class="approvals"></div>
+      <form id="composer"><textarea id="prompt" rows="3" data-i18n-placeholder="prompt"></textarea><button id="send" class="primary" data-i18n="send"></button></form>
+    </section>
+  </main>
+  <script src="./i18n.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

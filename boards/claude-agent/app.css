@@ -1,0 +1,37 @@
+:root { color-scheme: light dark; }
+body { overflow: hidden; }
+#app { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.topbar, .session-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--p-bg-dark, var(--p-panel)); border-bottom: 1px solid var(--p-border); }
+.brand { display: flex; align-items: center; gap: 8px; flex: 1; }
+.brand img { width: 20px; height: 20px; }
+#status { color: var(--p-text-muted); }
+.card { margin: auto; width: min(760px, calc(100% - 32px)); max-height: calc(100% - 70px); overflow: auto; padding: 20px; border: 1px solid var(--p-border); border-radius: var(--p-radius-md, 6px); background: var(--p-panel); }
+h1 { margin-top: 0; font-size: 18px; }
+p { margin: 8px 0; color: var(--p-text-muted); }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
+label { display: flex; flex-direction: column; gap: 4px; color: var(--p-text-muted); }
+input, select, textarea, button { color: var(--p-text); background: var(--p-bg); border: 1px solid var(--p-border); border-radius: var(--p-radius-sm, 4px); padding: 7px 9px; font: inherit; }
+button { cursor: pointer; } button:hover:not(:disabled) { background: var(--p-hover); } button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--p-accent); color: var(--p-accent-text); border-color: var(--p-accent); }
+button.quiet { margin-left: auto; }
+.actions { display: flex; gap: 8px; margin-top: 14px; }
+.hidden { display: none !important; }
+.session-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.session-row { display: flex; align-items: center; gap: 8px; padding: 6px; border-bottom: 1px solid var(--p-border-light, var(--p-border)); }
+.session-row span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.error { color: var(--p-error); white-space: pre-wrap; }
+.chat { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.session-head { min-height: 42px; }
+#session-id { color: var(--p-text-muted); font-family: var(--p-font-mono, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.instructions { margin: 0; padding: 10px 14px; max-height: 150px; overflow: auto; white-space: pre-wrap; background: var(--p-bg-dark); border-bottom: 1px solid var(--p-border); }
+.transcript { flex: 1; overflow: auto; padding: 16px max(16px, calc((100% - 900px)/2)); }
+.entry { margin: 0 auto 12px; max-width: 900px; padding: 10px 12px; border: 1px solid var(--p-border); border-radius: var(--p-radius-md, 6px); background: var(--p-panel); white-space: pre-wrap; overflow-wrap: anywhere; }
+.entry.user { border-left: 3px solid var(--p-accent); }
+.entry.meta { color: var(--p-text-muted); font-size: 12px; }
+.entry.thinking { opacity: .8; font-style: italic; }
+.approvals { max-height: 220px; overflow: auto; }
+.approval { margin: 8px auto; width: min(900px, calc(100% - 24px)); padding: 12px; border: 1px solid var(--p-warning); border-radius: var(--p-radius-md, 6px); background: var(--p-panel); }
+.approval p { white-space: pre-wrap; overflow-wrap: anywhere; }
+#composer { display: flex; align-items: end; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--p-border); background: var(--p-bg-dark); }
+#composer textarea { flex: 1; resize: vertical; min-height: 60px; max-height: 180px; }
+@media (max-width: 700px) { .fields { grid-template-columns: 1fr; } .session-head { flex-wrap: wrap; } #session-id { width: 100%; } }

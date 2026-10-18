@@ -8,7 +8,7 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-*(none)*
+- [ ] [BT-046: `claude-agent` provider board — Persephone EPIC-131 / US-1706](tasks/BT-046-claude-agent-board/README.md)
 
 ## Planned
 

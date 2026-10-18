@@ -175,6 +175,35 @@
       }
     },
     {
+      "id": "audio-player",
+      "version": "1.0.0",
+      "name": "Audio Player",
+      "description": "Play audio sources and browse a user-owned music catalog.",
+      "fileMasks": [
+        "*.music.link.json",
+        "*.mp3",
+        "*.wav",
+        "*.aac",
+        "*.flac",
+        "*.m4a",
+        "*.wma",
+        "*.ogg",
+        "*.opus",
+        "*.m3u",
+        "*.pls"
+      ],
+      "editorName": "Audio Player",
+      "editorKind": "stream-host",
+      "standalone": false,
+      "minAppVersion": "5.0.11",
+      "screenshot": "screenshot.png",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/audio-player-v1.0.0/audio-player.zip",
+        "size": 211712,
+        "sha256": "78dbe1c02afbd13fe74829d9c3c86d343b59ff21106ab75a22bd6c1e79465719"
+      }
+    },
+    {
       "id": "cert-viewer",
       "version": "1.1.0",
       "name": "Certificate Viewer",

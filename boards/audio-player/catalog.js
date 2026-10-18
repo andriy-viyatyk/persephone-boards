@@ -90,6 +90,8 @@
       } else if (operation.type === "edit") {
         const index = result.links.findIndex((link) => link.id === operation.id);
         if (index >= 0) result.links[index] = { ...result.links[index], ...operation.patch };
+      } else if (operation.type === "remove") {
+        result.links = result.links.filter((link) => link.id !== operation.id);
       } else if (operation.type === "bulk-edit") {
         const ids = new Set(operation.ids || []);
         result.links = result.links.map((link) => ids.has(link.id) ? { ...link, ...operation.patch } : link);

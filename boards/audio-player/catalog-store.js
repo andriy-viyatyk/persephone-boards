@@ -143,6 +143,7 @@
       addMany(links) { return enqueue({ type: "add-many", links: links.map(Catalog.normalizeTrack) }); },
       addManyGranted(links) { return enqueue({ type: "add-many", links: links.map(Catalog.normalizeTrack) }, { requestFileGrant: false }); },
       edit(id, patch) { return enqueue({ type: "edit", id, patch }); },
+      removeTrack(id) { return enqueue({ type: "remove", id }); },
       editWithoutGrant(id, patch) { return enqueue({ type: "edit", id, patch }, { requestFileGrant: false }); },
       createCategory(pathValue) { return enqueue({ type: "category-create", path: pathValue }); },
       renameCategory(oldPath, newPath) { return enqueue({ type: "category-rename", oldPath, newPath }); },

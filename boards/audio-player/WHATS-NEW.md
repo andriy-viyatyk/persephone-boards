@@ -4,6 +4,9 @@
 
 - Added a light source-context player with per-track platform navigation and watch-based catalog refresh.
 - Stop visualizer drawing while the page is hidden in full and light mode.
+- Rate tracks in place: stars under the now-playing name and on every row of the track list.
+- Toggle the playing track's tags from a column of catalog tags at the left of the visualizer.
+- Right-click a track in the playing list to remove it from the catalog or move its file to the Recycle Bin (needs app bridge 1.41.0).
 - Added a persisted ten-band equalizer, optional 0–12 second crossfade, and gapless next-track preloading.
 - Added play statistics, smart playlists, and M3U/PLS playlist import.
 - Exposed catalog gap queries, merge-safe bulk metadata edits with one-step undo, category management, authorized folder scans, and playback controls through AiVision.

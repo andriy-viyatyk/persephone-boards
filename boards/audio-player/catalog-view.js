@@ -8,6 +8,8 @@
     // Kinds the panel can open again; agent queues and imported playlists have no panel entry.
     const sectionOf = (q) => q.kind === "playlist" ? (String(q.sourcePath).startsWith("smart:") ? "smart" : undefined) : q.kind === "missing" ? q.sourcePath : ["category", "tag", "artist", "year", "decade"].includes(q.kind) ? q.kind : q.kind === "all" || q.kind === "search" ? null : undefined;
     if (!isLight()) void window.getPrefs?.().then((prefs) => { if (prefs && "catalogSection" in prefs && openSection === undefined) { openSection = prefs.catalogSection; if (store.document) render(); } });
+    const STAR = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.6l1.95 4 4.4.62-3.18 3.1.75 4.38L8 11.64 4.08 13.7l.75-4.38-3.18-3.1 4.4-.62z"/></svg>';
+    const NONE = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.2"/></svg>';
     const titleOf = (track) => track.title || track.href.split(/[\\/]/).pop();
     // The search box is Persephone's toolbar input; keep it in step when the board clears or restores it.
     function setSearchText(value) { if (searchText === value) return; searchText = value; if (!isLight()) window.persephone.toolbar.update([{ id: "search", value }]); }
@@ -66,6 +68,7 @@
         addCurrent.dataset.state = member ? "edit" : "add";
         addCurrent.title = window.audioPlayerT(member ? "catalog.editTrack" : "catalog.addCurrent");
         addCurrent.setAttribute("aria-label", addCurrent.title);
+        renderTrackControls();
         return;
       }
       // Redraws keep the list where the user scrolled it; only a different list starts at the top.
@@ -126,11 +129,13 @@
       window.AudioPlayerInstance?.refreshNext?.(); onQueueChange();
       for (const track of items) {
         const row = document.createElement("li"), main = document.createElement("button"), details = document.createElement("span"), meta = document.createElement("small"), edit = document.createElement("button");
-        row.className = "catalog-row"; if (window.AudioPlayerInstance?.current && hrefKey(window.AudioPlayerInstance.current.href) === hrefKey(track.href)) { row.dataset.name = "playing-track"; row.classList.add("playing"); } main.type = "button"; main.className = "catalog-track"; details.textContent = titleOf(track); const lastPlayed = track.lastPlayed && Number.isFinite(Date.parse(track.lastPlayed)) ? window.audioPlayerT("catalog.lastPlayed", { date: new Date(track.lastPlayed).toLocaleDateString() }) : ""; meta.textContent = [track.artist, track.album, track.year, `★ ${track.rating || 0}`, `${track.playCount || 0} ${window.audioPlayerT("catalog.plays")}`, lastPlayed].filter(Boolean).join(" · ");
+        row.className = "catalog-row"; if (window.AudioPlayerInstance?.current && hrefKey(window.AudioPlayerInstance.current.href) === hrefKey(track.href)) { row.dataset.name = "playing-track"; row.classList.add("playing"); } main.type = "button"; main.className = "catalog-track"; details.textContent = titleOf(track); const lastPlayed = track.lastPlayed && Number.isFinite(Date.parse(track.lastPlayed)) ? window.audioPlayerT("catalog.lastPlayed", { date: new Date(track.lastPlayed).toLocaleDateString() }) : ""; meta.textContent = [track.artist, track.album, track.year, `${track.playCount || 0} ${window.audioPlayerT("catalog.plays")}`, lastPlayed].filter(Boolean).join(" · ");
         main.append(details, meta); main.addEventListener("click", () => { if (!sameList(queue.queues.catalog, viewList.meta)) queue.setCatalog(viewList.items, viewList.meta); if (queue.mode !== "catalog") queue.setMode("catalog"); renderPlaying(); const idx = queue.queue.items.findIndex((item) => item.id === track.id); const item = queue.select(idx); if (!item) return; playTrack(item); });
         edit.type = "button"; edit.className = "catalog-edit"; edit.title = window.audioPlayerT("catalog.editTrack"); edit.setAttribute("aria-label", edit.title);
         edit.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.6 2.2l2.2 2.2-7 7H2.6V9.2z"/><path d="M8.2 3.6l2.2 2.2"/></svg>'; edit.addEventListener("click", () => editTrack(track));
-        row.append(main, edit);
+        const side = document.createElement("div"); side.className = "catalog-side"; side.append(edit, ratingStars(track, "row-rating"));
+        row.append(main, side);
+        row.addEventListener("contextmenu", (event) => { event.preventDefault(); showRowMenu(event.clientX, event.clientY, track); });
         list.append(row);
       }
       list.scrollTop = keptScroll;
@@ -146,6 +151,7 @@
       const addCurrent = $("#add-current"), addLabel = window.audioPlayerT(alreadyAdded ? "catalog.editTrack" : "catalog.addCurrent");
       addCurrent.hidden = !current || !doc; addCurrent.dataset.state = alreadyAdded ? "edit" : "add";
       addCurrent.title = addLabel; addCurrent.setAttribute("aria-label", addLabel);
+      renderTrackControls();
     }
     function hrefKey(href) { return window.AudioCatalog.normalizedHref(href); }
     // The catalog entry of the track now playing, if it has one.
@@ -153,6 +159,96 @@
       const current = window.AudioPlayerInstance?.current;
       return current ? (store.document?.links || []).filter(window.AudioCatalog.validLink).find((track) => hrefKey(track.href) === hrefKey(current.href)) || null : null;
     }
+    // Compact rating for the title chip and the list rows, like the track dialog's: a circle for no rating, then five stars.
+    function ratingStars(track, className) {
+      const stars = document.createElement("div"), rating = Math.max(0, Math.min(5, Number(track.rating) || 0));
+      stars.className = `rating-stars rating-compact ${className}`; stars.setAttribute("role", "radiogroup"); stars.setAttribute("aria-label", window.audioPlayerT("metadata.rating"));
+      for (let value = 0; value <= 5; value++) {
+        const button = document.createElement("button"), label = `${window.audioPlayerT("metadata.rating")}: ${value}`;
+        button.type = "button"; button.className = value ? "rating-star" : "rating-none"; button.innerHTML = value ? STAR : NONE; button.title = label;
+        button.setAttribute("role", "radio"); button.setAttribute("aria-label", label); button.setAttribute("aria-checked", String(value === rating));
+        button.classList.toggle("on", value ? value <= rating : rating === 0);
+        button.addEventListener("click", (event) => { event.stopPropagation(); if (value !== rating) void setRating(track, value); });
+        stars.append(button);
+      }
+      return stars;
+    }
+    async function setRating(track, rating) {
+      try {
+        if (!await store.edit(track.id, { rating })) { onStatus("catalog.readOnly"); return; }
+        const updated = store.document?.links.find((item) => item.id === track.id); if (updated) window.AudioPlayerInstance?.updateCurrent?.(updated);
+        render();
+      } catch (error) { onStatus("catalog.writeError", error); }
+    }
+    // Controls for the playing track when it is in the catalog: stars under its name, and every
+    // catalog tag down the left edge with the track's own tags on; a click toggles the tag.
+    function renderTrackControls() {
+      const rating = $("#track-chip-rating"), tagList = $("#track-tag-list"), track = currentCatalogTrack();
+      rating.hidden = !track;
+      rating.replaceChildren(...(track ? [ratingStars(track, "chip-rating")] : []));
+      const allTags = track ? [...new Set((store.document?.links || []).flatMap((link) => (Array.isArray(link.tags) ? link.tags : [])))].sort((a, b) => a.localeCompare(b)) : [];
+      const own = new Set(track?.tags || []);
+      tagList.hidden = !allTags.length;
+      tagList.replaceChildren(...allTags.map((tag) => {
+        const button = document.createElement("button"), on = own.has(tag);
+        button.type = "button"; button.className = "track-tag"; button.textContent = tag; button.title = tag;
+        button.classList.toggle("on", on); button.setAttribute("aria-pressed", String(on));
+        button.addEventListener("click", () => void setTags(track, on ? track.tags.filter((item) => item !== tag) : [...(track.tags || []), tag]));
+        return button;
+      }));
+    }
+    async function setTags(track, tags) {
+      try {
+        if (!await store.edit(track.id, { tags })) { onStatus("catalog.readOnly"); return; }
+        const updated = store.document?.links.find((item) => item.id === track.id); if (updated) window.AudioPlayerInstance?.updateCurrent?.(updated);
+        render();
+      } catch (error) { onStatus("catalog.writeError", error); }
+    }
+    // Row context menu: remove the track from the catalog, or move its file to the Recycle Bin (bridge 1.41.0).
+    const rowMenu = document.createElement("div"); rowMenu.className = "row-menu"; rowMenu.setAttribute("role", "menu"); rowMenu.hidden = true; document.body.append(rowMenu);
+    const hideRowMenu = () => { rowMenu.hidden = true; };
+    function showRowMenu(x, y, track) {
+      const items = [{ key: "catalog.removeTrack", run: () => removeTrack(track) }];
+      if (typeof window.persephone.trashFile === "function") items.push({ key: "catalog.deleteTrack", danger: true, run: () => confirmDelete(track) });
+      rowMenu.replaceChildren(...items.map((item) => {
+        const button = document.createElement("button"); button.type = "button"; button.className = "row-menu-item"; button.setAttribute("role", "menuitem");
+        button.classList.toggle("danger", !!item.danger); button.textContent = window.audioPlayerT(item.key);
+        button.addEventListener("click", () => { hideRowMenu(); void item.run(); });
+        return button;
+      }));
+      rowMenu.hidden = false;
+      const { width, height } = rowMenu.getBoundingClientRect();
+      rowMenu.style.left = `${Math.max(4, Math.min(x, window.innerWidth - width - 4))}px`; rowMenu.style.top = `${Math.max(4, Math.min(y, window.innerHeight - height - 4))}px`;
+      rowMenu.querySelector("button")?.focus();
+    }
+    document.addEventListener("pointerdown", (event) => { if (!rowMenu.hidden && !rowMenu.contains(event.target)) hideRowMenu(); }, true);
+    document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !rowMenu.hidden) { event.stopPropagation(); hideRowMenu(); } }, true);
+    window.addEventListener("blur", hideRowMenu); $("#catalog-list").addEventListener("scroll", hideRowMenu);
+    async function removeTrack(track) {
+      try {
+        if (!await store.removeTrack(track.id)) { onStatus("catalog.readOnly"); return; }
+        render(); onStatus("catalog.removed", { title: titleOf(track) });
+      } catch (error) { onStatus("catalog.writeError", error); }
+    }
+    let deleting = null;
+    function confirmDelete(track) {
+      deleting = track;
+      $("#delete-track-message").textContent = window.audioPlayerT("catalog.deleteMessage", { title: titleOf(track) });
+      $("#delete-track-path").textContent = track.href;
+      $("#delete-track-dialog").showModal(); $("#delete-track-cancel").focus();
+    }
+    async function deleteTrack() {
+      const track = deleting; deleting = null; $("#delete-track-dialog").close(); if (!track) return;
+      // The playing file is held open by the player, so move on to the next track before deleting it.
+      if (window.AudioPlayerInstance?.current && hrefKey(window.AudioPlayerInstance.current.href) === hrefKey(track.href)) { $("#next").click(); await new Promise((resolve) => setTimeout(resolve, 300)); }
+      try { await window.persephone.trashFile(track.href); }
+      catch (error) { onStatus("catalog.deleteError", error); return; }
+      try { if (!await store.removeTrack(track.id)) { onStatus("catalog.readOnly"); return; } }
+      catch (error) { onStatus("catalog.writeError", error); return; }
+      render(); onStatus("catalog.deleted", { title: titleOf(track) });
+    }
+    $("#delete-track-cancel").addEventListener("click", () => { deleting = null; $("#delete-track-dialog").close(); });
+    $("#delete-track-confirm").addEventListener("click", () => void deleteTrack());
     function editTrack(track) {
       selectedId = track?.id || ""; const form = $("#track-form"); form.reset();
       $("#track-dialog-title").textContent = track ? window.audioPlayerT("catalog.editTrack") : window.audioPlayerT("catalog.addTrack");
@@ -183,8 +279,6 @@
       } catch (error) { onStatus("catalog.writeError", error); }
     }
     // Rating picker: an empty circle for no rating, then five stars; the value lives in the hidden #track-rating.
-    const STAR = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.6l1.95 4 4.4.62-3.18 3.1.75 4.38L8 11.64 4.08 13.7l.75-4.38-3.18-3.1 4.4-.62z"/></svg>';
-    const NONE = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.2"/></svg>';
     for (let value = 0; value <= 5; value++) {
       const button = document.createElement("button"); button.type = "button"; button.className = value ? "rating-star" : "rating-none"; button.dataset.value = String(value);
       button.setAttribute("role", "radio"); button.innerHTML = value ? STAR : NONE;

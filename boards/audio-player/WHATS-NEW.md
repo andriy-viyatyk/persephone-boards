@@ -2,15 +2,10 @@
 
 ## 1.0.0
 
-- Added a light source-context player with per-track platform navigation and watch-based catalog refresh.
-- Stop visualizer drawing while the page is hidden in full and light mode.
-- Rate tracks in place: stars under the now-playing name and on every row of the track list.
-- Toggle the playing track's tags from a column of catalog tags at the left of the visualizer.
-- Right-click a track in the playing list to remove it from the catalog or move its file to the Recycle Bin (needs app bridge 1.41.0).
-- Added a persisted ten-band equalizer, optional 0–12 second crossfade, and gapless next-track preloading.
-- Added play statistics, smart playlists, and M3U/PLS playlist import.
-- Exposed catalog gap queries, merge-safe bulk metadata edits with one-step undo, category management, authorized folder scans, and playback controls through AiVision.
-- Fixed catalog permission detection, track editor field prefill, and the catalog access button.
-
-- A single-instance audio player: plays the Explorer folder or Link Editor category/tag a track was opened from, with Bars and Circular visualizers.
-- A music catalog in Link Editor format, with categories, tags, artist, year, album and rating, music folders, "Add tracks from folder", and tag import.
+- First release. A music player for Persephone with Bars and Circular visualizers, volume, shuffle and repeat.
+- Opening a track from the Explorer or Link Editor plays it in place, and Next/Previous follow the folder, category or tag it came from. Playlists and catalog files open in one full player.
+- A music catalog in Link Editor format: categories, tags, artist, album, year and rating; a browse panel with smart playlists; "Add tracks from folder"; M3U/PLS import.
+- Rate a track and toggle its tags without opening a dialog; right-click a track to remove it from the catalog or move its file to the Recycle Bin.
+- Ten-band equalizer, crossfade and gapless playback.
+- Agents can query and edit the catalog and control playback through AiVision.
+- Interface languages: English, Ukrainian, Polish, Lithuanian, Latvian, Estonian, Belarusian, Romanian, Slovak, Hungarian, German, French, Spanish, Italian, Portuguese (Brazil), Chinese (Simplified), Japanese, Korean.

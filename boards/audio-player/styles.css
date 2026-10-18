@@ -1,0 +1,276 @@
+:root { color-scheme: light dark; }
+/* Soft accent-coloured glow around the floating catalog panel and track list. */
+:root { --accent-glow: 0 0 10px color-mix(in srgb, var(--p-accent, #0078d4) 30%, transparent), 0 0 3px color-mix(in srgb, var(--p-accent, #0078d4) 25%, transparent); }
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { background: var(--p-bg, #1e1e1e); color: var(--p-text, #e0e0e0); font: 13px/1.45 var(--p-font-family, system-ui, sans-serif); }
+button, input { font: inherit; }
+.player-shell { width: 100%; height: 100%; display: flex; flex-direction: column; min-height: 0; background: var(--p-bg, #1e1e1e); }
+.light-mode #catalog-nav, .light-mode #catalog-toggle, .light-mode #catalog-overlay,
+.light-mode #catalog-dialog, .light-mode #import-dialog, .light-mode #playlist-import-dialog { display: none !important; }
+.light-mode .track-chip-title { max-width: min(60vw, 560px); }
+.content { display: flex; flex: 1; min-height: 0; background: var(--p-bg-dark, #181818); }
+/* Scrollbars as in Persephone's .scroll-container: thin, and hidden until the scrolling area is hovered.
+   (The standard scrollbar-* properties take precedence over board-base's ::-webkit-scrollbar rules.) */
+.catalog-section-body, #catalog-list, #playlist-preview-list, .effects-popover, .p-dialog, .suggest-popup, .track-tags { scrollbar-width: thin; scrollbar-color: transparent transparent; transition: scrollbar-color .3s ease; }
+.catalog-section-body:hover, #catalog-list:hover, #playlist-preview-list:hover, .effects-popover:hover, .p-dialog:hover, .suggest-popup:hover, .track-tags:hover { scrollbar-color: var(--p-scrollbar-thumb, rgba(128, 128, 128, .4)) transparent; }
+/* board-base gives .p-btn a display value, which beats the UA [hidden] rule. */
+.p-btn[hidden] { display: none; }
+/* Catalog panel: a bordered, rounded column at the left; the player area shrinks beside it. */
+.catalog-nav { --catalog-tint: color-mix(in srgb, var(--p-accent, #0078d4) 14%, var(--p-bg, #1e1e1e)); flex: 0 0 25%; min-height: 0; margin: 8px 0 8px 8px; display: flex; flex-direction: column; overflow: hidden; padding: 6px; border: 1px solid var(--p-border, #3c3c3c); border-radius: 6px; background: var(--p-bg-dark, #181818); box-shadow: var(--accent-glow); }
+.catalog-nav-filter { position: relative; flex: 0 0 auto; display: flex; align-items: center; margin-bottom: 4px; }
+.catalog-nav-filter-icon { position: absolute; left: 7px; width: 12px; height: 12px; color: var(--p-text-muted, #969696); pointer-events: none; }
+#catalog-nav-filter { flex: 1; min-width: 0; height: 26px; padding: 0 24px 0 24px; border: 1px solid var(--p-border, #3c3c3c); border-radius: 4px; color: var(--p-text, #ddd); background: var(--p-bg, #1e1e1e); font: inherit; font-size: 12px; outline: none; }
+#catalog-nav-filter:focus { border-color: var(--p-accent-hover, #007acc); }
+.catalog-nav-filter-clear { position: absolute; right: 3px; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 3px; color: var(--p-text-muted, #969696); background: transparent; cursor: pointer; }
+.catalog-nav-filter-clear:hover { color: var(--p-text-strong, #fff); }
+.catalog-nav-filter-clear[hidden] { display: none; }
+.catalog-nav-filter-clear svg { width: 11px; height: 11px; }
+/* The list now playing, pinned under the sections on a lighter accent tint. */
+.catalog-playing { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 6px; padding: 5px 8px; border: 1px solid var(--p-border, #3c3c3c); border-radius: 4px; color: var(--p-text, #ddd); background: var(--catalog-tint); text-align: left; cursor: pointer; }
+.catalog-playing[hidden] { display: none; }
+.catalog-playing:hover:not(:disabled) { border-color: var(--p-accent-hover, #007acc); }
+.catalog-playing:disabled { cursor: default; }
+.catalog-playing-icon { flex: 0 0 auto; width: 14px; height: 14px; color: var(--p-accent-hover, #007acc); }
+.catalog-playing-text { display: flex; flex: 1; min-width: 0; flex-direction: column; line-height: 1.3; }
+.catalog-playing-text small { color: var(--p-text-muted, #969696); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+#catalog-playing-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#catalog-nav-list { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.catalog-section { display: flex; flex: 0 0 auto; flex-direction: column; min-height: 0; margin-top: 2px; }
+.catalog-section.open { flex: 1 1 0; }
+.catalog-section-header { display: flex; align-items: center; gap: 4px; width: 100%; height: 26px; padding: 0 6px 0 2px; border: 0; color: var(--p-text-muted, #aaa); background: transparent; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; text-align: left; cursor: pointer; }
+.catalog-section-header:hover { color: var(--p-text-strong, #fff); }
+.catalog-section-header:focus-visible { outline: 1px solid var(--p-accent-hover, #007acc); outline-offset: -1px; }
+.catalog-section-chevron { flex: 0 0 auto; width: 12px; height: 12px; transition: transform .15s; }
+.catalog-section.open .catalog-section-chevron { transform: rotate(90deg); }
+.catalog-section-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catalog-section-count { flex: 0 0 auto; font-weight: 400; letter-spacing: 0; }
+/* Indented under the section title, so the sections read as top-level tree nodes. */
+.catalog-section-body { flex: 1; min-height: 0; overflow: auto; padding: 2px 0 4px 11px; }
+.catalog-nav[hidden] { display: none; }
+.catalog-nav-item { display: flex; align-items: center; gap: 8px; width: 100%; border: 1px solid transparent; border-radius: 4px; padding: 4px 6px; color: var(--p-text, #ddd); background: transparent; text-align: left; white-space: nowrap; cursor: pointer; }
+.catalog-nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.catalog-nav-count { flex: 0 0 auto; color: var(--p-text-muted, #aaa); font-size: 11px; font-variant-numeric: tabular-nums; }
+/* Hovered entries get the default border; the selected one is styled below. */
+.catalog-nav-label.not-set { color: var(--p-text-muted, #969696); font-style: italic; }
+.catalog-nav-icon { width: 12px; height: 12px; margin-right: 5px; vertical-align: -1px; color: var(--p-text-muted, #969696); }
+.catalog-nav-item:hover { border-color: var(--p-border, #3c3c3c); }
+/* The selected entry looks like the Now playing panel: default border on a light accent tint. */
+.catalog-nav-item.selected { border-color: var(--p-border, #3c3c3c); color: var(--p-text-strong, #fff); background: var(--catalog-tint); }
+#catalog-list { flex: 1; overflow: auto; list-style: none; margin: 0; padding: 0 12px 8px; }
+/* Track rows: no dividers; the playing row has a border, a hovered row an accent border. */
+.catalog-row { display: flex; align-items: flex-start; gap: 4px; margin: 2px 0; padding-right: 4px; border: 1px solid transparent; border-radius: 4px; }
+.catalog-row.playing { border-color: var(--p-border, #3c3c3c); }
+.catalog-row:hover { border-color: var(--p-accent-hover, #007acc); }
+.catalog-track { display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: flex-start; gap: 2px; border: 0; padding: 5px 8px; color: var(--p-text, #ddd); background: transparent; text-align: left; cursor: pointer; outline: none; }
+.catalog-track span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catalog-track small { max-width: 100%; padding-left: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catalog-track small, .catalog-empty { color: var(--p-text-muted, #aaa); font-size: 11px; }
+.catalog-row.playing .catalog-track span { color: var(--p-text-strong, #fff); }
+/* Edit is a bare icon on the title line, shown while the row is hovered or focused. */
+/* Right column of a row: edit on the title line, the rating below it, dimmed until the row is hovered. */
+.catalog-side { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; align-self: stretch; padding-bottom: 3px; }
+.row-rating { opacity: .5; transition: opacity .15s; }
+.catalog-row:hover .row-rating, .row-rating:focus-within { opacity: 1; }
+.catalog-edit { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 20px; margin-top: 2px; padding: 0; border: 0; border-radius: 3px; color: var(--p-text-muted, #969696); background: transparent; cursor: pointer; opacity: 0; pointer-events: none; }
+.catalog-edit svg { width: 14px; height: 14px; }
+.catalog-row:hover .catalog-edit, .catalog-row:focus-within .catalog-edit { opacity: 1; pointer-events: auto; }
+.catalog-edit:hover { color: var(--p-text-strong, #fff); }
+.catalog-edit:focus-visible, .catalog-track:focus-visible { outline: 1px solid var(--p-accent-hover, #007acc); outline-offset: -1px; }
+.catalog-empty { margin: 8px 12px; }
+/* Row context menu, a small themed popover like Persephone's own menus. */
+.row-menu { position: fixed; z-index: 30; display: flex; flex-direction: column; min-width: 180px; padding: 4px 0; border: 1px solid var(--p-border, #3c3c3c); border-radius: 4px; background: var(--p-panel, #252526); box-shadow: 0 4px 14px #0007; }
+.row-menu[hidden] { display: none; }
+.row-menu-item { height: 26px; padding: 0 14px; border: 0; color: var(--p-text, #e0e0e0); background: transparent; font: inherit; font-size: 13px; text-align: left; white-space: nowrap; cursor: pointer; outline: none; }
+.row-menu-item:hover, .row-menu-item:focus-visible { color: var(--p-text-strong, #fff); background: color-mix(in srgb, var(--p-accent, #0078d4) 35%, transparent); }
+.row-menu-item.danger { color: var(--p-error, #f87171); }
+.catalog-empty[hidden] { display: none; }
+#track-dialog, #delete-track-dialog, #import-dialog, #playlist-import-dialog, #catalog-dialog { max-width: min(460px, calc(100vw - 36px)); max-height: 90vh; overflow: auto; border: 1px solid var(--p-border, #444); border-radius: 8px; color: var(--p-text, #ddd); background: var(--p-panel, #2b2b2b); box-shadow: var(--p-shadow, 0 6px 24px #0008); }
+#track-dialog::backdrop, #delete-track-dialog::backdrop, #import-dialog::backdrop, #playlist-import-dialog::backdrop, #catalog-dialog::backdrop { background: #0008; }
+#track-form { display: flex; flex-direction: column; gap: 9px; min-width: min(454px, calc(100vw - 70px)); }
+#track-dialog { max-width: min(600px, calc(100vw - 36px)); }
+#track-form h2 { margin: 0 0 4px; font-size: 16px; }
+#track-form label { display: grid; gap: 3px; color: var(--p-text-muted, #aaa); }
+#track-form input, #track-form select { width: 100%; }
+.rating-field, .form-field { display: grid; gap: 3px; color: var(--p-text-muted, #aaa); }
+/* Tags: chips plus an inline input inside one field box, like Persephone's TagsInput. */
+.tags-field { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 26px; padding: 2px 4px; border: 1px solid var(--p-border-light, #444); border-radius: var(--p-radius-md, 4px); background: var(--p-bg-dark, #181818); cursor: text; }
+.tags-field:focus-within { border-color: var(--p-accent-hover, #0078d4); }
+.tags-field-input { flex: 1 1 100px; min-width: 100px; height: 20px; padding: 0 4px; border: 0; outline: none; color: var(--p-text, #e0e0e0); background: transparent; font: inherit; font-size: var(--p-font-base, 14px); }
+.tag-chip { display: inline-flex; align-items: center; gap: 2px; min-height: 20px; padding: 0 3px 0 7px; border: 1px solid var(--p-border, #3c3c3c); border-radius: 3px; color: var(--p-text, #e0e0e0); background: var(--p-panel, #252526); font-size: 12px; white-space: nowrap; cursor: default; }
+.tag-remove { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; padding: 0; border: 0; color: inherit; background: transparent; opacity: .6; cursor: pointer; }
+.tag-remove svg { width: 12px; height: 12px; }
+.tag-remove:hover { opacity: 1; }
+.tag-remove:focus-visible { outline: 1px solid var(--p-accent-hover, #007acc); }
+/* Suggestion dropdown under the category and tag fields. */
+.suggest-popup { position: fixed; z-index: 10; max-height: 240px; overflow: auto; padding: 2px 0; border: 1px solid var(--p-border-light, #444); border-radius: var(--p-radius-md, 4px); background: var(--p-bg-dark, #181818); box-shadow: 0 4px 14px #0007; }
+.suggest-popup[hidden] { display: none; }
+.suggest-row { display: flex; align-items: center; height: 24px; padding: 0 8px; overflow: hidden; color: var(--p-text, #e0e0e0); font-size: 13px; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
+.suggest-muted { color: var(--p-text-muted, #969696); }
+.suggest-row.active { color: var(--p-text-strong, #fff); background: color-mix(in srgb, var(--p-accent, #0078d4) 35%, transparent); }
+.suggest-row.active .suggest-muted { color: var(--p-text-strong, #fff); }
+.rating-stars { display: flex; align-items: center; gap: 2px; }
+.rating-stars button { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 3px; color: var(--p-text-muted, #969696); background: transparent; cursor: pointer; }
+.rating-stars svg { width: 18px; height: 18px; fill: currentColor; }
+.rating-stars .rating-none { margin-right: 4px; }
+.rating-stars .rating-none svg { fill: none; stroke: currentColor; stroke-width: 1.4; }
+.rating-stars button.on { color: var(--p-accent-hover, #007acc); }
+.rating-stars .rating-none.on { color: var(--p-text, #ddd); }
+/* Hover previews the rating: the hovered star and the stars before it light up. */
+.rating-stars:hover .rating-star { color: var(--p-text-muted, #969696); }
+.rating-stars .rating-star:hover, .rating-stars .rating-star:has(~ .rating-star:hover) { color: var(--p-accent-hover, #007acc); }
+.rating-stars .rating-none:hover { color: var(--p-text-strong, #fff); }
+/* Compact stars for the title chip and list rows; the leading circle clears the rating. */
+.rating-compact { gap: 0; }
+.rating-compact .rating-none { margin-right: 2px; }
+.rating-compact button { width: 16px; height: 16px; }
+.rating-compact svg { width: 13px; height: 13px; }
+.rating-stars button:focus-visible { outline: 1px solid var(--p-accent-hover, #007acc); }
+#catalog-dialog { min-width: min(340px, calc(100vw - 36px)); }
+#catalog-dialog h2 { margin: 0 0 4px; font-size: 16px; overflow-wrap: anywhere; }
+.catalog-dialog-path { margin: 0 0 10px; color: var(--p-text-muted, #999); font-size: 12px; overflow-wrap: anywhere; }
+#catalog-dialog-needed { margin: 0 0 10px; }
+.catalog-stats { display: grid; grid-template-columns: 1fr auto; gap: 6px 24px; margin: 0 0 6px; padding: 10px 12px; border: 1px solid var(--p-border, #444); border-radius: 6px; }
+.catalog-stats[hidden] { display: none; }
+.catalog-stats dt { color: var(--p-text-muted, #999); }
+.catalog-folders { margin: 10px 0 6px; }
+.catalog-folders[hidden] { display: none; }
+.catalog-folders h3 { margin: 0 0 6px; color: var(--p-text-muted, #999); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.catalog-folders ul { margin: 0; padding: 0; list-style: none; }
+.catalog-folders li { display: flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 2px 0 8px; border: 1px solid transparent; border-radius: 4px; }
+.catalog-folders li:hover { border-color: var(--p-border, #3c3c3c); }
+.catalog-folder-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.catalog-folder-rescan { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 3px; color: var(--p-text-muted, #969696); background: transparent; cursor: pointer; }
+.catalog-folder-rescan svg { width: 14px; height: 14px; }
+.catalog-folder-rescan:hover { color: var(--p-text-strong, #fff); }
+.catalog-folder-rescan:focus-visible { outline: 1px solid var(--p-accent-hover, #007acc); }
+.catalog-stats dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+#track-form footer, #delete-track-dialog footer, #import-dialog footer, #playlist-import-dialog footer, #catalog-dialog footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+#import-progress { min-width: 260px; }
+.playlist-import-dialog { width: min(680px, calc(100vw - 36px)); max-width: min(680px, calc(100vw - 36px)); }
+#playlist-preview-list { max-height: 48vh; overflow: auto; padding-left: 24px; }
+#playlist-preview-list li { margin: 5px 0; }
+#playlist-preview-list span, #playlist-preview-list small { display: block; overflow-wrap: anywhere; }
+#playlist-preview-list small, .playlist-import-error { color: var(--p-text-muted, #aaa); font-size: 11px; }
+.playlist-import-error { color: var(--p-error, #f87171); }
+.stage { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; position: relative; }
+.visualizer { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+#canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* Now-playing name, revealed on hover like the effect picker and styled like its chips. */
+.track-chip { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; max-width: calc(100% - 240px); min-width: 0; height: 32px; padding: 0 4px 0 14px; border: 1px solid transparent; border-radius: 3px; background: var(--p-bg-dark, #181818); line-height: 30px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s, border-color .15s; }
+.track-chip[hidden] { display: none; }
+.visualizer:hover .track-chip { opacity: .5; pointer-events: auto; }
+.visualizer:hover .track-chip:hover { opacity: 1; }
+.track-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--p-text-strong, #fff); font-weight: 600; }
+.track-chip-artist { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--p-text-muted, #969696); }
+.track-chip-artist:empty { display: none; }
+.track-chip .chip-catalog-button { flex: 0 0 auto; margin-left: 2px; border-color: transparent; background: transparent; }
+.track-chip:hover .chip-catalog-button { border-color: var(--p-border, #3c3c3c); }
+.track-chip:hover .chip-catalog-button:hover { border-color: var(--p-accent-hover, #007acc); }
+.chip-catalog-button[hidden] { display: none; }
+.track-chip:has(.chip-catalog-button[hidden]) { padding-right: 14px; }
+.chip-catalog-button[data-state="add"] .icon-edit, .chip-catalog-button[data-state="edit"] .icon-add { display: none; }
+.track-chip .chip-catalog-button[data-state="member"]:hover { color: var(--p-success, #89d185); }
+/* Rating under the now-playing name: hover-revealed with the chip; a click on a star rates the track. */
+.track-chip-rating { position: absolute; top: 44px; left: 50%; transform: translateX(-50%); padding: 2px 6px; border-radius: 3px; background: var(--p-bg-dark, #181818); opacity: 0; pointer-events: none; transition: opacity .15s; }
+.track-chip-rating[hidden] { display: none; }
+.visualizer:hover .track-chip-rating { opacity: .5; pointer-events: auto; }
+.visualizer:hover .track-chip-rating:hover { opacity: 1; }
+/* The playing track's tags down the left edge, under the catalog toggle; the column spans the full height so hovering
+   anywhere along the edge reveals it. Hidden until this column itself is hovered, then
+   every chip half visible and the hovered one fully; the track's own tags are on. */
+.track-tags { position: absolute; top: 48px; bottom: 16px; left: 8px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; max-width: 180px; overflow-y: auto; padding: 0 2px; }
+.track-tags[hidden] { display: none; }
+.track-tag { flex: 0 0 auto; max-width: 100%; height: 22px; padding: 0 8px; overflow: hidden; border: 1px solid var(--p-border, #3c3c3c); border-radius: 11px; color: var(--p-text-muted, #969696); background: var(--p-bg-dark, #181818); font: inherit; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; opacity: 0; transition: opacity .15s; }
+.track-tag.on { border-color: var(--p-accent-hover, #007acc); color: var(--p-text-strong, #fff); background: color-mix(in srgb, var(--p-accent, #0078d4) 35%, var(--p-bg-dark, #181818)); }
+.track-tags:hover .track-tag, .track-tags:has(:focus-visible) .track-tag { opacity: .5; }
+.track-tags .track-tag:hover, .track-tags .track-tag:focus-visible { opacity: 1; }
+.track-tag:focus-visible { outline: 1px solid var(--p-accent-hover, #007acc); }
+.metadata { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px; pointer-events: none; }
+.metadata[hidden] { display: none; }
+.metadata h1 { margin: 0; color: var(--p-text-strong, #fff); font-size: clamp(20px, 3vw, 34px); text-align: center; }
+.metadata p { margin: 0; color: var(--p-text-muted, #aaa); font-size: 16px; }
+#track-cover { width: min(220px, 30vw); max-height: 35vh; object-fit: contain; border-radius: 6px; box-shadow: var(--p-shadow, 0 4px 18px #0008); }
+#track-cover[hidden] { display: none; }
+/* Same chip icon buttons as the built-in video player's visualizer switcher. */
+.effect-picker { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.visualizer:hover .effect-picker, .effect-picker:has(:focus-visible) { opacity: 1; pointer-events: auto; }
+/* Catalog panel toggle, top left: half visible while the view is hovered, fully when it is. */
+.catalog-toggle { position: absolute; top: 8px; left: 8px; z-index: 3; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.visualizer:hover .catalog-toggle { opacity: .5; pointer-events: auto; }
+.visualizer:hover .catalog-toggle:hover, .catalog-toggle:focus-visible { opacity: 1; pointer-events: auto; }
+/* The list picked in the catalog panel floats over the visualizer, leaving the top buttons and the transport uncovered. */
+.catalog-overlay { position: absolute; inset: 48px 2% 68px; z-index: 2; display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--p-border, #3c3c3c); border-radius: 6px; background: color-mix(in srgb, var(--p-bg-dark, #181818) 82%, transparent); backdrop-filter: blur(3px); box-shadow: var(--accent-glow); overflow: hidden; }
+.catalog-overlay[hidden] { display: none; }
+.catalog-overlay-header { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; padding: 6px 6px 6px 12px; border-bottom: 1px solid var(--p-border, #333); }
+/* Close is a bare icon, like the transport buttons: no border or background; the icon lightens on hover. */
+#catalog-overlay-close { border-color: transparent; background: transparent; color: var(--p-text-muted, #969696); }
+#catalog-overlay-close:hover { border-color: transparent; color: var(--p-text-strong, #fff); }
+#catalog-overlay-close:focus-visible { border-color: var(--p-accent-hover, #007acc); }
+.catalog-overlay-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.effect-button { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 2px; border: 1px solid var(--p-border, #3c3c3c); border-radius: 3px; color: var(--p-text-muted, #969696); background: var(--p-bg-dark, #181818); cursor: pointer; outline: none; }
+.effect-button svg { width: 16px; height: 16px; }
+.effect-button:hover { border-color: var(--p-accent-hover, #007acc); color: var(--p-warning, #cca700); }
+.effect-button.active { border-color: var(--p-accent-hover, #007acc); background: var(--p-panel, #313131); color: var(--p-warning, #cca700); }
+.effect-button:focus-visible { border-color: var(--p-accent-hover, #007acc); }
+/* Transport floats, centred, over the bottom of the visualizer like the built-in Video Player's
+   controls: no panel or button backgrounds, and only the seek slider shows until it is hovered. */
+.transport { position: absolute; left: 50%; bottom: 8px; z-index: 4; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px); display: flex; align-items: center; gap: 4px; height: 48px; padding: 0 8px; }
+.transport > :not(.seek) { opacity: 0; pointer-events: none; transition: opacity .15s; }
+.transport:hover > :not(.seek) { opacity: 1; pointer-events: auto; }
+.transport .seek { opacity: .4; transition: opacity .2s ease; }
+.transport:hover .seek { opacity: 1; }
+/* Icon buttons: no background or border; the icon lightens on hover. */
+.transport-button, .transport .effect-button { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 3px; color: var(--p-text-muted, #969696); background: transparent; cursor: pointer; }
+.transport-button svg, .transport .effect-button svg { width: 18px; height: 18px; }
+.transport-button:hover:not(:disabled), .transport .effect-button:hover { color: var(--p-text-strong, #fff); background: transparent; }
+/* Dim by colour, not opacity: opacity is what hides the controls until hover. */
+.transport-button:disabled { color: var(--p-border-light, #555); cursor: default; }
+.transport .effect-button.active { color: var(--p-warning, #cca700); background: transparent; }
+.transport-button:focus-visible, .transport .effect-button:focus-visible { outline: 1px solid var(--p-accent-hover, #007acc); }
+.play-button { width: 38px; height: 38px; color: var(--p-text, #e0e0e0); }
+.play-button svg { width: 24px; height: 24px; }
+.play-button[data-state="paused"] .icon-pause, .play-button[data-state="playing"] .icon-play { display: none; }
+#mute[data-muted="false"] .icon-muted, #mute[data-muted="true"] .icon-volume { display: none; }
+/* Thin sliders with a filled played part; --fill is set by paintRanges() in app.js. */
+.transport input[type=range] { -webkit-appearance: none; appearance: none; height: 24px; margin: 0; background: transparent; cursor: pointer; outline: none; }
+.transport input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--p-accent, #0078d4) var(--fill, 0%), var(--p-border-light, #555) var(--fill, 0%)); }
+.transport input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; margin-top: -4px; border: 0; border-radius: 50%; background: var(--p-accent, #0078d4); }
+#repeat { position: relative; }
+#repeat[data-repeat="track"]::after { content: "1"; position: absolute; right: -3px; bottom: -3px; min-width: 10px; height: 10px; padding: 0 1px; border-radius: 5px; color: var(--p-bg-dark, #181818); background: var(--p-warning, #cca700); font: 700 8px/10px var(--p-font-family, system-ui, sans-serif); text-align: center; }
+.time { flex: 0 0 auto; min-width: 34px; color: var(--p-text-muted, #aaa); font-size: 11px; font-variant-numeric: tabular-nums; text-align: center; }
+.seek, .volume { min-width: 30px; }
+/* Fixed seek width (shrinks when the page is narrow); the bar sizes to its controls. */
+.seek { flex: 0 1 167px; width: 167px; }
+.volume { flex: 0 0 auto; width: 80px; }
+
+@media (max-width: 700px) { .volume { width: 55px; } .transport { gap: 4px; padding-inline: 6px; } }
+
+/* Audio effects popover, opened from the effects icon button and placed by player-settings.js. */
+.effects-popover { position: fixed; z-index: 20; width: min(460px, calc(100vw - 16px)); overflow: auto; padding: 0 14px 12px; border: 1px solid var(--p-border, #3c3c3c); border-radius: 6px; color: var(--p-text, #ddd); background: var(--p-panel, #2b2b2b); box-shadow: var(--p-shadow, 0 6px 24px #0008); }
+.effects-popover[hidden] { display: none; }
+.effects-popover-header { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 -14px 4px; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--p-border, #3c3c3c); background: var(--p-panel, #2b2b2b); }
+.effects-popover-header h2 { margin: 0; font-size: 13px; font-weight: 600; color: var(--p-text-strong, #fff); }
+.effects-close { width: 24px; height: 24px; border: 0; border-radius: 3px; color: var(--p-text-muted, #969696); background: transparent; font-size: 18px; line-height: 1; cursor: pointer; }
+.effects-close:hover { color: var(--p-text, #ddd); background: var(--p-hover, #3a3a3a); }
+.effects-layout { display: flex; flex-direction: column; gap: 12px; padding-top: 8px; }
+.effects-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.effects-heading strong, .playback-effects > strong { color: var(--p-text-strong, #fff); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.eq-preset-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.eq-preset-chip { min-width: 58px; padding: 3px 12px; border: 1px solid var(--p-border, #3c3c3c); border-radius: 12px; color: var(--p-text, #ddd); background: var(--p-bg-dark, #181818); font: inherit; cursor: pointer; }
+.eq-preset-chip:hover { border-color: var(--p-accent-hover, #007acc); }
+.eq-preset-chip.active { border-color: var(--p-accent, #0078d4); color: var(--p-text-strong, #fff); box-shadow: inset 0 0 0 1px var(--p-accent, #0078d4); }
+.eq-preset-chip:focus-visible { outline: 1px solid var(--p-accent-hover, #007acc); outline-offset: 1px; }
+.inline-setting { display: inline-flex; align-items: center; gap: 6px; color: var(--p-text, #ddd); cursor: pointer; }
+.inline-setting input { accent-color: var(--p-accent, #0078d4); }
+.eq-sliders { display: flex; justify-content: space-between; gap: 4px; padding: 6px 0 0; }
+.eq-band { display: flex; flex: 1; flex-direction: column-reverse; align-items: center; gap: 4px; color: var(--p-text-muted, #aaa); font-size: 10px; }
+.eq-band input { height: 96px; margin: 0; accent-color: var(--p-accent, #0078d4); writing-mode: vertical-lr; direction: rtl; cursor: pointer; }
+.eq-band output { color: var(--p-text, #ddd); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.eq-off .eq-preset-row, .eq-off .eq-sliders { opacity: .45; }
+.playback-effects { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--p-border, #3c3c3c); }
+.effect-row { display: grid; grid-template-columns: 90px 1fr 48px; align-items: center; gap: 8px; }
+.effect-row input { min-width: 0; accent-color: var(--p-accent, #0078d4); }
+.effect-row output { color: var(--p-text-muted, #aaa); text-align: right; }
+.effects-hint { margin: 0; color: var(--p-text-muted, #aaa); font-size: 11px; }
+#audio, #audio-next { display: none; }

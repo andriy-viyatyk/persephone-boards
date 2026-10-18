@@ -8,9 +8,23 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-*(none)*
+- [ ] [BT-041: Audio Player — equalizer, crossfade, gapless](tasks/BT-041-audio-effects/README.md)
+
+
+- [ ] [BT-038: Audio Player — player, queue, volume, visualizer, source mode](tasks/BT-038-audio-player/README.md)
+- [ ] [BT-039: Audio Player — music catalog and catalog mode](tasks/BT-039-audio-catalog/README.md)
+- [ ] [BT-043: Audio Player — ai-vision model](tasks/BT-043-audio-aivision/README.md)
+- [ ] [BT-044: Audio Player — light mode, `singleInstanceMasks`, watch-based catalog refresh](tasks/BT-044-audio-light-mode/README.md)
+- [ ] BT-045: Audio Player — in-place rating and tags, playing-list remove/delete menu
 
 ## Planned
+
+### Persephone EPIC-128 — Audio Player
+
+- [ ] [BT-040: Audio Player — play counts, smart/saved playlists, M3U/PLS](tasks/BT-040-audio-playlists/README.md)
+- [ ] [BT-042: Publish Audio Player](tasks/BT-042-publish-audio-player/README.md)
+
+Site page and demo video are complete by Claude; BT-042 keeps them as a pointer only.
 
 Board work for Persephone's **EPIC-101** (*Structured descriptor access and the AiVision Explorer
 board*) is finished: BT-022 and BT-023 shipped as `aivision-explorer` v1.0.2, published

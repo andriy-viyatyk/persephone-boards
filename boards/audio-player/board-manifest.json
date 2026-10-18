@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "name": "Audio Player",
+  "description": "Play audio sources and browse a user-owned music catalog.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "screenshot": "screenshot.png",
+  "minAppVersion": "5.0.11",
+  "minBridgeVersion": "1.41.0",
+  "languages": { "folder": "lang", "default": "en" },
+  "singleInstance": true,
+  "singleInstanceMasks": ["*.music.link.json", "*.m3u", "*.pls"],
+  "permissions": {
+    "execute": false,
+    "service": false,
+    "fileSystem": "full",
+    "openExternal": false,
+    "appScripting": false,
+    "network": false,
+    "clipboardRead": false,
+    "camera": false,
+    "microphone": false,
+    "geolocation": false,
+    "notifications": false,
+    "themes": false
+  },
+  "fileMasks": ["*.music.link.json", "*.mp3", "*.wav", "*.aac", "*.flac", "*.m4a", "*.wma", "*.ogg", "*.opus", "*.m3u", "*.pls"],
+  "editorName": "Audio Player",
+  "editorKind": "stream-host",
+  "editorPriority": 150
+}

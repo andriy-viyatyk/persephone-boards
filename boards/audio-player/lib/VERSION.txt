@@ -1,0 +1,6 @@
+music-metadata 12.1.0
+esbuild 0.27.2
+Source: npm package music-metadata browser entry; bundled exports: parseFromTokenizer, AbstractTokenizer, EndOfStreamError
+Command: npm install && npm run build:metadata
+Built: 2026-10-11
+Size: 245341 bytes minified; 73067 bytes gzip

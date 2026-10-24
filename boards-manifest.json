@@ -384,6 +384,20 @@
       }
     },
     {
+      "id": "claude-agent",
+      "version": "1.0.0",
+      "name": "Claude Agent",
+      "description": "A resumable Claude Agent session provider and chat board using your installed Claude CLI.",
+      "standalone": true,
+      "minAppVersion": "5.0.13",
+      "screenshot": "screenshot.png",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/claude-agent-v1.0.0/claude-agent.zip",
+        "size": 105721,
+        "sha256": "b757f7509c68dfcc1ddfa78178fe23b76f11c688dacc4f7e17e7712784b6a565"
+      }
+    },
+    {
       "id": "drawio-viewer",
       "version": "1.2.0",
       "name": "DrawIO Viewer",

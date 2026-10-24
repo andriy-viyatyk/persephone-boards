@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="board.title">Claude Agent</title>
+  <link rel="stylesheet" href="./board-base.css">
+  <link rel="stylesheet" href="./markdown.css">
+  <link rel="stylesheet" href="./app.css">
+</head>
+<body>
+  <main id="app">
+    <aside id="sidebar" class="sidebar">
+      <nav id="session-list" class="session-list"></nav>
+      <section id="agents-panel" class="agents-panel hidden">
+        <h2 data-i18n="agents.title"></h2>
+        <nav id="agents-list" class="agents-list"></nav>
+      </section>
+    </aside>
+    <div id="splitter" class="splitter" role="separator" aria-orientation="vertical" data-i18n-title="resizeSidebar"></div>
+    <section class="main">
+      <p id="error" class="error hidden" role="alert"></p>
+      <div id="transcript" class="transcript" aria-live="polite">
+        <section id="consent" class="card hidden">
+          <h1 data-i18n="consent.title">Install Claude Agent SDK</h1>
+          <p data-i18n="consent.body"></p>
+          <div class="actions"><button id="accept" class="primary" data-i18n="consent.accept"></button><button id="decline" data-i18n="consent.decline"></button></div>
+        </section>
+        <section id="intro" class="card">
+          <h1 data-i18n="newSession">New session</h1>
+          <p data-i18n="cli.required"></p>
+          <p data-i18n="permissions"></p><p data-i18n="settings"></p>
+          <label id="cwd-field" class="field"><span data-i18n="cwd"></span><span class="cwd-box"><input id="cwd" type="text" placeholder="C:\work\project" autocomplete="off" spellcheck="false"><button id="cwd-browse" class="cwd-browse" type="button" data-i18n-title="browseFolder"></button></span></label>
+          <p id="intro-folder" class="intro-folder hidden"><span data-i18n="cwd"></span><code id="intro-folder-path"></code></p>
+          <p id="start-hint" class="hint"></p>
+        </section>
+        <div id="views"></div>
+      </div>
+      <div id="composer-dock" class="composer-dock">
+      <form id="composer" class="composer">
+        <div id="readonly-hint" class="readonly-hint hidden"><span data-i18n="agents.readOnly"></span><button id="back-to-main" type="button" data-i18n="agents.backToMain"></button></div>
+        <div id="command-menu" class="command-menu hidden" role="listbox"></div>
+        <span id="status" class="status hidden"></span>
+        <div id="prompt" class="prompt" role="textbox" aria-multiline="true" contenteditable="plaintext-only" spellcheck="false" tabindex="0" data-i18n-placeholder="prompt"></div>
+        <button id="send" class="primary" data-i18n="send"></button>
+      </form>
+      <div id="composer-meta" class="composer-meta">
+        <button id="mode-chip" type="button" class="meta-chip" data-i18n-title="mode"></button>
+        <button id="model-chip" type="button" class="meta-chip" data-i18n-title="model"></button>
+        <button id="effort-chip" type="button" class="meta-chip" data-i18n-title="effort"></button>
+        <button id="context-chip" type="button" class="meta-chip context hidden"></button>
+      </div>
+      </div>
+    </section>
+  </main>
+  <div id="choice-menu" class="context-menu choice-menu hidden" role="menu"></div>
+  <div id="session-menu" class="context-menu hidden" role="menu">
+    <button type="button" role="menuitem" data-action="disconnect" data-i18n="disconnect"></button>
+    <button type="button" role="menuitem" data-action="rename" data-i18n="rename"></button>
+    <button type="button" role="menuitem" data-action="delete" class="danger" data-i18n="delete"></button>
+  </div>
+  <dialog id="instructions-dialog" class="dialog wide">
+    <form method="dialog">
+      <h2 data-i18n="instructions"></h2>
+      <p data-i18n="instructionsNote"></p>
+      <textarea id="instructions-text" spellcheck="false"></textarea>
+      <div class="actions">
+        <button type="button" id="instructions-reset" class="start" data-i18n="resetToDefault"></button>
+        <button value="cancel" formnovalidate data-i18n="cancel"></button>
+        <button value="save" class="primary" data-i18n="save"></button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="panel-dialog" class="dialog wide panel">
+    <form method="dialog">
+      <h2 id="panel-title"></h2>
+      <div id="panel-body" class="panel-body"></div>
+      <div class="actions">
+        <button value="close" class="primary" data-i18n="close"></button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="dialog" class="dialog">
+    <form method="dialog">
+      <h2 id="dialog-title"></h2>
+      <p id="dialog-message"></p>
+      <input id="dialog-input" type="text" autocomplete="off" spellcheck="false">
+      <div class="actions">
+        <button value="cancel" formnovalidate data-i18n="cancel"></button>
+        <button id="dialog-confirm" value="confirm" class="primary"></button>
+      </div>
+    </form>
+  </dialog>
+  <script src="./lib/marked.umd.js"></script>
+  <script src="./lib/purify.min.js"></script>
+  <script src="./i18n.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # Theme Editor — author notes
 
-Offline editor for Persephone custom themes, using the narrow `persephone.themes.*` bridge. Task plans: `doc/tasks/BT-034-theme-editor/README.md` and `doc/tasks/BT-036-theme-generator/README.md`. Canonical bridge reference: `assets/guides/boards.md#persephone-themes-bridge` (`persephone://guides/boards`).
+Offline editor for Persephone custom themes, using the narrow `persephone.themes.*` bridge. Task history: BT-034 – BT-037 in `doc/tasks/completed.md`. Canonical bridge reference: `assets/guides/boards.md#persephone-themes-bridge` (`persephone://guides/boards`).
 
 ## Files
 

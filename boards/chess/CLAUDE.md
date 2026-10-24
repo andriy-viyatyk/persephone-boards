@@ -1,7 +1,7 @@
 # Agent Chess — author notes
 
 The user plays chess with the mouse; their AI agent plays through the AiVision model at
-`pages[id].editor.app` (kind `ChessGame`). Task document: `doc/tasks/BT-033-agent-chess/README.md`.
+`pages[id].editor.app` (kind `ChessGame`). Task history: BT-033 in `doc/tasks/completed.md`.
 Agent-facing reference: `guides/agent.md`.
 
 ## Files

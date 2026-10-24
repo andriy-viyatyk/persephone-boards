@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "name": "Claude Agent",
+  "description": "A resumable Claude Agent session provider and chat board using your installed Claude CLI.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "5.0.13",
+  "minBridgeVersion": "1.42.0",
+  "permissions": {
+    "execute": false,
+    "service": true,
+    "fileSystem": false,
+    "openExternal": false,
+    "appScripting": true,
+    "network": false,
+    "clipboardRead": false,
+    "camera": false,
+    "microphone": false,
+    "geolocation": false,
+    "notifications": false,
+    "themes": false
+  },
+  "service": "scripts/service.mjs",
+  "serviceInterfaces": [
+    { "id": "agent.session", "version": 1, "title": "Claude Agent" }
+  ],
+  "languages": { "folder": "lang", "default": "en" },
+  "screenshot": "screenshot.png",
+  "settings": [
+    { "id": "claude-executable", "type": "string", "default": "", "label": "Claude executable", "description": "Optional absolute path to the installed claude executable. Leave empty to resolve it from PATH." },
+    { "id": "default-model", "type": "string", "default": "", "label": "Default model", "description": "Optional SDK model id. Empty uses the model from your Claude Code settings, or Opus." },
+    { "id": "default-effort", "type": "string", "default": "", "label": "Default effort", "description": "Optional effort supported by the selected model. Empty uses the effort from your Claude Code settings, or medium." },
+    { "id": "cross-board-permission-ceiling", "type": "enum", "options": ["read-only", "ask", "auto-edit", "full-auto"], "default": "read-only", "label": "Cross-board permission ceiling", "description": "Maximum permission mode for every consumer board." }
+  ]
+}

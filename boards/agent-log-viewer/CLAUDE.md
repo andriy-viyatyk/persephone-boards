@@ -1,7 +1,7 @@
 # Agent Log Viewer — author notes
 
 Viewer for Claude Code (`~/.claude/projects/**`) and Codex CLI (`~/.codex/sessions/**`) session
-logs. Task document: `doc/tasks/BT-032-agent-log-viewer/README.md`.
+logs. Task history: BT-032 in `doc/tasks/completed.md`.
 
 ## Architecture
 

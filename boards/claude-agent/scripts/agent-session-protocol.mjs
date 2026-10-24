@@ -139,6 +139,17 @@ function resultUsage(message) {
 
 const COMPACT_SUMMARY = /^This session is being continued from a previous conversation/;
 
+// A finished background task (shell command, subagent) is fed back as a <task-notification> user turn.
+// Like the terminal, show its one-line summary; the block itself is the expandable detail.
+const TASK_NOTIFICATION = /^\s*<task-notification>/;
+export function parseTaskNotification(message, text) {
+  if (typeof text !== "string" || (message?.origin?.kind !== "task-notification" && !TASK_NOTIFICATION.test(text))) return null;
+  const status = /<status>\s*([^<]*?)\s*<\/status>/.exec(text)?.[1] || "finished";
+  const summary = boundedString(/<summary>([\s\S]*?)<\/summary>/.exec(text)?.[1].trim() || `Background task ${status}`, 32 * 1024);
+  const detail = boundedString(text.trim(), 32 * 1024);
+  return { summary: summary.value, detail: detail.value, ...(summary.truncated || detail.truncated ? { truncated: true } : {}) };
+}
+
 export function normalizeNativeMessage(message, state = { pendingFiles: new Map() }) {
   const events = [];
   const addText = (type, value, extra = {}) => {
@@ -175,6 +186,11 @@ export function normalizeNativeMessage(message, state = { pendingFiles: new Map(
     const content = message.message?.content;
     if (typeof content === "string" && (message.isCompactSummary || (message.isSynthetic && COMPACT_SUMMARY.test(content)))) {
       addText("compact-summary", content);
+      return events;
+    }
+    const task = parseTaskNotification(message, typeof content === "string" ? content : content?.find?.((block) => block?.type === "text")?.text);
+    if (task) {
+      events.push({ type: "task", ...task });
       return events;
     }
     for (const block of Array.isArray(message.message?.content) ? message.message.content : []) if (block?.type === "tool_result") {

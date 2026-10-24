@@ -13,6 +13,10 @@
   <main id="app">
     <aside id="sidebar" class="sidebar">
       <nav id="session-list" class="session-list"></nav>
+      <section id="agents-panel" class="agents-panel hidden">
+        <h2 data-i18n="agents.title"></h2>
+        <nav id="agents-list" class="agents-list"></nav>
+      </section>
     </aside>
     <div id="splitter" class="splitter" role="separator" aria-orientation="vertical" data-i18n-title="resizeSidebar"></div>
     <section class="main">
@@ -38,6 +42,7 @@
         <div id="views"></div>
       </div>
       <form id="composer" class="composer">
+        <div id="readonly-hint" class="readonly-hint hidden"><span data-i18n="agents.readOnly"></span><button id="back-to-main" type="button" data-i18n="agents.backToMain"></button></div>
         <div id="command-menu" class="command-menu hidden" role="listbox"></div>
         <span id="status" class="status hidden"></span>
         <div id="prompt" class="prompt" role="textbox" aria-multiline="true" contenteditable="plaintext-only" spellcheck="false" tabindex="0" data-i18n-placeholder="prompt"></div>

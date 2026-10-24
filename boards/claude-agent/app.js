@@ -20,6 +20,7 @@ function createView(item = {}) {
     stream: null, lastText: "", thinkingNode: null, tools: new Map(), commandTurn: false, historyToken: 0,
     footer: null, usage: null, sessionCost: 0, statusText: "", statusBusy: false, error: "",
     draft: "", unread: false, stick: true, scrollTop: 0,
+    agents: [], agentsChannel: null, selectedAgentId: "", agentViews: new Map(),
   };
   $("#views").append(view.messages);
   views.add(view);
@@ -38,11 +39,12 @@ function setViewError(view, message) {
 // ── Transcript rendering ────────────────────────────────────────────────────
 const transcript = $("#transcript");
 const nearBottom = () => transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 80;
-// Only the shown view scrolls; a hidden one restores its position when it is shown again.
-const sticks = (view) => view === current && nearBottom();
+// Only the shown view scrolls (the main chat, or the subagent chat selected in it); a hidden one restores its position when it is shown again.
+const isShown = (view) => Boolean(current) && (current.selectedAgentId ? current.agentViews.get(current.selectedAgentId) === view : view === current);
+const sticks = (view) => isShown(view) && nearBottom();
 const scrollToEnd = (stick) => { if (stick) transcript.scrollTop = transcript.scrollHeight; };
 function appendMessage(view, node, forceScroll = false) {
-  const stick = view === current && (forceScroll || nearBottom());
+  const stick = isShown(view) && (forceScroll || nearBottom());
   view.messages.append(node);
   scrollToEnd(stick);
   return node;
@@ -109,8 +111,12 @@ function addToolCall(view, name, input, callId) {
   const node = addActivity(view, `${t("tool")} · ${name}${firstLine ? ` — ${firstLine}` : ""}`, body, "tool", group);
   updateToolGroup(group);
   if (callId) view.tools.set(callId, node);
+  if (callId) node.dataset.callId = callId;
   return node;
 }
+// A finished background task: one "Task · summary" line like a tool call; expanding it shows the notification.
+// It stays on its own line rather than folding into a "Tool calls: N" group, as the terminal shows it.
+const addTaskNotice = (view, summary, detail) => addActivity(view, `${t("task")} · ${summary}`, detail || summary, "task", null);
 const addDivider = (view, text, className = "") => appendMessage(view, element("div", `divider ${className}`.trim(), text));
 // Slash-command output: Markdown reports (/context) render as Markdown, plain text keeps its line layout.
 function addCommandOutput(view, text) {
@@ -314,6 +320,7 @@ function renderSessions() {
   if (!rows.length) {
     // sdkInstalled is null until the first describe reply; say nothing rather than guess.
     if (state.sdkInstalled !== null) list.append(element("div", "empty", t(state.sdkInstalled ? "noSessions" : "consentRequired")));
+    renderAgents();
     return;
   }
   const groups = sessionGroups(rows);
@@ -334,9 +341,11 @@ function renderSessions() {
       if (expandedFolders.has(group.key)) expandedFolders.delete(group.key); else expandedFolders.add(group.key);
       renderSessions();
     });
-    const add = element("button", "folder-new", "+");
+    // The plus is drawn in CSS: a "+" glyph sits low in its line box and never centers.
+    const add = element("button", "folder-new");
     add.type = "button";
     add.title = t("newSessionHere");
+    add.setAttribute("aria-label", add.title);
     add.addEventListener("click", () => { showNewSession(group.cwd); prompt.focus(); });
     // The count comes last so the + button sits just before it.
     head.append(toggle, add, element("span", "count", String(group.sessions.length)));
@@ -356,6 +365,43 @@ function renderSessions() {
       }
     }
     list.append(folder);
+  }
+  renderAgents();
+}
+
+// Inactive agents untouched for this long are not listed at all; their Agent tool-call rows still open them.
+const AGENT_LIST_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+function renderAgents() {
+  const panel = $("#agents-panel"), list = $("#agents-list");
+  list.replaceChildren();
+  // Running agents always show; recent inactive ones sit behind a toggle; the shown one stays until you switch away.
+  const isRunning = (agent) => agent.running && !agent.finished;
+  const isSelected = (agent) => agent.id === current.selectedAgentId;
+  const recent = (agent) => Date.now() - (agent.mtime || 0) <= AGENT_LIST_MAX_AGE_MS;
+  const agents = current?.id ? (current.agents || []).filter((agent) => isRunning(agent) || isSelected(agent) || recent(agent)) : [];
+  panel.classList.toggle("hidden", !agents.length);
+  if (!agents.length) return;
+  const root = element("button", `agent-item agent-root${current.selectedAgentId ? "" : " active"}`);
+  root.type = "button";
+  root.append(element("span", `session-dot ${current.channel ? (current.busy ? "live busy" : "live") : ""}`.trim()), element("span", "agent-label", current.title || current.id));
+  root.addEventListener("click", () => showMainTranscript(current));
+  list.append(root);
+  const inactive = agents.filter((agent) => !isRunning(agent) && !isSelected(agent)).length;
+  for (const agent of agents) {
+    const running = isRunning(agent);
+    if (!running && !isSelected(agent) && !current.showInactiveAgents) continue;
+    const row = element("button", `agent-item agent-child${isSelected(agent) ? " active" : ""}`);
+    row.type = "button";
+    row.title = `${agent.description} · ${agent.agentType}`;
+    row.append(element("span", `session-dot ${running ? "live busy" : ""}`.trim()), element("span", "agent-label", agent.description), element("span", "agent-type", agent.agentType));
+    row.addEventListener("click", () => void showAgentTranscript(current, agent.id));
+    list.append(row);
+  }
+  if (inactive) {
+    const toggle = element("button", "agent-toggle", t(current.showInactiveAgents ? "agents.hideInactive" : "agents.showInactive", { count: inactive }));
+    toggle.type = "button";
+    toggle.addEventListener("click", () => { current.showInactiveAgents = !current.showInactiveAgents; renderAgents(); });
+    list.append(toggle);
   }
 }
 
@@ -540,6 +586,9 @@ function disconnect(view) {
   renderSessions();
 }
 function dropView(view) {
+  stopAgentWatch(view);
+  for (const child of view.agentViews.values()) { closeChannel(child.follow); child.messages.remove(); }
+  view.agentViews.clear();
   stopFollow(view);
   const channel = view.channel;
   view.channel = null; view.historyToken++;
@@ -552,6 +601,12 @@ function showView(view) {
   if (current === view) return;
   const previous = current;
   if (previous) {
+    if (previous.selectedAgentId) {
+      const child = previous.agentViews.get(previous.selectedAgentId);
+      if (child) { child.scrollTop = transcript.scrollTop; child.messages.classList.add("hidden"); }
+      stopAgentFollow(previous); previous.selectedAgentId = "";
+    }
+    stopAgentWatch(previous);
     previous.draft = prompt.textContent;
     previous.stick = nearBottom(); previous.scrollTop = transcript.scrollTop;
     previous.messages.classList.add("hidden");
@@ -559,6 +614,10 @@ function showView(view) {
     if (!previous.channel) dropView(previous);
   }
   current = view;
+  view.selectedAgentId = "";
+  view.messages.classList.remove("hidden");
+  $("#readonly-hint").classList.add("hidden");
+  $("#prompt").classList.remove("hidden"); $("#send").classList.remove("hidden");
   view.unread = false;
   view.messages.classList.remove("hidden");
   prompt.textContent = view.draft; hideCommandMenu();
@@ -577,11 +636,12 @@ function appendEntries(view, entries) {
     const suffix = entry.truncated ? ` ${t("truncated")}` : "";
     if (entry.role === "user") addUserMessage(view, entry.text + suffix, false);
     else if (entry.role === "agent") addAgentMessage(view, entry.text + suffix);
-    else if (entry.role === "tool") addToolCall(view, entry.name, entry.input);
+    else if (entry.role === "tool") addToolCall(view, entry.name, entry.input, entry.callId);
     else if (entry.role === "command") addCommandMessage(view, entry.text, false);
     else if (entry.role === "command-output") addCommandOutput(view, entry.text + suffix);
     else if (entry.role === "compacted") addCompacted(view);
     else if (entry.role === "compact") addCompactSummary(view, entry.text + suffix);
+    else if (entry.role === "task") addTaskNotice(view, entry.text, entry.detail);
   }
 }
 function stopFollow(view) {
@@ -602,6 +662,83 @@ async function startFollow(view) {
     if (reason?.code === "session-deleted") void refreshSessions();
   });
 }
+
+function stopAgentWatch(view) {
+  const channel = view.agentsChannel;
+  view.agentsChannel = null;
+  closeChannel(channel);
+}
+function stopAgentFollow(view) {
+  const selected = view.agentViews.get(view.selectedAgentId);
+  if (selected?.follow) { closeChannel(selected.follow); selected.follow = null; }
+}
+function startAgentWatch(view) {
+  stopAgentWatch(view);
+  if (!view.id || view !== current) return;
+  void persephone.service.openChannel({ type: "watch-subagents", sessionId: view.id, cwd: view.cwd }).then((channel) => {
+    if (view !== current || view.agentsChannel) { closeChannel(channel); return; }
+    view.agentsChannel = channel;
+    channel.onMessage((message) => {
+      if (view.agentsChannel !== channel || message.type !== "subagents") return;
+      view.agents = message.agents || [];
+      renderSessions();
+    });
+  }).catch((error) => setViewError(view, error.message));
+}
+function showMainTranscript(view) {
+  if (!view?.selectedAgentId) return;
+  const child = view.agentViews.get(view.selectedAgentId);
+  if (child) { child.scrollTop = transcript.scrollTop; child.messages.classList.add("hidden"); }
+  stopAgentFollow(view);
+  view.selectedAgentId = "";
+  view.messages.classList.remove("hidden");
+  $("#readonly-hint").classList.add("hidden");
+  $("#prompt").classList.remove("hidden"); $("#send").classList.remove("hidden");
+  hideCommandMenu(); renderSessions();
+  transcript.scrollTop = view.scrollTop;
+}
+async function showAgentTranscript(view, agentId) {
+  if (!view || view !== current || !view.agents.some((agent) => agent.id === agentId)) return;
+  const previous = view.agentViews.get(view.selectedAgentId);
+  if (view.selectedAgentId) {
+    if (previous) { previous.scrollTop = transcript.scrollTop; previous.messages.classList.add("hidden"); }
+    stopAgentFollow(view);
+  } else {
+    view.scrollTop = transcript.scrollTop;
+    view.messages.classList.add("hidden");
+  }
+  let child = view.agentViews.get(agentId);
+  if (!child) {
+    child = { id: agentId, messages: element("div", "messages hidden"), tools: new Map(), scrollTop: null, follow: null };
+    $("#views").append(child.messages); view.agentViews.set(agentId, child);
+  }
+  child.messages.replaceChildren(); child.tools.clear();
+  view.selectedAgentId = agentId;
+  child.messages.classList.remove("hidden");
+  $("#readonly-hint").classList.remove("hidden");
+  $("#prompt").classList.add("hidden"); $("#send").classList.add("hidden");
+  hideCommandMenu(); renderSessions(); transcript.scrollTop = child.scrollTop ?? 0;
+  const channel = await persephone.service.openChannel({ type: "subagent-history", sessionId: view.id, agentId, cwd: view.cwd });
+  if (view !== current || view.selectedAgentId !== agentId) { closeChannel(channel); return; }
+  child.follow = channel;
+  channel.onMessage((message) => {
+    if (child.follow !== channel) return;
+    if (message.type === "history") {
+      appendEntries(child, message.entries);
+      // First open lands on the newest turns; reopening restores where you left it.
+      if (message.done) transcript.scrollTop = child.scrollTop ?? transcript.scrollHeight;
+    }
+    else if (message.type === "error") setViewError(view, `${message.code}: ${message.message}`);
+  });
+  channel.onClose(() => { if (child.follow === channel) child.follow = null; });
+}
+$("#back-to-main").addEventListener("click", () => showMainTranscript(current));
+$("#transcript").addEventListener("click", (event) => {
+  const tool = event.target.closest(".activity.tool[data-call-id]");
+  if (!tool || !current || current.selectedAgentId) return;
+  const agent = current.agents.find((item) => item.toolUseId && item.toolUseId === tool.dataset.callId);
+  if (agent) void showAgentTranscript(current, agent.id);
+});
 
 // The session list refreshes itself when any stored transcript changes (the service throttles the notices).
 let refreshing = false, refreshAgain = false;
@@ -650,12 +787,14 @@ async function openStoredSession(item) {
   if (existing) {
     if (existing === current) return;
     showView(existing);
+    startAgentWatch(existing);
     if (!existing.channel) await startFollow(existing);
     return;
   }
   const view = createView(item);
   expandedFolders.add(folderKey(item.cwd));
   showView(view);
+  startAgentWatch(view);
   if (!(await loadHistory(view))) return;
   await startFollow(view);
 }
@@ -701,6 +840,7 @@ function handleEvent(view, event) {
       if (view === current) rememberSession();
       // Keep the open session visible in the tree.
       expandedFolders.add(folderKey(view.cwd));
+      startAgentWatch(view);
       setViewStatus(view); updateControls(); renderSessions();
       view.live = true;
       for (const resolve of view.liveWaiters.splice(0)) resolve(true);
@@ -736,6 +876,7 @@ function handleEvent(view, event) {
       view.thinkingNode.querySelector("pre").append(document.createTextNode(event.text));
       break;
     case "tool-call": endStream(view); view.thinkingNode = null; addToolCall(view, event.name, event.input, event.callId); break;
+    case "task": endStream(view); addTaskNotice(view, event.summary, event.detail); break;
     case "tool-result": {
       const node = view.tools.get(event.callId);
       const mark = element("span", event.ok === false ? "fail" : "ok", event.ok === false ? " ✗" : " ✓");
@@ -860,6 +1001,7 @@ function commandList() {
 const commandMenu = $("#command-menu");
 const menu = { items: [], index: 0 };
 function updateCommandMenu() {
+  if (current?.selectedAgentId) { hideCommandMenu(); return; }
   const match = /^\/(\S*)$/.exec(promptText());
   if (!match) { hideCommandMenu(); return; }
   const query = match[1].toLowerCase();

@@ -7,7 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   appliedLimits, boundedString, clampMode, composeInstructions, hookDecision,
-  MODE_NATIVE, normalizeModel, normalizeNativeMessage, protocolError, serializeEvent, summarizeToolInput, validateOpen,
+  MODE_NATIVE, normalizeModel, normalizeNativeMessage, parseTaskNotification, protocolError, serializeEvent, summarizeToolInput, validateOpen,
 } from "./agent-session-protocol.mjs";
 import { resolveClaudeExecutable } from "./claude-executable.mjs";
 import { installSdk, loadSdk, sdkIsInstalled } from "./sdk-install.mjs";
@@ -193,6 +193,8 @@ function commandOutputEntries(text) {
   return output ? [textEntry("command-output", output)] : [];
 }
 function userTextEntry(message, text) {
+  const task = parseTaskNotification(message, text);
+  if (task) return { role: "task", text: task.summary, detail: task.detail, ...(task.truncated ? { truncated: true } : {}) };
   if (message.isCompactSummary || COMPACT_SUMMARY.test(text)) return textEntry("compact", text);
   const command = COMMAND_NAME.exec(text);
   if (command) {
@@ -213,7 +215,7 @@ function historyEntries(message) {
       const entry = message.type === "user" ? userTextEntry(message, block.text) : textEntry("agent", block.text);
       if (entry) entries.push(entry);
     } else if (block?.type === "tool_use" && message.type === "assistant") {
-      entries.push({ role: "tool", name: block.name, input: summarizeToolInput(block.name, block.input).summary });
+      entries.push({ role: "tool", name: block.name, input: summarizeToolInput(block.name, block.input).summary, ...(typeof block.id === "string" ? { callId: block.id } : {}) });
     }
   }
   return entries;
@@ -257,8 +259,8 @@ function watchFor(channel, stop) {
 
 // One raw transcript line: user/assistant turns, plus the compaction marker and local command output,
 // which the transcript stores as system entries.
-function transcriptLineEntries(message) {
-  if (message.isSidechain) return [];
+function transcriptLineEntries(message, { allowSidechain = false } = {}) {
+  if (message.isSidechain && !allowSidechain) return [];
   if (message.type === "system") {
     if (message.subtype === "compact_boundary") return [{ role: "compacted" }];
     if (message.subtype === "local_command") return commandOutputEntries(message.content);
@@ -269,12 +271,8 @@ function transcriptLineEntries(message) {
 }
 
 // Local page only: streams turns appended to a stored transcript after the page loaded its history.
-async function followSession(channel, request, info) {
-  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Following a session is available only from the local board page." });
-  if (typeof request.sessionId !== "string" || !SESSION_ID.test(request.sessionId)) return replyError(channel, request, "protocol-error", "A valid sessionId is required.", true);
-  const file = await findTranscript(request.sessionId);
-  if (!file) return closeChannel(channel, { code: "not-found", message: "The session transcript was not found." });
-  let offset = (await stat(file)).size;
+async function followTranscript(channel, request, file, { allowSidechain = false, agentId = null, startOffset } = {}) {
+  let offset = Number.isFinite(startOffset) ? startOffset : (await stat(file)).size;
   let pending = Buffer.alloc(0);
   let reading = false;
   let stopped = false;
@@ -299,15 +297,95 @@ async function followSession(channel, request, info) {
       for (const line of lines) {
         let message;
         try { message = JSON.parse(line); } catch { continue; }
-        entries.push(...transcriptLineEntries(message));
+        entries.push(...transcriptLineEntries(message, { allowSidechain }));
       }
       if (!entries.length) return;
-      const rest = await sendEntries(channel, request, entries, { live: true });
-      if (rest.length) await send(channel, echo({ type: "history", entries: rest, live: true }, request));
+      const rest = await sendEntries(channel, request, entries, { live: true, ...(agentId ? { agentId } : {}) });
+      if (rest.length) await send(channel, echo({ type: "history", entries: rest, live: true, ...(agentId ? { agentId } : {}) }, request));
     } catch (error) {
       if (error.code === "ENOENT") { stopped = true; await closeChannel(channel, { code: "session-deleted", message: "The session transcript was removed." }); }
     } finally { reading = false; }
   };
+  const timer = setInterval(() => void poll(), FOLLOW_INTERVAL_MS);
+  watchFor(channel, () => { stopped = true; clearInterval(timer); });
+}
+
+// Local page only: follow the selected main session's appended transcript.
+async function followSession(channel, request, info) {
+  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Following a session is available only from the local board page." });
+  if (typeof request.sessionId !== "string" || !SESSION_ID.test(request.sessionId)) return replyError(channel, request, "protocol-error", "A valid sessionId is required.", true);
+  const file = await findTranscript(request.sessionId);
+  if (!file) return closeChannel(channel, { code: "not-found", message: "The session transcript was not found." });
+  await followTranscript(channel, request, file);
+}
+
+const AGENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
+// A session's subagents live beside its transcript: <project>/<sessionId>/subagents/agent-<id>.jsonl (+ .meta.json).
+async function subagentsDir(sessionId) {
+  if (typeof sessionId !== "string" || !SESSION_ID.test(sessionId)) throw Object.assign(new Error("A valid sessionId is required."), { code: "protocol-error" });
+  const main = await findTranscript(sessionId);
+  if (!main) throw Object.assign(new Error("The session transcript was not found."), { code: "not-found" });
+  return path.join(path.dirname(main), sessionId, "subagents");
+}
+function subagentFiles(dir, agentId) {
+  if (typeof agentId !== "string" || !AGENT_ID.test(agentId)) throw Object.assign(new Error("A valid agentId is required."), { code: "protocol-error" });
+  const prefix = path.join(dir, `agent-${agentId}`);
+  return { transcript: `${prefix}.jsonl`, metadata: `${prefix}.meta.json` };
+}
+
+async function subagentHistory(channel, request, info) {
+  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Subagent history is available only from the local board page." });
+  try {
+    const files = subagentFiles(await subagentsDir(request.sessionId), request.agentId);
+    // Replay up to the last complete line and follow from exactly there, so a running agent loses no line.
+    const buffer = await readFile(files.transcript);
+    const end = buffer.lastIndexOf(0x0a) + 1;
+    const entries = [];
+    for (const line of buffer.subarray(0, end).toString("utf8").split("\n")) {
+      let message;
+      try { message = JSON.parse(line); } catch { continue; }
+      entries.push(...transcriptLineEntries(message, { allowSidechain: true }));
+    }
+    const batch = await sendEntries(channel, request, entries, { agentId: request.agentId });
+    await send(channel, echo({ type: "history", entries: batch, done: true, agentId: request.agentId }, request));
+    await followTranscript(channel, request, files.transcript, { allowSidechain: true, agentId: request.agentId, startOffset: end });
+  } catch (error) { await replyError(channel, request, error.code || "protocol-error", error.message || "Could not read subagent history.", true); }
+}
+
+// Local page only: polls the session's subagents folder (it appears only when the first subagent starts)
+// and sends the list whenever an agent appears or its running state changes.
+async function watchSubagents(channel, request, info) {
+  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Subagents are available only from the local board page." });
+  let dir;
+  try { dir = await subagentsDir(request.sessionId); }
+  catch (error) { return error.code === "not-found" ? closeChannel(channel, { code: "not-found", message: error.message }) : replyError(channel, request, error.code, error.message, true); }
+  let stopped = false, polling = false, previous = "";
+  const poll = async () => {
+    if (stopped || polling) return;
+    polling = true;
+    try {
+      const names = (await readdir(dir, { withFileTypes: true }).catch(() => [])).filter((entry) => entry.isFile()).map((entry) => entry.name);
+      const ids = names.map((name) => /^agent-(.+)\.jsonl$/.exec(name)?.[1]).filter((id) => id && AGENT_ID.test(id));
+      const boardRunning = [...sessions.values()].some((session) => session.id === request.sessionId && !session.closed);
+      const agents = [];
+      for (const id of ids) {
+        const files = subagentFiles(dir, id);
+        let meta = {}, mtime = 0, started = 0;
+        try { meta = JSON.parse(await readFile(files.metadata, "utf8")); } catch { /* metadata may not be written yet */ }
+        try { ({ mtimeMs: mtime, birthtimeMs: started } = await stat(files.transcript)); } catch { /* transcript removed during this poll */ }
+        // The CLI writes finished: true on completion; an agent whose process died never gets it,
+        // so a missing key counts as running only while the session runs here or the transcript is fresh.
+        const unfinished = !Object.hasOwn(meta, "finished");
+        const running = unfinished && (boardRunning || Date.now() - mtime <= 120000);
+        agents.push({ id, description: String(meta.description || meta.agentType || id), agentType: String(meta.agentType || "agent"), toolUseId: typeof meta.toolUseId === "string" ? meta.toolUseId : "", finished: meta.finished === true, unfinished, mtime, started, running });
+      }
+      agents.sort((a, b) => a.started - b.started || a.id.localeCompare(b.id));
+      const signature = JSON.stringify(agents.map(({ id, finished, unfinished, running }) => [id, finished, unfinished, running]));
+      if (signature !== previous) { previous = signature; await send(channel, { type: "subagents", agents }); }
+    } catch { /* a failed poll is retried on the next tick */ }
+    finally { polling = false; }
+  };
+  await poll();
   const timer = setInterval(() => void poll(), FOLLOW_INTERVAL_MS);
   watchFor(channel, () => { stopped = true; clearInterval(timer); });
 }
@@ -520,6 +598,7 @@ function trackStatus(session, message) {
 }
 
 async function emitNative(session, message) {
+  if (message?.parent_tool_use_id != null) return;
   if (trackStatus(session, message)) await send(session.channel, sessionStatus(session), session);
   if (message.type === "system" && message.subtype === "init") {
     if (message.session_id) session.id = message.session_id;
@@ -824,9 +903,11 @@ async function onChannel(channel, openMessage, info) {
   }
   if (openMessage?.type === "list-sessions") return listSessions(channel, openMessage);
   if (openMessage?.type === "session-history") return sessionHistory(channel, openMessage, info);
+  if (openMessage?.type === "subagent-history") return subagentHistory(channel, openMessage, info);
   if (openMessage?.type === "manage-session") return manageSession(channel, openMessage, info);
   if (openMessage?.type === "instructions") return manageInstructions(channel, openMessage, info);
   if (openMessage?.type === "follow-session") return followSession(channel, openMessage, info);
+  if (openMessage?.type === "watch-subagents") return watchSubagents(channel, openMessage, info);
   if (openMessage?.type === "watch-sessions") return watchSessions(channel, openMessage, info);
   if (openMessage?.type === "consent-sdk") {
     if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "SDK consent is available only from the local board page." });

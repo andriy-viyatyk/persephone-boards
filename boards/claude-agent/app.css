@@ -80,6 +80,13 @@ details[open] > summary::before, .folder.expanded .caret { transform: rotate(90d
 .card { margin: 24px auto; max-width: 760px; font-family: var(--chat-font); padding: 20px; border: 1px solid var(--p-border); border-radius: var(--p-radius-md, 6px); background: var(--p-panel); }
 .card .hint { margin-bottom: 0; }
 .card .field { display: block; margin: 16px 0 8px; }
+/* Working directory: a full-width input with a folder button inside its right end, and a 1px accent border on focus. */
+.cwd-box { position: relative; display: block; margin-top: 4px; }
+.cwd-box input { display: block; width: 100%; box-sizing: border-box; padding-right: 34px; }
+.cwd-box input:focus, .cwd-box input:focus-visible { outline: none; border-color: var(--p-accent); }
+.cwd-browse { position: absolute; top: 50%; right: 3px; transform: translateY(-50%); display: flex; align-items: center; justify-content: center; width: 26px; height: 24px; padding: 0; border: 0; background: transparent; color: var(--p-text-muted); }
+.cwd-browse:hover:not(:disabled) { color: var(--p-text); }
+.cwd-browse svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linejoin: round; }
 .intro-folder { display: flex; align-items: baseline; gap: 8px; }
 .intro-folder > span { color: var(--p-text-muted); }
 .intro-folder code { overflow-wrap: anywhere; }
@@ -98,6 +105,20 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--p-text-mut
 .msg.agent { align-self: flex-start; padding: 2px 14px; border-radius: 14px 14px 14px 4px; background: var(--p-panel); border: 1px solid var(--p-border); }
 .msg.agent.markdown-body > :first-child { margin-top: 8px; }
 .msg.agent.markdown-body > :nth-last-child(1 of :not(.msg-actions)) { margin-bottom: 8px; }
+/* Approval cards: a tool call auto mode could not decide, or a plan to approve. */
+.msg.approval { align-self: stretch; max-width: none; padding: 10px 14px; border-radius: 10px; background: var(--p-panel); border: 1px solid var(--p-accent); }
+.approval-title { font-weight: 600; margin-bottom: 6px; }
+.approval-detail { margin: 0 0 8px; max-height: 240px; overflow: auto; white-space: pre-wrap; font-size: 12px; color: var(--p-text-muted); }
+.msg.approval .markdown-body { max-height: 50vh; overflow: auto; margin-bottom: 10px; padding: 0 2px; }
+.approval-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.approval-outcome { color: var(--p-text-muted); font-size: 12px; }
+/* Typing dots: three dots lit one after another in a loop. */
+.msg.typing { display: flex; gap: 5px; align-items: center; width: fit-content; margin-top: 10px; padding: 12px 14px; }
+.msg.typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--p-text-muted); opacity: .3; animation: typing-dot 1.2s infinite; }
+.msg.typing span:nth-child(2) { animation-delay: .2s; }
+.msg.typing span:nth-child(3) { animation-delay: .4s; }
+@keyframes typing-dot { 0%, 60%, 100% { opacity: .3; transform: none; } 30% { opacity: 1; transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .msg.typing span { animation-duration: 2.4s; transform: none !important; } }
 .msg.agent.streaming::after { content: "▍"; color: var(--p-accent); }
 .activity { align-self: flex-start; max-width: 85%; font-size: 12px; color: var(--p-text-muted); }
 .activity summary { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -130,6 +151,8 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--p-text-mut
 /* Model and effort read as pill buttons; the context fill on the right stays plain text. */
 .meta-chip:not(.context) { border: 1px solid var(--p-border); background: var(--p-panel); color: var(--p-text); line-height: 16px; }
 .meta-chip:not(.context):hover:not(:disabled), .meta-chip:not(.context).open { border-color: var(--p-accent); }
+/* Auto and plan tint the mode chip so the session's mode reads at a glance; bypass stays plain. */
+.meta-chip[data-mode="auto"], .meta-chip[data-mode="plan"] { color: var(--p-accent); border-color: color-mix(in srgb, var(--p-accent) 50%, var(--p-border)); }
 .meta-chip.context:hover:not(:disabled) { color: var(--p-text); background: transparent; text-decoration: underline; }
 .meta-chip.context { margin-left: auto; }
 .meta-chip.context[data-tone="accent"] { color: var(--p-accent); }

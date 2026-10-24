@@ -31,7 +31,7 @@
           <h1 data-i18n="newSession">New session</h1>
           <p data-i18n="cli.required"></p>
           <p data-i18n="permissions"></p><p data-i18n="settings"></p>
-          <label id="cwd-field" class="field"><span data-i18n="cwd"></span><input id="cwd" type="text" placeholder="C:\work\project" autocomplete="off"></label>
+          <label id="cwd-field" class="field"><span data-i18n="cwd"></span><span class="cwd-box"><input id="cwd" type="text" placeholder="C:\work\project" autocomplete="off" spellcheck="false"><button id="cwd-browse" class="cwd-browse" type="button" data-i18n-title="browseFolder"></button></span></label>
           <p id="intro-folder" class="intro-folder hidden"><span data-i18n="cwd"></span><code id="intro-folder-path"></code></p>
           <p id="start-hint" class="hint"></p>
         </section>
@@ -46,6 +46,7 @@
         <button id="send" class="primary" data-i18n="send"></button>
       </form>
       <div id="composer-meta" class="composer-meta">
+        <button id="mode-chip" type="button" class="meta-chip" data-i18n-title="mode"></button>
         <button id="model-chip" type="button" class="meta-chip" data-i18n-title="model"></button>
         <button id="effort-chip" type="button" class="meta-chip" data-i18n-title="effort"></button>
         <button id="context-chip" type="button" class="meta-chip context hidden"></button>

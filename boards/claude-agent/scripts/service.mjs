@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  appliedLimits, boundedString, clampMode, composeInstructions, hookDecision,
+  appliedLimits, boundedString, clampMode, classifyTool, composeInstructions, hookDecision,
   MODE_NATIVE, normalizeModel, normalizeNativeMessage, parseTaskNotification, protocolError, serializeEvent, summarizeToolInput, validateOpen,
 } from "./agent-session-protocol.mjs";
 import { resolveClaudeExecutable } from "./claude-executable.mjs";
@@ -493,6 +493,10 @@ async function getSdkModels(session) {
   }
 }
 
+// Permission modes the board's own chat page can pick, as the terminal names them. Cross-board sessions use the
+// contract's modes instead. Auto is the default; auto and plan let Claude Code decide, asking the page when it must.
+const PAGE_MODES = ["bypassPermissions", "auto", "plan"];
+
 function sessionOptions(session) {
   const open = session.open;
   const options = {
@@ -501,7 +505,7 @@ function sessionOptions(session) {
     ...(open.title ? { title: open.title } : {}),
     ...(open.model || session.defaults.passModel ? { model: open.model || session.defaults.passModel } : {}),
     ...(open.effort || session.defaults.passEffort ? { effort: open.effort || session.defaults.passEffort } : {}),
-    permissionMode: MODE_NATIVE[session.mode],
+    permissionMode: session.nativeMode,
     allowDangerouslySkipPermissions: session.mode === "full-auto",
     settingSources: ["user", "project", "local"],
     systemPrompt: { type: "preset", preset: "claude_code", append: session.composed },
@@ -509,10 +513,12 @@ function sessionOptions(session) {
     ...(open.limits?.maxAgentSteps ? { maxTurns: open.limits.maxAgentSteps } : {}),
     ...(open.limits?.maxBudgetUsd ? { maxBudgetUsd: open.limits.maxBudgetUsd } : {}),
     ...(session.endpoint ? { mcpServers: { persephone: { type: "http", url: session.endpoint.url, headers: session.endpoint.headers } } } : {}),
-    ...(session.endpoint && session.mode === "full-auto" ? { allowedTools: ["mcp__persephone__*"] } : {}),
+    ...(session.endpoint && session.crossBoard && session.mode === "full-auto" ? { allowedTools: ["mcp__persephone__*"] } : {}),
     canUseTool: (name, input, opts) => requestApproval(session, name, input, opts),
     hooks: {
       PreToolUse: [{ hooks: [async (input) => {
+        // Page sessions leave the decision to Claude Code's own mode; an allow here would let plan mode edit files.
+        if (!session.crossBoard) return {};
         const decision = hookDecision(session.mode, input.tool_name, input.tool_input, open.cwd);
         if (decision.permissionDecision === "ask" && session.allowedScopes.has(`${decision.kind}:${input.tool_name}`)) return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: "Allowed for this session by user choice." } };
         return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: decision.permissionDecision, permissionDecisionReason: decision.permissionDecision === "deny" ? `Denied by ${session.mode} contract policy.` : "Eligible for contract approval flow." } };
@@ -543,23 +549,52 @@ function approvalKind(name) {
 }
 
 async function requestApproval(session, toolName, input, { signal } = {}) {
+  if (!session.crossBoard) return pageApproval(session, toolName, input, signal);
   const decision = hookDecision(session.mode, toolName, input, session.open.cwd);
   const scope = `${decision.kind}:${toolName}`;
   if (decision.permissionDecision === "deny") return { behavior: "deny", message: `Denied by ${session.mode} policy.` };
   if (decision.permissionDecision === "allow" || session.allowedScopes.has(scope)) return { behavior: "allow", updatedInput: input };
   if (session.mode === "read-only" || session.closed) return { behavior: "deny", message: "Session is no longer available." };
-  const requestId = randomUUID();
   const summary = summarizeToolInput(toolName, input);
   const detail = boundedString(summary.summary, 32 * 1024);
+  const result = await askApproval(session, scope, { kind: approvalKind(toolName), summary: summary.summary, detail: detail.value, ...(summary.truncated || detail.truncated ? { truncated: true } : {}) }, signal, 5 * 60 * 1000);
+  if (result.decision === "allow-session") session.allowedScopes.add(scope);
+  if (result.decision === "allow" || result.decision === "allow-session") return { behavior: "allow", updatedInput: input };
+  return { behavior: "deny", message: result.message || "Denied by the user." };
+}
+
+// Sends an approval request and waits for the answer. A timeout of 0 waits until the turn is interrupted.
+async function askApproval(session, scope, event, signal, timeoutMs) {
+  const requestId = randomUUID();
   const answer = new Promise((resolve) => {
-    const timer = setTimeout(() => settleApproval(session, requestId, { decision: "deny", message: "Approval timed out." }), 5 * 60 * 1000);
+    const timer = timeoutMs ? setTimeout(() => settleApproval(session, requestId, { decision: "deny", message: "Approval timed out." }), timeoutMs) : null;
     const abort = () => settleApproval(session, requestId, { decision: "deny", message: "Turn was interrupted." });
     const cleanup = () => { clearTimeout(timer); signal?.removeEventListener("abort", abort); };
     session.approvals.set(requestId, { resolve, cleanup, scope });
     signal?.addEventListener("abort", abort, { once: true });
   });
-  await send(session.channel, { type: "approval-request", requestId, kind: approvalKind(toolName), summary: summary.summary, detail: detail.value, ...(summary.truncated || detail.truncated ? { truncated: true } : {}) }, session);
-  const result = await answer;
+  await send(session.channel, { type: "approval-request", requestId, ...event }, session);
+  return answer;
+}
+
+// The board's chat page, like the terminal: bypass allows everything; auto and plan ask only when Claude Code cannot
+// decide. Approving a plan (ExitPlanMode) also picks the mode the work continues in.
+async function pageApproval(session, toolName, input, signal) {
+  if (session.closed) return { behavior: "deny", message: "Session is no longer available." };
+  if (toolName === "ExitPlanMode") {
+    const plan = boundedString(typeof input?.plan === "string" ? input.plan : "", 64 * 1024);
+    const result = await askApproval(session, "plan:ExitPlanMode", { kind: "plan", summary: "Approve the plan?", plan: plan.value, ...(plan.truncated ? { truncated: true } : {}) }, signal, 0);
+    if (result.decision !== "allow") return { behavior: "deny", message: result.message || "The user wants to keep planning. Ask what to change, then revise the plan." };
+    const mode = PAGE_MODES.includes(result.mode) && result.mode !== "plan" ? result.mode : "auto";
+    session.nativeMode = mode;
+    await send(session.channel, sessionStatus(session), session);
+    return { behavior: "allow", updatedInput: input, updatedPermissions: [{ type: "setMode", mode, destination: "session" }] };
+  }
+  const scope = `${classifyTool(toolName)}:${toolName}`;
+  if (session.nativeMode === "bypassPermissions" || session.allowedScopes.has(scope)) return { behavior: "allow", updatedInput: input };
+  const summary = summarizeToolInput(toolName, input);
+  const detail = boundedString(summary.summary, 32 * 1024);
+  const result = await askApproval(session, scope, { kind: approvalKind(toolName), tool: toolName, summary: summary.summary, detail: detail.value, ...(summary.truncated || detail.truncated ? { truncated: true } : {}) }, signal, 0);
   if (result.decision === "allow-session") session.allowedScopes.add(scope);
   if (result.decision === "allow" || result.decision === "allow-session") return { behavior: "allow", updatedInput: input };
   return { behavior: "deny", message: result.message || "Denied by the user." };
@@ -589,6 +624,7 @@ function sessionStatus(session) {
     type: "session-status",
     model: session.actualModel || session.open.model || session.defaults.model || "",
     effort: session.open.effort || session.defaults.effort || "",
+    ...(session.crossBoard ? {} : { mode: session.nativeMode }),
     ...(Number.isFinite(status.contextTokens) ? { contextTokens: status.contextTokens } : {}),
     ...(status.contextWindow ? { contextWindow: status.contextWindow } : {}),
     ...(Number.isFinite(status.contextTokens) && status.contextWindow ? { contextPercent: percent(status.contextTokens / status.contextWindow) } : {}),
@@ -599,6 +635,11 @@ function sessionStatus(session) {
 // Returns true when a native message changed the footer status.
 function trackStatus(session, message) {
   const status = session.status;
+  // Claude Code reports its mode on init and on every change, such as leaving plan mode.
+  if (message.type === "system" && (message.subtype === "status" || message.subtype === "init") && !session.crossBoard && message.permissionMode && message.permissionMode !== session.nativeMode) {
+    session.nativeMode = message.permissionMode;
+    return true;
+  }
   if (message.type === "rate_limit_event" && message.rate_limit_info?.unifiedWindows) {
     status.windows = message.rate_limit_info.unifiedWindows;
     return true;
@@ -695,14 +736,15 @@ async function startSession(channel, openRequest, info) {
     if (modelInfo && !modelInfo.efforts.includes(selectedEffort)) throw Object.assign(new Error("The selected effort is not supported by this model."), { code: "protocol-error" });
   }
   const crossBoard = Boolean(info.interface && info.caller);
-  // The board's own chat page has no permission modes: its sessions always run unrestricted.
-  // Only cross-board consumers use the contract's modes, clamped to the configured ceiling.
+  // The board's own chat page is unrestricted by contract and picks Claude Code's mode itself (PAGE_MODES).
+  // Cross-board consumers use the contract's modes, clamped to the configured ceiling.
   const mode = crossBoard ? clampMode(open.permissionMode, settings["cross-board-permission-ceiling"] || "read-only") : "full-auto";
+  const nativeMode = crossBoard ? MODE_NATIVE[mode] : PAGE_MODES.includes(open.mode) ? open.mode : "auto";
   const wantsMcp = open.mcp?.persephone !== false && mode !== "read-only";
   const endpoint = wantsMcp ? await persephone.mcp.issueSessionEndpoint() : null;
   const id = open.resume || randomUUID();
   const session = {
-    id, channel, open, defaults, sdk, executable, mode, crossBoard, endpoint, composed: await makePreamble(open, Boolean(endpoint)),
+    id, channel, open, defaults, sdk, executable, mode, nativeMode, crossBoard, endpoint, composed: await makePreamble(open, Boolean(endpoint)),
     inputQueue: new AsyncQueue(), children: new Set(), approvals: new Map(), allowedScopes: new Set(),
     closed: false, busy: false, completedTurns: 0, initSeen: false, query: null, queryTask: null,
     interrupted: false, pendingFirstTurn: true, started: false, nativeState: { pendingFiles: new Map() }, status: {},
@@ -755,7 +797,7 @@ async function handleSessionMessage(session, request) {
     if ((request.decision === "allow" || request.decision === "allow-session") && hookDecision(session.mode, pending.scope.split(":").slice(1).join(":" )).permissionDecision === "deny") {
       return settleApproval(session, request.requestId, { decision: "deny", message: "Action exceeds the effective permission mode." });
     }
-    settleApproval(session, request.requestId, { decision: request.decision, message: request.message ? boundedString(request.message, 32 * 1024).value : undefined });
+    settleApproval(session, request.requestId, { decision: request.decision, message: request.message ? boundedString(request.message, 32 * 1024).value : undefined, ...(PAGE_MODES.includes(request.mode) ? { mode: request.mode } : {}) });
     return;
   }
   if (request.type === "close") return closeSession(session, "client-close", true);
@@ -841,6 +883,12 @@ const CONTROL_ACTIONS = {
     await send(session.channel, sessionStatus(session), session);
     return {};
   },
+  async "set-mode"(session, request) {
+    await session.query.setPermissionMode(request.mode);
+    session.nativeMode = request.mode;
+    await send(session.channel, sessionStatus(session), session);
+    return {};
+  },
   async context(session) {
     const usage = await session.query.getContextUsage() || {};
     if (Number.isFinite(usage.totalTokens)) {
@@ -872,6 +920,7 @@ async function handleControl(session, request) {
   if (session.crossBoard) return reply({ ok: false, message: "Session controls are available only from the local board page." });
   if (request.action.startsWith("mcp-") && request.action !== "mcp-status" && !validName(request.server)) return reply({ ok: false, message: "A server name is required." });
   if (request.action === "set-model" && !validName(request.model)) return reply({ ok: false, message: "A model is required." });
+  if (request.action === "set-mode" && !PAGE_MODES.includes(request.mode)) return reply({ ok: false, message: "Unknown permission mode." });
   if (!session.query) return reply({ ok: false, message: "The session is still starting." });
   try { await reply({ ok: true, ...(await CONTROL_ACTIONS[request.action](session, request)) }); }
   catch (error) { await reply({ ok: false, message: boundedString(error.message || "The control request failed.", 4096).value }); }

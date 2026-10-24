@@ -16,7 +16,7 @@ let current = null;
 function createView(item = {}) {
   const view = {
     id: item.id || "", cwd: item.cwd || "", title: item.title || "", messages: element("div", "messages hidden"),
-    channel: null, follow: null, live: false, busy: false, pendingPrompt: "", liveWaiters: [], controls: new Map(),
+    channel: null, follow: null, live: false, busy: false, pendingPrompt: "", liveWaiters: [], controls: new Map(), approvals: new Map(),
     stream: null, lastText: "", thinkingNode: null, tools: new Map(), commandTurn: false, historyToken: 0,
     footer: null, usage: null, sessionCost: 0, statusText: "", statusBusy: false, error: "",
     draft: "", unread: false, stick: true, scrollTop: 0,
@@ -145,9 +145,25 @@ function addCompactSummary(view, text) {
   addActivity(view, t("compactSummary"), text, "compact-summary", null);
 }
 
+// Typing dots: a reply bubble with three dots lit in turn while the shown session works and no reply text is
+// streaming (or waiting on an approval card). One node, placed after the shown view's messages, so it never counts
+// as the last message (tool calls group with the message before them).
+const typing = element("div", "msg agent typing");
+typing.setAttribute("role", "status"); typing.setAttribute("aria-label", t("working"));
+typing.append(element("span"), element("span"), element("span"));
+function updateTyping() {
+  const view = current;
+  if (!view || view.selectedAgentId || !view.busy || view.stream || view.approvals.size) { typing.remove(); return; }
+  if (typing.previousElementSibling === view.messages) return;
+  const stick = nearBottom();
+  view.messages.after(typing);
+  scrollToEnd(stick);
+}
+
 function startStream(view) {
   view.stream = { node: addAgentMessage(view, ""), text: "", frame: 0 };
   view.stream.node.classList.add("streaming");
+  updateTyping();
   return view.stream;
 }
 function renderStream(view) {
@@ -168,6 +184,7 @@ function endStream(view) {
   stream.node.classList.remove("streaming");
   if (!stream.text.trim()) stream.node.remove();
   view.stream = null;
+  updateTyping();
 }
 
 // Links in rendered Markdown: web links are routed by the host; local paths open as Persephone pages.
@@ -342,10 +359,18 @@ function modelLabel(id, models = state.models) {
 const viewDefaults = (view) => view.defaults || state.defaults;
 const viewModel = (view) => (isLive(view) && view.footer?.model) || view.model || viewDefaults(view).model || "";
 const viewEffort = (view) => (isLive(view) && view.footer?.effort) || view.effort || viewDefaults(view).effort || "";
+// Permission modes the page offers, as the terminal names them; a running session reports its own (which may be
+// another one, such as "default" after a typed command). Every new chat starts in Auto; the last pick is not kept.
+const MODES = ["bypassPermissions", "auto", "plan"];
+const DEFAULT_MODE = "auto";
+const viewMode = (view) => (isLive(view) && view.footer?.mode) || view.mode || DEFAULT_MODE;
 function renderChips() {
   const view = current;
   $("#composer-meta").classList.toggle("hidden", !view || Boolean(view.selectedAgentId));
   if (!view) return;
+  const mode = viewMode(view);
+  $("#mode-chip").textContent = t(`mode.${mode}`);
+  $("#mode-chip").dataset.mode = mode;
   $("#model-chip").textContent = modelLabel(viewModel(view));
   $("#effort-chip").textContent = viewEffort(view) || t("defaultEffort");
   // Context fill, from the session's last status; it highlights at 70% and 90% like the footer's limit chips.
@@ -422,10 +447,37 @@ async function showEffortMenu() {
     },
   })), live && view.busy ? t("changeBusy") : "");
 }
+// Unlike model and effort, the terminal switches modes mid-turn too (Shift+Tab), so the menu never waits.
+function showModeMenu() {
+  const view = current, anchor = $("#mode-chip");
+  if (choiceAnchor === anchor) { closeChoiceMenu(); return; }
+  const live = isLive(view), mode = viewMode(view);
+  openChoiceMenu(anchor, MODES.map((id) => ({
+    label: t(`mode.${id}`), desc: t(`mode.${id}.desc`), current: id === mode,
+    run: async () => {
+      if (live) { await control(view, "set-mode", { mode: id }); return; }
+      view.mode = id; renderChips();
+    },
+  })), live ? t("modeNote") : "");
+}
+$("#mode-chip").addEventListener("click", () => showModeMenu());
 $("#context-chip").addEventListener("click", () => void showContextPanel().catch((error) => showError(error.message)));
 $("#model-chip").addEventListener("click", () => void showModelMenu().catch((error) => showError(error.message)));
 $("#effort-chip").addEventListener("click", () => void showEffortMenu().catch((error) => showError(error.message)));
 $("#cwd").addEventListener("change", () => { if (current && !current.id) void refreshDefaults(current).catch(() => {}); });
+// Persephone's own Select Folder dialog, reached through the app scripting the board already holds. The dialog waits
+// for the user, so the call gets an hour instead of the bridge's 30-second default.
+$("#cwd-browse").innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4a1 1 0 0 1 1-1h3.6l1.5 1.5h5.9a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/></svg>';
+$("#cwd-browse").addEventListener("click", async () => {
+  const input = $("#cwd");
+  try {
+    const folders = await persephone.call("fs.showFolderDialog", { args: [{ title: t("cwd"), ...(input.value.trim() ? { defaultPath: input.value.trim() } : {}) }], timeoutMs: 3_600_000 });
+    if (!folders?.length) return;
+    input.value = folders[0];
+    input.dispatchEvent(new Event("change"));
+    prompt.focus();
+  } catch (error) { showError(error.message); }
+});
 
 async function consentSdk(accept) {
   $("#accept").disabled = true;
@@ -792,7 +844,7 @@ function showView(view) {
   showError(view.error); setStatus(view.statusText, view.statusBusy); renderFooter(view);
   // The first view (the form shown at load) must not overwrite the session the page is about to restore.
   if (previous) rememberSession();
-  updateControls(); renderSessions();
+  updateControls(); renderSessions(); updateTyping();
   transcript.scrollTop = view.stick ? transcript.scrollHeight : view.scrollTop;
 }
 
@@ -862,7 +914,7 @@ function showMainTranscript(view) {
   view.messages.classList.remove("hidden");
   $("#readonly-hint").classList.add("hidden");
   $("#prompt").classList.remove("hidden"); $("#send").classList.remove("hidden");
-  hideCommandMenu(); renderSessions(); renderChips();
+  hideCommandMenu(); renderSessions(); renderChips(); updateTyping();
   transcript.scrollTop = view.scrollTop;
 }
 async function showAgentTranscript(view, agentId) {
@@ -885,7 +937,7 @@ async function showAgentTranscript(view, agentId) {
   child.messages.classList.remove("hidden");
   $("#readonly-hint").classList.remove("hidden");
   $("#prompt").classList.add("hidden"); $("#send").classList.add("hidden");
-  hideCommandMenu(); renderSessions(); renderChips(); closeChoiceMenu(); transcript.scrollTop = child.scrollTop ?? 0;
+  hideCommandMenu(); renderSessions(); renderChips(); updateTyping(); closeChoiceMenu(); transcript.scrollTop = child.scrollTop ?? 0;
   const channel = await persephone.service.openChannel({ type: "subagent-history", sessionId: view.id, agentId, cwd: view.cwd });
   if (view !== current || view.selectedAgentId !== agentId) { closeChannel(channel); return; }
   child.follow = channel;
@@ -926,6 +978,8 @@ const rememberSession = () => persephone.state.merge({ session: current?.id ? { 
 // From a folder (its + button, /clear) the form only shows the folder; from the toolbar it asks for one.
 function showNewSession(cwd = "") {
   if (!current || current.id || current.channel) showView(createView());
+  // A blank view is reused, but each new chat starts in the default mode again.
+  current.mode = ""; renderChips();
   if (cwd) $("#cwd").value = cwd;
   $("#cwd-field").classList.toggle("hidden", Boolean(cwd));
   $("#intro-folder").classList.toggle("hidden", !cwd);
@@ -989,8 +1043,9 @@ async function connect(view) {
   if (!resume) view.title = title;
   const open = {
     type: "open", contractVersion: 1, model: view.model, cwd,
-    // Required by the agent.session contract; the service runs local page sessions unrestricted anyway.
-    permissionMode: "full-auto",
+    // Required by the agent.session contract; the service runs local page sessions unrestricted and takes
+    // Claude Code's own mode from `mode`.
+    permissionMode: "full-auto", mode: viewMode(view),
     mcp: { persephone: true },
     ...(view.effort ? { effort: view.effort } : {}),
     ...(title ? { title } : {}),
@@ -1003,7 +1058,9 @@ async function connect(view) {
   channel.onClose((reason) => {
     if (view.channel !== channel) return;
     view.channel = null; view.busy = false; view.pendingPrompt = "";
-    endStream(view); endLive(view);
+    // Resuming continues in the mode the session last ran in.
+    if (MODES.includes(view.footer?.mode)) view.mode = view.footer.mode;
+    endStream(view); endLive(view); expireApprovals(view); updateTyping();
     setViewStatus(view, `${t("closed")}: ${reason?.code || "channel-closed"}`);
     if (view === current) { updateControls(); void startFollow(view); }
     else view.unread = true;
@@ -1034,10 +1091,11 @@ function handleEvent(view, event) {
       if (event.ok) pending.resolve(event); else pending.reject(new Error(event.message || t("error")));
       break;
     }
+    case "approval-request": endStream(view); view.thinkingNode = null; addApproval(view, event); break;
     case "compacted": endStream(view); addCompacted(view, event); break;
     case "compact-summary": addCompactSummary(view, event.text); break;
     case "session-status": view.footer = event; if (view === current) { updateFooter(event); renderChips(); } break;
-    case "turn-started": view.busy = true; setViewStatus(view, t("working"), true); updateControls(); renderSessions(); break;
+    case "turn-started": view.busy = true; setViewStatus(view); updateTyping(); updateControls(); renderSessions(); break;
     case "text-delta":
       view.thinkingNode = null;
       (view.stream || startStream(view)).text += `${event.text || ""}${event.truncated ? ` ${t("truncated")}` : ""}`;
@@ -1070,8 +1128,9 @@ function handleEvent(view, event) {
     }
     case "file-change": addActivity(view, `${t("file")} · ${event.kind} — ${event.path}`, event.path); break;
     case "turn-ended": {
-      endStream(view);
+      endStream(view); expireApprovals(view);
       view.busy = false; view.lastText = ""; view.thinkingNode = null; view.commandTurn = false;
+      updateTyping();
       // A session that finished while another one is shown is marked in the sidebar until you open it.
       if (view !== current) view.unread = true;
       setViewStatus(view); updateControls();
@@ -1097,6 +1156,48 @@ function handleEvent(view, event) {
       addActivity(view, `${t("notice")} · ${event.message.split("\n")[0]}`, event.detail || event.message); break;
   }
 }
+// ── Approvals: auto mode asks about what its classifier cannot decide, and plan mode ends with the plan to approve.
+// The card stays in the chat with the answer given; one left unanswered when the turn ends no longer applies.
+function addApproval(view, event) {
+  const isPlan = event.kind === "plan";
+  const node = element("div", `msg approval${isPlan ? " plan" : ""}`);
+  node.append(element("div", "approval-title", isPlan ? t("plan.title") : t("approval.title", { tool: event.tool || t("tool") })));
+  if (isPlan) {
+    const body = element("div", "markdown-body");
+    renderMarkdown(body, `${event.plan || ""}${event.truncated ? ` ${t("truncated")}` : ""}`);
+    messageSources.set(node, event.plan || "");
+    node.append(body);
+  } else node.append(element("pre", "approval-detail", describeInput(event.detail || event.summary)));
+  const actions = element("div", "approval-actions");
+  const answer = (decision, extra, outcome) => {
+    actions.querySelectorAll("button").forEach((button) => { button.disabled = true; });
+    channelSend(view.channel, { type: "approval-response", requestId: event.requestId, decision, ...extra })
+      .then(() => { view.approvals.delete(event.requestId); actions.replaceChildren(element("span", "approval-outcome", outcome)); updateTyping(); })
+      .catch((error) => { actions.querySelectorAll("button").forEach((button) => { button.disabled = false; }); setViewError(view, error.message); });
+  };
+  const button = (label, className, run) => { const node = element("button", className, label); node.type = "button"; node.addEventListener("click", run); return node; };
+  if (isPlan) actions.append(
+    button(t("plan.approveAuto"), "primary", () => answer("allow", { mode: "auto" }, t("plan.approved", { mode: t("mode.auto") }))),
+    button(t("plan.approveBypass"), "", () => answer("allow", { mode: "bypassPermissions" }, t("plan.approved", { mode: t("mode.bypassPermissions") }))),
+    button(t("plan.keepPlanning"), "", () => answer("deny", {}, t("plan.rejected"))),
+  );
+  else actions.append(
+    button(t("approval.allow"), "primary", () => answer("allow", {}, t("approval.allowed"))),
+    button(t("approval.allowSession"), "", () => answer("allow-session", {}, t("approval.allowed"))),
+    button(t("approval.deny"), "", () => answer("deny", {}, t("approval.denied"))),
+  );
+  node.append(actions);
+  view.approvals.set(event.requestId, actions);
+  appendMessage(view, node, true);
+  updateTyping();
+  if (view !== current) { view.unread = true; renderSessions(); }
+}
+function expireApprovals(view) {
+  for (const actions of view.approvals.values()) actions.replaceChildren(element("span", "approval-outcome", t("approval.expired")));
+  view.approvals.clear();
+  updateTyping();
+}
+
 async function sendPrompt(view, text) {
   view.commandTurn = text.startsWith("/");
   if (view.commandTurn) addCommandMessage(view, text); else addUserMessage(view, text);

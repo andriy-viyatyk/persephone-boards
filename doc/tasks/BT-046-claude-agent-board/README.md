@@ -150,6 +150,7 @@ Core board source files are in place. The Persephone createBoard scaffold could 
 - The verified Persephone constant is `SERVICE_SHUTDOWN_TIMEOUT_MS = 2000` in `src/ipc/module-service-channels.ts`; the supervisor posts shutdown and waits that interval before force-killing its utility process.
 - The platform cap is 1 MiB per service-to-page message, but contract output is capped at 900 KiB before structured-clone framing. Honor channel backpressure even when SDK output arrives faster than the UI.
 - `approval-request` is v1 behavior, not a follow-up feature. The consumer's `uses` grant gives messaging access only; it does not authorize its user to approve actions beyond the provider's effective ceiling.
+- 2026-10-24 (Persephone EPIC-132): the default provider instructions in `scripts/service.mjs` now cover the chat opened as a right-pinned popover; in that case `pages.popoverPage` is the chat and the user's page is `page` / `pages.activePage`, which the agent reads first.
 - This document is task planning only. Implementation, tests, changes to the Persephone repository, and commits are not part of this step.
 
 ## Live verification (2026-10-18, dev Persephone 5.0.13 / bridge 1.42.0, Claude CLI 2.1.302, Haiku)

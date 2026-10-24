@@ -137,11 +137,13 @@ function resultUsage(message) {
   return out;
 }
 
+const COMPACT_SUMMARY = /^This session is being continued from a previous conversation/;
+
 export function normalizeNativeMessage(message, state = { pendingFiles: new Map() }) {
   const events = [];
-  const addText = (type, value) => {
+  const addText = (type, value, extra = {}) => {
     const text = boundedString(value, 32 * 1024);
-    events.push({ type, text: text.value, ...(text.truncated ? { truncated: true } : {}) });
+    events.push({ type, text: text.value, ...(text.truncated ? { truncated: true } : {}), ...extra });
   };
   if (message.type === "stream_event") {
     const event = message.event || {};
@@ -149,9 +151,13 @@ export function normalizeNativeMessage(message, state = { pendingFiles: new Map(
     else if (event.type === "content_block_delta" && event.delta?.type === "thinking_delta") addText("thinking-delta", event.delta.thinking);
     return events;
   }
+  // Compaction re-sends the messages it preserved verbatim; they are already on screen.
+  if ((message.type === "assistant" || message.type === "user") && state.preserved?.has(message.uuid)) return events;
   if (message.type === "assistant") {
+    // Local slash commands (/usage, /context, ...) answer with a synthetic assistant message instead of a model turn.
+    const synthetic = message.message?.model === "<synthetic>" ? { synthetic: true } : {};
     for (const block of message.message?.content || []) {
-      if (block.type === "text" && block.text) addText("text", block.text);
+      if (block.type === "text" && block.text) addText("text", block.text, synthetic);
       else if (block.type === "thinking" && block.thinking?.trim()) addText("thinking-delta", block.thinking);
       else if (block.type === "tool_use") {
         const input = summarizeToolInput(block.name, block.input);
@@ -165,7 +171,13 @@ export function normalizeNativeMessage(message, state = { pendingFiles: new Map(
     return events;
   }
   if (message.type === "user") {
-    for (const block of message.message?.content || []) if (block?.type === "tool_result") {
+    // After /compact (or auto-compaction) the CLI feeds the summary back as a synthetic user message.
+    const content = message.message?.content;
+    if (typeof content === "string" && (message.isCompactSummary || (message.isSynthetic && COMPACT_SUMMARY.test(content)))) {
+      addText("compact-summary", content);
+      return events;
+    }
+    for (const block of Array.isArray(message.message?.content) ? message.message.content : []) if (block?.type === "tool_result") {
       events.push({ type: "tool-result", callId: block.tool_use_id, ok: !block.is_error, summary: "Tool result received; output content omitted." });
       const pendingFile = state.pendingFiles.get(block.tool_use_id);
       state.pendingFiles.delete(block.tool_use_id);
@@ -210,6 +222,10 @@ export function normalizeNativeMessage(message, state = { pendingFiles: new Map(
     events.push({ type: "notice", message: info.status === "rejected" ? `Claude usage limit reached.${resets}` : `Claude usage is close to its limit.${resets}` });
   } else if (message.type === "system" && message.subtype === "status" && message.status === "compacting") {
     events.push({ type: "notice", message: "Claude is compacting the conversation." });
+  } else if (message.type === "system" && message.subtype === "compact_boundary") {
+    const meta = message.compact_metadata || {};
+    state.preserved = new Set(meta.preserved_messages?.all_uuids || meta.preserved_messages?.uuids || []);
+    events.push({ type: "compacted", trigger: meta.trigger || "", ...(Number.isFinite(meta.pre_tokens) ? { preTokens: meta.pre_tokens } : {}), ...(Number.isFinite(meta.post_tokens) ? { postTokens: meta.post_tokens } : {}) });
   }
   return events;
 }

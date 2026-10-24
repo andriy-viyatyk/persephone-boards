@@ -1,5 +1,8 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { watch } from "node:fs";
+import { mkdir, open as openFile, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -11,6 +14,8 @@ import { installSdk, loadSdk, sdkIsInstalled } from "./sdk-install.mjs";
 
 const boardRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sessions = new Map();
+// Teardowns still in progress, by session id, so a delete can wait for the CLI to release the transcript.
+const closingSessions = new Map();
 const MODEL_ALIASES = [
   { id: "", label: "Default", efforts: [] },
   { id: "sonnet", label: "Sonnet (CLI alias)", efforts: [] },
@@ -19,7 +24,7 @@ const MODEL_ALIASES = [
 ];
 let cachedModels = null;
 let settings = {};
-const settingIds = ["main-instructions", "claude-executable", "default-model", "default-effort", "default-permission-mode", "cross-board-permission-ceiling"];
+const settingIds = ["claude-executable", "default-model", "default-effort", "cross-board-permission-ceiling"];
 
 class AsyncQueue {
   values = [];
@@ -84,8 +89,54 @@ async function closeChannel(channel, reason) {
   try { channel.close(reason); } catch { /* already closed */ }
 }
 
-function makePreamble(open, mcpAttached) {
-  return composeInstructions(open.cwd, mcpAttached, settings["main-instructions"], open.instructions);
+// Provider instructions (layer 2 of the contract's composition): the board's default until the user saves their own
+// text from the page's Instructions dialog. Stored beside the SDK in the board's data folder, not in board settings,
+// because a board page cannot write its settings.
+const DEFAULT_INSTRUCTIONS = [
+  "You are the user's assistant inside Persephone, a desktop workspace where they keep their work open in pages (tabs): files and notes, web pages in Persephone's browser (for example Teams, mail, tickets or documentation), screenshots and images they pasted, grids, diagrams and boards. Treat what is open in Persephone as the base context of every question.",
+  "",
+  "- When a question points at something without saying where it is (\"read the active chat\", \"check my screenshot\", \"what does this error mean\", \"summarize the discussion\"), assume it is open in Persephone and inspect Persephone before answering: list the open pages and read the one that matches.",
+  "- This chat runs in Persephone's Claude Agent board, so that page is usually the active one. The page the user means is almost always another page: check the page grouped beside this one first, then the other open pages by title and type. Persephone can have several windows; look in the others when nothing in this one matches.",
+  "- When a question is uncertain or could depend on what the user is looking at, check Persephone first. Ask the user only if the open pages do not settle it.",
+  "- Read the content yourself instead of asking the user to paste it: the text or a screenshot of a browser page, the image on an image page, the content of a file or grid page.",
+  "- Name the page you used (its title) so the user can correct you if it was the wrong one.",
+  "- Inspecting is always fine; click, type, navigate or change pages only when the user asks you to act in Persephone.",
+  "- Persephone's MCP tool is `mcp__persephone__call`; call it with no path for an overview of what it can reach. If Persephone MCP is not attached to this session, say so when a question needs it.",
+  "- Questions about code or files in the working directory still use your normal tools.",
+  "",
+  "Write replies in GitHub-flavored Markdown: the chat renders headings, lists, tables, links and fenced code blocks. Keep replies concise and lead with the answer.",
+].join("\n");
+const INSTRUCTIONS_LIMIT = 64 * 1024;
+function instructionsFile() {
+  const base = process.env.LOCALAPPDATA;
+  if (!base || !path.isAbsolute(base)) throw new Error("LOCALAPPDATA is not available; cannot store instructions.");
+  return path.resolve(base, "Persephone", "board-data", "claude-agent", "instructions.md");
+}
+async function readInstructions() {
+  try { return { text: await readFile(instructionsFile(), "utf8"), custom: true }; }
+  catch (error) { if (error.code === "ENOENT") return { text: DEFAULT_INSTRUCTIONS, custom: false }; throw error; }
+}
+
+async function makePreamble(open, mcpAttached) {
+  const { text } = await readInstructions().catch(() => ({ text: DEFAULT_INSTRUCTIONS }));
+  return composeInstructions(open.cwd, mcpAttached, text.trim(), open.instructions);
+}
+
+// Local page only: read or replace the provider instructions. Saving the default text (or "reset") removes the file.
+async function manageInstructions(channel, request, info) {
+  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Instructions are editable only from the local board page." });
+  try {
+    if (request.action === "set" || request.action === "reset") {
+      const text = request.action === "set" && typeof request.text === "string" ? request.text.replace(/\r\n/g, "\n") : DEFAULT_INSTRUCTIONS;
+      if (Buffer.byteLength(text) > INSTRUCTIONS_LIMIT) return replyError(channel, request, "protocol-error", "Instructions are limited to 64 KiB.", true);
+      const file = instructionsFile();
+      if (text.trim() === DEFAULT_INSTRUCTIONS) await rm(file, { force: true });
+      else { await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, text, "utf8"); }
+    } else if (request.action !== "get") return replyError(channel, request, "protocol-error", "action must be get, set, or reset.", true);
+    const { text, custom } = await readInstructions();
+    await send(channel, echo({ type: "instructions", text, custom, defaultText: DEFAULT_INSTRUCTIONS }, request));
+    await closeChannel(channel);
+  } catch (error) { await replyError(channel, request, "protocol-error", error.message || "Could not update the instructions.", true); }
 }
 
 async function describe(channel, request, info) {
@@ -124,6 +175,208 @@ async function listSessions(channel, request) {
   } catch (error) { await replyError(channel, request, "protocol-error", error.message || "Could not list sessions.", true); }
 }
 
+// CLI-generated user turns (caveats, reminders) are not things the user typed. Slash commands are stored as
+// tagged user turns: the command line becomes a "command" entry and its printed output a "command-output" one.
+const SYNTHETIC_USER_TEXT = /^\s*<(command-|local-command-|system-reminder)/;
+const COMMAND_NAME = /<command-name>\s*([^<]*?)\s*<\/command-name>/;
+const COMMAND_ARGS = /<command-args>([\s\S]*?)<\/command-args>/;
+const COMMAND_OUTPUT = /<local-command-(?:stdout|stderr)>([\s\S]*?)<\/local-command-(?:stdout|stderr)>/;
+const COMPACT_SUMMARY = /^This session is being continued from a previous conversation/;
+const HISTORY_BATCH_BYTES = 600 * 1024;
+
+const textEntry = (role, value) => {
+  const text = boundedString(value, 32 * 1024);
+  return { role, text: text.value, ...(text.truncated ? { truncated: true } : {}) };
+};
+function commandOutputEntries(text) {
+  const output = COMMAND_OUTPUT.exec(text || "")?.[1].trim();
+  return output ? [textEntry("command-output", output)] : [];
+}
+function userTextEntry(message, text) {
+  if (message.isCompactSummary || COMPACT_SUMMARY.test(text)) return textEntry("compact", text);
+  const command = COMMAND_NAME.exec(text);
+  if (command) {
+    const name = command[1].startsWith("/") ? command[1] : `/${command[1]}`;
+    const args = COMMAND_ARGS.exec(text)?.[1].trim();
+    return textEntry("command", args ? `${name} ${args}` : name);
+  }
+  if (COMMAND_OUTPUT.test(text)) return commandOutputEntries(text)[0] || null;
+  return SYNTHETIC_USER_TEXT.test(text) ? null : textEntry("user", text);
+}
+
+function historyEntries(message) {
+  const content = message.message?.content;
+  const blocks = typeof content === "string" ? [{ type: "text", text: content }] : Array.isArray(content) ? content : [];
+  const entries = [];
+  for (const block of blocks) {
+    if (block?.type === "text" && block.text?.trim()) {
+      const entry = message.type === "user" ? userTextEntry(message, block.text) : textEntry("agent", block.text);
+      if (entry) entries.push(entry);
+    } else if (block?.type === "tool_use" && message.type === "assistant") {
+      entries.push({ role: "tool", name: block.name, input: summarizeToolInput(block.name, block.input).summary });
+    }
+  }
+  return entries;
+}
+
+// Sends history entries in batches that stay under the channel's message budget.
+async function sendEntries(channel, request, entries, extra = {}) {
+  let batch = [];
+  let batchBytes = 0;
+  for (const entry of entries) {
+    const size = Buffer.byteLength(JSON.stringify(entry));
+    if (batch.length && batchBytes + size > HISTORY_BATCH_BYTES) {
+      await send(channel, echo({ type: "history", entries: batch, ...extra }, request));
+      batch = []; batchBytes = 0;
+    }
+    batch.push(entry); batchBytes += size;
+  }
+  return batch;
+}
+
+// ── Watching transcripts written by other processes (a terminal Claude Code, another board) ──
+const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const FOLLOW_INTERVAL_MS = 1000;
+const LIST_THROTTLE_MS = 3000;
+const watchers = new Set();
+const claudeProjectsDir = () => path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude"), "projects");
+async function findTranscript(sessionId) {
+  const root = claudeProjectsDir();
+  for (const entry of await readdir(root, { withFileTypes: true }).catch(() => [])) {
+    if (!entry.isDirectory()) continue;
+    const file = path.join(root, entry.name, `${sessionId}.jsonl`);
+    try { await stat(file); return file; } catch { /* not in this project */ }
+  }
+  return null;
+}
+function watchFor(channel, stop) {
+  const entry = { stop };
+  watchers.add(entry);
+  channel.onClose(() => { watchers.delete(entry); stop(); });
+}
+
+// One raw transcript line: user/assistant turns, plus the compaction marker and local command output,
+// which the transcript stores as system entries.
+function transcriptLineEntries(message) {
+  if (message.isSidechain) return [];
+  if (message.type === "system") {
+    if (message.subtype === "compact_boundary") return [{ role: "compacted" }];
+    if (message.subtype === "local_command") return commandOutputEntries(message.content);
+    return [];
+  }
+  if ((message.type !== "user" && message.type !== "assistant") || (message.isMeta && !message.isCompactSummary)) return [];
+  return historyEntries(message);
+}
+
+// Local page only: streams turns appended to a stored transcript after the page loaded its history.
+async function followSession(channel, request, info) {
+  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Following a session is available only from the local board page." });
+  if (typeof request.sessionId !== "string" || !SESSION_ID.test(request.sessionId)) return replyError(channel, request, "protocol-error", "A valid sessionId is required.", true);
+  const file = await findTranscript(request.sessionId);
+  if (!file) return closeChannel(channel, { code: "not-found", message: "The session transcript was not found." });
+  let offset = (await stat(file)).size;
+  let pending = Buffer.alloc(0);
+  let reading = false;
+  let stopped = false;
+  const poll = async () => {
+    if (reading || stopped) return;
+    reading = true;
+    try {
+      const { size } = await stat(file);
+      if (size < offset) { offset = size; pending = Buffer.alloc(0); }
+      if (size === offset) return;
+      const chunk = Buffer.alloc(size - offset);
+      const handle = await openFile(file, "r");
+      try { await handle.read(chunk, 0, chunk.length, offset); } finally { await handle.close(); }
+      offset = size;
+      // Decode only complete lines; a line still being written stays pending until its newline arrives.
+      pending = Buffer.concat([pending, chunk]);
+      const end = pending.lastIndexOf(0x0a);
+      if (end < 0) return;
+      const lines = pending.subarray(0, end).toString("utf8").split("\n");
+      pending = pending.subarray(end + 1);
+      const entries = [];
+      for (const line of lines) {
+        let message;
+        try { message = JSON.parse(line); } catch { continue; }
+        entries.push(...transcriptLineEntries(message));
+      }
+      if (!entries.length) return;
+      const rest = await sendEntries(channel, request, entries, { live: true });
+      if (rest.length) await send(channel, echo({ type: "history", entries: rest, live: true }, request));
+    } catch (error) {
+      if (error.code === "ENOENT") { stopped = true; await closeChannel(channel, { code: "session-deleted", message: "The session transcript was removed." }); }
+    } finally { reading = false; }
+  };
+  const timer = setInterval(() => void poll(), FOLLOW_INTERVAL_MS);
+  watchFor(channel, () => { stopped = true; clearInterval(timer); });
+}
+
+// Local page only: tells the page when any stored transcript changed, at most once per LIST_THROTTLE_MS.
+async function watchSessions(channel, request, info) {
+  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Watching sessions is available only from the local board page." });
+  let timer = null;
+  let last = 0;
+  const notify = () => { timer = null; last = Date.now(); void send(channel, { type: "sessions-changed" }).catch(() => {}); };
+  let watcher;
+  try {
+    watcher = watch(claudeProjectsDir(), { recursive: true }, () => {
+      if (!timer) timer = setTimeout(notify, Math.max(500, LIST_THROTTLE_MS - (Date.now() - last)));
+    });
+  } catch (error) { return replyError(channel, request, "protocol-error", `Cannot watch Claude sessions: ${error.message}`, true); }
+  watcher.on("error", () => {});
+  watchFor(channel, () => { clearTimeout(timer); watcher.close(); });
+}
+
+// Local page only: replays a stored transcript so a resumed session shows its earlier turns.
+async function sessionHistory(channel, request, info) {
+  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Session history is available only from the local board page." });
+  if (typeof request.sessionId !== "string" || !request.sessionId) return replyError(channel, request, "protocol-error", "sessionId is required.", true);
+  let sdk;
+  try { sdk = await loadSdk(); }
+  catch (error) { await replyError(channel, request, error.code || "sdk-not-installed", error.message, true); return; }
+  try {
+    const messages = await sdk.getSessionMessages(request.sessionId, typeof request.cwd === "string" && request.cwd ? { dir: request.cwd } : undefined);
+    const entries = messages.filter((message) => !message.parent_tool_use_id).flatMap(historyEntries);
+    const batch = await sendEntries(channel, request, entries);
+    await send(channel, echo({ type: "history", entries: batch, done: true }, request));
+    await closeChannel(channel);
+  } catch (error) { await replyError(channel, request, "protocol-error", error.message || "Could not read session history.", true); }
+}
+
+// Local page only: rename a stored session (an appended custom title) or delete its transcript from disk.
+async function manageSession(channel, request, info) {
+  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Session management is available only from the local board page." });
+  const { action, sessionId } = request;
+  if (!["rename", "delete"].includes(action) || typeof sessionId !== "string" || !sessionId) return replyError(channel, request, "protocol-error", "action (rename or delete) and sessionId are required.", true);
+  const title = typeof request.title === "string" ? request.title.trim() : "";
+  if (action === "rename" && !title) return replyError(channel, request, "protocol-error", "A session name is required.", true);
+  const live = [...sessions.values()].filter((session) => session.id === sessionId);
+  if (action === "delete" && live.some((session) => session.crossBoard)) return replyError(channel, request, "session-busy", "Another board is using this session.", true);
+  let sdk;
+  try { sdk = await loadSdk(); }
+  catch (error) { await replyError(channel, request, error.code || "sdk-not-installed", error.message, true); return; }
+  try {
+    const options = typeof request.cwd === "string" && request.cwd ? { dir: request.cwd } : undefined;
+    if (action === "rename") await sdk.renameSession(sessionId, boundedString(title, 1024).value, options);
+    else {
+      // The page closes its own channel first; wait for that teardown (or close a session still open) so the CLI has released the transcript.
+      await Promise.all([...live.map((session) => closeSession(session, "session-deleted", true)), closingSessions.get(sessionId)]);
+      await sdk.deleteSession(sessionId, options);
+    }
+    await send(channel, echo({ type: "session-updated", action, sessionId }, request));
+    await closeChannel(channel);
+  } catch (error) { await replyError(channel, request, "protocol-error", error.message || "Could not update the session.", true); }
+}
+
+// A new session's requested title becomes its stored custom title once the first turn has written the transcript.
+async function applyPendingTitle(session) {
+  const title = session.pendingTitle;
+  session.pendingTitle = "";
+  try { await session.sdk.renameSession(session.id, title, { dir: session.open.cwd }); }
+  catch (error) { await send(session.channel, { type: "notice", message: `Could not save the session name: ${error.message || "rename failed"}` }, session); }
+}
+
 function sessionLimits(open) {
   return appliedLimits(open.limits || {});
 }
@@ -152,8 +405,8 @@ function sessionOptions(session) {
     includePartialMessages: true,
     ...(open.limits?.maxAgentSteps ? { maxTurns: open.limits.maxAgentSteps } : {}),
     ...(open.limits?.maxBudgetUsd ? { maxBudgetUsd: open.limits.maxBudgetUsd } : {}),
-    ...(session.endpoint && session.mode !== "full-auto" ? { mcpServers: { persephone: { type: "http", url: session.endpoint.url, headers: session.endpoint.headers } } } : {}),
-    ...(session.endpoint && session.mode === "full-auto" ? { mcpServers: { persephone: { type: "http", url: session.endpoint.url, headers: session.endpoint.headers } }, allowedTools: ["mcp__persephone__*"] } : {}),
+    ...(session.endpoint ? { mcpServers: { persephone: { type: "http", url: session.endpoint.url, headers: session.endpoint.headers } } } : {}),
+    ...(session.endpoint && session.mode === "full-auto" ? { allowedTools: ["mcp__persephone__*"] } : {}),
     canUseTool: (name, input, opts) => requestApproval(session, name, input, opts),
     hooks: {
       PreToolUse: [{ hooks: [async (input) => {
@@ -221,11 +474,58 @@ function userMessage(text) {
   return { type: "user", message: { role: "user", content: text }, parent_tool_use_id: null };
 }
 
+// Provider-specific additive event (consumers ignore unknown types): model, effort, context fill,
+// and plan rate-limit windows for the chat page's footer. Unknown values are omitted.
+function sessionStatus(session) {
+  const status = session.status;
+  const percent = (value) => Number.isFinite(value) ? Math.round(value * 1000) / 10 : undefined;
+  const window = (info) => info && Number.isFinite(info.utilization) ? { percent: percent(info.utilization), ...(info.resetsAt ? { resetsAt: new Date(info.resetsAt * 1000).toISOString() } : {}) } : undefined;
+  const fiveHour = window(status.windows?.five_hour);
+  const sevenDay = window(status.windows?.seven_day);
+  return {
+    type: "session-status",
+    model: session.actualModel || session.open.model || settings["default-model"] || "",
+    effort: session.open.effort || settings["default-effort"] || "",
+    ...(Number.isFinite(status.contextTokens) ? { contextTokens: status.contextTokens } : {}),
+    ...(status.contextWindow ? { contextWindow: status.contextWindow } : {}),
+    ...(Number.isFinite(status.contextTokens) && status.contextWindow ? { contextPercent: percent(status.contextTokens / status.contextWindow) } : {}),
+    ...(fiveHour || sevenDay ? { limits: { ...(fiveHour ? { fiveHour } : {}), ...(sevenDay ? { sevenDay } : {}) } } : {}),
+  };
+}
+
+// Returns true when a native message changed the footer status.
+function trackStatus(session, message) {
+  const status = session.status;
+  if (message.type === "rate_limit_event" && message.rate_limit_info?.unifiedWindows) {
+    status.windows = message.rate_limit_info.unifiedWindows;
+    return true;
+  }
+  if (message.type === "assistant" && !message.parent_tool_use_id && message.message?.usage) {
+    const usage = message.message.usage;
+    status.contextTokens = (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0);
+    if (message.message.model) session.actualModel = message.message.model;
+    return true;
+  }
+  if (message.type === "system" && message.subtype === "compact_boundary" && Number.isFinite(message.compact_metadata?.post_tokens)) {
+    status.contextTokens = message.compact_metadata.post_tokens;
+    return true;
+  }
+  if (message.type === "result" && message.modelUsage) {
+    const entries = Object.entries(message.modelUsage);
+    const main = entries.find(([id]) => id === session.actualModel) || entries.sort((a, b) => (b[1].outputTokens || 0) - (a[1].outputTokens || 0))[0];
+    if (main?.[1]?.contextWindow) status.contextWindow = main[1].contextWindow;
+    return true;
+  }
+  return false;
+}
+
 async function emitNative(session, message) {
+  if (trackStatus(session, message)) await send(session.channel, sessionStatus(session), session);
   if (message.type === "system" && message.subtype === "init") {
     if (message.session_id) session.id = message.session_id;
     session.actualModel = message.model || session.actualModel;
     session.initSeen = true;
+    await send(session.channel, sessionStatus(session), session);
     if (!session.modelNoticeSent && session.actualModel && session.actualModel !== (session.open.model || settings["default-model"] || "Default")) {
       session.modelNoticeSent = true;
       await send(session.channel, { type: "notice", message: `Claude selected model ${session.actualModel}.` }, session);
@@ -240,6 +540,7 @@ async function emitNative(session, message) {
   for (const event of events) {
     if (event.type === "turn-ended") {
       if (session.interrupted) event.reason = "interrupted";
+      if (session.pendingTitle) await applyPendingTitle(session);
       turnEnded = true;
       if (session.busy) {
         session.busy = false;
@@ -275,6 +576,9 @@ async function runQuery(session) {
 async function startSession(channel, openRequest, info) {
   await refreshSettings();
   const open = validateOpen(openRequest);
+  // A missing cwd makes the CLI spawn fail with a misleading "binary failed to launch" ENOENT.
+  const cwdStat = await stat(open.cwd).catch(() => null);
+  if (!cwdStat?.isDirectory()) throw Object.assign(new Error(`The working directory does not exist: ${open.cwd}`), { code: "protocol-error" });
   const sdk = await loadSdk();
   const executable = await resolveClaudeExecutable(settings["claude-executable"] || "");
   const selectedModel = open.model || settings["default-model"] || "";
@@ -285,19 +589,22 @@ async function startSession(channel, openRequest, info) {
     if (modelInfo && !modelInfo.efforts.includes(selectedEffort)) throw Object.assign(new Error("The selected effort is not supported by this model."), { code: "protocol-error" });
   }
   const crossBoard = Boolean(info.interface && info.caller);
-  const ceiling = crossBoard ? (settings["cross-board-permission-ceiling"] || "read-only") : "full-auto";
-  const mode = clampMode(open.permissionMode, ceiling);
+  // The board's own chat page has no permission modes: its sessions always run unrestricted.
+  // Only cross-board consumers use the contract's modes, clamped to the configured ceiling.
+  const mode = crossBoard ? clampMode(open.permissionMode, settings["cross-board-permission-ceiling"] || "read-only") : "full-auto";
   const wantsMcp = open.mcp?.persephone !== false && mode !== "read-only";
   const endpoint = wantsMcp ? await persephone.mcp.issueSessionEndpoint() : null;
   const id = open.resume || randomUUID();
   const session = {
-    id, channel, open, sdk, executable, mode, endpoint, composed: makePreamble(open, Boolean(endpoint)),
+    id, channel, open, sdk, executable, mode, crossBoard, endpoint, composed: await makePreamble(open, Boolean(endpoint)),
     inputQueue: new AsyncQueue(), children: new Set(), approvals: new Map(), allowedScopes: new Set(),
     closed: false, busy: false, completedTurns: 0, initSeen: false, query: null, queryTask: null,
-    interrupted: false, pendingFirstTurn: true, started: false, nativeState: { pendingFiles: new Map() },
+    interrupted: false, pendingFirstTurn: true, started: false, nativeState: { pendingFiles: new Map() }, status: {},
+    pendingTitle: !open.resume && typeof open.title === "string" ? boundedString(open.title.trim(), 1024).value : "",
   };
   sessions.set(channel, session);
   await send(channel, echo({ type: "session-started", contractVersion: 1, sessionId: id, model: open.model || settings["default-model"] || "Default", permissionMode: mode, limits: sessionLimits(open), instructions: { composed: session.composed }, mcp: { persephone: Boolean(endpoint) } }, open), session);
+  await send(channel, sessionStatus(session), session);
   channel.onMessage((request) => void handleSessionMessage(session, request));
   channel.onClose((reason) => void closeSession(session, reason?.code || "channel-closed", false));
   session.runTask = runQuery(session);
@@ -316,6 +623,7 @@ async function handleSessionMessage(session, request) {
     session.interrupted = false;
     session.currentRequestId = request.id;
     await send(session.channel, echo({ type: "turn-started", turnId: randomUUID() }, request), session);
+    trackTypedCommand(session, request.text);
     session.inputQueue.push(userMessage(request.text));
     return;
   }
@@ -345,7 +653,122 @@ async function handleSessionMessage(session, request) {
     return;
   }
   if (request.type === "close") return closeSession(session, "client-close", true);
+  if (request.type === "control") return handleControl(session, request);
   // Unknown v1 additive message types are ignored.
+}
+
+// "/model <name>" and "/effort <level>" typed as messages change the live session; keep the footer in step.
+const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
+function trackTypedCommand(session, text) {
+  const command = /^\/(model|effort)\s+(\S+)\s*$/.exec(text.trim());
+  if (command?.[1] === "model") { session.open.model = command[2] === "default" ? "" : command[2]; session.actualModel = ""; }
+  if (command?.[1] === "effort" && (command[2] === "auto" || EFFORT_LEVELS.includes(command[2]))) session.open.effort = command[2] === "auto" ? "" : command[2];
+}
+
+// ── Session controls behind the board page's slash-command panels (/mcp, /model, /context) and its
+// command menu. The SDK has no terminal UI, so the page draws its own from these. Local page only.
+const validName = (value) => typeof value === "string" && value.length > 0 && value.length <= 256;
+async function mcpStatus(session) {
+  const servers = await session.query.mcpServerStatus();
+  return (servers || []).map((server) => ({
+    name: String(server.name),
+    status: String(server.status || "pending"),
+    ...(server.error ? { error: boundedString(String(server.error), 4096).value } : {}),
+    scope: server.scope || "",
+    transport: server.transport || server.config?.type || "",
+    ...(server.urlHost ? { host: server.urlHost } : {}),
+    ...(server.serverInfo ? { info: [server.serverInfo.title || server.serverInfo.name, server.serverInfo.version].filter(Boolean).join(" ") } : {}),
+    tools: (server.tools || []).map((tool) => tool?.name).filter((name) => typeof name === "string"),
+  }));
+}
+// The authenticate response is not documented; take the first web URL it carries for the user to open.
+function findUrl(value, depth = 0) {
+  if (typeof value === "string") return /^https?:\/\//i.test(value) ? value : "";
+  if (!value || typeof value !== "object" || depth > 3) return "";
+  for (const item of Object.values(value)) { const url = findUrl(item, depth + 1); if (url) return url; }
+  return "";
+}
+const CONTROL_ACTIONS = {
+  async commands(session) {
+    const commands = await session.query.supportedCommands();
+    return {
+      commands: (commands || []).filter((command) => validName(command?.name) && !command.name.startsWith("__")).map((command) => ({
+        name: command.name,
+        description: boundedString(command.description || "", 1024).value,
+        ...(command.argumentHint ? { argumentHint: boundedString(command.argumentHint, 512).value } : {}),
+      })),
+    };
+  },
+  async "mcp-status"(session) { return { servers: await mcpStatus(session) }; },
+  async "mcp-reconnect"(session, request) {
+    await session.query.reconnectMcpServer(request.server);
+    return { servers: await mcpStatus(session) };
+  },
+  async "mcp-toggle"(session, request) {
+    await session.query.toggleMcpServer(request.server, request.enabled === true);
+    return { servers: await mcpStatus(session) };
+  },
+  async "mcp-authenticate"(session, request) {
+    const response = await session.query.mcpAuthenticate(request.server);
+    const url = findUrl(response);
+    return { ...(url ? { url } : {}), servers: await mcpStatus(session) };
+  },
+  async models(session) {
+    const models = await session.query.supportedModels();
+    return {
+      current: session.open.model || settings["default-model"] || "default",
+      effort: session.open.effort || settings["default-effort"] || "",
+      models: (models || []).map((model) => ({
+        id: String(model.value ?? ""),
+        label: String(model.displayName ?? model.value ?? ""),
+        description: String(model.description ?? ""),
+        efforts: Array.isArray(model.supportedEffortLevels) ? model.supportedEffortLevels.filter((effort) => typeof effort === "string") : [],
+      })).filter((model) => model.id),
+    };
+  },
+  async "set-model"(session, request) {
+    const model = request.model === "default" ? "" : request.model;
+    const known = (await session.query.supportedModels()).find((entry) => entry.value === request.model);
+    await session.query.setModel(model || undefined);
+    session.open.model = model;
+    session.actualModel = known?.resolvedModel || model;
+    await send(session.channel, sessionStatus(session), session);
+    return {};
+  },
+  async context(session) {
+    const usage = await session.query.getContextUsage() || {};
+    if (Number.isFinite(usage.totalTokens)) {
+      session.status.contextTokens = usage.totalTokens;
+      if (usage.maxTokens) session.status.contextWindow = usage.maxTokens;
+      await send(session.channel, sessionStatus(session), session);
+    }
+    const tokens = (value) => Number.isFinite(value) ? value : 0;
+    return {
+      usage: {
+        model: usage.model || "",
+        totalTokens: tokens(usage.totalTokens),
+        maxTokens: tokens(usage.maxTokens),
+        percentage: tokens(usage.percentage),
+        autoCompact: usage.isAutoCompactEnabled === true,
+        ...(Number.isFinite(usage.autoCompactThreshold) ? { autoCompactThreshold: usage.autoCompactThreshold } : {}),
+        categories: (usage.categories || []).map((category) => ({ id: String(category.id || category.name), name: String(category.name || category.id), tokens: tokens(category.tokens), kind: category.kind || "used" })),
+        memoryFiles: (usage.memoryFiles || []).map((file) => ({ path: String(file.path || ""), tokens: tokens(file.tokens) })),
+        mcpTools: (usage.mcpTools || []).map((tool) => ({ name: String(tool.name || ""), server: String(tool.serverName || tool.server || ""), tokens: tokens(tool.tokens) })),
+        ...(usage.skills ? { skills: { count: tokens(usage.skills.includedSkills), tokens: tokens(usage.skills.tokens) } } : {}),
+        ...(Array.isArray(usage.agents) ? { agents: { count: usage.agents.length, tokens: usage.agents.reduce((sum, agent) => sum + tokens(agent.tokens), 0) } } : {}),
+      },
+    };
+  },
+};
+async function handleControl(session, request) {
+  if (typeof request.id !== "string" || request.id.length > 256 || !Object.hasOwn(CONTROL_ACTIONS, request.action)) return replyError(session.channel, request, "protocol-error", "Invalid control request.", false, session);
+  const reply = (body) => send(session.channel, { type: "control-result", id: request.id, action: request.action, ...body }, session);
+  if (session.crossBoard) return reply({ ok: false, message: "Session controls are available only from the local board page." });
+  if (request.action.startsWith("mcp-") && request.action !== "mcp-status" && !validName(request.server)) return reply({ ok: false, message: "A server name is required." });
+  if (request.action === "set-model" && !validName(request.model)) return reply({ ok: false, message: "A model is required." });
+  if (!session.query) return reply({ ok: false, message: "The session is still starting." });
+  try { await reply({ ok: true, ...(await CONTROL_ACTIONS[request.action](session, request)) }); }
+  catch (error) { await reply({ ok: false, message: boundedString(error.message || "The control request failed.", 4096).value }); }
 }
 
 async function killChildren(session, force) {
@@ -362,8 +785,17 @@ async function killChildren(session, force) {
   }
 }
 
-async function closeSession(session, reason, closeTransport) {
-  if (!session || session.closed) return;
+function closeSession(session, reason, closeTransport) {
+  if (!session) return Promise.resolve();
+  if (!session.closeTask) {
+    const task = teardownSession(session, reason, closeTransport).finally(() => { if (closingSessions.get(session.id) === task) closingSessions.delete(session.id); });
+    session.closeTask = task;
+    closingSessions.set(session.id, task);
+  }
+  return session.closeTask;
+}
+
+async function teardownSession(session, reason, closeTransport) {
   session.closed = true;
   sessions.delete(session.channel);
   for (const id of [...session.approvals.keys()]) settleApproval(session, id, { decision: "deny", message: "Session closed." });
@@ -391,6 +823,11 @@ async function onChannel(channel, openMessage, info) {
     catch (error) { return replyError(channel, openMessage, error.code || "protocol-error", error.message || "Description failed.", true); }
   }
   if (openMessage?.type === "list-sessions") return listSessions(channel, openMessage);
+  if (openMessage?.type === "session-history") return sessionHistory(channel, openMessage, info);
+  if (openMessage?.type === "manage-session") return manageSession(channel, openMessage, info);
+  if (openMessage?.type === "instructions") return manageInstructions(channel, openMessage, info);
+  if (openMessage?.type === "follow-session") return followSession(channel, openMessage, info);
+  if (openMessage?.type === "watch-sessions") return watchSessions(channel, openMessage, info);
   if (openMessage?.type === "consent-sdk") {
     if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "SDK consent is available only from the local board page." });
     return installConsent(channel);
@@ -419,6 +856,8 @@ persephone.service.onShutdown(async () => {
   }
   await Promise.all(active.map((session) => killChildren(session, true)));
   sessions.clear();
+  for (const entry of [...watchers]) entry.stop();
+  watchers.clear();
 });
 
 void refreshSettings().catch((error) => console.error("Could not load Claude Agent settings:", error));

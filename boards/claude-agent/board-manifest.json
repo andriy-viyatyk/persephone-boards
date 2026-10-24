@@ -28,11 +28,9 @@
   "languages": { "folder": "lang", "default": "en" },
   "screenshot": "screenshot.png",
   "settings": [
-    { "id": "main-instructions", "type": "string", "format": "multiline", "default": "", "label": "Main instructions", "description": "Provider instructions added after the environment preamble." },
     { "id": "claude-executable", "type": "string", "default": "", "label": "Claude executable", "description": "Optional absolute path to the installed claude executable. Leave empty to resolve it from PATH." },
     { "id": "default-model", "type": "string", "default": "", "label": "Default model", "description": "Optional SDK model id. Empty uses the CLI default." },
     { "id": "default-effort", "type": "string", "default": "", "label": "Default effort", "description": "Optional effort supported by the selected model. Empty uses the CLI default." },
-    { "id": "default-permission-mode", "type": "enum", "options": ["read-only", "ask", "auto-edit", "full-auto"], "default": "read-only", "label": "Default permission mode" },
     { "id": "cross-board-permission-ceiling", "type": "enum", "options": ["read-only", "ask", "auto-edit", "full-auto"], "default": "read-only", "label": "Cross-board permission ceiling", "description": "Maximum permission mode for every consumer board." }
   ]
 }

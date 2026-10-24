@@ -12,10 +12,6 @@
 <body>
   <main id="app">
     <aside id="sidebar" class="sidebar">
-      <div class="sidebar-filter">
-        <input id="session-filter" type="search" data-i18n-placeholder="filterSessions" autocomplete="off">
-        <button id="refresh-sessions" class="icon" data-i18n-title="refresh">⟳</button>
-      </div>
       <nav id="session-list" class="session-list"></nav>
     </aside>
     <div id="splitter" class="splitter" role="separator" aria-orientation="vertical" data-i18n-title="resizeSidebar"></div>
@@ -39,7 +35,7 @@
           </div>
           <p class="hint" data-i18n="startHint"></p>
         </section>
-        <div id="messages" class="messages"></div>
+        <div id="views"></div>
       </div>
       <form id="composer" class="composer">
         <div id="command-menu" class="command-menu hidden" role="listbox"></div>
@@ -50,6 +46,7 @@
     </section>
   </main>
   <div id="session-menu" class="context-menu hidden" role="menu">
+    <button type="button" role="menuitem" data-action="disconnect" data-i18n="disconnect"></button>
     <button type="button" role="menuitem" data-action="rename" data-i18n="rename"></button>
     <button type="button" role="menuitem" data-action="delete" class="danger" data-i18n="delete"></button>
   </div>

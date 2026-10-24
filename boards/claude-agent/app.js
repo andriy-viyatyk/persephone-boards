@@ -2,23 +2,49 @@
 applyI18n();
 
 const $ = (selector) => document.querySelector(selector);
-const state = {
-  channel: null, follow: null, sdkInstalled: null, models: [{ id: "", label: "Default", efforts: [] }], defaults: {}, settingsOff: null,
-  sessions: [], activeId: "", activeCwd: "", activeTitle: "", busy: false, pendingPrompt: "",
-  stream: null, lastText: "", thinkingNode: null, tools: new Map(), historyToken: 0,
-  live: false, liveWaiters: [], controls: new Map(), commandTurn: false,
-};
+const state = { sdkInstalled: null, models: [{ id: "", label: "Default", efforts: [] }], defaults: {}, settingsOff: null, sessions: [] };
 const showError = (message) => { const node = $("#error"); node.textContent = message; node.classList.toggle("hidden", !message); };
 // Transient state line above the prompt; empty (hidden) while the session is ready.
 const setStatus = (text = "", busy = false) => { const node = $("#status"); node.textContent = text; node.classList.toggle("busy", busy); node.classList.toggle("hidden", !text); };
 
+// ── Session views ──────────────────────────────────────────────────────────
+// Each session the page holds is a view: its own transcript, channel and turn state. Live views (the board runs
+// their Claude process) keep running while another view is shown, like terminal tabs. A view that is only being
+// read is dropped when you leave it and reloaded from its transcript the next time it opens.
+const views = new Set();
+let current = null;
+function createView(item = {}) {
+  const view = {
+    id: item.id || "", cwd: item.cwd || "", title: item.title || "", messages: element("div", "messages hidden"),
+    channel: null, follow: null, live: false, busy: false, pendingPrompt: "", liveWaiters: [], controls: new Map(),
+    stream: null, lastText: "", thinkingNode: null, tools: new Map(), commandTurn: false, historyToken: 0,
+    footer: null, usage: null, sessionCost: 0, statusText: "", statusBusy: false, error: "",
+    draft: "", unread: false, stick: true, scrollTop: 0,
+  };
+  $("#views").append(view.messages);
+  views.add(view);
+  return view;
+}
+const viewFor = (id) => (id && [...views].find((view) => view.id === id)) || null;
+function setViewStatus(view, text = "", busy = false) {
+  view.statusText = text; view.statusBusy = busy;
+  if (view === current) setStatus(text, busy);
+}
+function setViewError(view, message) {
+  view.error = message;
+  if (view === current) showError(message);
+}
+
 // ── Transcript rendering ────────────────────────────────────────────────────
 const transcript = $("#transcript");
 const nearBottom = () => transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 80;
-function appendMessage(node, forceScroll = false) {
-  const stick = forceScroll || nearBottom();
-  $("#messages").append(node);
-  if (stick) transcript.scrollTop = transcript.scrollHeight;
+// Only the shown view scrolls; a hidden one restores its position when it is shown again.
+const sticks = (view) => view === current && nearBottom();
+const scrollToEnd = (stick) => { if (stick) transcript.scrollTop = transcript.scrollHeight; };
+function appendMessage(view, node, forceScroll = false) {
+  const stick = view === current && (forceScroll || nearBottom());
+  view.messages.append(node);
+  scrollToEnd(stick);
   return node;
 }
 const element = (tag, className, text) => {
@@ -31,11 +57,11 @@ const element = (tag, className, text) => {
 function renderMarkdown(node, text) {
   node.innerHTML = window.DOMPurify.sanitize(window.marked.parse(text || "", { gfm: true, breaks: false }));
 }
-const addUserMessage = (text, forceScroll = true) => appendMessage(element("div", "msg user", text), forceScroll);
-function addAgentMessage(text) {
+const addUserMessage = (view, text, forceScroll = true) => appendMessage(view, element("div", "msg user", text), forceScroll);
+function addAgentMessage(view, text) {
   const node = element("div", "msg agent markdown-body");
   renderMarkdown(node, text);
-  return appendMessage(node);
+  return appendMessage(view, node);
 }
 // Tool inputs arrive as a bounded JSON summary string; show its fields as "key: value" lines.
 const describeInput = (input) => {
@@ -47,16 +73,16 @@ const describeInput = (input) => {
 };
 // A run of tool calls between messages collapses into one "Tool calls: N" line; expanding it lists the calls.
 // While a group is the newest item, other activity lines (thinking, notices) join it so they do not split the run.
-const openToolGroup = () => {
-  const last = $("#messages").lastElementChild;
+const openToolGroup = (view) => {
+  const last = view.messages.lastElementChild;
   return last?.classList.contains("tool-group") ? last : null;
 };
-function addToolGroup() {
+function addToolGroup(view) {
   const group = element("details", "tool-group");
   const summary = element("summary");
   summary.append(element("span", "label"), element("span", "fail"));
   group.append(summary, element("div", "tool-list"));
-  return appendMessage(group);
+  return appendMessage(view, group);
 }
 function updateToolGroup(group) {
   if (!group) return;
@@ -65,73 +91,73 @@ function updateToolGroup(group) {
   group.querySelector(":scope > summary .label").textContent = t("toolCalls", { count: calls.length });
   group.querySelector(":scope > summary .fail").textContent = failed ? ` · ${t("toolsFailed", { count: failed })}` : "";
 }
-function addActivity(label, body, className = "", group = openToolGroup()) {
+function addActivity(view, label, body, className = "", group = openToolGroup(view)) {
   const details = element("details", `activity ${className}`.trim());
   const summary = element("summary");
   summary.append(element("span", "label", label));
   details.append(summary, element("pre", "", body || ""));
-  if (!group) return appendMessage(details);
-  const stick = nearBottom();
+  if (!group) return appendMessage(view, details);
+  const stick = sticks(view);
   group.querySelector(":scope > .tool-list").append(details);
-  if (stick) transcript.scrollTop = transcript.scrollHeight;
+  scrollToEnd(stick);
   return details;
 }
-function addToolCall(name, input, callId) {
+function addToolCall(view, name, input, callId) {
   const body = describeInput(input);
   const firstLine = body.split("\n")[0] || "";
-  const group = openToolGroup() || addToolGroup();
-  const node = addActivity(`${t("tool")} · ${name}${firstLine ? ` — ${firstLine}` : ""}`, body, "tool", group);
+  const group = openToolGroup(view) || addToolGroup(view);
+  const node = addActivity(view, `${t("tool")} · ${name}${firstLine ? ` — ${firstLine}` : ""}`, body, "tool", group);
   updateToolGroup(group);
-  if (callId) state.tools.set(callId, node);
+  if (callId) view.tools.set(callId, node);
   return node;
 }
-const addDivider = (text, className = "") => appendMessage(element("div", `divider ${className}`.trim(), text));
+const addDivider = (view, text, className = "") => appendMessage(view, element("div", `divider ${className}`.trim(), text));
 // Slash-command output: Markdown reports (/context) render as Markdown, plain text keeps its line layout.
-function addCommandOutput(text) {
+function addCommandOutput(view, text) {
   const node = element("div", "msg command-output");
   if (/^#{1,6} |\n\|/m.test(text)) { node.classList.add("markdown-body"); renderMarkdown(node, text); }
   else node.append(element("pre", "plain", text));
-  return appendMessage(node);
+  return appendMessage(view, node);
 }
-const addCommandMessage = (text, forceScroll) => { const node = addUserMessage(text, forceScroll); node.classList.add("command"); return node; };
+const addCommandMessage = (view, text, forceScroll) => { const node = addUserMessage(view, text, forceScroll); node.classList.add("command"); return node; };
 const formatTokens = (value) => value >= 1e6 ? `${+(value / 1e6).toFixed(1)}M` : value >= 1000 ? `${+(value / 1000).toFixed(1)}k` : String(value);
-function addCompacted(event = {}) {
+function addCompacted(view, event = {}) {
   const text = Number.isFinite(event.preTokens) && Number.isFinite(event.postTokens) ? t("compactedTokens", { before: formatTokens(event.preTokens), after: formatTokens(event.postTokens) }) : t("compacted");
-  addDivider(text, "compacted");
+  addDivider(view, text, "compacted");
 }
 // The summary the session continues from; collapsed, since it is long and rarely read.
-function addCompactSummary(text) {
-  if (!$("#messages").lastElementChild?.classList.contains("compacted")) addCompacted();
-  addActivity(t("compactSummary"), text, "compact-summary", null);
+function addCompactSummary(view, text) {
+  if (!view.messages.lastElementChild?.classList.contains("compacted")) addCompacted(view);
+  addActivity(view, t("compactSummary"), text, "compact-summary", null);
 }
 
-function startStream() {
-  state.stream = { node: addAgentMessage(""), text: "", frame: 0 };
-  state.stream.node.classList.add("streaming");
-  return state.stream;
+function startStream(view) {
+  view.stream = { node: addAgentMessage(view, ""), text: "", frame: 0 };
+  view.stream.node.classList.add("streaming");
+  return view.stream;
 }
-function renderStream() {
-  const stream = state.stream;
+function renderStream(view) {
+  const stream = view.stream;
   if (!stream || stream.frame) return;
   stream.frame = requestAnimationFrame(() => {
     stream.frame = 0;
-    const stick = nearBottom();
+    const stick = sticks(view);
     renderMarkdown(stream.node, stream.text);
-    if (stick) transcript.scrollTop = transcript.scrollHeight;
+    scrollToEnd(stick);
   });
 }
-function endStream() {
-  const stream = state.stream;
+function endStream(view) {
+  const stream = view.stream;
   if (!stream) return;
   if (stream.frame) cancelAnimationFrame(stream.frame);
   renderMarkdown(stream.node, stream.text);
   stream.node.classList.remove("streaming");
   if (!stream.text.trim()) stream.node.remove();
-  state.stream = null;
+  view.stream = null;
 }
 
 // Links in rendered Markdown: web links are routed by the host; local paths open as Persephone pages.
-$("#messages").addEventListener("click", (event) => {
+$("#views").addEventListener("click", (event) => {
   const link = event.target.closest?.("a[href]");
   if (!link) return;
   const href = link.getAttribute("href") || "";
@@ -140,7 +166,7 @@ $("#messages").addEventListener("click", (event) => {
   let target = href.replace(/^file:\/\/\/?/i, "");
   try { target = decodeURI(target); } catch { /* keep the raw href */ }
   const absolute = /^[a-z]:[\\/]/i.test(target) || target.startsWith("\\\\") || target.startsWith("/");
-  if (!absolute && state.activeCwd) target = `${state.activeCwd.replace(/[\\/]+$/, "")}\\${target.replace(/\//g, "\\")}`;
+  if (!absolute && current?.cwd) target = `${current.cwd.replace(/[\\/]+$/, "")}\\${target.replace(/\//g, "\\")}`;
   void Promise.resolve(persephone.openRawLink(target)).catch((error) => showError(error.message));
 });
 
@@ -160,7 +186,6 @@ const FOOTER_END = ["tokens", "turnCost", "sessionCost"];
 const statusBar = persephone.statusBar;
 const setChip = (id, text, patch = {}) => statusBar?.update(id, { text: text || "", hidden: !text, ...patch });
 function resetFooter() {
-  state.sessionCost = 0;
   statusBar?.set([
     ...FOOTER_START.map((id) => ({ id, type: "text", text: "", variant: "chip", hidden: true })),
     ...FOOTER_END.map((id) => ({ id, type: "text", text: "", variant: "chip", tone: "muted", align: "end", hidden: true })),
@@ -178,12 +203,17 @@ function updateFooter(status) {
     setChip(id, limit ? `${label} ${limit.percent}%` : "", { tone: percentTone(limit?.percent || 0), title: resetsTitle(t(id), limit?.resetsAt) });
   }
 }
-function updateFooterUsage(usage) {
+function updateFooterUsage(usage, sessionCost) {
   if (!usage) return;
-  if (Number.isFinite(usage.costUsd)) state.sessionCost += usage.costUsd;
   setChip("tokens", formatUsage({ ...usage, costUsd: undefined }), { title: t("lastTurnTokens") });
   setChip("turnCost", Number.isFinite(usage.costUsd) ? `$${usage.costUsd.toFixed(4)}` : "", { title: t("lastTurnCost") });
-  setChip("sessionCost", state.sessionCost ? `${t("session")} $${state.sessionCost.toFixed(2)}` : "", { title: t("sessionCost") });
+  setChip("sessionCost", sessionCost ? `${t("session")} $${sessionCost.toFixed(2)}` : "", { title: t("sessionCost") });
+}
+// The footer shows the view on screen; each view keeps its last status and usage.
+function renderFooter(view) {
+  resetFooter();
+  if (view.footer) updateFooter(view.footer);
+  updateFooterUsage(view.usage, view.sessionCost);
 }
 
 // ── Service channels ───────────────────────────────────────────────────────
@@ -234,12 +264,24 @@ async function consentSdk(accept) {
 }
 
 // ── Sidebar: recent sessions ───────────────────────────────────────────────
+// Relative to today by calendar day: today, yesterday, -N days, then whole months, then whole years.
 function formatWhen(iso) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  const today = new Date().toDateString() === date.toDateString();
-  return today ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : date.toLocaleDateString();
+  const now = new Date();
+  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(date.getFullYear(), date.getMonth(), date.getDate())) / 864e5);
+  if (days <= 0) return t("whenToday");
+  if (days === 1) return t("whenYesterday");
+  const months = (now.getFullYear() - date.getFullYear()) * 12 + now.getMonth() - date.getMonth() - (now.getDate() < date.getDate() ? 1 : 0);
+  if (months < 1) return t("whenDays", { count: days });
+  if (months < 12) return t(months === 1 ? "whenMonth" : "whenMonths", { count: months });
+  const years = Math.floor(months / 12);
+  return t(years === 1 ? "whenYear" : "whenYears", { count: years });
 }
+const formatWhenExact = (iso) => {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+};
 const folderName = (dir) => (dir || "").replace(/[\\/]+$/, "").split(/[\\/]/).pop() || dir || "";
 // Windows paths compare case-insensitively and with either slash.
 const folderKey = (dir) => (dir || "").replace(/\//g, "\\").replace(/[\\]+$/, "").toLowerCase();
@@ -267,8 +309,7 @@ function sessionGroups(rows) {
 }
 function renderSessions() {
   const list = $("#session-list");
-  const filter = $("#session-filter").value.trim().toLowerCase();
-  const rows = state.sessions.filter((item) => !filter || item.title.toLowerCase().includes(filter) || item.cwd.toLowerCase().includes(filter));
+  const rows = state.sessions;
   list.replaceChildren();
   if (!rows.length) {
     // sdkInstalled is null until the first describe reply; say nothing rather than guess.
@@ -276,17 +317,19 @@ function renderSessions() {
     return;
   }
   const groups = sessionGroups(rows);
-  if (!folderTreeSeeded && !filter) { folderTreeSeeded = true; expandedFolders.add(groups[0].key); }
+  if (!folderTreeSeeded) { folderTreeSeeded = true; expandedFolders.add(groups[0].key); }
   for (const group of groups) {
-    // A filter shows every match, so it expands all folders.
-    const expanded = Boolean(filter) || expandedFolders.has(group.key);
+    const expanded = expandedFolders.has(group.key);
     const folder = element("div", `folder${expanded ? " expanded" : ""}`);
     const head = element("div", "folder-head");
     head.title = group.cwd;
     const toggle = element("button", "folder-toggle");
     toggle.type = "button";
     toggle.setAttribute("aria-expanded", String(expanded));
-    toggle.append(element("span", "caret", "▸"), element("span", "folder-name", folderName(group.cwd)), element("span", "count", String(group.sessions.length)));
+    toggle.append(element("span", "caret", "▸"), element("span", "folder-name", folderName(group.cwd)));
+    // A collapsed folder still shows that one of its sessions is running.
+    const running = group.sessions.map((item) => viewFor(item.id)).filter((view) => view?.channel);
+    if (running.length && !expanded) toggle.append(element("span", `session-dot live${running.some((view) => view.busy) ? " busy" : ""}`));
     toggle.addEventListener("click", () => {
       if (expandedFolders.has(group.key)) expandedFolders.delete(group.key); else expandedFolders.add(group.key);
       renderSessions();
@@ -294,15 +337,19 @@ function renderSessions() {
     const add = element("button", "folder-new", "+");
     add.type = "button";
     add.title = t("newSessionHere");
-    add.addEventListener("click", () => { showNewSession(); $("#cwd").value = group.cwd; prompt.focus(); });
-    head.append(toggle, add);
+    add.addEventListener("click", () => { showNewSession(group.cwd); prompt.focus(); });
+    // The count comes last so the + button sits just before it.
+    head.append(toggle, add, element("span", "count", String(group.sessions.length)));
     folder.append(head);
     if (expanded) {
       for (const item of group.sessions) {
-        const button = element("button", `session-item${item.id === state.activeId ? " active" : ""}`);
+        const view = viewFor(item.id);
+        const button = element("button", `session-item${item.id && item.id === current?.id ? " active" : ""}${view?.unread ? " unread" : ""}`);
         button.type = "button";
-        button.title = item.title;
-        button.append(element("span", "title", item.title), element("span", "when", formatWhen(item.updatedAt)));
+        // Gray: not running. Green: the board runs it (pulsing while Claude works).
+        const dotState = view?.channel ? (view.busy ? "live busy" : "live") : "";
+        button.title = [item.title, formatWhenExact(item.updatedAt), t(view?.channel ? (view.busy ? "sessionWorking" : "sessionLive") : "sessionIdle")].filter(Boolean).join("\n");
+        button.append(element("span", `session-dot ${dotState}`.trim()), element("span", "title", item.title), element("span", "when", formatWhen(item.updatedAt)));
         button.addEventListener("click", () => void openStoredSession(item));
         button.addEventListener("contextmenu", (event) => { event.preventDefault(); openSessionMenu(item, event.clientX, event.clientY); });
         folder.append(button);
@@ -317,6 +364,7 @@ const sessionMenu = $("#session-menu");
 let menuItem = null;
 function openSessionMenu(item, x, y) {
   menuItem = item;
+  sessionMenu.querySelector("[data-action=disconnect]").classList.toggle("hidden", !viewFor(item.id)?.channel);
   sessionMenu.classList.remove("hidden");
   const { width, height } = sessionMenu.getBoundingClientRect();
   sessionMenu.style.left = `${Math.min(x, window.innerWidth - width - 4)}px`;
@@ -334,6 +382,7 @@ sessionMenu.addEventListener("click", (event) => {
   closeSessionMenu();
   if (item && action === "rename") void renameSession(item);
   if (item && action === "delete") void deleteSession(item);
+  if (item && action === "disconnect") { const view = viewFor(item.id); if (view) disconnect(view); }
 });
 
 // Modal dialog; resolves with the input text (or "" without one) on confirm, null on cancel.
@@ -369,13 +418,15 @@ async function renameSession(item) {
   if (!title || title === item.title) return;
   if (!(await manageSession(item, "rename", title))) return;
   item.title = title;
-  if (item.id === state.activeId) state.activeTitle = title;
+  const view = viewFor(item.id);
+  if (view) view.title = title;
   renderSessions();
 }
 async function deleteSession(item) {
   const answer = await askDialog({ title: t("deleteSession"), message: t("deleteConfirm", { title: item.title }), confirmLabel: t("delete"), danger: true });
   if (answer === null) return;
-  if (item.id === state.activeId) showNewSession();
+  const view = viewFor(item.id);
+  if (view) { if (view === current) showNewSession(); dropView(view); }
   if (!(await manageSession(item, "delete"))) return;
   state.sessions = state.sessions.filter((row) => row.id !== item.id);
   renderSessions();
@@ -417,41 +468,37 @@ async function refreshSessions() {
   const { message } = await discovery({ type: "list-sessions" });
   if (message?.type === "sessions") {
     state.sessions = [...message.sessions].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
-    const active = state.sessions.find((item) => item.id === state.activeId);
-    if (active) state.activeTitle = active.title;
+    for (const item of state.sessions) { const view = viewFor(item.id); if (view) view.title = item.title; }
   } else if (message?.type === "error") showError(`${message.code}: ${message.message}`);
   renderSessions();
 }
 
-// ── Session lifecycle ──────────────────────────────────────────────────────
-function resetTranscript() {
-  endStream(); resetFooter();
-  $("#messages").replaceChildren();
-  state.tools.clear(); state.thinkingNode = null; state.lastText = "";
-}
-// ── Page toolbar: New session at the start, the session folder in the text slot, live-session actions on the right ──
+// ── Page toolbar: the session folder in the text slot, every button on the right ──
 // Toolbar controls cannot be hidden, so the catalog is re-declared only when its shape changes.
 let toolbarShape = "";
 function updateToolbar() {
-  const interruptible = Boolean(state.channel) && state.busy;
+  const interruptible = Boolean(current?.channel) && current.busy;
   if (String(interruptible) !== toolbarShape) {
     toolbarShape = String(interruptible);
     persephone.toolbar.set([
-      { id: "new-session", type: "button", placement: "start", label: t("newSession"), icon: { name: "plus" } },
+      // Interrupt comes first, so the buttons after it keep their place when it appears.
       ...(interruptible ? [{ id: "interrupt", type: "button", label: t("interrupt"), icon: { name: "stop" } }] : []),
+      { id: "new-session", type: "button", label: t("newSession"), icon: { name: "plus" } },
+      { id: "refresh-sessions", type: "button", title: t("refresh"), icon: { name: "refresh" } },
       { id: "instructions", type: "button", label: t("instructions"), icon: { name: "edit" } },
     ]);
   }
-  persephone.toolbar.setText(state.activeCwd);
+  persephone.toolbar.setText(current?.cwd || "");
 }
 persephone.toolbar.onAction(({ id }) => {
   if (id === "new-session") showNewSession();
-  else if (id === "interrupt" && state.channel) void channelSend(state.channel, { type: "interrupt" });
+  else if (id === "refresh-sessions") void refreshSessions();
+  else if (id === "interrupt" && current?.channel) void channelSend(current.channel, { type: "interrupt" });
   else if (id === "instructions") void editInstructions();
 });
 function updateControls() {
-  $("#intro").classList.toggle("hidden", Boolean(state.activeId) || Boolean(state.channel));
-  $("#send").disabled = state.busy;
+  $("#intro").classList.toggle("hidden", Boolean(current?.id || current?.channel));
+  $("#send").disabled = Boolean(current?.busy);
   updateToolbar();
 }
 
@@ -474,51 +521,84 @@ async function editInstructions() {
 }
 // Reset only fills the editor; nothing is stored until Save.
 $("#instructions-reset").addEventListener("click", () => { $("#instructions-text").value = instructionsDefault; $("#instructions-text").focus(); });
-function detachChannel() {
-  stopFollow();
-  const channel = state.channel;
-  state.channel = null; state.busy = false; state.pendingPrompt = "";
-  endLive();
-  if (channel) { try { channel.close(); } catch { /* already closed */ } }
+// ── Session lifecycle ──────────────────────────────────────────────────────
+// A live view is one whose channel the service has started; panels wait for it.
+function endLive(view) {
+  view.live = false;
+  for (const resolve of view.liveWaiters.splice(0)) resolve(false);
+  for (const [id, pending] of view.controls) { clearTimeout(pending.timer); pending.reject(new Error(t("closed"))); view.controls.delete(id); }
 }
-// A live session is one the board's own channel has started; panels wait for it.
-function endLive() {
-  state.live = false;
-  for (const resolve of state.liveWaiters.splice(0)) resolve(false);
-  for (const [id, pending] of state.controls) { clearTimeout(pending.timer); pending.reject(new Error(t("closed"))); state.controls.delete(id); }
+const closeChannel = (channel) => { if (channel) { try { channel.close(); } catch { /* already closed */ } } };
+// Ends the board's Claude process for this view; the transcript stays on screen and is followed again.
+function disconnect(view) {
+  const channel = view.channel;
+  view.channel = null; view.busy = false; view.pendingPrompt = "";
+  endStream(view); endLive(view); closeChannel(channel);
+  setViewStatus(view);
+  if (view === current) { updateControls(); void startFollow(view); }
+  else dropView(view);
+  renderSessions();
+}
+function dropView(view) {
+  stopFollow(view);
+  const channel = view.channel;
+  view.channel = null; view.historyToken++;
+  endStream(view); endLive(view); closeChannel(channel);
+  view.messages.remove();
+  views.delete(view);
+}
+// Shows a view. The one it replaces keeps running if it is live; otherwise it is dropped.
+function showView(view) {
+  if (current === view) return;
+  const previous = current;
+  if (previous) {
+    previous.draft = prompt.textContent;
+    previous.stick = nearBottom(); previous.scrollTop = transcript.scrollTop;
+    previous.messages.classList.add("hidden");
+    stopFollow(previous);
+    if (!previous.channel) dropView(previous);
+  }
+  current = view;
+  view.unread = false;
+  view.messages.classList.remove("hidden");
+  prompt.textContent = view.draft; hideCommandMenu();
+  showError(view.error); setStatus(view.statusText, view.statusBusy); renderFooter(view);
+  // The first view (the form shown at load) must not overwrite the session the page is about to restore.
+  if (previous) rememberSession();
+  updateControls(); renderSessions();
+  transcript.scrollTop = view.stick ? transcript.scrollHeight : view.scrollTop;
 }
 
-// ── Live view: while the board is not connected to the selected session, show turns that another process
+// ── Live view: while the board does not run the shown session, show turns that another process
 // (a terminal Claude Code, another board) appends to its transcript. Connecting stops it; the board's own
 // channel streams those turns instead.
-function appendEntries(entries) {
+function appendEntries(view, entries) {
   for (const entry of entries || []) {
     const suffix = entry.truncated ? ` ${t("truncated")}` : "";
-    if (entry.role === "user") addUserMessage(entry.text + suffix, false);
-    else if (entry.role === "agent") addAgentMessage(entry.text + suffix);
-    else if (entry.role === "tool") addToolCall(entry.name, entry.input);
-    else if (entry.role === "command") addCommandMessage(entry.text, false);
-    else if (entry.role === "command-output") addCommandOutput(entry.text + suffix);
-    else if (entry.role === "compacted") addCompacted();
-    else if (entry.role === "compact") addCompactSummary(entry.text + suffix);
+    if (entry.role === "user") addUserMessage(view, entry.text + suffix, false);
+    else if (entry.role === "agent") addAgentMessage(view, entry.text + suffix);
+    else if (entry.role === "tool") addToolCall(view, entry.name, entry.input);
+    else if (entry.role === "command") addCommandMessage(view, entry.text, false);
+    else if (entry.role === "command-output") addCommandOutput(view, entry.text + suffix);
+    else if (entry.role === "compacted") addCompacted(view);
+    else if (entry.role === "compact") addCompactSummary(view, entry.text + suffix);
   }
 }
-function stopFollow() {
-  const channel = state.follow;
-  state.follow = null;
-  if (channel) { try { channel.close(); } catch { /* already closed */ } }
+function stopFollow(view) {
+  const channel = view.follow;
+  view.follow = null;
+  closeChannel(channel);
 }
-async function startFollow() {
-  stopFollow();
-  const sessionId = state.activeId;
-  if (!sessionId || state.channel) return;
-  const channel = await persephone.service.openChannel({ type: "follow-session", sessionId });
-  if (state.activeId !== sessionId || state.channel || state.follow) { try { channel.close(); } catch { /* closed */ } return; }
-  state.follow = channel;
-  channel.onMessage((message) => { if (state.follow === channel && message.type === "history") appendEntries(message.entries); });
+async function startFollow(view) {
+  stopFollow(view);
+  if (!view.id || view.channel || view !== current) return;
+  const channel = await persephone.service.openChannel({ type: "follow-session", sessionId: view.id });
+  if (view !== current || view.channel || view.follow || !views.has(view)) { closeChannel(channel); return; }
+  view.follow = channel;
+  channel.onMessage((message) => { if (view.follow === channel && message.type === "history") appendEntries(view, message.entries); });
   channel.onClose((reason) => {
-    if (state.follow !== channel) return;
-    state.follow = null;
+    if (view.follow !== channel) return;
+    view.follow = null;
     if (reason?.code === "session-deleted") void refreshSessions();
   });
 }
@@ -535,54 +615,60 @@ async function watchSessionList() {
   const channel = await persephone.service.openChannel({ type: "watch-sessions" });
   channel.onMessage((message) => { if (message.type === "sessions-changed") void refreshFromWatch(); });
 }
-// The selected session is restorable page state, so the page reopens it after a reload, a restart, or a move to another window.
-const rememberSession = () => persephone.state.merge({ session: state.activeId ? { id: state.activeId, cwd: state.activeCwd } : null });
-function showNewSession() {
-  detachChannel();
-  state.activeId = ""; state.activeCwd = ""; state.activeTitle = ""; state.historyToken++;
-  rememberSession();
-  resetTranscript(); showError("");
-  setStatus();
-  $("#session-name").value = t("defaultSessionName");
-  updateControls(); renderSessions();
+// The shown session is restorable page state, so the page reopens it after a reload, a restart, or a move to another window.
+const rememberSession = () => persephone.state.merge({ session: current?.id ? { id: current.id, cwd: current.cwd } : null });
+// Shows the New session form; a form already open (and not yet started) is reused.
+function showNewSession(cwd = "") {
+  if (!current || current.id || current.channel) {
+    showView(createView());
+    $("#session-name").value = t("defaultSessionName");
+  }
+  if (cwd) $("#cwd").value = cwd;
   $("#cwd").focus();
 }
-async function loadHistory(item) {
-  const token = ++state.historyToken;
-  setStatus(t("loadingHistory"), true);
-  const channel = await persephone.service.openChannel({ type: "session-history", sessionId: item.id, cwd: item.cwd });
+async function loadHistory(view) {
+  const token = ++view.historyToken;
+  setViewStatus(view, t("loadingHistory"), true);
+  const channel = await persephone.service.openChannel({ type: "session-history", sessionId: view.id, cwd: view.cwd });
   await new Promise((resolve) => {
     channel.onMessage((message) => {
-      if (token !== state.historyToken) return;
-      if (message.type === "error") { showError(`${message.code}: ${message.message}`); return; }
-      if (message.type === "history") appendEntries(message.entries);
+      if (token !== view.historyToken) return;
+      if (message.type === "error") { setViewError(view, `${message.code}: ${message.message}`); return; }
+      if (message.type === "history") appendEntries(view, message.entries);
     });
     channel.onClose(resolve);
   });
-  if (token !== state.historyToken) return false;
-  setStatus();
-  transcript.scrollTop = transcript.scrollHeight;
+  if (token !== view.historyToken) return false;
+  setViewStatus(view);
+  view.stick = true;
+  if (view === current) transcript.scrollTop = transcript.scrollHeight;
   return true;
 }
 // Selecting a session shows it live; the board resumes it (a Claude process of its own) only when you send from here.
 async function openStoredSession(item) {
-  if (item.id === state.activeId && (state.channel || state.follow)) return;
-  detachChannel();
-  state.activeId = item.id; state.activeCwd = item.cwd; state.activeTitle = item.title;
-  expandedFolders.add(folderKey(item.cwd)); rememberSession();
-  resetTranscript(); showError("");
-  updateControls(); renderSessions();
-  if (!(await loadHistory(item))) return;
-  await startFollow();
+  const existing = viewFor(item.id);
+  if (existing) {
+    if (existing === current) return;
+    showView(existing);
+    if (!existing.channel) await startFollow(existing);
+    return;
+  }
+  const view = createView(item);
+  expandedFolders.add(folderKey(item.cwd));
+  showView(view);
+  if (!(await loadHistory(view))) return;
+  await startFollow(view);
 }
-async function connect(resume) {
-  showError("");
-  const cwd = resume ? state.activeCwd : $("#cwd").value.trim();
-  if (!cwd) { showError(t("cwdRequired")); return false; }
-  if (!state.sdkInstalled) { $("#consent").classList.remove("hidden"); showError(t("consentRequired")); return false; }
-  stopFollow();
+async function connect(view) {
+  setViewError(view, "");
+  const resume = view.id || undefined;
+  const cwd = resume ? view.cwd : $("#cwd").value.trim();
+  if (!cwd) { setViewError(view, t("cwdRequired")); return false; }
+  if (!state.sdkInstalled) { $("#consent").classList.remove("hidden"); setViewError(view, t("consentRequired")); return false; }
+  stopFollow(view);
   const effort = $("#effort").value;
   const title = resume ? "" : $("#session-name").value.trim();
+  if (!resume) view.title = title || view.pendingPrompt.split("\n")[0].slice(0, 120) || t("newSession");
   const open = {
     type: "open", contractVersion: 1, model: $("#model").value, cwd,
     // Required by the agent.session contract; the service runs local page sessions unrestricted anyway.
@@ -592,65 +678,66 @@ async function connect(resume) {
     ...(title ? { title } : {}),
     ...(resume ? { resume } : {}),
   };
-  setStatus(t("connecting"), true);
+  setViewStatus(view, t("connecting"), true);
   const channel = await persephone.service.openChannel(open);
-  state.channel = channel; state.activeCwd = cwd;
-  channel.onMessage((event) => { if (state.channel === channel) handleEvent(event); });
+  view.channel = channel; view.cwd = cwd;
+  channel.onMessage((event) => { if (view.channel === channel) handleEvent(view, event); });
   channel.onClose((reason) => {
-    if (state.channel !== channel) return;
-    state.channel = null; state.busy = false; endStream(); endLive();
-    setStatus(`${t("closed")}: ${reason?.code || "channel-closed"}`);
-    updateControls();
-    void startFollow();
+    if (view.channel !== channel) return;
+    view.channel = null; view.busy = false; view.pendingPrompt = "";
+    endStream(view); endLive(view);
+    setViewStatus(view, `${t("closed")}: ${reason?.code || "channel-closed"}`);
+    if (view === current) { updateControls(); void startFollow(view); }
+    else view.unread = true;
+    renderSessions();
   });
-  updateControls();
+  updateControls(); renderSessions();
   return true;
 }
-function handleEvent(event) {
+function handleEvent(view, event) {
   switch (event.type) {
     case "session-started": {
-      const isNew = !state.activeId;
-      state.activeId = event.sessionId; rememberSession();
+      view.id = event.sessionId;
+      if (view === current) rememberSession();
       // Keep the open session visible in the tree.
-      expandedFolders.add(folderKey(state.activeCwd));
-      if (isNew) state.activeTitle = $("#session-name").value.trim() || state.pendingPrompt.split("\n")[0].slice(0, 120) || t("newSession");
-      setStatus(); updateControls(); renderSessions();
-      state.live = true;
-      for (const resolve of state.liveWaiters.splice(0)) resolve(true);
-      void refreshCommands();
-      if (state.pendingPrompt) { const text = state.pendingPrompt; state.pendingPrompt = ""; void sendPrompt(text); }
+      expandedFolders.add(folderKey(view.cwd));
+      setViewStatus(view); updateControls(); renderSessions();
+      view.live = true;
+      for (const resolve of view.liveWaiters.splice(0)) resolve(true);
+      void refreshCommands(view);
+      if (view.pendingPrompt) { const text = view.pendingPrompt; view.pendingPrompt = ""; void sendPrompt(view, text); }
       break;
     }
     case "control-result": {
-      const pending = state.controls.get(event.id);
+      const pending = view.controls.get(event.id);
       if (!pending) break;
-      state.controls.delete(event.id); clearTimeout(pending.timer);
+      view.controls.delete(event.id); clearTimeout(pending.timer);
       if (event.ok) pending.resolve(event); else pending.reject(new Error(event.message || t("error")));
       break;
     }
-    case "compacted": endStream(); addCompacted(event); break;
-    case "compact-summary": addCompactSummary(event.text); break;
-    case "session-status": updateFooter(event); break;
-    case "turn-started": state.busy = true; setStatus(t("working"), true); updateControls(); break;
+    case "compacted": endStream(view); addCompacted(view, event); break;
+    case "compact-summary": addCompactSummary(view, event.text); break;
+    case "session-status": view.footer = event; if (view === current) updateFooter(event); break;
+    case "turn-started": view.busy = true; setViewStatus(view, t("working"), true); updateControls(); renderSessions(); break;
     case "text-delta":
-      state.thinkingNode = null;
-      (state.stream || startStream()).text += `${event.text || ""}${event.truncated ? ` ${t("truncated")}` : ""}`;
-      renderStream();
+      view.thinkingNode = null;
+      (view.stream || startStream(view)).text += `${event.text || ""}${event.truncated ? ` ${t("truncated")}` : ""}`;
+      renderStream(view);
       break;
     case "text":
-      if (event.synthetic && state.commandTurn) { if (event.text) addCommandOutput(event.text); break; }
-      if (event.text && !(state.stream?.text.includes(event.text)) && event.text !== state.lastText) addAgentMessage(`${event.text}${event.truncated ? ` ${t("truncated")}` : ""}`);
-      state.lastText = event.text || state.lastText;
+      if (event.synthetic && view.commandTurn) { if (event.text) addCommandOutput(view, event.text); break; }
+      if (event.text && !(view.stream?.text.includes(event.text)) && event.text !== view.lastText) addAgentMessage(view, `${event.text}${event.truncated ? ` ${t("truncated")}` : ""}`);
+      view.lastText = event.text || view.lastText;
       break;
     case "thinking-delta":
-      if (!event.text?.trim() && !state.thinkingNode) break;
-      endStream();
-      if (!state.thinkingNode) state.thinkingNode = addActivity(t("thinking"), "", "thinking");
-      state.thinkingNode.querySelector("pre").append(document.createTextNode(event.text));
+      if (!event.text?.trim() && !view.thinkingNode) break;
+      endStream(view);
+      if (!view.thinkingNode) view.thinkingNode = addActivity(view, t("thinking"), "", "thinking");
+      view.thinkingNode.querySelector("pre").append(document.createTextNode(event.text));
       break;
-    case "tool-call": endStream(); state.thinkingNode = null; addToolCall(event.name, event.input, event.callId); break;
+    case "tool-call": endStream(view); view.thinkingNode = null; addToolCall(view, event.name, event.input, event.callId); break;
     case "tool-result": {
-      const node = state.tools.get(event.callId);
+      const node = view.tools.get(event.callId);
       const mark = element("span", event.ok === false ? "fail" : "ok", event.ok === false ? " ✗" : " ✓");
       if (node) {
         // tool_progress also arrives as ok results; keep a single status mark per call.
@@ -658,36 +745,43 @@ function handleEvent(event) {
         node.querySelector("summary").append(mark);
         updateToolGroup(node.closest(".tool-group"));
         if (event.ok === false && event.summary) node.querySelector("pre").append(document.createTextNode(`\n${event.summary}`));
-      } else if (event.ok === false) addActivity(`${t("tool")} ✗`, event.summary || "");
+      } else if (event.ok === false) addActivity(view, `${t("tool")} ✗`, event.summary || "");
       break;
     }
-    case "file-change": addActivity(`${t("file")} · ${event.kind} — ${event.path}`, event.path); break;
+    case "file-change": addActivity(view, `${t("file")} · ${event.kind} — ${event.path}`, event.path); break;
     case "turn-ended": {
-      endStream();
-      state.busy = false; state.lastText = ""; state.thinkingNode = null; state.commandTurn = false;
-      setStatus(); updateControls();
-      updateFooterUsage(event.usage);
-      if (event.reason && event.reason !== "completed") addDivider(event.reason);
+      endStream(view);
+      view.busy = false; view.lastText = ""; view.thinkingNode = null; view.commandTurn = false;
+      // A session that finished while another one is shown is marked in the sidebar until you open it.
+      if (view !== current) view.unread = true;
+      setViewStatus(view); updateControls();
+      if (event.usage) {
+        if (Number.isFinite(event.usage.costUsd)) view.sessionCost += event.usage.costUsd;
+        view.usage = event.usage;
+        if (view === current) updateFooterUsage(view.usage, view.sessionCost);
+      }
+      if (event.reason && event.reason !== "completed") addDivider(view, event.reason);
+      renderSessions();
       void refreshSessions(); void refreshDescription();
       break;
     }
     case "error":
-      showError(`${event.code}: ${event.message}`);
-      if (event.fatal) setStatus(t("error"));
+      setViewError(view, `${event.code}: ${event.message}`);
+      if (event.fatal) setViewStatus(view, t("error"));
       if (event.code === "sdk-not-installed") { state.sdkInstalled = false; $("#consent").classList.remove("hidden"); }
       break;
     case "notice":
       // The footer already shows the model the service picked.
       if (/^Claude selected model /.test(event.message)) break;
-      if (/^Claude is compacting /.test(event.message)) { setStatus(t("compacting"), true); break; }
-      addActivity(`${t("notice")} · ${event.message.split("\n")[0]}`, event.detail || event.message); break;
+      if (/^Claude is compacting /.test(event.message)) { setViewStatus(view, t("compacting"), true); break; }
+      addActivity(view, `${t("notice")} · ${event.message.split("\n")[0]}`, event.detail || event.message); break;
   }
 }
-async function sendPrompt(text) {
-  state.commandTurn = text.startsWith("/");
-  if (state.commandTurn) addCommandMessage(text); else addUserMessage(text);
-  try { await channelSend(state.channel, { type: "send", id: crypto.randomUUID(), text }); }
-  catch (error) { showError(error.message); }
+async function sendPrompt(view, text) {
+  view.commandTurn = text.startsWith("/");
+  if (view.commandTurn) addCommandMessage(view, text); else addUserMessage(view, text);
+  try { await channelSend(view.channel, { type: "send", id: crypto.randomUUID(), text }); }
+  catch (error) { setViewError(view, error.message); }
 }
 
 // ── Composer ───────────────────────────────────────────────────────────────
@@ -702,20 +796,33 @@ prompt.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); $("#composer").requestSubmit(); }
 });
 prompt.addEventListener("blur", hideCommandMenu);
+// The composer floats over the transcript; the transcript's bottom padding follows its height (it grows with
+// the text and the status line), and a transcript scrolled to the end stays there. Watching the messages too
+// catches the scrollbar appearing, so the composer stays aligned with them.
+const composerLayout = new ResizeObserver(() => {
+  const stick = nearBottom();
+  transcript.style.setProperty("--composer-space", `${$("#composer").offsetHeight + 32}px`);
+  $("#composer").style.setProperty("--scrollbar", `${transcript.offsetWidth - transcript.clientWidth}px`);
+  scrollToEnd(stick);
+});
+composerLayout.observe($("#composer"));
+composerLayout.observe($("#views"));
 $("#composer").addEventListener("submit", async (event) => {
   event.preventDefault();
+  const view = current;
   const text = promptText().trim();
   hideCommandMenu();
   const boardCommand = text && boardCommandFor(text);
   if (boardCommand) { clearPrompt(); await boardCommand(); return; }
-  if (!text || state.busy || state.pendingPrompt) return;
-  if (state.channel) { clearPrompt(); await sendPrompt(text); return; }
-  // No live channel: start a new session from the form, or resume the selected one, then send.
-  state.pendingPrompt = text;
+  if (!text || view.busy || view.pendingPrompt) return;
+  clearPrompt();
+  if (view.channel) { await sendPrompt(view, text); return; }
+  // Not running yet: start a new session from the form, or resume the shown one, then send.
+  view.pendingPrompt = text;
+  const restore = () => { view.pendingPrompt = ""; if (view === current && !promptText()) setPrompt(text); else view.draft ||= text; };
   try {
-    if (!(await connect(state.activeId || undefined))) { state.pendingPrompt = ""; setStatus(); return; }
-    clearPrompt();
-  } catch (error) { state.pendingPrompt = ""; showError(error.message); setStatus(t("error")); }
+    if (!(await connect(view))) { restore(); setViewStatus(view); }
+  } catch (error) { restore(); setViewError(view, error.message); setViewStatus(view, t("error")); }
 });
 
 // ── Slash commands ─────────────────────────────────────────────────────────
@@ -732,9 +839,9 @@ const BOARD_COMMANDS = {
 };
 state.commands = prefs.read("commands", []);
 // The list is cached from the last live session so the menu also works before the board connects.
-async function refreshCommands() {
+async function refreshCommands(view) {
   try {
-    const { commands } = await control("commands");
+    const { commands } = await control(view, "commands");
     state.commands = commands || [];
     prefs.write("commands", state.commands);
   } catch { /* keep the cached list */ }
@@ -814,24 +921,24 @@ function commandMenuKey(event) {
 
 // Session controls go over the live channel and are answered by a control-result with the same id.
 let controlSeq = 0;
-function control(action, args = {}) {
-  const channel = state.channel;
-  if (!channel || !state.live) return Promise.reject(new Error(t("noLiveSession")));
+function control(view, action, args = {}) {
+  const channel = view.channel;
+  if (!channel || !view.live) return Promise.reject(new Error(t("noLiveSession")));
   const id = `control-${++controlSeq}`;
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { state.controls.delete(id); reject(new Error(t("controlTimeout"))); }, 120000);
-    state.controls.set(id, { resolve, reject, timer });
-    channelSend(channel, { type: "control", id, action, ...args }).catch((error) => { state.controls.delete(id); clearTimeout(timer); reject(error); });
+    const timer = setTimeout(() => { view.controls.delete(id); reject(new Error(t("controlTimeout"))); }, 120000);
+    view.controls.set(id, { resolve, reject, timer });
+    channelSend(channel, { type: "control", id, action, ...args }).catch((error) => { view.controls.delete(id); clearTimeout(timer); reject(error); });
   });
 }
-// Panels need a session the board runs: a selected stored session is resumed, the New session form starts one.
-async function ensureLive() {
-  if (state.channel && state.live) return true;
-  if (!state.channel) {
-    try { if (!(await connect(state.activeId || undefined))) return false; }
-    catch (error) { showError(error.message); return false; }
+// Panels need a session the board runs: a shown stored session is resumed, the New session form starts one.
+async function ensureLive(view) {
+  if (view.channel && view.live) return true;
+  if (!view.channel) {
+    try { if (!(await connect(view))) return false; }
+    catch (error) { setViewError(view, error.message); return false; }
   }
-  return new Promise((resolve) => state.liveWaiters.push(resolve));
+  return new Promise((resolve) => view.liveWaiters.push(resolve));
 }
 
 const panelDialog = $("#panel-dialog");
@@ -843,13 +950,15 @@ function openPanel(title) {
   const body = $("#panel-body");
   body.replaceChildren(element("p", "muted", t("loading")));
   if (!panelDialog.open) panelDialog.showModal();
-  return { body, current: () => token === panelToken && panelDialog.open };
+  return { body, view: current, current: () => token === panelToken && panelDialog.open };
 }
 const panelError = (body, error) => body.replaceChildren(element("p", "panel-error", error?.message || String(error)));
+// The panel acts on the view shown when it opened; action and render receive it.
 async function loadPanel(title, action, render) {
   const panel = openPanel(title);
-  if (!(await ensureLive())) { if (panel.current()) panelError(panel.body, $("#error").textContent || t("noLiveSession")); return null; }
-  try { const result = await action(); if (panel.current()) render(panel.body, result); }
+  const view = panel.view;
+  if (!(await ensureLive(view))) { if (panel.current()) panelError(panel.body, view.error || t("noLiveSession")); return null; }
+  try { const result = await action(view); if (panel.current()) render(view, panel.body, result); }
   catch (error) { if (panel.current()) panelError(panel.body, error); }
   return panel;
 }
@@ -859,15 +968,15 @@ async function loadPanel(title, action, render) {
 const MCP_REFRESH_MS = 3000;
 let mcpActionRunning = false;
 async function showMcpPanel() {
-  const panel = await loadPanel(t("mcpServers"), () => control("mcp-status"), renderMcp);
+  const panel = await loadPanel(t("mcpServers"), (view) => control(view, "mcp-status"), renderMcp);
   while (panel?.current()) {
     await new Promise((resolve) => setTimeout(resolve, MCP_REFRESH_MS));
-    if (!panel.current() || mcpActionRunning || !state.live) continue;
-    try { const result = await control("mcp-status"); if (panel.current() && !mcpActionRunning) renderMcp(panel.body, result); }
+    if (!panel.current() || mcpActionRunning || !panel.view.live) continue;
+    try { const result = await control(panel.view, "mcp-status"); if (panel.current() && !mcpActionRunning) renderMcp(panel.view, panel.body, result); }
     catch { /* keep the last list */ }
   }
 }
-function renderMcp(body, { servers = [] }) {
+function renderMcp(view, body, { servers = [] }) {
   // Keep expanded tool lists and action messages across refreshes.
   const expanded = new Set([...body.querySelectorAll(".mcp-tools[open]")].map((node) => node.dataset.server));
   const messages = [...body.querySelectorAll(":scope > .panel-error, :scope > .mcp-notice")];
@@ -888,7 +997,7 @@ function renderMcp(body, { servers = [] }) {
     } catch (error) { message = element("p", "panel-error", error.message); }
     finally { mcpActionRunning = false; }
     body.replaceChildren(...(message ? [message] : []));
-    renderMcp(body, result);
+    renderMcp(view, body, result);
   };
   for (const server of servers) {
     const row = element("div", "mcp-server");
@@ -902,10 +1011,10 @@ function renderMcp(body, { servers = [] }) {
       button.addEventListener("click", run(button, request));
       actions.append(button);
     };
-    if (server.status === "needs-auth") action(t("authenticate"), () => control("mcp-authenticate", { server: server.name }));
-    if (server.status !== "disabled") action(t("reconnect"), () => control("mcp-reconnect", { server: server.name }));
+    if (server.status === "needs-auth") action(t("authenticate"), () => control(view, "mcp-authenticate", { server: server.name }));
+    if (server.status !== "disabled") action(t("reconnect"), () => control(view, "mcp-reconnect", { server: server.name }));
     const disabled = server.status === "disabled";
-    action(disabled ? t("enable") : t("disable"), () => control("mcp-toggle", { server: server.name, enabled: disabled }));
+    action(disabled ? t("enable") : t("disable"), () => control(view, "mcp-toggle", { server: server.name, enabled: disabled }));
     head.append(actions);
     row.append(head);
     const meta = [server.scope && t("mcpScope", { scope: server.scope }), server.transport, server.host, server.info].filter(Boolean).join(" · ");
@@ -926,13 +1035,13 @@ function renderMcp(body, { servers = [] }) {
 // /model and /effort — the session's model list; effort runs as an /effort command, which the CLI applies.
 async function showModelPanel() {
   // On the New session form the model and effort pickers are right there.
-  if (!state.channel && !state.activeId) { $("#model").focus(); return; }
-  await loadPanel(t("modelEffort"), () => control("models"), renderModelPanel);
+  if (!current.channel && !current.id) { $("#model").focus(); return; }
+  await loadPanel(t("modelEffort"), (view) => control(view, "models"), renderModelPanel);
 }
-function renderModelPanel(body, { models = [], current = "default", effort = "" }) {
+function renderModelPanel(view, body, { models = [], current: selected = "default", effort = "" }) {
   body.replaceChildren();
   const list = element("div", "choice-list");
-  const currentModel = models.find((model) => model.id === current) || models.find((model) => model.id === "default");
+  const currentModel = models.find((model) => model.id === selected) || models.find((model) => model.id === "default");
   for (const model of models) {
     const button = element("button", `choice${model === currentModel ? " current" : ""}`);
     button.type = "button";
@@ -940,8 +1049,8 @@ function renderModelPanel(body, { models = [], current = "default", effort = "" 
     button.addEventListener("click", async () => {
       if (model === currentModel) { panelDialog.close(); return; }
       for (const other of body.querySelectorAll("button")) other.disabled = true;
-      try { await control("set-model", { model: model.id }); panelDialog.close(); addDivider(t("modelSet", { model: model.label })); }
-      catch (error) { renderModelPanel(body, { models, current, effort }); body.prepend(element("p", "panel-error", error.message)); }
+      try { await control(view, "set-model", { model: model.id }); panelDialog.close(); addDivider(view, t("modelSet", { model: model.label })); }
+      catch (error) { renderModelPanel(view, body, { models, current: selected, effort }); body.prepend(element("p", "panel-error", error.message)); }
     });
     list.append(button);
   }
@@ -954,24 +1063,24 @@ function renderModelPanel(body, { models = [], current = "default", effort = "" 
     const isCurrent = (effort || "auto") === level;
     const button = element("button", isCurrent ? "current" : "", level === "auto" ? t("effortAuto") : level);
     button.type = "button";
-    button.disabled = state.busy;
+    button.disabled = view.busy;
     button.addEventListener("click", () => {
       panelDialog.close();
-      if (isCurrent) return;
+      if (isCurrent || view !== current) return;
       setPrompt(`/effort ${level}`);
       $("#composer").requestSubmit();
     });
     chips.append(button);
   }
-  body.append(chips, element("p", "muted", state.busy ? t("effortBusy") : t("effortHint")));
+  body.append(chips, element("p", "muted", view.busy ? t("effortBusy") : t("effortHint")));
 }
 
 // /context — what fills the context window, as a stacked bar and a table.
 async function showContextPanel() {
-  if (!state.channel && !state.activeId) { showError(t("contextNeedsSession")); return; }
-  await loadPanel(t("contextUsage"), () => control("context"), renderContext);
+  if (!current.channel && !current.id) { showError(t("contextNeedsSession")); return; }
+  await loadPanel(t("contextUsage"), (view) => control(view, "context"), renderContext);
 }
-function renderContext(body, { usage }) {
+function renderContext(view, body, { usage }) {
   body.replaceChildren();
   const max = usage.maxTokens || 1;
   body.append(element("p", "", t("contextSummary", { model: usage.model || t("model"), used: formatTokens(usage.totalTokens), max: formatTokens(usage.maxTokens), percent: usage.percentage })));
@@ -1016,31 +1125,27 @@ function renderContext(body, { usage }) {
 }
 
 // /clear — the terminal starts a fresh conversation in place; here, a new session in the same folder.
+// The session it leaves keeps running if it is live; Disconnect in its menu ends it.
 function clearSession() {
-  const cwd = state.activeCwd;
-  showNewSession();
-  if (cwd) $("#cwd").value = cwd;
+  showNewSession(current.cwd);
   prompt.focus();
 }
 function renameActiveSession() {
-  if (!state.activeId) return;
-  void renameSession(state.sessions.find((item) => item.id === state.activeId) || { id: state.activeId, cwd: state.activeCwd, title: state.activeTitle });
+  if (!current.id) return;
+  void renameSession(state.sessions.find((item) => item.id === current.id) || { id: current.id, cwd: current.cwd, title: current.title });
 }
 
 $("#model").addEventListener("change", renderEfforts);
 $("#accept").addEventListener("click", () => void consentSdk(true));
 $("#decline").addEventListener("click", () => void consentSdk(false));
-$("#refresh-sessions").addEventListener("click", () => void refreshSessions());
-$("#session-filter").addEventListener("input", renderSessions);
-$("#session-name").value = t("defaultSessionName");
-updateControls(); renderSessions(); resetFooter();
 persephone.state.init({ session: null }, { restorableKeys: ["session"] });
+showNewSession();
 void (async () => {
   const saved = (await persephone.state.get())?.session;
   await refreshDescription();
   if (state.sdkInstalled) void watchSessionList().catch(() => {});
   // A session missing from the list (older than the listing) still resumes by id.
-  if (saved?.id && saved.cwd && !state.activeId && state.sdkInstalled) await openStoredSession(state.sessions.find((item) => item.id === saved.id) || { id: saved.id, cwd: saved.cwd, title: "" });
+  if (saved?.id && saved.cwd && !current.id && state.sdkInstalled) await openStoredSession(state.sessions.find((item) => item.id === saved.id) || { id: saved.id, cwd: saved.cwd, title: "" });
 })().catch((error) => showError(error.message));
 for (const [id, target] of [["default-model", "#model"], ["default-effort", "#effort"]]) {
   void persephone.settings.get(id).then((value) => {

@@ -31,16 +31,13 @@
           <h1 data-i18n="newSession">New session</h1>
           <p data-i18n="cli.required"></p>
           <p data-i18n="permissions"></p><p data-i18n="settings"></p>
-          <div class="fields">
-            <label class="wide"><span data-i18n="sessionName"></span><input id="session-name" type="text" autocomplete="off" spellcheck="false"></label>
-            <label class="wide"><span data-i18n="cwd"></span><input id="cwd" type="text" placeholder="C:\work\project" autocomplete="off"></label>
-            <label><span data-i18n="model"></span><select id="model"><option value="">Default</option></select></label>
-            <label><span data-i18n="effort"></span><select id="effort"><option value="">Default</option></select></label>
-          </div>
-          <p class="hint" data-i18n="startHint"></p>
+          <label id="cwd-field" class="field"><span data-i18n="cwd"></span><input id="cwd" type="text" placeholder="C:\work\project" autocomplete="off"></label>
+          <p id="intro-folder" class="intro-folder hidden"><span data-i18n="cwd"></span><code id="intro-folder-path"></code></p>
+          <p id="start-hint" class="hint"></p>
         </section>
         <div id="views"></div>
       </div>
+      <div id="composer-dock" class="composer-dock">
       <form id="composer" class="composer">
         <div id="readonly-hint" class="readonly-hint hidden"><span data-i18n="agents.readOnly"></span><button id="back-to-main" type="button" data-i18n="agents.backToMain"></button></div>
         <div id="command-menu" class="command-menu hidden" role="listbox"></div>
@@ -48,8 +45,15 @@
         <div id="prompt" class="prompt" role="textbox" aria-multiline="true" contenteditable="plaintext-only" spellcheck="false" tabindex="0" data-i18n-placeholder="prompt"></div>
         <button id="send" class="primary" data-i18n="send"></button>
       </form>
+      <div id="composer-meta" class="composer-meta">
+        <button id="model-chip" type="button" class="meta-chip" data-i18n-title="model"></button>
+        <button id="effort-chip" type="button" class="meta-chip" data-i18n-title="effort"></button>
+        <button id="context-chip" type="button" class="meta-chip context hidden"></button>
+      </div>
+      </div>
     </section>
   </main>
+  <div id="choice-menu" class="context-menu choice-menu hidden" role="menu"></div>
   <div id="session-menu" class="context-menu hidden" role="menu">
     <button type="button" role="menuitem" data-action="disconnect" data-i18n="disconnect"></button>
     <button type="button" role="menuitem" data-action="rename" data-i18n="rename"></button>

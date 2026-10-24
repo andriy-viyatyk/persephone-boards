@@ -55,6 +55,30 @@ async function refreshSettings() {
   return settings;
 }
 
+// The model and effort a session starts with when the page picks none: the board settings, then the Claude Code
+// settings the CLI reads (user, then the folder's project and local files; later wins), then Opus at medium effort.
+const FALLBACK_MODEL = "opus";
+const FALLBACK_EFFORT = "medium";
+async function claudeSettingsDefaults(cwd) {
+  const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
+  const files = [path.join(configDir, "settings.json")];
+  if (cwd) files.push(path.join(cwd, ".claude", "settings.json"), path.join(cwd, ".claude", "settings.local.json"));
+  const found = {};
+  for (const file of files) {
+    const json = await readFile(file, "utf8").then(JSON.parse).catch(() => null);
+    if (typeof json?.model === "string" && json.model) found.model = json.model;
+    if (typeof json?.effortLevel === "string" && json.effortLevel) found.effort = json.effortLevel;
+  }
+  return found;
+}
+// `model`/`effort` are what the session runs with; `pass*` is what the board must send the SDK (empty when the CLI applies its own settings).
+async function sessionDefaults(cwd) {
+  const claude = await claudeSettingsDefaults(cwd);
+  const passModel = settings["default-model"] || (claude.model ? "" : FALLBACK_MODEL);
+  const passEffort = settings["default-effort"] || (claude.effort ? "" : FALLBACK_EFFORT);
+  return { model: passModel || claude.model, effort: passEffort || claude.effort, passModel, passEffort };
+}
+
 function listenSettings() {
   persephone.settings.onChange(({ id, value }) => {
     if (settingIds.includes(id)) settings[id] = value;
@@ -146,6 +170,7 @@ async function describe(channel, request, info) {
     type: "description",
     contractVersion: 1,
     models: cachedModels || MODEL_ALIASES,
+    defaults: await sessionDefaults(typeof request.cwd === "string" && request.cwd.length <= 4096 ? request.cwd : ""),
     permissionModes: ["read-only", "ask", "auto-edit", "full-auto"],
     permissionCeiling: settings["cross-board-permission-ceiling"] || "read-only",
     features: { resume: installed, thinkingStream: installed, usage: installed, cost: installed, maxAgentSteps: installed, maxBudgetUsd: installed },
@@ -474,8 +499,8 @@ function sessionOptions(session) {
     cwd: open.cwd,
     ...(open.resume ? { resume: open.resume } : { sessionId: session.id }),
     ...(open.title ? { title: open.title } : {}),
-    ...(open.model ? { model: open.model } : settings["default-model"] ? { model: settings["default-model"] } : {}),
-    ...(open.effort ? { effort: open.effort } : settings["default-effort"] ? { effort: settings["default-effort"] } : {}),
+    ...(open.model || session.defaults.passModel ? { model: open.model || session.defaults.passModel } : {}),
+    ...(open.effort || session.defaults.passEffort ? { effort: open.effort || session.defaults.passEffort } : {}),
     permissionMode: MODE_NATIVE[session.mode],
     allowDangerouslySkipPermissions: session.mode === "full-auto",
     settingSources: ["user", "project", "local"],
@@ -562,8 +587,8 @@ function sessionStatus(session) {
   const sevenDay = window(status.windows?.seven_day);
   return {
     type: "session-status",
-    model: session.actualModel || session.open.model || settings["default-model"] || "",
-    effort: session.open.effort || settings["default-effort"] || "",
+    model: session.actualModel || session.open.model || session.defaults.model || "",
+    effort: session.open.effort || session.defaults.effort || "",
     ...(Number.isFinite(status.contextTokens) ? { contextTokens: status.contextTokens } : {}),
     ...(status.contextWindow ? { contextWindow: status.contextWindow } : {}),
     ...(Number.isFinite(status.contextTokens) && status.contextWindow ? { contextPercent: percent(status.contextTokens / status.contextWindow) } : {}),
@@ -578,7 +603,8 @@ function trackStatus(session, message) {
     status.windows = message.rate_limit_info.unifiedWindows;
     return true;
   }
-  if (message.type === "assistant" && !message.parent_tool_use_id && message.message?.usage) {
+  // Local command replies (/effort, /model) come back as "<synthetic>" assistant messages with zero usage; they say nothing about the model or context.
+  if (message.type === "assistant" && !message.parent_tool_use_id && message.message?.usage && message.message.model !== "<synthetic>") {
     const usage = message.message.usage;
     status.contextTokens = (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0);
     if (message.message.model) session.actualModel = message.message.model;
@@ -660,6 +686,7 @@ async function startSession(channel, openRequest, info) {
   if (!cwdStat?.isDirectory()) throw Object.assign(new Error(`The working directory does not exist: ${open.cwd}`), { code: "protocol-error" });
   const sdk = await loadSdk();
   const executable = await resolveClaudeExecutable(settings["claude-executable"] || "");
+  const defaults = await sessionDefaults(open.cwd);
   const selectedModel = open.model || settings["default-model"] || "";
   const selectedEffort = open.effort || settings["default-effort"] || "";
   if (selectedModel && cachedModels && !cachedModels.some((model) => model.id === selectedModel)) throw Object.assign(new Error("The selected model is not in the current SDK model listing."), { code: "model-unavailable" });
@@ -675,14 +702,14 @@ async function startSession(channel, openRequest, info) {
   const endpoint = wantsMcp ? await persephone.mcp.issueSessionEndpoint() : null;
   const id = open.resume || randomUUID();
   const session = {
-    id, channel, open, sdk, executable, mode, crossBoard, endpoint, composed: await makePreamble(open, Boolean(endpoint)),
+    id, channel, open, defaults, sdk, executable, mode, crossBoard, endpoint, composed: await makePreamble(open, Boolean(endpoint)),
     inputQueue: new AsyncQueue(), children: new Set(), approvals: new Map(), allowedScopes: new Set(),
     closed: false, busy: false, completedTurns: 0, initSeen: false, query: null, queryTask: null,
     interrupted: false, pendingFirstTurn: true, started: false, nativeState: { pendingFiles: new Map() }, status: {},
     pendingTitle: !open.resume && typeof open.title === "string" ? boundedString(open.title.trim(), 1024).value : "",
   };
   sessions.set(channel, session);
-  await send(channel, echo({ type: "session-started", contractVersion: 1, sessionId: id, model: open.model || settings["default-model"] || "Default", permissionMode: mode, limits: sessionLimits(open), instructions: { composed: session.composed }, mcp: { persephone: Boolean(endpoint) } }, open), session);
+  await send(channel, echo({ type: "session-started", contractVersion: 1, sessionId: id, model: open.model || defaults.model || "Default", permissionMode: mode, limits: sessionLimits(open), instructions: { composed: session.composed }, mcp: { persephone: Boolean(endpoint) } }, open), session);
   await send(channel, sessionStatus(session), session);
   channel.onMessage((request) => void handleSessionMessage(session, request));
   channel.onClose((reason) => void closeSession(session, reason?.code || "channel-closed", false));
@@ -795,8 +822,8 @@ const CONTROL_ACTIONS = {
   async models(session) {
     const models = await session.query.supportedModels();
     return {
-      current: session.open.model || settings["default-model"] || "default",
-      effort: session.open.effort || settings["default-effort"] || "",
+      current: session.open.model || session.defaults.model || "default",
+      effort: session.open.effort || session.defaults.effort || "",
       models: (models || []).map((model) => ({
         id: String(model.value ?? ""),
         label: String(model.displayName ?? model.value ?? ""),

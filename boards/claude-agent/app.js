@@ -21,6 +21,7 @@ function createView(item = {}) {
     footer: null, usage: null, sessionCost: 0, statusText: "", statusBusy: false, error: "",
     draft: "", unread: false, stick: true, scrollTop: 0,
     agents: [], agentsChannel: null, selectedAgentId: "", agentViews: new Map(),
+    model: "", effort: "", defaults: null,
   };
   $("#views").append(view.messages);
   views.add(view);
@@ -55,11 +56,18 @@ const element = (tag, className, text) => {
   if (text !== undefined) node.textContent = text;
   return node;
 };
+// The text each message was made from; the message copy and open buttons use it.
+const messageSources = new WeakMap();
 // Agent text is Markdown; raw HTML in it is sanitized, never trusted.
 function renderMarkdown(node, text) {
+  messageSources.set(node, text || "");
   node.innerHTML = window.DOMPurify.sanitize(window.marked.parse(text || "", { gfm: true, breaks: false }));
 }
-const addUserMessage = (view, text, forceScroll = true) => appendMessage(view, element("div", "msg user", text), forceScroll);
+function addUserMessage(view, text, forceScroll = true) {
+  const node = element("div", "msg user", text);
+  messageSources.set(node, text);
+  return appendMessage(view, node, forceScroll);
+}
 function addAgentMessage(view, text) {
   const node = element("div", "msg agent markdown-body");
   renderMarkdown(node, text);
@@ -122,7 +130,7 @@ const addDivider = (view, text, className = "") => appendMessage(view, element("
 function addCommandOutput(view, text) {
   const node = element("div", "msg command-output");
   if (/^#{1,6} |\n\|/m.test(text)) { node.classList.add("markdown-body"); renderMarkdown(node, text); }
-  else node.append(element("pre", "plain", text));
+  else { node.append(element("pre", "plain", text)); messageSources.set(node, text); }
   return appendMessage(view, node);
 }
 const addCommandMessage = (view, text, forceScroll) => { const node = addUserMessage(view, text, forceScroll); node.classList.add("command"); return node; };
@@ -176,6 +184,56 @@ $("#views").addEventListener("click", (event) => {
   void Promise.resolve(persephone.openRawLink(target)).catch((error) => showError(error.message));
 });
 
+// Copy and open buttons for the hovered message. One toolbar moves into whichever message the pointer is over, so
+// re-rendering a streaming message never leaves a stale copy behind.
+const ICONS = {
+  copy: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 3.5v-.5a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5"/></svg>',
+  copied: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7"/></svg>',
+  open: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8.5 2.5h5v5M13.5 2.5L7 9M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3"/></svg>',
+};
+const messageActions = element("div", "msg-actions");
+for (const [action, label] of [["copy", "message.copy"], ["open", "message.open"]]) {
+  const button = element("button", "msg-action");
+  button.type = "button"; button.dataset.action = action; button.title = t(label); button.setAttribute("aria-label", t(label));
+  button.innerHTML = ICONS[action];
+  messageActions.append(button);
+}
+$("#views").addEventListener("mouseover", (event) => {
+  const message = event.target.closest?.(".msg");
+  if (message && messageSources.has(message) && messageActions.parentNode !== message) message.append(messageActions);
+});
+const escapeHtml = (text) => text.replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
+// Rendered HTML of a message without the toolbar, so formatted text pastes into apps like Teams.
+function messageHtml(message) {
+  if (!message.classList.contains("markdown-body")) return `<div style="white-space:pre-wrap">${escapeHtml(messageSources.get(message))}</div>`;
+  const copy = message.cloneNode(true);
+  copy.querySelector(".msg-actions")?.remove();
+  return copy.innerHTML;
+}
+async function copyMessage(message, button) {
+  const text = messageSources.get(message);
+  try {
+    const blob = (value, type) => new Blob([value], { type });
+    await navigator.clipboard.write([new ClipboardItem({ "text/plain": blob(text, "text/plain"), "text/html": blob(messageHtml(message), "text/html") })]);
+  } catch {
+    await persephone.clipboard.writeText(text);
+  }
+  button.innerHTML = ICONS.copied;
+  setTimeout(() => { button.innerHTML = ICONS.copy; }, 1200);
+}
+// The page title is the message's first line without Markdown markers.
+const messageTitle = (text) => (text.split("\n").map((line) => line.replace(/^[#>*\-\s`]+|[*_`]+/g, "").trim()).find(Boolean) || t("message.untitled")).slice(0, 60);
+messageActions.addEventListener("click", (event) => {
+  const button = event.target.closest("button");
+  const message = messageActions.parentNode;
+  if (!button || !messageSources.has(message)) return;
+  event.stopPropagation();
+  const text = messageSources.get(message);
+  const action = button.dataset.action === "copy" ? copyMessage(message, button)
+    : persephone.openContent({ editor: "md-view", language: "markdown", title: messageTitle(text), content: text });
+  void Promise.resolve(action).catch((error) => showError(error.message));
+});
+
 const formatUsage = (usage) => {
   if (!usage) return "";
   const parts = [];
@@ -186,34 +244,46 @@ const formatUsage = (usage) => {
   return parts.join(" · ");
 };
 
-// ── Footer status bar: one chip per value (the host caps the catalog at eight items) ──
-const FOOTER_START = ["model", "effort", "context", "limit5h", "limit7d"];
+// ── Footer status bar: plain text separated by thin dividers (the host caps the catalog at eight items) ──
+// Model, effort and context fill show under the message box instead. The host has no divider item, and plain
+// text in its start group stretches, so the two usage limits share one start item; the end group interleaves
+// divider items, each shown only while both of its neighbours are.
+const DIVIDER = "│";
 const FOOTER_END = ["tokens", "turnCost", "sessionCost"];
 const statusBar = persephone.statusBar;
-const setChip = (id, text, patch = {}) => statusBar?.update(id, { text: text || "", hidden: !text, ...patch });
+const footerText = new Map();
+const setChip = (id, text, patch = {}) => { footerText.set(id, text || ""); statusBar?.update(id, { text: text || "", hidden: !text, ...patch }); };
+function updateDividers() {
+  const shown = FOOTER_END.filter((id) => footerText.get(id));
+  FOOTER_END.slice(0, -1).forEach((id, index) => statusBar?.update(`divider${index}`, { hidden: !shown.includes(id) || shown.at(-1) === id }));
+}
 function resetFooter() {
+  footerText.clear();
   statusBar?.set([
-    ...FOOTER_START.map((id) => ({ id, type: "text", text: "", variant: "chip", hidden: true })),
-    ...FOOTER_END.map((id) => ({ id, type: "text", text: "", variant: "chip", tone: "muted", align: "end", hidden: true })),
+    { id: "limits", type: "text", text: "", hidden: true },
+    ...FOOTER_END.flatMap((id, index) => [
+      ...(index ? [{ id: `divider${index - 1}`, type: "text", text: DIVIDER, tone: "muted", align: "end", hidden: true }] : []),
+      { id, type: "text", text: "", tone: "muted", align: "end", hidden: true },
+    ]),
   ]);
 }
 const percentTone = (percent) => percent >= 90 ? "error" : percent >= 70 ? "accent" : "normal";
 const resetsTitle = (label, resetsAt) => resetsAt ? `${label} — ${t("resets")} ${new Date(resetsAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : label;
+// Both limits in one item, toned by the fuller one; the tooltip lists each reset time.
 function updateFooter(status) {
-  setChip("model", status.model, { title: t("model") });
-  setChip("effort", status.model ? status.effort || t("defaultEffort") : "", { title: t("effort") });
-  const context = Number.isFinite(status.contextPercent) ? `${t("context")} ${status.contextPercent}%` : Number.isFinite(status.contextTokens) ? `${t("context")} ${status.contextTokens.toLocaleString()}` : "";
-  setChip("context", context, { tone: percentTone(status.contextPercent || 0), title: status.contextWindow ? `${(status.contextTokens || 0).toLocaleString()} / ${status.contextWindow.toLocaleString()} ${t("tokens")}` : t("context") });
-  for (const [id, key, label] of [["limit5h", "fiveHour", "5h"], ["limit7d", "sevenDay", "7d"]]) {
-    const limit = status.limits?.[key];
-    setChip(id, limit ? `${label} ${limit.percent}%` : "", { tone: percentTone(limit?.percent || 0), title: resetsTitle(t(id), limit?.resetsAt) });
-  }
+  const limits = [["limit5h", "fiveHour", "5h"], ["limit7d", "sevenDay", "7d"]]
+    .map(([id, key, label]) => ({ id, label, limit: status.limits?.[key] })).filter((entry) => entry.limit);
+  setChip("limits", limits.map(({ label, limit }) => `${label} ${limit.percent}%`).join(`  ${DIVIDER}  `), {
+    tone: percentTone(Math.max(0, ...limits.map(({ limit }) => limit.percent))),
+    title: limits.map(({ id, limit }) => resetsTitle(t(id), limit.resetsAt)).join("\n"),
+  });
 }
 function updateFooterUsage(usage, sessionCost) {
   if (!usage) return;
   setChip("tokens", formatUsage({ ...usage, costUsd: undefined }), { title: t("lastTurnTokens") });
   setChip("turnCost", Number.isFinite(usage.costUsd) ? `$${usage.costUsd.toFixed(4)}` : "", { title: t("lastTurnCost") });
   setChip("sessionCost", sessionCost ? `${t("session")} $${sessionCost.toFixed(2)}` : "", { title: t("sessionCost") });
+  updateDividers();
 }
 // The footer shows the view on screen; each view keeps its last status and usage.
 function renderFooter(view) {
@@ -234,31 +304,129 @@ async function discovery(request) {
     channel.onClose(() => resolve({ message: null, channel }));
   });
 }
-function renderModels(models) {
-  state.models = models?.length ? models : [{ id: "", label: "Default", efforts: [] }];
-  const selected = $("#model").value || state.defaults.model || "";
-  $("#model").replaceChildren(new Option(t("default"), ""));
-  state.models.filter((m) => m.id && m.id !== "default").forEach((model) => $("#model").add(new Option(model.label, model.id)));
-  if (selected && [...$("#model").options].some((o) => o.value === selected)) $("#model").value = selected;
-  renderEfforts();
-}
-function renderEfforts() {
-  const selectedModel = state.models.find((m) => m.id === $("#model").value);
-  const select = $("#effort");
-  select.replaceChildren(new Option(t("default"), ""));
-  (selectedModel?.efforts || []).forEach((effort) => select.add(new Option(effort, effort)));
-  if (state.defaults.effort && [...select.options].some((option) => option.value === state.defaults.effort)) select.value = state.defaults.effort;
-  select.disabled = select.options.length < 2;
+function applyDescription(message, view = null) {
+  if (message.models?.length) state.models = message.models;
+  if (view) view.defaults = message.defaults || null;
+  else if (message.defaults) state.defaults = message.defaults;
+  renderChips();
 }
 async function refreshDescription() {
   const { message } = await discovery({ type: "describe" });
   if (message?.type === "description") {
     state.sdkInstalled = Boolean(message.sdkInstalled);
-    renderModels(message.models);
+    applyDescription(message);
   }
   $("#consent").classList.toggle("hidden", state.sdkInstalled);
   if (state.sdkInstalled && !state.sessions.length) await refreshSessions();
 }
+// Defaults depend on the folder (its project and local Claude settings), so a view not yet running asks for its own.
+async function refreshDefaults(view) {
+  const cwd = view.cwd || (view.id ? "" : $("#cwd").value.trim());
+  const { message } = await discovery({ type: "describe", ...(cwd ? { cwd } : {}) });
+  if (message?.type === "description") applyDescription(message, view);
+}
+
+// ── Model and effort chips under the composer ──────────────────────────────
+// A view uses the model and effort picked for it, or else the defaults the service reports (the board settings,
+// then Claude Code's own settings, then Opus at medium effort). A session the board runs reports what it uses.
+const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
+const isLive = (view) => Boolean(view?.channel && view.live);
+// Listed ids show their display names; a full model id such as "claude-opus-5-5" shows as "Opus 5.5".
+function modelLabel(id, models = state.models) {
+  const listed = models.find((model) => model.id === id);
+  if (listed?.label) return listed.label.replace(/\s*\(CLI alias\)$/, "");
+  const match = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?(\[1m\])?$/i.exec(id || "");
+  if (match) return `${match[1][0].toUpperCase()}${match[1].slice(1)} ${match[2]}${match[3] ? `.${match[3]}` : ""}${match[4] ? " 1M" : ""}`;
+  return id ? id[0].toUpperCase() + id.slice(1) : t("default");
+}
+const viewDefaults = (view) => view.defaults || state.defaults;
+const viewModel = (view) => (isLive(view) && view.footer?.model) || view.model || viewDefaults(view).model || "";
+const viewEffort = (view) => (isLive(view) && view.footer?.effort) || view.effort || viewDefaults(view).effort || "";
+function renderChips() {
+  const view = current;
+  $("#composer-meta").classList.toggle("hidden", !view || Boolean(view.selectedAgentId));
+  if (!view) return;
+  $("#model-chip").textContent = modelLabel(viewModel(view));
+  $("#effort-chip").textContent = viewEffort(view) || t("defaultEffort");
+  // Context fill, from the session's last status; it highlights at 70% and 90% like the footer's limit chips.
+  const status = view.footer || {};
+  const chip = $("#context-chip");
+  chip.textContent = Number.isFinite(status.contextPercent) ? `${t("context")} ${status.contextPercent}%` : Number.isFinite(status.contextTokens) ? `${t("context")} ${formatTokens(status.contextTokens)}` : "";
+  chip.classList.toggle("hidden", !chip.textContent);
+  chip.dataset.tone = percentTone(status.contextPercent || 0);
+  chip.title = status.contextWindow ? `${(status.contextTokens || 0).toLocaleString()} / ${status.contextWindow.toLocaleString()} ${t("tokens")}` : t("context");
+}
+const choiceMenu = $("#choice-menu");
+let choiceAnchor = null;
+function closeChoiceMenu() { choiceMenu.classList.add("hidden"); choiceAnchor?.classList.remove("open"); choiceAnchor = null; }
+// A small menu above a chip; each item is { label, desc, current, disabled, run }.
+function openChoiceMenu(anchor, items, note = "") {
+  closeChoiceMenu();
+  choiceMenu.replaceChildren(...items.map((item) => {
+    const button = element("button", item.current ? "current" : "");
+    button.type = "button"; button.disabled = Boolean(item.disabled);
+    button.setAttribute("role", "menuitemradio"); button.setAttribute("aria-checked", String(Boolean(item.current)));
+    button.append(element("span", "label", item.label));
+    if (item.desc) button.append(element("span", "desc", item.desc));
+    button.addEventListener("click", () => { closeChoiceMenu(); if (!item.current) void Promise.resolve(item.run()).catch((error) => showError(error.message)); });
+    return button;
+  }));
+  if (note) choiceMenu.append(element("p", "note", note));
+  choiceMenu.classList.remove("hidden");
+  const rect = anchor.getBoundingClientRect();
+  choiceMenu.style.left = `${Math.max(4, Math.min(rect.left, window.innerWidth - choiceMenu.offsetWidth - 4))}px`;
+  choiceMenu.style.top = `${Math.max(4, rect.top - choiceMenu.offsetHeight - 4)}px`;
+  anchor.classList.add("open"); choiceAnchor = anchor;
+}
+document.addEventListener("mousedown", (event) => { if (choiceAnchor && !choiceMenu.contains(event.target) && !choiceAnchor.contains(event.target)) closeChoiceMenu(); });
+document.addEventListener("keydown", (event) => { if (event.key === "Escape" && choiceAnchor) closeChoiceMenu(); });
+// A running session lists its own models and answers which one it uses; a view that is not running uses the
+// service's listing and applies the choice when the session starts or resumes.
+async function modelListing(view) {
+  if (isLive(view)) { const result = await control(view, "models"); return { models: result.models || [], selected: result.current }; }
+  await refreshDefaults(view);
+  return { models: state.models, selected: viewModel(view) };
+}
+// Like the terminal, a running session changes model or effort only between turns.
+async function showModelMenu() {
+  const view = current, anchor = $("#model-chip");
+  if (choiceAnchor === anchor) { closeChoiceMenu(); return; }
+  const live = isLive(view);
+  const { models, selected } = await modelListing(view);
+  if (view !== current) return;
+  openChoiceMenu(anchor, models.filter((model) => model.id && model.id !== "default").map((model) => ({
+    label: modelLabel(model.id, models), desc: model.description || "", current: model.id === selected, disabled: live && view.busy,
+    run: async () => {
+      if (live) { await control(view, "set-model", { model: model.id }); addDivider(view, t("modelSet", { model: modelLabel(model.id, models) })); return; }
+      view.model = model.id;
+      const efforts = model.efforts || [];
+      if (efforts.length && !efforts.includes(viewEffort(view))) view.effort = efforts.includes("medium") ? "medium" : efforts[0];
+      renderChips();
+    },
+  })), live ? t(view.busy ? "changeBusy" : "modelSwitchNote") : "");
+}
+async function showEffortMenu() {
+  const view = current, anchor = $("#effort-chip");
+  if (choiceAnchor === anchor) { closeChoiceMenu(); return; }
+  const live = isLive(view);
+  const { models, selected } = await modelListing(view);
+  if (view !== current) return;
+  const efforts = models.find((model) => model.id === selected)?.efforts;
+  const effort = viewEffort(view);
+  openChoiceMenu(anchor, (efforts?.length ? efforts : EFFORT_LEVELS).map((level) => ({
+    label: level, current: level === effort, disabled: live && view.busy,
+    run: async () => {
+      // The CLI applies /effort to the running session only and answers with a confirmation line.
+      if (live) { await sendPrompt(view, `/effort ${level}`); return; }
+      view.effort = level; renderChips();
+    },
+  })), live && view.busy ? t("changeBusy") : "");
+}
+$("#context-chip").addEventListener("click", () => void showContextPanel().catch((error) => showError(error.message)));
+$("#model-chip").addEventListener("click", () => void showModelMenu().catch((error) => showError(error.message)));
+$("#effort-chip").addEventListener("click", () => void showEffortMenu().catch((error) => showError(error.message)));
+$("#cwd").addEventListener("change", () => { if (current && !current.id) void refreshDefaults(current).catch(() => {}); });
+
 async function consentSdk(accept) {
   $("#accept").disabled = true;
   if (!accept) { $("#consent").classList.add("hidden"); $("#accept").disabled = false; return; }
@@ -333,7 +501,7 @@ function renderSessions() {
     const toggle = element("button", "folder-toggle");
     toggle.type = "button";
     toggle.setAttribute("aria-expanded", String(expanded));
-    toggle.append(element("span", "caret", "▸"), element("span", "folder-name", folderName(group.cwd)));
+    toggle.append(element("span", "caret"), element("span", "folder-name", folderName(group.cwd)));
     // A collapsed folder still shows that one of its sessions is running.
     const running = group.sessions.map((item) => viewFor(item.id)).filter((view) => view?.channel);
     if (running.length && !expanded) toggle.append(element("span", `session-dot live${running.some((view) => view.busy) ? " busy" : ""}`));
@@ -545,7 +713,7 @@ persephone.toolbar.onAction(({ id }) => {
 function updateControls() {
   $("#intro").classList.toggle("hidden", Boolean(current?.id || current?.channel));
   $("#send").disabled = Boolean(current?.busy);
-  updateToolbar();
+  updateToolbar(); renderChips();
 }
 
 // ── Instructions dialog: the provider instructions the service adds to every new or reopened session ──
@@ -694,7 +862,7 @@ function showMainTranscript(view) {
   view.messages.classList.remove("hidden");
   $("#readonly-hint").classList.add("hidden");
   $("#prompt").classList.remove("hidden"); $("#send").classList.remove("hidden");
-  hideCommandMenu(); renderSessions();
+  hideCommandMenu(); renderSessions(); renderChips();
   transcript.scrollTop = view.scrollTop;
 }
 async function showAgentTranscript(view, agentId) {
@@ -717,7 +885,7 @@ async function showAgentTranscript(view, agentId) {
   child.messages.classList.remove("hidden");
   $("#readonly-hint").classList.remove("hidden");
   $("#prompt").classList.add("hidden"); $("#send").classList.add("hidden");
-  hideCommandMenu(); renderSessions(); transcript.scrollTop = child.scrollTop ?? 0;
+  hideCommandMenu(); renderSessions(); renderChips(); closeChoiceMenu(); transcript.scrollTop = child.scrollTop ?? 0;
   const channel = await persephone.service.openChannel({ type: "subagent-history", sessionId: view.id, agentId, cwd: view.cwd });
   if (view !== current || view.selectedAgentId !== agentId) { closeChannel(channel); return; }
   child.follow = channel;
@@ -755,13 +923,25 @@ async function watchSessionList() {
 // The shown session is restorable page state, so the page reopens it after a reload, a restart, or a move to another window.
 const rememberSession = () => persephone.state.merge({ session: current?.id ? { id: current.id, cwd: current.cwd } : null });
 // Shows the New session form; a form already open (and not yet started) is reused.
+// From a folder (its + button, /clear) the form only shows the folder; from the toolbar it asks for one.
 function showNewSession(cwd = "") {
-  if (!current || current.id || current.channel) {
-    showView(createView());
-    $("#session-name").value = t("defaultSessionName");
-  }
+  if (!current || current.id || current.channel) showView(createView());
   if (cwd) $("#cwd").value = cwd;
-  $("#cwd").focus();
+  $("#cwd-field").classList.toggle("hidden", Boolean(cwd));
+  $("#intro-folder").classList.toggle("hidden", !cwd);
+  $("#intro-folder-path").textContent = cwd;
+  $("#start-hint").textContent = t(cwd ? "startHintFolder" : "startHint");
+  void refreshDefaults(current).catch(() => {});
+  if (cwd) prompt.focus(); else $("#cwd").focus();
+}
+// A new session is named after the first words of its first message, or the time it started; rename it any time.
+function sessionTitle(text) {
+  const words = (text || "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  let title = "";
+  for (const word of words.slice(0, 6)) { if (title && title.length + word.length >= 48) break; title = title ? `${title} ${word}` : word.slice(0, 48); }
+  if (title) return title.split(" ").length < words.length ? `${title}…` : title;
+  const now = new Date(), pad = (value) => String(value).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 async function loadHistory(view) {
   const token = ++view.historyToken;
@@ -805,15 +985,14 @@ async function connect(view) {
   if (!cwd) { setViewError(view, t("cwdRequired")); return false; }
   if (!state.sdkInstalled) { $("#consent").classList.remove("hidden"); setViewError(view, t("consentRequired")); return false; }
   stopFollow(view);
-  const effort = $("#effort").value;
-  const title = resume ? "" : $("#session-name").value.trim();
-  if (!resume) view.title = title || view.pendingPrompt.split("\n")[0].slice(0, 120) || t("newSession");
+  const title = resume ? "" : sessionTitle(view.pendingPrompt);
+  if (!resume) view.title = title;
   const open = {
-    type: "open", contractVersion: 1, model: $("#model").value, cwd,
+    type: "open", contractVersion: 1, model: view.model, cwd,
     // Required by the agent.session contract; the service runs local page sessions unrestricted anyway.
     permissionMode: "full-auto",
     mcp: { persephone: true },
-    ...(effort ? { effort } : {}),
+    ...(view.effort ? { effort: view.effort } : {}),
     ...(title ? { title } : {}),
     ...(resume ? { resume } : {}),
   };
@@ -857,7 +1036,7 @@ function handleEvent(view, event) {
     }
     case "compacted": endStream(view); addCompacted(view, event); break;
     case "compact-summary": addCompactSummary(view, event.text); break;
-    case "session-status": view.footer = event; if (view === current) updateFooter(event); break;
+    case "session-status": view.footer = event; if (view === current) { updateFooter(event); renderChips(); } break;
     case "turn-started": view.busy = true; setViewStatus(view, t("working"), true); updateControls(); renderSessions(); break;
     case "text-delta":
       view.thinkingNode = null;
@@ -942,11 +1121,11 @@ prompt.addEventListener("blur", hideCommandMenu);
 // catches the scrollbar appearing, so the composer stays aligned with them.
 const composerLayout = new ResizeObserver(() => {
   const stick = nearBottom();
-  transcript.style.setProperty("--composer-space", `${$("#composer").offsetHeight + 32}px`);
-  $("#composer").style.setProperty("--scrollbar", `${transcript.offsetWidth - transcript.clientWidth}px`);
+  transcript.style.setProperty("--composer-space", `${$("#composer-dock").offsetHeight + 16}px`);
+  $("#composer-dock").style.setProperty("--scrollbar", `${transcript.offsetWidth - transcript.clientWidth}px`);
   scrollToEnd(stick);
 });
-composerLayout.observe($("#composer"));
+composerLayout.observe($("#composer-dock"));
 composerLayout.observe($("#views"));
 $("#composer").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -972,8 +1151,8 @@ $("#composer").addEventListener("submit", async (event) => {
 // not have, so the board handles those itself with panels.
 const BOARD_COMMANDS = {
   mcp: { run: () => showMcpPanel(), anyArgs: true },
-  model: { run: () => showModelPanel() },
-  effort: { run: () => showModelPanel() },
+  model: { run: () => showModelMenu() },
+  effort: { run: () => showEffortMenu() },
   context: { run: () => showContextPanel() },
   clear: { run: () => clearSession(), anyArgs: true },
   rename: { run: () => renameActiveSession() },
@@ -1174,49 +1353,6 @@ function renderMcp(view, body, { servers = [] }) {
   body.append(list);
 }
 
-// /model and /effort — the session's model list; effort runs as an /effort command, which the CLI applies.
-async function showModelPanel() {
-  // On the New session form the model and effort pickers are right there.
-  if (!current.channel && !current.id) { $("#model").focus(); return; }
-  await loadPanel(t("modelEffort"), (view) => control(view, "models"), renderModelPanel);
-}
-function renderModelPanel(view, body, { models = [], current: selected = "default", effort = "" }) {
-  body.replaceChildren();
-  const list = element("div", "choice-list");
-  const currentModel = models.find((model) => model.id === selected) || models.find((model) => model.id === "default");
-  for (const model of models) {
-    const button = element("button", `choice${model === currentModel ? " current" : ""}`);
-    button.type = "button";
-    button.append(element("span", "label", model.label), element("span", "desc", model.description), element("span", "mark", model === currentModel ? "✓" : ""));
-    button.addEventListener("click", async () => {
-      if (model === currentModel) { panelDialog.close(); return; }
-      for (const other of body.querySelectorAll("button")) other.disabled = true;
-      try { await control(view, "set-model", { model: model.id }); panelDialog.close(); addDivider(view, t("modelSet", { model: model.label })); }
-      catch (error) { renderModelPanel(view, body, { models, current: selected, effort }); body.prepend(element("p", "panel-error", error.message)); }
-    });
-    list.append(button);
-  }
-  body.append(list);
-  const efforts = currentModel?.efforts || [];
-  if (!efforts.length) return;
-  body.append(element("h3", "", t("effort")));
-  const chips = element("div", "chips");
-  for (const level of ["auto", ...efforts]) {
-    const isCurrent = (effort || "auto") === level;
-    const button = element("button", isCurrent ? "current" : "", level === "auto" ? t("effortAuto") : level);
-    button.type = "button";
-    button.disabled = view.busy;
-    button.addEventListener("click", () => {
-      panelDialog.close();
-      if (isCurrent || view !== current) return;
-      setPrompt(`/effort ${level}`);
-      $("#composer").requestSubmit();
-    });
-    chips.append(button);
-  }
-  body.append(chips, element("p", "muted", view.busy ? t("effortBusy") : t("effortHint")));
-}
-
 // /context — what fills the context window, as a stacked bar and a table.
 async function showContextPanel() {
   if (!current.channel && !current.id) { showError(t("contextNeedsSession")); return; }
@@ -1277,7 +1413,6 @@ function renameActiveSession() {
   void renameSession(state.sessions.find((item) => item.id === current.id) || { id: current.id, cwd: current.cwd, title: current.title });
 }
 
-$("#model").addEventListener("change", renderEfforts);
 $("#accept").addEventListener("click", () => void consentSdk(true));
 $("#decline").addEventListener("click", () => void consentSdk(false));
 persephone.state.init({ session: null }, { restorableKeys: ["session"] });
@@ -1289,17 +1424,7 @@ void (async () => {
   // A session missing from the list (older than the listing) still resumes by id.
   if (saved?.id && saved.cwd && !current.id && state.sdkInstalled) await openStoredSession(state.sessions.find((item) => item.id === saved.id) || { id: saved.id, cwd: saved.cwd, title: "" });
 })().catch((error) => showError(error.message));
-for (const [id, target] of [["default-model", "#model"], ["default-effort", "#effort"]]) {
-  void persephone.settings.get(id).then((value) => {
-    if (value) {
-      state.defaults[id === "default-model" ? "model" : "effort"] = value;
-      if (id !== "default-model" || [...$(target).options].some((option) => option.value === value)) $(target).value = value;
-      if (id === "default-model") renderEfforts();
-    }
-  }).catch(() => {});
-}
-state.settingsOff = persephone.settings.onChange(({ id, value }) => {
-  if (id === "default-model") { state.defaults.model = value; if ([...$("#model").options].some((option) => option.value === value)) $("#model").value = value; }
-  if (id === "default-effort") { state.defaults.effort = value; if ([...$("#effort").options].some((option) => option.value === value)) $("#effort").value = value; }
-  if (id === "default-model") renderEfforts();
+// The board's default model and effort settings change what a view that is not running would use.
+state.settingsOff = persephone.settings.onChange(({ id }) => {
+  if ((id === "default-model" || id === "default-effort") && current && !isLive(current)) void refreshDefaults(current).catch(() => {});
 });

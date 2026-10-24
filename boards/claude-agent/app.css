@@ -33,13 +33,20 @@ body.resizing { cursor: col-resize; user-select: none; }
 .agent-type { flex: none; max-width: 38%; overflow: hidden; color: var(--p-text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .session-list .empty { padding: 8px; color: var(--p-text-muted); }
 /* Two-level tree: folder rows, then their sessions indented under them. */
+/* Expand/collapse chevrons, as in Persephone's Explorer tree: its chevron-right icon, turned to point down
+   when open. A mask paints it in the text colour. It marks the sidebar folders and every collapsible line. */
+:root { --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M5.17574 12.8373C4.94142 12.6203 4.94142 12.2686 5.17574 12.0516L9.55147 8L5.17574 3.94839C4.94142 3.73143 4.94142 3.37968 5.17574 3.16272C5.41005 2.94576 5.78995 2.94576 6.02426 3.16272L10.8243 7.60716C11.0586 7.82412 11.0586 8.17588 10.8243 8.39284L6.02426 12.8373C5.78995 13.0542 5.41005 13.0542 5.17574 12.8373Z'/%3E%3C/svg%3E"); }
+.caret, details > summary::before { content: ""; display: inline-block; flex: none; width: 14px; height: 14px; vertical-align: -3px; background: currentColor; -webkit-mask: var(--chevron) center / 14px 14px no-repeat; mask: var(--chevron) center / 14px 14px no-repeat; transition: transform .12s; }
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details[open] > summary::before, .folder.expanded .caret { transform: rotate(90deg); }
 .folder { margin-bottom: 1px; }
 .folder-head { display: flex; align-items: center; border-radius: var(--p-radius-sm, 4px); }
-.folder-head:hover { background: var(--p-hover); }
+/* Sidebar rows hover in the lighter panel colour; --p-hover is too dark on the sidebar. */
+.folder-head:hover { background: var(--p-panel); }
 .folder-toggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 2px 6px; border: 0; background: transparent; text-align: left; font-weight: 600; }
 .folder-toggle:hover:not(:disabled) { background: transparent; }
-.folder-toggle .caret { flex: none; width: 10px; color: var(--p-text-muted); transition: transform .12s; }
-.folder.expanded .caret { transform: rotate(90deg); }
+.folder-toggle .caret { color: var(--p-text-muted); }
 .folder-toggle .folder-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .folder-head .count { flex: none; min-width: 16px; padding-right: 8px; text-align: right; font-size: 11px; color: var(--p-text-muted); }
 /* Whole-pixel plus: an odd-sized box and 1px bars on integer offsets, so both strokes render equally crisp. */
@@ -48,10 +55,10 @@ body.resizing { cursor: col-resize; user-select: none; }
 .folder-new::before { left: 6px; top: 10px; width: 9px; height: 1px; }
 .folder-new::after { left: 10px; top: 6px; width: 1px; height: 9px; }
 .folder-head:hover .folder-new, .folder-new:focus-visible { visibility: visible; }
-.folder-new:hover:not(:disabled) { color: var(--p-text); background: var(--p-panel); }
+.folder-new:hover:not(:disabled) { color: var(--p-text); background: color-mix(in srgb, var(--p-text) 14%, var(--p-panel)); }
 /* Sessions are indented under their folder, selection highlight included, so the list reads as a tree. */
 .session-item { display: flex; align-items: baseline; gap: 7px; width: calc(100% - 16px); text-align: left; border: 1px solid transparent; background: transparent; padding: 2px 8px 2px 7px; margin: 0 0 0 16px; border-radius: var(--p-radius-sm, 4px); }
-.session-item:hover:not(:disabled) { background: var(--p-hover); }
+.session-item:hover:not(:disabled):not(.active), .agent-item:hover:not(:disabled):not(.active) { background: var(--p-panel); }
 .session-item.active { background: var(--p-tree-selection, var(--p-hover)); border-color: var(--p-border); }
 .session-item .title { color: var(--p-text-muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-item:hover .title, .session-item.active .title { color: var(--p-text); }
@@ -72,25 +79,32 @@ body.resizing { cursor: col-resize; user-select: none; }
 .transcript { flex: 1; overflow: auto; padding: 16px max(16px, calc((100% - var(--chat-width)) / 2)) var(--composer-space, 110px); }
 .card { margin: 24px auto; max-width: 760px; font-family: var(--chat-font); padding: 20px; border: 1px solid var(--p-border); border-radius: var(--p-radius-md, 6px); background: var(--p-panel); }
 .card .hint { margin-bottom: 0; }
-.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0 8px; }
-.fields .wide { grid-column: 1 / -1; }
+.card .field { display: block; margin: 16px 0 8px; }
+.intro-folder { display: flex; align-items: baseline; gap: 8px; }
+.intro-folder > span { color: var(--p-text-muted); }
+.intro-folder code { overflow-wrap: anywhere; }
 label { display: flex; flex-direction: column; gap: 4px; color: var(--p-text-muted); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
 /* Messages */
 .messages { display: flex; flex-direction: column; gap: 10px; }
-.msg { max-width: 85%; font-family: var(--chat-font); overflow-wrap: anywhere; }
+.msg { position: relative; max-width: 85%; font-family: var(--chat-font); overflow-wrap: anywhere; }
+.msg-actions { position: absolute; top: -12px; right: 10px; display: none; gap: 1px; padding: 1px; border: 1px solid var(--p-border); border-radius: var(--p-radius-sm, 4px); background: var(--p-panel); white-space: normal; }
+.msg:hover > .msg-actions, .msg-actions:focus-within { display: flex; }
+.msg-action { display: flex; align-items: center; justify-content: center; width: 22px; height: 20px; padding: 0; border: 0; background: transparent; color: var(--p-text-muted); }
+.msg-action:hover:not(:disabled) { color: var(--p-text); background: var(--p-bg, var(--p-panel)); }
+.msg-action svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
 .msg.user { align-self: flex-end; padding: 8px 12px; white-space: pre-wrap; border-radius: 14px 14px 4px 14px; background: color-mix(in srgb, var(--p-accent) 22%, var(--p-panel)); border: 1px solid color-mix(in srgb, var(--p-accent) 35%, var(--p-border)); }
 .msg.agent { align-self: flex-start; padding: 2px 14px; border-radius: 14px 14px 14px 4px; background: var(--p-panel); border: 1px solid var(--p-border); }
 .msg.agent.markdown-body > :first-child { margin-top: 8px; }
-.msg.agent.markdown-body > :last-child { margin-bottom: 8px; }
+.msg.agent.markdown-body > :nth-last-child(1 of :not(.msg-actions)) { margin-bottom: 8px; }
 .msg.agent.streaming::after { content: "▍"; color: var(--p-accent); }
 .activity { align-self: flex-start; max-width: 85%; font-size: 12px; color: var(--p-text-muted); }
-.activity summary { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; list-style-position: inside; }
+.activity summary { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .activity summary .ok { color: var(--p-success); } .activity summary .fail { color: var(--p-error); }
 .activity pre { margin: 4px 0 0 16px; padding: 6px 8px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--p-bg-dark); border-radius: var(--p-radius-sm, 4px); }
 .tool-group { align-self: flex-start; max-width: 85%; font-size: 12px; color: var(--p-text-muted); }
-.tool-group > summary { cursor: pointer; width: fit-content; user-select: none; list-style-position: inside; }
+.tool-group > summary { cursor: pointer; width: fit-content; user-select: none; }
 .tool-group > summary:hover { color: var(--p-text); }
 .tool-group > summary .fail { color: var(--p-error); }
 .tool-group > .tool-list { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 0 14px; }
@@ -103,14 +117,29 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--p-text-mut
 .msg.command-output { align-self: flex-start; padding: 2px 14px; border-left: 3px solid var(--p-border); background: var(--p-bg-dark, var(--p-panel)); border-radius: var(--p-radius-sm, 4px); font-size: 13px; }
 .msg.command-output pre.plain { margin: 8px 0; white-space: pre-wrap; font-family: var(--p-mono-font, Consolas, monospace); background: transparent; padding: 0; }
 .msg.command-output.markdown-body > :first-child { margin-top: 8px; }
-.msg.command-output.markdown-body > :last-child { margin-bottom: 8px; }
+.msg.command-output.markdown-body > :nth-last-child(1 of :not(.msg-actions)) { margin-bottom: 8px; }
 
 /* Composer */
-/* The composer floats over the bottom of the chat, a rounded panel lifted off the edge, aligned with the
-   messages (--scrollbar is the transcript's scrollbar width, set by the page). A half-transparent halo in the
-   page background sets it apart from the chat scrolling behind it. */
-:root { --composer-gap: 16px; }
-.composer { position: absolute; z-index: 4; bottom: var(--composer-gap); left: max(16px, calc((100% - var(--chat-width)) / 2)); right: calc(max(16px, calc((100% - var(--chat-width)) / 2)) + var(--scrollbar, 0px)); display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px; padding: 6px 6px 6px 4px; background: var(--p-panel); border: 1px solid var(--p-border); border-radius: 14px; box-shadow: 0 0 0 6px color-mix(in srgb, var(--p-bg) 75%, transparent), 0 6px 24px color-mix(in srgb, black 35%, transparent); transition: border-color .12s; }
+/* The composer floats over the bottom of the chat, a rounded panel aligned with the messages (--scrollbar is the
+   transcript's scrollbar width, set by the page). Its dock is a half-transparent band in the page background that
+   runs to the bottom edge, setting it apart from the chat scrolling behind it; the model and effort chips sit
+   in the band under the panel. */
+.composer-dock { position: absolute; z-index: 4; bottom: 0; left: calc(max(16px, calc((100% - var(--chat-width)) / 2)) - 6px); right: calc(max(16px, calc((100% - var(--chat-width)) / 2)) + var(--scrollbar, 0px) - 6px); padding: 6px 6px 0; border-radius: 20px 20px 0 0; background: color-mix(in srgb, var(--p-bg) 75%, transparent); }
+.composer-meta { display: flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; font-family: var(--chat-font); }
+.meta-chip { height: 18px; padding: 0 7px; border: 0; border-radius: 9px; background: transparent; color: var(--p-text-muted); font-size: 12px; line-height: 18px; }
+/* Model and effort read as pill buttons; the context fill on the right stays plain text. */
+.meta-chip:not(.context) { border: 1px solid var(--p-border); background: var(--p-panel); color: var(--p-text); line-height: 16px; }
+.meta-chip:not(.context):hover:not(:disabled), .meta-chip:not(.context).open { border-color: var(--p-accent); }
+.meta-chip.context:hover:not(:disabled) { color: var(--p-text); background: transparent; text-decoration: underline; }
+.meta-chip.context { margin-left: auto; }
+.meta-chip.context[data-tone="accent"] { color: var(--p-accent); }
+.meta-chip.context[data-tone="error"] { color: var(--p-error); }
+.choice-menu { min-width: 180px; max-height: min(360px, 60vh); overflow-y: auto; }
+.choice-menu button { display: flex; align-items: baseline; gap: 10px; }
+.choice-menu button .desc { flex: 1; color: var(--p-text-muted); font-size: 12px; }
+.choice-menu button.current { color: var(--p-accent); }
+.choice-menu .note { max-width: 280px; margin: 4px 10px 2px; color: var(--p-text-muted); font-size: 12px; }
+.composer { position: relative; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px; padding: 6px 6px 6px 4px; background: var(--p-panel); border: 1px solid var(--p-border); border-radius: 14px; box-shadow: 0 6px 24px color-mix(in srgb, black 35%, transparent); transition: border-color .12s; }
 .composer:focus-within { border-color: var(--p-accent); }
 /* Div-based input (like Persephone's Textarea): grows with its content up to max-height, then scrolls. */
 .prompt { flex: 1; min-width: 0; min-height: 36px; max-height: 40vh; overflow-y: auto; padding: 8px 10px; border: 0; background: transparent; color: var(--p-text); font-family: var(--chat-font); line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; outline: none; cursor: text; }
@@ -185,6 +214,5 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--p-text-mut
 .dialog button.danger { background: var(--p-error); border-color: var(--p-error); color: var(--p-accent-text); }
 
 @media (max-width: 760px) {
-  .fields { grid-template-columns: 1fr; }
   .msg, .activity { max-width: 100%; }
 }

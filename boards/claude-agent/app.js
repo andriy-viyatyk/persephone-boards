@@ -10,7 +10,9 @@ const pendingDeletes = new Set();
 // Master's "nothing to add" reply in a group chat; the service never shares it and history skips it.
 const GROUP_PASS = "[[pass]]";
 const sessionFor = (id, provider = "") => provider ? sessionsByKey.get(viewKey(id, provider)) : state.sessions.find((item) => item.id === id);
-const showError = (message) => { const node = $("#error"); node.textContent = message; node.classList.toggle("hidden", !message); };
+const showError = (message) => { $("#error-text").textContent = message; $("#error").classList.toggle("hidden", !message); };
+// Dismissing also clears the chat's stored error, so switching back to it does not bring the message back.
+$("#error-close").addEventListener("click", () => { if (current) current.error = ""; showError(""); });
 // Transient state line above the prompt; empty (hidden) while the session is ready.
 const setStatus = (text = "", busy = false) => { const node = $("#status"); node.textContent = text; node.classList.toggle("busy", busy); node.classList.toggle("hidden", !text); };
 
@@ -491,7 +493,7 @@ function renderParticipantBadges(view = current) {
   }
 }
 async function ensureGroupChannel(view) {
-  if (view.channel && view.groupMain && !view.groupLoading) return;
+  if (view.channel && view.groupMain && !view.groupLoading) return true;
   if (!view.cwd && !view.id) view.cwd = $("#cwd").value.trim();
   if (!view.cwd && !view.id) { setViewError(view, t("cwdRequired")); return false; }
   if (!view.channel) {

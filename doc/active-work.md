@@ -8,13 +8,7 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-- [ ] [BT-046: `claude-agent` provider board — Persephone EPIC-131 / US-1706](tasks/BT-046-claude-agent-board/README.md)
-- [ ] [BT-047: `claude-agent` board — subagents panel](tasks/BT-047-claude-agent-subagents/README.md)
-- [ ] [BT-048: `claude-agent` — provider adapter interface and capability flags (no behavior change)](tasks/BT-048-agent-provider-adapters/README.md)
-- [ ] [BT-049: Codex engine over `codex app-server`](tasks/BT-049-codex-engine/README.md)
-- [ ] BT-050: Rename the board to **Agent Chat** — display name and texts only; the `claude-agent` id stays (user decision 2026-10-25), so no storage or settings migration
-- [x] [BT-051: Group chat in Agent Chat — Persephone EPIC-131 / US-1708](tasks/BT-051-group-chat/README.md) — implemented and committed (unreleased)
-- [ ] [BT-052: Agent profiles, one-click invite, group management — Persephone EPIC-131 / US-1708](tasks/BT-052-agent-profiles/README.md)
+*(none)*
 
 ## Planned
 

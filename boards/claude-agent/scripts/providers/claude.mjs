@@ -14,8 +14,10 @@ const MODE_NATIVE = Object.freeze({ "read-only": "default", ask: "default", "aut
 function normalizeModel(info) { return { id: String(info.value ?? info.resolvedModel ?? ""), label: String(info.displayName ?? info.value ?? "Claude model"), efforts: Array.isArray(info.supportedEffortLevels) ? info.supportedEffortLevels.filter((x) => typeof x === "string") : [] }; }
 function resultReason(message) {
   if (message.subtype === "error_max_turns" || message.subtype === "error_max_budget_usd") return "limit";
+  // A successful turn's result is the agent's own reply; matching words in it ("login") would misreport it.
+  if (message.subtype === "success" && !message.is_error) return "completed";
   const detail = `${message.errors?.join(" ") || ""} ${message.result || ""}`.toLowerCase();
-  if (detail.includes("not logged") || detail.includes("login")) return "not-logged-in";
+  if (detail.includes("not logged in") || detail.includes("/login")) return "not-logged-in";
   if (detail.includes("model") && (detail.includes("unavailable") || detail.includes("not found"))) return "model-unavailable";
   if (detail.includes("resume") && detail.includes("not found")) return "resume-not-found";
   return message.subtype === "success" ? "completed" : "error";

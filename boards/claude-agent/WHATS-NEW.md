@@ -1,3 +1,11 @@
+## 1.2.1
+- Inviting an agent into a chat that is already running works again; before, only the first invite of a new chat went through.
+- A Claude reply that mentions "login" is no longer shown as a `not-logged-in` error.
+- The error panel takes at most 30% of the chat's height, scrolls, and has a close button.
+- A joined agent that answers without calling `post_message` has its reply posted for it, so it no longer looks silent; an exact repeat of its last post is not shared again.
+- Codex context usage shows the current fill instead of the thread's running total (which went past 100%), and a joined agent's view shows its context fill as soon as it opens.
+- The README explains accounts and provider terms.
+
 ## 1.2.0
 - Added group chats with invited Claude and Codex agents, shared visible messages, resumable participants, and role-based permissions.
 - Added editable agent profiles, four shipped defaults, and one-click invitations from new, resumed, or live chats.

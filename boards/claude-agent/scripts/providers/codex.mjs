@@ -230,12 +230,15 @@ function eventText(session, type, value) {
   const text = boundedString(value, 32 * 1024);
   void host.send(session.channel, { type, text: text.value, ...(text.truncated ? { truncated: true } : {}) }, session);
 }
-function statusEvent(session) {
+// The context fill is the latest request's tokens (`last`); `total` adds up every turn of the thread.
+function contextTokens(session) { return session.tokenUsage?.last?.totalTokens; }
+function sessionStatus(session) {
   const modelId = session.model || "";
-  const tokens = session.tokenUsage?.total?.totalTokens ?? session.tokenUsage?.total?.total ?? session.tokenUsage?.total?.inputTokens;
+  const tokens = contextTokens(session);
   const contextWindow = session.tokenUsage?.modelContextWindow;
-  void host.send(session.channel, { type: "session-status", model: modelId, modelLabel: session.models.find((model) => model.id === modelId)?.label || modelId, effort: session.effort || "", mode: MODE_IDS[session.permissionMode] || MODE_IDS.auto, ...(Number.isFinite(tokens) ? { contextTokens: tokens } : {}), ...(Number.isFinite(contextWindow) ? { contextWindow } : {}), ...(Number.isFinite(tokens) && Number.isFinite(contextWindow) && contextWindow ? { contextPercent: Math.round(tokens / contextWindow * 1000) / 10 } : {}) }, session);
+  return { type: "session-status", model: modelId, modelLabel: session.models.find((model) => model.id === modelId)?.label || modelId, effort: session.effort || "", mode: MODE_IDS[session.permissionMode] || MODE_IDS.auto, ...(Number.isFinite(tokens) ? { contextTokens: tokens } : {}), ...(Number.isFinite(contextWindow) ? { contextWindow } : {}), ...(Number.isFinite(tokens) && Number.isFinite(contextWindow) && contextWindow ? { contextPercent: Math.round(tokens / contextWindow * 1000) / 10 } : {}) };
 }
+function statusEvent(session) { void host.send(session.channel, sessionStatus(session), session); }
 function sandboxPolicy(session) {
   if (session.permissionMode === "full") return { type: "dangerFullAccess" };
   if (session.permissionMode === "read") return { type: "readOnly", networkAccess: false };
@@ -431,7 +434,7 @@ function createCodexProvider(serviceHost) {
     async manageSession(channel, request) { try { const server = await sharedServer(); if (request.action === "rename") await server.request("thread/name/set", { threadId: request.sessionId, name: boundedString(request.title, 1024).value }); else if (request.action === "delete") await server.request("thread/delete", { threadId: request.sessionId }); else throw providerError("action must be rename or delete.", "protocol-error"); await host.send(channel, host.echo({ type: "session-updated", action: request.action, sessionId: request.sessionId }, request)); host.closeChannel(channel); } catch (error) { await host.replyError(channel, request, error.code || "protocol-error", error.message, true); } },
     sessionCapability(request) { if (["models", "set-model"].includes(request.action)) return "modelSelection"; if (request.action === "set-effort") return "effortSelection"; if (request.action === "set-mode") return "permissionModes"; return null; },
     acceptsMode(mode) { return Object.values(MODE_IDS).includes(mode); },
-    sessionStatus(session) { return { type: "session-status", model: session.model, modelLabel: session.models.find((model) => model.id === session.model)?.label || session.model, effort: session.effort, mode: MODE_IDS[session.permissionMode] || MODE_IDS.auto }; },
+    sessionStatus,
     async dispatchSession(session, request) {
       if (request.type === "interrupt") { for (const id of [...session.approvals.keys()]) host.settleApproval(session, id, { decision: "deny", message: "Turn was interrupted." }); await session.rpc.request("turn/interrupt", { threadId: session.id }).catch(() => {}); return; }
       if (request.type === "approve" || request.type === "approval-response") { host.approve(session, request); return; }
@@ -443,7 +446,7 @@ function createCodexProvider(serviceHost) {
           if (request.action === "set-model") { if (request.model !== "default" && !session.models.some((model) => model.id === request.model)) throw providerError("The selected model is not available.", "model-unavailable"); session.model = request.model === "default" ? "" : request.model; return { model: session.model }; }
           if (request.action === "set-effort") { const model = session.models.find((entry) => entry.id === session.model); if (!model?.efforts.includes(request.effort)) throw providerError("The selected effort is not available for this model.", "protocol-error"); session.effort = request.effort; return { effort: session.effort }; }
           if (request.action === "set-mode") { if (!this.acceptsMode(request.mode)) throw providerError("The selected permission mode is not available.", "protocol-error"); session.permissionMode = request.mode === MODE_IDS.full ? "full" : request.mode === MODE_IDS.read ? "read" : "auto"; session.policyMode = session.crossBoard ? session.mode : session.permissionMode === "read" ? "read-only" : session.permissionMode === "auto" ? "ask" : "full-auto"; statusEvent(session); return { mode: request.mode }; }
-          if (request.action === "context") return { usage: { model: session.model, totalTokens: session.tokenUsage?.total?.totalTokens || 0, maxTokens: session.tokenUsage?.modelContextWindow || 0, percentage: session.tokenUsage?.modelContextWindow ? Math.round((session.tokenUsage.total?.totalTokens || 0) / session.tokenUsage.modelContextWindow * 100) : 0, categories: [], autoCompact: false, mcpTools: [], memoryFiles: [] } };
+          if (request.action === "context") return { usage: { model: session.model, totalTokens: contextTokens(session) || 0, maxTokens: session.tokenUsage?.modelContextWindow || 0, percentage: session.tokenUsage?.modelContextWindow ? Math.round((contextTokens(session) || 0) / session.tokenUsage.modelContextWindow * 100) : 0, categories: [], autoCompact: false, mcpTools: [], memoryFiles: [] } };
           throw providerError(`Unsupported Codex control: ${request.action}`, "unsupported-operation");
         })();
         await host.send(session.channel, { type: "control-result", id: request.id, ok: true, ...result }, session); return;

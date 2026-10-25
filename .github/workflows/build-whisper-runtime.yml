@@ -144,7 +144,7 @@ jobs:
               $result = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/inference' -Form $form -TimeoutSec 300
               if (-not $result.text) { throw "Inference response did not contain text: $($result | ConvertTo-Json -Compress)" }
               $transcript = $result.text.ToLowerInvariant()
-              if (-not $transcript.Contains('ask not what you can do')) { throw "Unexpected JFK transcript: $($result.text)" }
+              if (-not $transcript.Contains('ask not what your country can do')) { throw "Unexpected JFK transcript: $($result.text)" }
               Write-Host "Smoke run '$RunName' transcript: $($result.text)"
               if ($ForceCpu) { Write-Host "Backend conclusion for '$RunName': CPU forced by --no-gpu; inference succeeded." }
               else { Write-Host "Backend conclusion for '$RunName': no usable Vulkan GPU is present on this runner; successful inference used the CPU fallback." }

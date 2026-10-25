@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
-import { appliedLimits, boundedString, clampMode, hookDecision, serializeEvent, validateOpen } from "./agent-session-protocol.mjs";
+import { appliedLimits, authorHeader, boundedString, clampMode, hookDecision, serializeEvent, validateOpen } from "./agent-session-protocol.mjs";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createServer } from "node:http";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createClaudeProvider } from "./providers/claude.mjs";
 import { createCodexProvider } from "./providers/codex.mjs";
@@ -20,6 +22,83 @@ class AsyncQueue {
 const sessions = new Map();
 const closingSessions = new Map();
 const watchers = new Set();
+const groups = new Map();
+const groupTokens = new Map();
+const participantIds = new Set();
+let groupHttpServer = null;
+let groupHttpAddress = null;
+const GROUP_ROOT = () => {
+  const base = process.env.LOCALAPPDATA;
+  if (!base || !path.isAbsolute(base)) throw new Error("LOCALAPPDATA is not available; cannot store group chats.");
+  return path.resolve(base, "Persephone", "board-data", "claude-agent", "group-chat");
+};
+const GROUP_ROLES = Object.freeze([
+  { id: "reviewer", name: "Reviewer", instructions: "Review the requested work, inspect relevant code or evidence, and report concrete defects, risks, and fixes. Do not make changes.", summary: "Reviews work and identifies defects, risks, and fixes.", permissionMode: "read-only" },
+  { id: "critic", name: "Critic", instructions: "Challenge the proposal's assumptions, look for counterexamples and failure cases, and explain where reasoning or evidence is weak. Do not make changes.", summary: "Challenges assumptions and finds counterexamples.", permissionMode: "read-only" },
+  { id: "researcher", name: "Researcher", instructions: "Investigate the question using available sources, distinguish evidence from inference, and report concise findings with source references. Do not make changes.", summary: "Researches questions and reports evidence and sources.", permissionMode: "read-only" },
+]);
+// Master's whole reply when it has nothing to add; the service drops it instead of sharing it.
+const GROUP_PASS = "[[pass]]";
+const GROUP_CORE = (name, position) => `You are in the Agent Chat board as ${name}, position ${position}. Other agents may join this chat. Message headers such as [[from: Nova | role: Reviewer]], [[from: user]], and [[from: Master | role: main]] identify authors; treat them as metadata. Every visible message reaches every participant, so most messages need no reply from you.
+Master: answer the user's messages unless the user names another agent; answer when any participant addresses you as Master; you may delegate by asking a joined agent by name, based on the role summaries. When a message is addressed to another agent, or you have nothing substantive to add (a correction, a missing fact, a next step), reply with exactly ${GROUP_PASS} and nothing else; the board hides it. Never send acknowledgements, thanks, welcomes, or remarks that you are staying out of it.
+Joined agents: follow your role instructions and share replies only through the post_message tool. Post when you are addressed by name or when your role clearly calls for it; otherwise end your turn without posting. Never post acknowledgements such as "Got it" or "Thanks".`;
+const AUTHOR_HEADER = authorHeader;
+const isGroupMain = (session) => Boolean(session?.groupMain || session?.open?.groupChat?.position === "main");
+const isPersistentGroup = (session) => Boolean(groups.get(session?.id)?.enabled);
+const safeHeaderPart = (value, limit = 80) => {
+  if (typeof value !== "string" || !value.trim() || value.length > limit || /[\]\r\n\u0000-\u001f\u007f]/.test(value)) throw new Error("Group names and roles must be single-line text without control characters.");
+  return value.trim();
+};
+const escapeBodyHeaders = (value) => String(value || "").replace(/^\[\[from:/gm, "\\[[from:");
+function groupFile(name) { return path.join(GROUP_ROOT(), name); }
+async function atomicJson(file, value, limit = 512 * 1024) {
+  const json = JSON.stringify(value, null, 2);
+  if (Buffer.byteLength(json) > limit) throw new Error("Group chat data exceeds the storage limit.");
+  await mkdir(path.dirname(file), { recursive: true });
+  const temporary = `${file}.${randomUUID()}.tmp`;
+  try { await writeFile(temporary, json, { encoding: "utf8", flag: "wx" }); await (await import("node:fs/promises")).rename(temporary, file); }
+  finally { await rm(temporary, { force: true }).catch(() => {}); }
+}
+async function readJson(file, fallback, maxBytes = 512 * 1024) {
+  try {
+    const text = await readFile(file, "utf8");
+    if (Buffer.byteLength(text) > maxBytes) throw new Error("Saved group chat data exceeds its size limit.");
+    return JSON.parse(text);
+  }
+  catch (error) { if (error.code === "ENOENT") return fallback; throw error; }
+}
+const rolesFile = () => groupFile("roles.json");
+const participantsFile = (id) => groupFile(`participants-${encodeURIComponent(id)}.json`);
+async function readRoles() {
+  const stored = await readJson(rolesFile(), null, 128 * 1024);
+  if (stored !== null) {
+    if (!Array.isArray(stored) || stored.length > 64 || stored.some((role) => !role || typeof role.id !== "string" || typeof role.name !== "string" || typeof role.instructions !== "string" || typeof role.summary !== "string" || !["read-only", "ask", "auto-edit", "full-auto"].includes(role.permissionMode))) throw new Error("Saved role list is invalid.");
+    return stored;
+  }
+  await atomicJson(rolesFile(), GROUP_ROLES, 128 * 1024);
+  return GROUP_ROLES;
+}
+async function readParticipants(id) {
+  const rows = await readJson(participantsFile(id), [], 512 * 1024);
+  if (!Array.isArray(rows) || rows.length > 32) throw new Error("Saved participant list is invalid.");
+  for (const row of rows) {
+    if (!row || typeof row !== "object" || Object.hasOwn(row, "token") || !/^[0-9a-f-]{36}$/i.test(row.id || "") || !/^[0-9a-f-]{36}$/i.test(row.mainSessionId || "") || row.mainSessionId !== id) throw new Error("Saved participant metadata is invalid.");
+    safeHeaderPart(row.name, 40); safeHeaderPart(row.role, 60);
+    if (typeof row.roleId !== "string" || !/^[a-z0-9-]{1,48}$/.test(row.roleId) || !["claude", "codex"].includes(row.engine) || !["read-only", "ask", "auto-edit", "full-auto"].includes(row.permissionMode)) throw new Error("Saved participant metadata is invalid.");
+    if (typeof row.instructions !== "string" || Buffer.byteLength(row.instructions) > 16 * 1024 || typeof row.summary !== "string" || Buffer.byteLength(row.summary) > 2048 || typeof row.model !== "string" || row.model.length > 200 || typeof row.effort !== "string" || row.effort.length > 40 || typeof row.cwd !== "string" || row.cwd.length > 32768 || !path.isAbsolute(row.cwd)) throw new Error("Saved participant metadata is invalid.");
+    if (row.sessionId !== "" && (typeof row.sessionId !== "string" || !row.sessionId || row.sessionId.length > 512 || /[\u0000-\u001f\u007f]/.test(row.sessionId))) throw new Error("Saved participant session id is invalid.");
+    if (row.sessionId) participantIds.add(row.sessionId);
+  }
+  return rows;
+}
+async function loadParticipantIds() {
+  for (const file of await readdir(GROUP_ROOT()).catch(() => [])) {
+    if (!/^participants-.+\.json$/.test(file)) continue;
+    const rows = await readJson(groupFile(file), [], 512 * 1024).catch(() => []);
+    if (Array.isArray(rows)) for (const row of rows) if (typeof row?.sessionId === "string") participantIds.add(row.sessionId);
+  }
+}
+async function hasGroupParticipants(id) { return readFile(participantsFile(id)).then(() => true).catch((error) => { if (error.code === "ENOENT") return false; throw error; }); }
 function registerSession(session) { sessions.set(session.channel, { providerId: session.providerId, adapter: session.adapter, providerSession: session }); }
 const activeSessions = () => [...sessions.values()].map((record) => record.providerSession);
 const HISTORY_BATCH_BYTES = 600 * 1024;
@@ -80,6 +159,18 @@ const OPEN_CAPABILITIES = {
 const LOCAL_PAGE_ONLY = new Set(["session-history", "follow-session", "manage-session", "instructions", "watch-sessions", "watch-subagents", "subagent-history", "provider-setup"]);
 async function send(channel, event, session) {
   if (session?.closed) return;
+  if (session?.groupParticipant) return;
+  if (isGroupMain(session) && event?.type === "turn-started") session.groupTurnShared = isPersistentGroup(session);
+  if (isGroupMain(session) && session.groupTurnShared && event?.type === "text-delta") { session.groupTurnText = (session.groupTurnText || "") + (event.text || ""); return; }
+  if (isGroupMain(session) && session.groupTurnShared && event?.type === "text") { session.groupTurnText = event.text || session.groupTurnText || ""; return; }
+  if (isGroupMain(session) && session.groupTurnShared && event?.type === "turn-ended") {
+    const finalText = (session.groupTurnText || "").trim();
+    session.groupTurnText = "";
+    if (finalText && finalText !== GROUP_PASS && !session.groupCommandTurn) await publishGroupMessage(getGroup(session.id, session), `${AUTHOR_HEADER("Master", "main")}\n${escapeBodyHeaders(finalText)}`, { name: "Master", role: "main", engine: session.providerId, kind: "agent" });
+    session.groupCommandTurn = false;
+    session.groupTurnShared = false;
+    await flushGroupQueue(getGroup(session.id, session), session);
+  }
   try {
     if (!channel.writable) await channel.whenWritable();
     if (session?.closed) return;
@@ -144,7 +235,12 @@ function approve(session, request) {
   if (request.mode !== undefined && !session.adapter.acceptsMode(request.mode)) return replyError(session.channel, request, "protocol-error", "Approval continuation mode is invalid.", false, session);
   settleApproval(session, request.requestId, { decision: request.decision, message: request.message ? boundedString(request.message, 32 * 1024).value : undefined, ...(request.mode ? { mode: request.mode } : {}) });
 }
-const policyDecision = (session, toolName, input = {}) => hookDecision(session.policyMode || session.mode, toolName, input, session.open.cwd);
+const policyDecision = (session, toolName, input = {}) => {
+  if (session?.groupParticipant && /^(?:mcp__)?agent_chat(?:__|\.)post_message$/.test(toolName)) return { permissionDecision: "allow", kind: "mcp" };
+  const decision = hookDecision(session.policyMode || session.mode, toolName, input, session.open.cwd);
+  if (session?.groupParticipant && decision.permissionDecision === "ask") return { ...decision, permissionDecision: "deny", message: "This action is outside the joined agent's permission preset." };
+  return decision;
+};
 function approvalKind(toolName) { const kind = hookDecision("ask", toolName).kind; return kind === "read" ? "other" : kind; }
 function selectPermissionMode({ requested, ceiling, crossBoard }) { return crossBoard ? clampMode(requested, ceiling) : "full-auto"; }
 const sessionLimits = (open) => appliedLimits(open.limits || {});
@@ -157,11 +253,247 @@ function revokeEndpoint(session) {
 async function prepareOpen(request, info) {
   const open = validateOpen(request);
   const crossBoard = Boolean(info?.interface && info?.caller);
+  if (crossBoard) delete open.groupChat;
+  else if (open.groupChat?.internal === true && open.groupChat.position === "joined") {
+    open.groupChat.name = safeHeaderPart(open.groupChat.name, 40);
+    if (!/^[0-9a-f-]{36}$/i.test(open.groupChat.participantId || "") || !["read-only", "ask", "auto-edit", "full-auto"].includes(open.groupChat.permissionMode)) throw new Error("Group participant metadata is invalid.");
+  } else if (open.groupChat?.position === "main") open.groupChat = { name: "Master", position: "main" };
+  else delete open.groupChat;
   const ceiling = (await persephone.settings.get("cross-board-permission-ceiling")) || "read-only";
-  const mode = selectPermissionMode({ requested: open.permissionMode, ceiling, crossBoard });
+  const mode = open.groupChat?.position === "joined" ? open.groupChat.permissionMode : selectPermissionMode({ requested: open.permissionMode, ceiling, crossBoard });
   return { open, crossBoard, mode };
 }
 const issueOpenEndpoint = (prepared) => issueEndpoint(prepared.open.mcp?.persephone !== false && prepared.mode !== "read-only");
+function getGroup(mainSessionId, mainSession) {
+  let group = groups.get(mainSessionId);
+  if (!group) {
+    group = { mainSessionId, mainSession, participants: [], live: new Map(), queues: new Map(), channelClosed: false };
+    groups.set(mainSessionId, group);
+  }
+  if (mainSession) { group.mainSession = mainSession; group.channelClosed = false; }
+  return group;
+}
+async function saveParticipants(group) {
+  await atomicJson(participantsFile(group.mainSessionId), group.participants.map(({ token, ...row }) => row));
+  for (const row of group.participants) if (row.sessionId) participantIds.add(row.sessionId);
+}
+function internalParticipantChannel(group, participantId) {
+  const listeners = { message: null, close: null };
+  let closed = false;
+  return {
+    get writable() { return !closed; },
+    async whenWritable() {},
+    send(event) {
+      if (closed) return;
+      const participant = group.participants.find((row) => row.id === participantId);
+      if (event.type === "session-started" && participant) participant.sessionId = event.sessionId;
+      if (event.type === "error" && event.fatal) void send(group.mainSession.channel, { type: "group-participant-error", participantId, message: event.message || "Participant session failed." }, group.mainSession);
+      if (event.type === "turn-started" || event.type === "turn-ended") {
+        const live = group.live.get(participantId);
+        if (live) live.busy = event.type === "turn-started";
+        if (event.type === "turn-ended") void flushGroupQueue(group, live);
+      }
+    },
+    onMessage(callback) { listeners.message = callback; },
+    onClose(callback) { listeners.close = callback; },
+    close(reason) { if (closed) return; closed = true; listeners.close?.(reason); },
+  };
+}
+async function startGroupHttpServer() {
+  if (groupHttpServer?.listening) return groupHttpAddress;
+  groupHttpServer = createServer(async (req, res) => {
+    if (req.url !== "/mcp") { res.writeHead(404).end(); return; }
+    const hostHeader = String(req.headers.host || "").toLowerCase();
+    const origin = req.headers.origin;
+    if (req.method !== "POST") { res.writeHead(405, { Allow: "POST" }).end(); return; }
+    if (!/^127\.0\.0\.1(?::\d+)?$/.test(hostHeader) || (origin && origin !== `http://${hostHeader}`)) { res.writeHead(403).end(); return; }
+    const auth = /^Bearer ([a-f0-9]{64})$/.exec(String(req.headers.authorization || ""));
+    if (!auth) { res.writeHead(401).end(); return; }
+    const tokenBytes = Buffer.from(auth[1], "hex");
+    const matchedToken = [...groupTokens.keys()].find((candidate) => timingSafeEqual(Buffer.from(candidate, "hex"), tokenBytes));
+    const record = matchedToken ? groupTokens.get(matchedToken) : null;
+    if (!record || !record.group.participants.includes(record.participant)) { res.writeHead(401).end(); return; }
+    let body = "";
+    for await (const chunk of req) { body += chunk; if (Buffer.byteLength(body) > 64 * 1024) { res.writeHead(413).end(); return; } }
+    let message;
+    try { message = JSON.parse(body); } catch { res.writeHead(400).end(); return; }
+    const reply = (payload) => { res.writeHead(200, { "Content-Type": "application/json", "MCP-Protocol-Version": "2025-03-26" }).end(JSON.stringify(payload)); };
+    if (!message || message.jsonrpc !== "2.0" || typeof message.method !== "string") { res.writeHead(400).end(); return; }
+    if (message.method === "notifications/initialized" && message.id === undefined) { res.writeHead(202).end(); return; }
+    if (message.method === "initialize") return reply({ jsonrpc: "2.0", id: message.id, result: { protocolVersion: "2025-03-26", capabilities: { tools: {} }, serverInfo: { name: "agent-chat", version: "1" } } });
+    if (message.method === "tools/list") return reply({ jsonrpc: "2.0", id: message.id, result: { tools: [{ name: "post_message", description: "Post a message to the group chat", inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false } }] } });
+    if (message.method === "tools/call") {
+      const params = message.params || {};
+      if (params.name !== "post_message") return reply({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Unknown tool." } });
+      const input = params.arguments || {};
+      if (Object.keys(input).some((key) => key !== "text") || typeof input.text !== "string" || !input.text.trim() || Buffer.byteLength(input.text) > 16 * 1024) return reply({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: "The message must be non-empty text of at most 16 KiB." }], isError: true } });
+      const author = record.participant;
+      const stamped = `${AUTHOR_HEADER(author.name, author.role)}\n${escapeBodyHeaders(input.text.trim())}`;
+      await publishGroupMessage(record.group, stamped, { name: author.name, role: author.role, roleId: author.roleId, engine: author.engine, kind: "participant" }, author.id);
+      return reply({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: "Posted to group chat." }], isError: false } });
+    }
+    if (message.id === undefined) { res.writeHead(202).end(); return; }
+    return reply({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Unknown method." } });
+  });
+  await new Promise((resolve, reject) => { groupHttpServer.once("error", reject); groupHttpServer.listen(0, "127.0.0.1", resolve); });
+  groupHttpAddress = `http://127.0.0.1:${groupHttpServer.address().port}/mcp`;
+  return groupHttpAddress;
+}
+async function issueGroupEndpoint(participantId) {
+  const participant = [...groups.values()].flatMap((group) => group.participants.map((row) => ({ row, group }))).find(({ row }) => row.id === participantId);
+  if (!participant) throw new Error("The joined participant is unavailable.");
+  const token = randomBytes(32).toString("hex");
+  const url = await startGroupHttpServer();
+  participant.row.token = token;
+  groupTokens.set(token, { participant: participant.row, group: participant.group });
+  return { url, token, revoke: () => { groupTokens.delete(token); participant.row.token = undefined; } };
+}
+function revokeGroupEndpoint(session) { try { session?.groupEndpoint?.revoke?.(); } catch { /* expired token */ } }
+async function publishGroupMessage(group, stamped, author, sourceParticipantId = "") {
+  const timelineText = stamped.replace(/^\[\[from: [^\n]+\]\]\n/, "");
+  const notice = author.kind === "notice";
+  const event = {
+    type: "group-visible-message",
+    text: notice ? `Agent ${author.name} (${author.role}) ${author.action}` : timelineText,
+    timelineText,
+    author,
+    ...(notice ? { noticeAction: author.action, summary: author.summary, reminder: author.reminder || "" } : {}),
+  };
+  await send(group.mainSession.channel, event, group.mainSession);
+  if (sourceParticipantId || author.kind === "notice") queueGroupText(group, group.mainSession, stamped);
+  for (const participant of group.participants.filter((row) => !row.removed)) {
+    const live = group.live.get(participant.id);
+    if (!live) continue;
+    // The source receives the shared timeline on its next turn too; agents are instructed to answer only when named.
+    queueGroupText(group, live, stamped);
+  }
+}
+function queueGroupText(group, session, text) {
+  if (!session) return;
+  const queue = group.queues.get(session.id) || [];
+  queue.push(text);
+  group.queues.set(session.id, queue);
+  if (!session.busy) void flushGroupQueue(group, session);
+}
+async function flushGroupQueue(group, session) {
+  if (!session || session.busy || session.groupDispatch || session.closed) return;
+  const queue = group.queues.get(session.id);
+  if (!queue?.length) return;
+  group.queues.delete(session.id);
+  session.groupDispatch = true;
+  try { await session.adapter.dispatchSession(session, { type: "send", id: randomUUID(), text: queue.join("\n\n") }); }
+  catch { /* send failure is reported by the provider; the queue is consumed for v1 */ }
+  finally { session.groupDispatch = false; }
+}
+async function addGroupParticipant(group, request) {
+  const roles = await readRoles();
+  const role = roles.find((item) => item.id === request.roleId);
+  if (!role) throw new Error("Choose an available role.");
+  if (Buffer.byteLength(role.instructions) > 16 * 1024 || Buffer.byteLength(role.summary) > 2048) throw new Error("The selected role exceeds the group chat limits.");
+  if (group.participants.filter((row) => !row.removed).length >= 32) throw new Error("A group can have at most 32 participants.");
+  const name = safeHeaderPart(request.name, 40);
+  if (name.toLowerCase() === "master" || group.participants.some((row) => !row.removed && row.name.toLowerCase() === name.toLowerCase())) throw new Error("That name is already in use.");
+  const providerId = ["claude", "codex"].includes(request.provider) ? request.provider : "claude";
+  const adapter = providers.get(providerId);
+  if (!adapter) throw new Error("The selected engine is unavailable.");
+  const hadParticipantFile = await readFile(participantsFile(group.mainSessionId)).then(() => true).catch(() => false);
+  const id = randomUUID();
+  const participant = { id, name, role: role.name, roleId: role.id, instructions: role.instructions, summary: role.summary, permissionMode: role.permissionMode, engine: providerId, model: boundedString(request.model || "", 200).value, effort: boundedString(request.effort || "", 40).value, sessionId: "", mainSessionId: group.mainSessionId, cwd: group.mainSession.open.cwd };
+  group.participants.push(participant);
+  group.enabled = true;
+  await saveParticipants(group);
+  const channel = internalParticipantChannel(group, id);
+  const open = { type: "open", contractVersion: 1, id: randomUUID(), provider: providerId, model: participant.model, effort: participant.effort, cwd: participant.cwd, permissionMode: participant.permissionMode, instructions: role.instructions, groupChat: { internal: true, name, position: "joined", participantId: id, permissionMode: role.permissionMode } };
+  try {
+    const live = await adapter.open(channel, open, {});
+    live.group = group; live.groupParticipant = participant; group.live.set(id, live);
+    const roster = group.participants.filter((item) => !item.removed).map((item) => `${item.name} (${item.role})`).join(", ");
+    const history = request.historyText || "";
+    const firstTurn = `You are ${name}, a joined agent with role ${role.name}. ${role.summary}\nCurrent participants: Master (main), ${roster}.\nVisible timeline so far:\n${boundedString(history, 64 * 1024).value || "No earlier visible messages."}`;
+    await adapter.dispatchSession(live, { type: "send", id: randomUUID(), text: firstTurn });
+    const reminder = hadParticipantFile ? "" : GROUP_CORE("Master", "main");
+    const notice = `${AUTHOR_HEADER(name, role.name)}\nAgent ${name} (${role.name}) joined\n\n${escapeBodyHeaders(role.summary)}${reminder ? `\n\n${reminder}` : ""}`;
+    await publishGroupMessage(group, notice, { name, role: role.name, roleId: role.id, engine: providerId, summary: role.summary, reminder, action: "joined", kind: "notice" });
+    await saveParticipants(group);
+    return participant;
+  } catch (error) {
+    group.participants = group.participants.filter((row) => row.id !== id);
+    groupTokens.forEach((record, token) => { if (record.participant.id === id) groupTokens.delete(token); });
+    await saveParticipants(group).catch(() => {});
+    throw error;
+  }
+}
+async function removeGroupParticipant(group, id) {
+  const participant = group.participants.find((row) => row.id === id && !row.removed);
+  if (!participant) return;
+  const live = group.live.get(id);
+  if (live) { revokeGroupEndpoint(live); await closeSession(live, "participant-removed", true, true); group.live.delete(id); }
+  groupTokens.forEach((record, token) => { if (record.participant.id === id) groupTokens.delete(token); });
+  participant.removed = true;
+  await saveParticipants(group);
+  await publishGroupMessage(group, `${AUTHOR_HEADER(participant.name, participant.role)}\nAgent ${participant.name} (${participant.role}) left`, { name: participant.name, role: participant.role, roleId: participant.roleId, engine: participant.engine, action: "left", kind: "notice" });
+}
+async function resumeGroupParticipants(group) {
+  for (const participant of group.participants) {
+    if (participant.removed) continue;
+    if (group.live.has(participant.id)) continue;
+    if (!participant.sessionId) {
+      await send(group.mainSession.channel, { type: "group-participant-error", participantId: participant.id, message: "The saved participant session id is unavailable." }, group.mainSession);
+      continue;
+    }
+    const provider = providers.get(participant.engine);
+    if (!provider) continue;
+    try {
+      const open = { type: "open", contractVersion: 1, id: randomUUID(), provider: participant.engine, model: participant.model, effort: participant.effort, cwd: participant.cwd || group.mainSession.open.cwd, resume: participant.sessionId, permissionMode: participant.permissionMode, instructions: participant.instructions, groupChat: { internal: true, name: participant.name, position: "joined", participantId: participant.id, permissionMode: participant.permissionMode } };
+      const internal = internalParticipantChannel(group, participant.id);
+      const live = await provider.open(internal, open, {});
+      live.group = group; live.groupParticipant = participant; group.live.set(participant.id, live);
+    } catch (error) { await send(group.mainSession.channel, { type: "group-participant-error", participantId: participant.id, message: boundedString(error.message || "Participant resume failed.", 4096).value }, group.mainSession); }
+  }
+}
+async function groupOperation(session, request) {
+  const group = getGroup(session.id, session);
+  if (request.action === "list") {
+    group.participants = await readParticipants(session.id);
+    group.enabled = await hasGroupParticipants(session.id);
+    await resumeGroupParticipants(group);
+    return send(session.channel, { type: "group-data", groupMode: group.enabled, roles: await readRoles(), participants: group.participants.filter((row) => !row.removed) }, session);
+  }
+  if (request.action === "invite") {
+    const participant = await addGroupParticipant(group, request);
+    return send(session.channel, { type: "group-participant-added", participant }, session);
+  }
+  if (request.action === "remove") return removeGroupParticipant(group, request.participantId);
+  if (request.action === "save-role") {
+    if (request.role?.id && GROUP_ROLES.some((role) => role.id === request.role.id)) throw new Error("Built-in roles cannot be replaced.");
+    const role = request.role;
+    if (!role || typeof role !== "object" || typeof role.id !== "string" || !/^[a-z0-9-]{1,48}$/.test(role.id)) throw new Error("Role data is invalid.");
+    const rows = await readRoles(), next = { id: role.id, name: safeHeaderPart(role.name, 60), instructions: boundedString(role.instructions, 16 * 1024).value, summary: boundedString(role.summary, 2048).value, permissionMode: ["read-only", "ask", "auto-edit", "full-auto"].includes(role.permissionMode) ? role.permissionMode : "read-only" };
+    const index = rows.findIndex((item) => item.id === next.id); if (index < 0) rows.push(next); else rows[index] = next;
+    await atomicJson(rolesFile(), rows, 128 * 1024); return send(session.channel, { type: "group-data", roles: rows, participants: group.participants.filter((row) => !row.removed) }, session);
+  }
+  if (request.action === "delete-role") {
+    if (GROUP_ROLES.some((role) => role.id === request.roleId)) throw new Error("Built-in roles cannot be deleted.");
+    const rows = (await readRoles()).filter((role) => role.id !== request.roleId); await atomicJson(rolesFile(), rows, 128 * 1024);
+    return send(session.channel, { type: "group-data", roles: rows, participants: group.participants.filter((row) => !row.removed) }, session);
+  }
+  if (request.action === "user-message") {
+    const text = boundedString(request.text, 16 * 1024).value.trim();
+    if (!text) return;
+    const stamped = `${AUTHOR_HEADER("user", "")}\n${escapeBodyHeaders(text)}`;
+    session.groupCommandTurn = false;
+    await send(session.channel, { type: "group-visible-message", text, timelineText: escapeBodyHeaders(text), author: { name: "user", role: "", kind: "user" } }, session);
+    for (const participant of group.participants.filter((row) => !row.removed)) queueGroupText(group, group.live.get(participant.id), stamped);
+    if (session.busy) queueGroupText(group, session, stamped);
+    else await session.adapter.dispatchSession(session, { type: "send", id: randomUUID(), text: stamped });
+  }
+  if (request.action === "stop-all") {
+    group.queues.clear();
+    await session.adapter.dispatchSession(session, { type: "interrupt" });
+    await Promise.all([...group.live.values()].map((live) => live.adapter.dispatchSession(live, { type: "interrupt" }).catch(() => {})));
+  }
+  if (!["list", "invite", "remove", "save-role", "delete-role", "user-message", "stop-all"].includes(request.action)) throw new Error("The group operation is unavailable.");
+}
 async function closeSession(session, reason, force = false, closeTransport = false) {
   if (!session) return;
   if (session.closeTask) return session.closeTask;
@@ -169,6 +501,21 @@ async function closeSession(session, reason, force = false, closeTransport = fal
     if (session.status?.compacting) { session.status.compacting = false; await send(session.channel, session.adapter.sessionStatus(session), session); }
     session.closed = true;
     sessions.delete(session.channel);
+    if (session.groupParticipant) {
+      revokeGroupEndpoint(session);
+      const group = session.groupParticipant.mainSessionId && groups.get(session.groupParticipant.mainSessionId);
+      if (group) group.live.delete(session.groupParticipant.id);
+    }
+    if (isGroupMain(session)) {
+      const group = groups.get(session.id);
+      if (group) {
+        group.channelClosed = true;
+        await Promise.all([...group.live.values()].map((participant) => closeSession(participant, "parent-closed", true, true)));
+        group.live.clear();
+        group.queues.clear();
+        groups.delete(session.id);
+      }
+    }
     for (const [id, approval] of session.approvals) { approval.cleanup?.(); approval.resolve({ decision: "deny", message: "Session closed." }); session.approvals.delete(id); }
     session.inputQueue?.close();
     await session.adapter.closeProviderSession(session, { reason, force });
@@ -179,6 +526,11 @@ async function closeSession(session, reason, force = false, closeTransport = fal
   session.closeTask = task; closingSessions.set(session.id, task); return task;
 }
 async function dispatchSession(session, request) {
+  if (isGroupMain(session) && request?.type === "group") {
+    try { return await groupOperation(session, request); }
+    catch (error) { return send(session.channel, { type: "group-error", message: boundedString(error.message || "The group operation failed.", 4096).value }, session); }
+  }
+  if (isGroupMain(session) && request?.type === "send") session.groupCommandTurn = isPersistentGroup(session) && typeof request.text === "string" && request.text.trimStart().startsWith("/");
   const capability = session.adapter.sessionCapability?.(request);
   if (capability && session.adapter.capabilities?.[capability] !== true) return replyError(session.channel, request, "unsupported-operation", `This provider does not support ${request.action || request.type}.`, false, session);
   try { return await session.adapter.dispatchSession(session, request); }
@@ -196,7 +548,7 @@ function watchFor(channel, stop) {
   watchers.add(entry);
   channel.onClose(() => { watchers.delete(entry); stop(); });
 }
-const host = { AsyncQueue, sessions, closingSessions, watchers, send, echo, replyError, closeChannel, registerSession, activeSessions, registerProcess, killChildren, sendEntries, closeSession, askApproval, settleApproval, approve, policyDecision, approvalKind, selectPermissionMode, sessionLimits, issueEndpoint, issueOpenEndpoint, revokeEndpoint, prepareOpen, bindSession, watchFor, composeInstructions: composeProviderInstructions };
+const host = { AsyncQueue, sessions, closingSessions, watchers, send, echo, replyError, closeChannel, registerSession, activeSessions, registerProcess, killChildren, sendEntries, closeSession, askApproval, settleApproval, approve, policyDecision, approvalKind, selectPermissionMode, sessionLimits, issueEndpoint, issueOpenEndpoint, issueGroupEndpoint, revokeEndpoint, revokeGroupEndpoint, prepareOpen, bindSession, watchFor, composeInstructions: composeProviderInstructions, groupCore: GROUP_CORE, hasGroupParticipants };
 const providers = new Map([["claude", createClaudeProvider(host)], ["codex", createCodexProvider(host)]]);
 
 async function sendProviderError(channel, request, code, message) {
@@ -226,6 +578,24 @@ persephone.service.onChannel(async (channel, request, info) => {
     return;
   }
   const adapter = ownerRecord?.adapter || providers.get(requested);
+  if (request?.type === "group-participant-open") {
+    if (info?.interface || info?.caller || !request.mainSessionId) return closeChannel(channel, { code: "connection-refused", message: "Group participants can be invited only from the local board page." });
+    const main = [...sessions.values()].map((record) => record.providerSession).find((item) => item.id === request.mainSessionId && isGroupMain(item));
+    if (!main) return sendProviderError(channel, request, "session-unavailable", "The group chat is not live.");
+    const group = getGroup(main.id, main);
+    const participant = group.participants.find((row) => row.id === request.participantId);
+    const provider = participant && providers.get(participant.engine);
+    if (!participant || !provider) return sendProviderError(channel, request, "session-unavailable", "The participant is unavailable.");
+    const resume = { ...participant, provider, adapter: provider };
+    try {
+      const open = { type: "open", contractVersion: 1, id: randomUUID(), provider: participant.engine, model: participant.model, effort: participant.effort, cwd: participant.cwd || main.open.cwd, resume: participant.sessionId, permissionMode: participant.permissionMode, instructions: participant.instructions, groupChat: { internal: true, name: participant.name, position: "joined", participantId: participant.id, permissionMode: participant.permissionMode } };
+      const internal = internalParticipantChannel(group, participant.id);
+      const live = await provider.open(internal, open, {});
+      live.group = group; live.groupParticipant = participant; group.live.set(participant.id, live);
+    } catch (error) { await send(main.channel, { type: "group-participant-error", participantId: participant.id, message: boundedString(error.message || "Participant resume failed.", 4096).value }, main); }
+    closeChannel(channel);
+    return;
+  }
   if (request?.type === "instructions") { await manageInstructions(channel, request, info); return; }
   if (request?.type === "describe" && !request.provider) {
     try {
@@ -245,13 +615,16 @@ persephone.service.onChannel(async (channel, request, info) => {
     await sendProviderError(channel, request, "provider-unavailable", `Provider is unavailable: ${requested}`);
     return;
   }
-  if (request?.type === "list-sessions" && !request.provider) {
+  if (request?.type === "list-sessions") {
     const rows = [];
     for (const [providerId, candidate] of providers) {
+      if (request.provider && request.provider !== providerId) continue;
       if (candidate.capabilities?.sessionStore !== true || typeof candidate.collectSessions !== "function") continue;
       try { rows.push(...await candidate.collectSessions(request)); } catch { /* unavailable provider rows are omitted */ }
     }
-    await send(channel, echo({ type: "sessions", sessions: rows.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))) }, request));
+    await loadParticipantIds();
+    for (const group of groups.values()) for (const participant of group.participants) if (participant.sessionId) participantIds.add(participant.sessionId);
+    await send(channel, echo({ type: "sessions", sessions: rows.filter((row) => !participantIds.has(row.id)).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))) }, request));
     closeChannel(channel); return;
   }
   const method = OPEN_OPERATIONS[request?.type];
@@ -273,6 +646,8 @@ persephone.service.onChannel(async (channel, request, info) => {
 });
 
 persephone.service.onShutdown(async () => {
+  for (const token of groupTokens.keys()) groupTokens.delete(token);
+  if (groupHttpServer?.listening) await new Promise((resolve) => groupHttpServer.close(resolve));
   await Promise.all([...providers.values()].map((adapter) => adapter.shutdownSessions()));
   for (const watcher of [...watchers]) watcher.stop();
   watchers.clear();

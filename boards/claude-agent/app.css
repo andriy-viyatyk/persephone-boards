@@ -168,6 +168,23 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--p-text-mut
 .meta-chip.context { margin-left: auto; }
 .meta-chip.context[data-tone="accent"] { color: var(--p-accent); }
 .meta-chip.context[data-tone="error"] { color: var(--p-error); }
+.group-panel { position: absolute; z-index: 6; right: 6px; bottom: 60px; width: min(360px, calc(100vw - 32px)); max-height: min(55vh, 520px); overflow-y: auto; padding: 12px; background: var(--p-panel); border: 1px solid var(--p-border); border-radius: var(--p-radius-md, 6px); font-family: var(--chat-font); color: var(--p-text); }
+.group-panel-head, .group-roster-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.group-panel-head { margin-bottom: 8px; }
+.group-panel-head button, .group-roster-row button { color: var(--p-text-muted); }
+.group-roster { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.group-roster-row { padding: 5px 7px; border: 1px solid var(--p-border); border-radius: var(--p-radius-sm, 4px); font-size: 12px; }
+.group-roster-row .identity { min-width: 0; overflow-wrap: anywhere; }
+.group-roster-row .summary { color: var(--p-text-muted); }
+.group-roster-row button { flex: none; }
+.group-invite-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.group-invite-form label { display: flex; flex-direction: column; gap: 3px; min-width: 0; color: var(--p-text-muted); font-size: 11px; }
+.group-invite-form input, .group-invite-form select { width: 100%; min-width: 0; box-sizing: border-box; }
+.group-invite-form > button { grid-column: 1 / -1; }
+.author-badge { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; color: var(--p-text-muted); font-family: var(--chat-font); font-size: 11px; }
+.author-badge .engine-icon { width: 13px; height: 13px; }
+.group-notice { border-left: 2px solid var(--p-accent); padding-left: 10px; }
+.group-notice details { margin-top: 5px; color: var(--p-text-muted); font-size: 12px; }
 .choice-menu { min-width: 180px; max-height: min(360px, 60vh); overflow-y: auto; }
 .choice-menu button { display: flex; align-items: baseline; gap: 10px; }
 .choice-menu button .desc { flex: 1; color: var(--p-text-muted); font-size: 12px; }

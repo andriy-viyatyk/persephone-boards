@@ -7,6 +7,8 @@ const sessionsByKey = new Map();
 // Sessions deleted on this page, in flight or done (viewKey). A list refresh must never bring one back: a listing
 // read while a delete was still removing files can arrive after that delete finished. A failed delete leaves the set.
 const pendingDeletes = new Set();
+// Master's "nothing to add" reply in a group chat; the service never shares it and history skips it.
+const GROUP_PASS = "[[pass]]";
 const sessionFor = (id, provider = "") => provider ? sessionsByKey.get(viewKey(id, provider)) : state.sessions.find((item) => item.id === id);
 const showError = (message) => { const node = $("#error"); node.textContent = message; node.classList.toggle("hidden", !message); };
 // Transient state line above the prompt; empty (hidden) while the session is ready.
@@ -19,6 +21,7 @@ const setStatus = (text = "", busy = false) => { const node = $("#status"); node
 const views = new Set();
 const viewsByKey = new Map();
 const viewKey = (id, provider) => `${provider || ""}\u0000${id || ""}`;
+const participantSessionIds = () => new Set([...views].flatMap((view) => view.groupParticipants.map((participant) => participant.sessionId).filter(Boolean)));
 let current = null;
 function createView(item = {}) {
   const provider = item.provider || current?.provider || state.defaultProvider || "";
@@ -28,7 +31,7 @@ function createView(item = {}) {
     stream: null, lastText: "", thinkingNode: null, tools: new Map(), commandTurn: false, historyToken: 0,
     footer: null, usage: null, sessionCost: 0, statusText: "", statusBusy: false, error: "",
     draft: "", unread: false, stick: true, scrollTop: 0,
-    agents: [], agentsChannel: null, selectedAgentId: "", agentViews: new Map(),
+    agents: [], agentsChannel: null, selectedAgentId: "", agentViews: new Map(), groupMain: false, groupMode: false, groupLoading: false, groupRoles: [], groupParticipants: [], groupMessages: [],
     model: item.model || "", effort: item.effort || "", defaults: null,
   };
   $("#views").append(view.messages);
@@ -81,6 +84,46 @@ function addAgentMessage(view, text) {
   const node = element("div", "msg agent markdown-body");
   renderMarkdown(node, text);
   return appendMessage(view, node);
+}
+function parseAuthorHeader(text) {
+  const lines = String(text || "").split("\n"), messages = [];
+  let author = null, body = [];
+  const flush = () => { if (body.length) messages.push({ author, text: body.join("\n") }); body = []; };
+  for (const line of lines) {
+    const match = /^\[\[from: ([^\]\r\n]{1,80}?)(?: \| role: ([^\]\r\n]{1,80}?))?\]\]$/.exec(line);
+    if (match) { flush(); author = { name: match[1], role: match[2] || "" }; }
+    else body.push(line);
+  }
+  flush();
+  return messages.length ? messages : [{ author: null, text: String(text || "") }];
+}
+function addAuthorBadge(node, author, provider = "") {
+  if (!author || author.kind === "user") return;
+  const badge = element("div", "author-badge");
+  badge.dataset.authorName = author.name;
+  badge.append(engineIcon(state.descriptions.get(provider), ""), element("span", "", [author.name, author.role].filter(Boolean).join(" · ")));
+  node.append(badge);
+}
+function addGroupMessage(view, text, author, options = {}) {
+  const node = element("div", `msg ${author?.kind === "user" ? "user" : "agent markdown-body"}${options.notice ? " group-notice" : ""}`);
+  addAuthorBadge(node, author, author?.engine || "");
+  if (author?.kind === "user") {
+    const displayText = String(text || "").split("\n").map((line) => line.startsWith("\\[[from:") ? line.slice(1) : line).join("\n");
+    const body = element("div", "group-message-body", displayText);
+    node.append(body);
+    messageSources.set(node, text);
+  } else {
+    const body = element("div", "markdown-body");
+    renderMarkdown(body, text);
+    node.append(body);
+    messageSources.set(node, text);
+  }
+  if (options.summary) {
+    const details = element("details", "");
+    details.append(element("summary", "", t("group.summaryDisclosure")), element("div", "summary", `${options.summary}${options.reminder ? `\n\n${options.reminder}` : ""}`));
+    node.append(details);
+  }
+  return appendMessage(view, node, options.forceScroll === true);
 }
 // Tool inputs arrive as a bounded JSON summary string; show its fields as "key: value" lines.
 const describeInput = (input) => {
@@ -425,7 +468,83 @@ function renderChips() {
   chip.classList.toggle("hidden", !chip.textContent);
   chip.dataset.tone = percentTone(status.contextPercent || 0);
   chip.title = capabilities(view).contextUsage && status.contextWindow ? `${(status.contextTokens || 0).toLocaleString()} / ${status.contextWindow.toLocaleString()} ${t("tokens")}` : t("context");
+  const groupAvailable = Boolean(view.groupMain && view.channel && !view.groupLoading && !view.selectedAgentId);
+  $("#group-invite").classList.toggle("hidden", !groupAvailable);
+  $("#group-stop").classList.toggle("hidden", !groupAvailable || !view.groupParticipants.length);
 }
+function renderGroupPanel(view = current) {
+  $("#group-panel").setAttribute("aria-label", t("group.title"));
+  const roster = $("#group-roster");
+  roster.replaceChildren();
+  if (!view?.groupParticipants.length) roster.append(element("div", "empty", t("group.none")));
+  else for (const participant of view.groupParticipants) {
+    const row = element("div", "group-roster-row");
+    const identity = element("span", "identity");
+    identity.append(element("strong", "", `${participant.name} · ${t(`group.role.${participant.roleId}`) || participant.role}`));
+    row.append(identity);
+    const remove = element("button", "", t("group.remove")); remove.type = "button";
+    remove.addEventListener("click", () => void channelSend(view.channel, { type: "group", action: "remove", participantId: participant.id }));
+    row.append(remove); roster.append(row);
+  }
+  const roles = $("#group-role");
+  roles.replaceChildren(...view.groupRoles.map((role) => {
+    const option = element("option", "", t(`group.role.${role.id}`) || role.name); option.value = role.id; return option;
+  }));
+  for (const badge of view.messages.querySelectorAll(".author-badge[data-author-name]")) {
+    const participant = view.groupParticipants.find((item) => item.name === badge.dataset.authorName);
+    const provider = badge.dataset.authorName === "Master" ? view.provider : participant?.engine;
+    if (!provider) continue;
+    const author = { name: badge.dataset.authorName, role: badge.querySelector("span:last-child")?.textContent?.split(" · ").slice(1).join(" · ") || "" };
+    badge.replaceChildren(engineIcon(state.descriptions.get(provider), ""), element("span", "", [author.name, author.role].filter(Boolean).join(" · ")));
+  }
+  populateGroupEngines();
+}
+function populateGroupEngines() {
+  const engine = $("#group-engine"), model = $("#group-model"), effort = $("#group-effort");
+  const available = state.catalog.filter((item) => item.available !== false);
+  engine.replaceChildren(...available.map((item) => { const option = element("option", "", item.providerLabel || t(item.providerLabelKey)); option.value = item.provider; return option; }));
+  if (!engine.options.length) return;
+  if (current?.provider && available.some((item) => item.provider === current.provider)) engine.value = current.provider;
+  const fillModels = () => {
+    const description = state.descriptions.get(engine.value), models = description?.models || [];
+    model.replaceChildren(...models.map((item) => { const option = element("option", "", item.label || item.id || t("defaultModel")); option.value = item.id || ""; return option; }));
+    const selectedModel = models.find((item) => item.isDefault)?.id || models[0]?.id || "";
+    if (selectedModel) model.value = selectedModel;
+    const selected = models.find((item) => item.id === model.value), levels = selected?.efforts || [];
+    effort.replaceChildren(...["", ...levels].map((value) => { const option = element("option", "", value || t("defaultEffort")); option.value = value; return option; }));
+  };
+  engine.onchange = fillModels;
+  model.onchange = () => {
+    const entry = state.descriptions.get(engine.value)?.models?.find((item) => item.id === model.value);
+    const levels = entry?.efforts || [];
+    effort.replaceChildren(...["", ...levels].map((value) => { const option = element("option", "", value || t("defaultEffort")); option.value = value; return option; }));
+  };
+  fillModels();
+}
+function toggleGroupPanel(open) {
+  const panel = $("#group-panel");
+  panel.classList.toggle("hidden", !open);
+  if (!open || !current) return;
+  renderGroupPanel(current);
+  const names = t("group.names").split(",").map((value) => value.trim());
+  const used = new Set(["master", ...current.groupParticipants.map((row) => row.name.toLowerCase())]);
+  $("#group-name").value = names.find((name) => !used.has(name.toLowerCase())) || "";
+}
+$("#group-invite").addEventListener("click", () => toggleGroupPanel($("#group-panel").classList.contains("hidden")));
+$("#group-close").addEventListener("click", () => toggleGroupPanel(false));
+$("#group-stop").addEventListener("click", () => current?.channel && void channelSend(current.channel, { type: "group", action: "stop-all" }));
+$("#group-add").addEventListener("click", async () => {
+  if (!current?.channel) return;
+  const name = $("#group-name").value.trim();
+  const roleId = $("#group-role").value;
+  if (!name || name.toLowerCase() === "master" || current.groupParticipants.some((item) => item.name.toLowerCase() === name.toLowerCase())) { setViewError(current, t("group.error.name")); return; }
+  const historyText = current.groupMessages.map((item) => `${AUTHOR_HEADER_FOR_UI(item.author)}\n${item.text}`).join("\n\n");
+  try {
+    await channelSend(current.channel, { type: "group", action: "invite", name, roleId, provider: $("#group-engine").value, model: $("#group-model").value, effort: $("#group-effort").value, historyText });
+    $("#group-add").disabled = true;
+  } catch (error) { setViewError(current, error.message || t("group.inviteFailed")); }
+});
+function AUTHOR_HEADER_FOR_UI(author) { return author?.role ? `[[from: ${author.name} | role: ${author.role}]]` : `[[from: ${author?.name || "user"}]]`; }
 const choiceMenu = $("#choice-menu");
 let choiceAnchor = null;
 function closeChoiceMenu() { choiceMenu.classList.add("hidden"); choiceAnchor?.classList.remove("open"); choiceAnchor = null; }
@@ -620,7 +739,8 @@ function sessionGroups(rows) {
 }
 function renderSessions() {
   const list = $("#session-list");
-  const rows = state.sessions;
+  const hiddenParticipants = participantSessionIds();
+  const rows = state.sessions.filter((item) => !hiddenParticipants.has(item.id));
   list.replaceChildren();
   // Until the first listing arrives (the service starts and every engine answers), show a spinner, not an empty panel.
   if (!state.sessionsLoaded) {
@@ -846,7 +966,8 @@ async function refreshSessions() {
   if (request !== sessionsRequest) return;
   state.sessionsLoaded = true;
   if (message?.type === "sessions") {
-    state.sessions = message.sessions.filter((item) => !pendingDeletes.has(viewKey(item.id, item.provider)))
+    const hiddenParticipants = participantSessionIds();
+    state.sessions = message.sessions.filter((item) => !hiddenParticipants.has(item.id) && !pendingDeletes.has(viewKey(item.id, item.provider)))
       .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
     sessionsByKey.clear();
     for (const item of state.sessions) sessionsByKey.set(viewKey(item.id, item.provider), item);
@@ -880,8 +1001,10 @@ persephone.toolbar.onAction(({ id }) => {
 });
 function updateControls() {
   $("#intro").classList.toggle("hidden", Boolean(current?.id || current?.channel));
-  $("#send").disabled = Boolean(current?.busy);
+  const slash = promptText().trim().startsWith("/");
+  $("#send").disabled = Boolean(current?.busy && (slash || !current.groupMode));
   updateToolbar(); renderChips();
+  if (!current?.channel) toggleGroupPanel(false);
 }
 
 // ── Instructions dialog: the provider instructions the service adds to every new or reopened session ──
@@ -972,8 +1095,25 @@ function showView(view) {
 function appendEntries(view, entries) {
   for (const entry of entries || []) {
     const suffix = entry.truncated ? ` ${t("truncated")}` : "";
-    if (entry.role === "user") addUserMessage(view, entry.text + suffix, false);
-    else if (entry.role === "agent") addAgentMessage(view, entry.text + suffix);
+    if (entry.role === "user" || entry.role === "agent") {
+      for (const segment of parseAuthorHeader(entry.text || "")) {
+        const participant = view.groupParticipants.find((item) => item.name === segment.author?.name);
+        if (segment.text.trim() === GROUP_PASS) continue;
+        // Posts reach Master as user turns, so the header, not the transcript role, says who wrote it.
+        const author = segment.author ? { ...segment.author, engine: participant?.engine || (segment.author.name === "Master" ? view.provider : ""), kind: segment.author.name === "user" ? "user" : "agent" } : null;
+        // A join/leave notice is stored as "Agent X (Role) joined" plus the role summary (and, on the first join, the rules reminder).
+        const notice = author && /^Agent .+ \(.+\) (joined|left)$/.exec(segment.text.split("\n")[0]);
+        if (notice) {
+          author.kind = "notice";
+          view.groupMessages.push({ author, text: segment.text });
+          addGroupMessage(view, segment.text.split("\n")[0], author, { notice: true, summary: notice[1] === "joined" ? segment.text.split("\n").slice(1).join("\n").trim() : "" });
+        }
+        else if (author) { view.groupMessages.push({ author, text: segment.text }); addGroupMessage(view, segment.text + suffix, author); }
+        else if (entry.role === "user") addUserMessage(view, segment.text + suffix, false);
+        else addAgentMessage(view, segment.text + suffix);
+        if (!author) view.groupMessages.push({ author: entry.role === "user" ? { name: "user", role: "", kind: "user" } : { name: "Master", role: "main", engine: view.provider, kind: "agent" }, text: segment.text });
+      }
+    }
     else if (entry.role === "tool") addToolCall(view, entry.name, entry.input, entry.callId);
     else if (entry.role === "command") addCommandMessage(view, entry.text, false);
     else if (entry.role === "command-output") addCommandOutput(view, entry.text + suffix);
@@ -1179,10 +1319,12 @@ async function connect(view) {
   if (capabilities(view).providerSetup && !providerDescription(view).setup?.ready) { $("#consent").classList.remove("hidden"); setViewError(view, t("consentRequired")); return false; }
   if (resume && !capabilities(view).sessionStore) return false;
   stopFollow(view);
+  view.groupLoading = true;
   const title = resume ? "" : sessionTitle(view.pendingPrompt);
   if (!resume) view.title = title;
   const open = {
     type: "open", contractVersion: 1, ...(view.provider ? { provider: view.provider } : {}), model: view.model, cwd,
+    groupChat: { position: "main" },
     // Required by the agent.session contract; the service runs local page sessions unrestricted and takes
     // Claude Code's own mode from `mode`.
     permissionMode: "full-auto", mode: viewMode(view),
@@ -1197,7 +1339,7 @@ async function connect(view) {
   channel.onMessage((event) => { if (view.channel === channel) handleEvent(view, event); });
   channel.onClose((reason) => {
     if (view.channel !== channel) return;
-    view.channel = null; view.busy = false; view.pendingPrompt = "";
+    view.channel = null; view.busy = false; view.pendingPrompt = ""; view.groupLoading = false;
     // Resuming continues in the mode the session last ran in.
     if (MODES.includes(view.footer?.mode)) view.mode = view.footer.mode;
     endStream(view); endLive(view); expireApprovals(view); updateTyping();
@@ -1222,9 +1364,11 @@ function handleEvent(view, event) {
       startAgentWatch(view);
       setViewStatus(view); updateControls(); renderSessions();
       view.live = true;
+      view.groupMain = true;
+      void channelSend(view.channel, { type: "group", action: "list" });
       for (const resolve of view.liveWaiters.splice(0)) resolve(true);
       void refreshCommands(view);
-      if (view.pendingPrompt) { const text = view.pendingPrompt; view.pendingPrompt = ""; void sendPrompt(view, text); }
+      if (view.pendingPrompt && !view.groupLoading) { const text = view.pendingPrompt; view.pendingPrompt = ""; void sendPrompt(view, text); }
       break;
     }
     case "control-result": {
@@ -1287,6 +1431,45 @@ function handleEvent(view, event) {
       void refreshSessions(); void refreshDescription();
       break;
     }
+    case "group-data":
+      view.groupMain = true;
+      view.groupLoading = false;
+      view.groupRoles = event.roles || [];
+      view.groupMode = Boolean(event.groupMode);
+      view.groupParticipants = event.participants || [];
+      renderGroupPanel(view); updateControls(); renderSessions();
+      if (view.pendingPrompt) { const text = view.pendingPrompt; view.pendingPrompt = ""; void sendPrompt(view, text); }
+      break;
+    case "group-participant-added":
+      view.groupMode = true;
+      if (event.participant && !view.groupParticipants.some((item) => item.id === event.participant.id)) view.groupParticipants.push(event.participant);
+      $("#group-add").disabled = false;
+      renderGroupPanel(view); updateControls(); renderSessions();
+      break;
+    case "group-visible-message": {
+      const author = event.author || { name: "user", role: "", kind: "user" };
+      if (event.noticeAction === "left") {
+        view.groupParticipants = view.groupParticipants.filter((item) => item.name !== author.name);
+        renderGroupPanel(view); updateControls(); renderSessions();
+      }
+      const displayText = event.noticeAction ? t(`group.${event.noticeAction}`, { name: author.name, role: t(`group.role.${author.roleId}`) || author.role }) : event.text || "";
+      const item = { author, text: event.timelineText || event.text || "" };
+      view.groupMessages.push(item);
+      const notice = author.kind === "notice";
+      const summary = event.noticeAction === "joined" ? (author.roleId ? t(`group.summary.${author.roleId}`) : event.author?.summary) : "";
+      addGroupMessage(view, displayText, author, { notice, summary, reminder: event.reminder });
+      break;
+    }
+    case "group-participant-error":
+      $("#group-add").disabled = false;
+      setViewError(view, t("group.error.resume"));
+      break;
+    case "group-error":
+      view.groupLoading = false;
+      $("#group-add").disabled = false;
+      setViewError(view, t("group.error.operation"));
+      if (view.pendingPrompt) { const text = view.pendingPrompt; view.pendingPrompt = ""; void sendPrompt(view, text); }
+      break;
     case "error":
       setViewError(view, `${event.code}: ${event.message}`);
       if (event.fatal) setViewStatus(view, t("error"));
@@ -1344,8 +1527,12 @@ function expireApprovals(view) {
 
 async function sendPrompt(view, text) {
   view.commandTurn = text.startsWith("/");
-  if (view.commandTurn) addCommandMessage(view, text); else addUserMessage(view, text);
-  try { await channelSend(view.channel, { type: "send", id: crypto.randomUUID(), text }); }
+  if (view.commandTurn) addCommandMessage(view, text);
+  else if (!view.groupMode) addUserMessage(view, text);
+  try {
+    if (!view.commandTurn && view.groupMode) await channelSend(view.channel, { type: "group", action: "user-message", text });
+    else await channelSend(view.channel, { type: "send", id: crypto.randomUUID(), text });
+  }
   catch (error) { setViewError(view, error.message); }
 }
 
@@ -1355,7 +1542,7 @@ const prompt = $("#prompt");
 const promptText = () => { const text = prompt.innerText; return text === "\n" ? "" : text.endsWith("\n") ? text.slice(0, -1) : text; };
 const clearPrompt = () => { prompt.textContent = ""; };
 // Chromium can leave a stray <br> after deleting everything, which would hide the :empty placeholder.
-prompt.addEventListener("input", () => { if (!promptText()) clearPrompt(); updateCommandMenu(); });
+prompt.addEventListener("input", () => { if (!promptText()) clearPrompt(); updateCommandMenu(); updateControls(); });
 prompt.addEventListener("keydown", (event) => {
   if (commandMenuKey(event)) return;
   if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); $("#composer").requestSubmit(); }
@@ -1379,7 +1566,7 @@ $("#composer").addEventListener("submit", async (event) => {
   hideCommandMenu();
   const boardCommand = text && boardCommandFor(text);
   if (boardCommand) { clearPrompt(); await boardCommand(); return; }
-  if (!text || view.busy || view.pendingPrompt) return;
+  if (!text || (view.busy && (!view.groupMode || text.startsWith("/"))) || view.pendingPrompt) return;
   clearPrompt();
   if (view.channel) { await sendPrompt(view, text); return; }
   // Not running yet: start a new session from the form, or resume the shown one, then send.

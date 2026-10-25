@@ -70,8 +70,9 @@ function runVersion(executable) {
 }
 
 class JsonRpcProcess {
-  constructor(executable, { cwd, endpoint, envToken, onServerRequest, onNotification } = {}) {
+  constructor(executable, { cwd, endpoint, envToken, groupEndpoint, onServerRequest, onNotification } = {}) {
     this.executable = executable; this.cwd = cwd; this.endpoint = endpoint; this.envToken = envToken;
+    this.groupEndpoint = groupEndpoint;
     this.onServerRequest = onServerRequest; this.onNotification = onNotification;
     this.nextId = 1; this.pending = new Map(); this.buffer = ""; this.closed = false; this.started = false;
   }
@@ -81,6 +82,8 @@ class JsonRpcProcess {
     const env = { ...process.env };
     delete env.PERSEPHONE_MCP_TOKEN;
     if (this.endpoint && this.envToken) env.PERSEPHONE_MCP_TOKEN = this.envToken;
+    delete env.AGENT_CHAT_MCP_TOKEN;
+    if (this.groupEndpoint?.token) env.AGENT_CHAT_MCP_TOKEN = this.groupEndpoint.token;
     this.child = spawn(this.executable, args, { cwd: this.cwd || os.homedir(), env, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     if (this.session) host?.registerProcess(this.session, this.child);
     this.child.stdout.setEncoding("utf8").on("data", (chunk) => this.read(chunk));
@@ -296,7 +299,10 @@ async function startSession(channel, request, info) {
   const prepared = await host.prepareOpen(open, info);
   const { crossBoard, mode } = prepared;
   const endpoint = await host.issueOpenEndpoint(prepared);
-  const localMode = crossBoard ? (mode === "read-only" ? "read" : "auto") : (open.mode === MODE_IDS.full ? "full" : open.mode === MODE_IDS.read ? "read" : "auto");
+  const groupEndpoint = request.groupChat?.position === "joined" ? await host.issueGroupEndpoint(request.groupChat.participantId) : null;
+  const localMode = request.groupChat?.position === "joined"
+    ? (request.groupChat.permissionMode === "full-auto" ? "full" : request.groupChat.permissionMode === "read-only" ? "read" : "auto")
+    : crossBoard ? (mode === "read-only" ? "read" : "auto") : (open.mode === MODE_IDS.full ? "full" : open.mode === MODE_IDS.read ? "read" : "auto");
   const executable = available.executable;
   const endpointToken = endpoint?.token || endpoint?.bearerToken || endpoint?.headers?.Authorization?.replace(/^Bearer\s+/i, "") || endpoint?.headers?.authorization?.replace(/^Bearer\s+/i, "");
   if (endpoint && (!endpoint.url || !endpointToken)) {
@@ -305,13 +311,13 @@ async function startSession(channel, request, info) {
   }
   const id = open.resume || "";
   const policyMode = crossBoard ? mode : localMode === "read" ? "read-only" : localMode === "auto" ? "ask" : "full-auto";
-  const session = { id, channel, open, providerId: "codex", adapter, children: new Set(), approvals: new Map(), allowedScopes: new Set(), closed: false, busy: false, completedTurns: 0, crossBoard, mode, policyMode, permissionMode: localMode, model, effort, models, endpoint, tokenUsage: null, items: new Map(), currentRequestId: open.id, status: {}, title: open.title || "" };
-  session.rpc = new JsonRpcProcess(executable, { cwd: open.cwd, endpoint, envToken: endpointToken, onServerRequest: async (native) => {
+  const session = { id, channel, open, providerId: "codex", adapter, children: new Set(), approvals: new Map(), allowedScopes: new Set(), closed: false, busy: false, completedTurns: 0, crossBoard, mode, policyMode: request.groupChat?.position === "joined" ? request.groupChat.permissionMode : policyMode, permissionMode: localMode, model, effort, models, endpoint, groupEndpoint, groupMain: request.groupChat?.position === "main", tokenUsage: null, items: new Map(), currentRequestId: open.id, status: {}, title: open.title || "" };
+  session.rpc = new JsonRpcProcess(executable, { cwd: open.cwd, endpoint, envToken: endpointToken, groupEndpoint, onServerRequest: async (native) => {
     const { tool, summary } = approvalDescriptor(native);
     const classification = host.approvalKind(tool);
     const decision = host.policyDecision(session, tool, native.params || {});
     const scope = `${decision.kind}:${tool}`;
-    if (decision.permissionDecision === "deny") return serverApprovalResponse(native.method, { decision: "deny", message: "Denied by the effective permission mode." });
+    if (decision.permissionDecision === "deny") return serverApprovalResponse(native.method, { decision: "deny", message: decision.message || "Denied by the effective permission mode." });
     if (crossBoard && decision.permissionDecision === "allow") return serverApprovalResponse(native.method, { decision: "allow" });
     if (!crossBoard && localMode === "full") return serverApprovalResponse(native.method, { decision: "allow" });
     if (native.method.includes("permissions") && crossBoard && mode !== "full-auto") return serverApprovalResponse(native.method, { decision: "deny", message: "Additional permissions exceed the effective cross-board policy." });
@@ -325,16 +331,24 @@ async function startSession(channel, request, info) {
   try {
     await session.rpc.start();
     const policy = MODE_OPTIONS[localMode] || MODE_OPTIONS.auto;
-    const params = { cwd: open.cwd, model: model || undefined, approvalPolicy: policy.approvalPolicy, sandbox: localMode === "full" ? "danger-full-access" : localMode === "read" ? "read-only" : "workspace-write", developerInstructions: await host.composeInstructions("codex", `You are running inside Persephone's Claude Agent board. Working directory: ${open.cwd}. Persephone MCP is ${endpoint ? "attached for this session" : "not attached"}. Your output is shown in a chat UI.`, open.instructions) };
+    const identity = request.groupChat || { name: "Master", position: "main" };
+    const environment = `You are running inside the Agent Chat board. Working directory: ${open.cwd}. Persephone MCP is ${endpoint ? "attached for this session" : "not attached"}. Your output is shown in a chat UI.\n\n${host.groupCore(identity.name || "Master", identity.position || "main")}`;
+    const params = {
+      cwd: open.cwd, model: model || undefined, approvalPolicy: policy.approvalPolicy,
+      sandbox: localMode === "full" ? "danger-full-access" : localMode === "read" ? "read-only" : "workspace-write",
+      developerInstructions: await host.composeInstructions("codex", environment, open.instructions),
+      ...(groupEndpoint ? { config: { mcp_servers: { agent_chat: { url: groupEndpoint.url, bearer_token_env_var: "AGENT_CHAT_MCP_TOKEN", default_tools_approval_mode: "approve" } } } } : {}),
+    };
     result = open.resume ? await session.rpc.request("thread/resume", { threadId: open.resume, ...params, excludeTurns: true }) : await session.rpc.request("thread/start", params);
   } catch (error) {
     if (session.closeTask) await session.closeTask;
     else await session.rpc.close(true);
     host.revokeEndpoint(session);
+    host.revokeGroupEndpoint(session);
     throw error;
   }
   session.id = result?.thread?.id || result?.threadId || session.id;
-  if (!session.id) { await session.rpc.close(true); host.revokeEndpoint(session); throw providerError("Codex did not return a thread id.", "protocol-error"); }
+  if (!session.id) { await session.rpc.close(true); host.revokeEndpoint(session); host.revokeGroupEndpoint(session); throw providerError("Codex did not return a thread id.", "protocol-error"); }
   host.registerSession(session);
   host.bindSession(session);
   const limits = host.sessionLimits(open);
@@ -389,7 +403,31 @@ function createCodexProvider(serviceHost) {
     async open(channel, request, info) { return startSession(channel, request, info); },
     async collectSessions(request) { const threads = await listThreads(request); return threads.map((thread) => ({ id: thread.id, title: thread.name || thread.preview || "Untitled session", cwd: thread.cwd || "", updatedAt: new Date((thread.updatedAt || thread.createdAt || Date.now() / 1000) * 1000).toISOString(), model: thread.model || "", effort: thread.reasoningEffort || "", provider: "codex" })); },
     async listSessions(channel, request) { try { const rows = await this.collectSessions(request); await host.send(channel, host.echo({ type: "sessions", sessions: rows }, request)); host.closeChannel(channel); } catch (error) { await host.replyError(channel, request, error.code || "provider-unavailable", error.message, true); } },
-    async history(channel, request) { try { const server = await sharedServer(); let cursor, entries = []; do { const page = await server.request("thread/turns/list", { threadId: request.sessionId, limit: 100, sortDirection: "asc", ...(cursor ? { cursor } : {}) }); for (const turn of page.data || []) { let itemCursor; do { const itemPage = await server.request("thread/items/list", { threadId: request.sessionId, turnId: turn.id, limit: 100, sortDirection: "asc", ...(itemCursor ? { cursor: itemCursor } : {}) }); entries.push(...normalizedItems((itemPage.data || []).map((entry) => entry.item || entry))); itemCursor = itemPage.nextCursor || null; } while (itemCursor); } cursor = page.nextCursor || null; } while (cursor); const batch = await host.sendEntries(channel, request, entries); await host.send(channel, host.echo({ type: "history", entries: batch, done: true }, request)); host.closeChannel(channel); } catch (error) { await host.replyError(channel, request, error.code || "protocol-error", error.message || "Could not read Codex history.", true); } },
+    async history(channel, request) {
+      try {
+        const server = await sharedServer();
+        const groupHistory = await host.hasGroupParticipants(request.sessionId).catch(() => false);
+        let cursor, entries = [];
+        do {
+          const page = await server.request("thread/turns/list", { threadId: request.sessionId, limit: 100, sortDirection: "asc", ...(cursor ? { cursor } : {}) });
+          for (const turn of page.data || []) {
+            let itemCursor, turnEntries = [];
+            do {
+              const itemPage = await server.request("thread/items/list", { threadId: request.sessionId, turnId: turn.id, limit: 100, sortDirection: "asc", ...(itemCursor ? { cursor: itemCursor } : {}) });
+              turnEntries.push(...normalizedItems((itemPage.data || []).map((entry) => entry.item || entry)));
+              itemCursor = itemPage.nextCursor || null;
+            } while (itemCursor);
+            if (groupHistory) {
+              for (let i = turnEntries.length - 1; i >= 0; i--) if (turnEntries[i].role === "agent") { turnEntries[i] = { ...turnEntries[i], text: `[[from: Master | role: main]]\n${turnEntries[i].text}` }; break; }
+            }
+            entries.push(...turnEntries);
+          }
+          cursor = page.nextCursor || null;
+        } while (cursor);
+        const batch = await host.sendEntries(channel, request, entries);
+        await host.send(channel, host.echo({ type: "history", entries: batch, done: true }, request)); host.closeChannel(channel);
+      } catch (error) { await host.replyError(channel, request, error.code || "protocol-error", error.message || "Could not read Codex history.", true); }
+    },
     async manageSession(channel, request) { try { const server = await sharedServer(); if (request.action === "rename") await server.request("thread/name/set", { threadId: request.sessionId, name: boundedString(request.title, 1024).value }); else if (request.action === "delete") await server.request("thread/delete", { threadId: request.sessionId }); else throw providerError("action must be rename or delete.", "protocol-error"); await host.send(channel, host.echo({ type: "session-updated", action: request.action, sessionId: request.sessionId }, request)); host.closeChannel(channel); } catch (error) { await host.replyError(channel, request, error.code || "protocol-error", error.message, true); } },
     sessionCapability(request) { if (["models", "set-model"].includes(request.action)) return "modelSelection"; if (request.action === "set-effort") return "effortSelection"; if (request.action === "set-mode") return "permissionModes"; return null; },
     acceptsMode(mode) { return Object.values(MODE_IDS).includes(mode); },

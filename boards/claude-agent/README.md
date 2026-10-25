@@ -8,6 +8,12 @@ Use the **Engine** chip on a new-session view to select Claude or Codex. Model c
 
 The Instructions editor uses separate files for each provider: `%LOCALAPPDATA%\Persephone\board-data\claude-agent\instructions.md` remains Claude's existing file, and Codex uses the sibling `instructions-codex.md` file. Claude's default instructions and composed prompt remain unchanged.
 
+## Group chats
+
+Start or resume the main chat, then choose **+ Invite agent** under the composer. Pick a role, name, engine, model, and effort. Reviewer, Critic, and Researcher are read-only by default. Each invited agent keeps a separate native session and receives the visible group timeline; tool activity and unposted replies stay in that agent's own transcript. User messages, the main agent's final replies, and explicit `post_message` posts are shared with author badges. Use **Remove** to stop and remove an invited agent, or **Stop all** to interrupt the main and invited sessions without deleting their saved transcripts.
+
+Role definitions and participant/session ids are stored by the service under `%LOCALAPPDATA%\Persephone\board-data\claude-agent\group-chat\`. Invited agents resume with their saved session id when the main chat reconnects. If a participant transcript is unavailable, the board reports a participant error and leaves the main chat usable. Closing or reloading the board stops active processes; saved group membership remains available for the next resume. Queued messages are held in memory while recipients are busy and may be lost if the board service closes before delivery.
+
 ## Requirements and first run
 
 - Install the `claude` command line application and sign in through its normal login flow.

@@ -31,7 +31,27 @@ export function validateOpen(open) {
     if (open.limits.maxBudgetUsd !== undefined && (typeof open.limits.maxBudgetUsd !== "number" || !Number.isFinite(open.limits.maxBudgetUsd) || open.limits.maxBudgetUsd <= 0 || open.limits.maxBudgetUsd > 100000)) throw protocolError("maxBudgetUsd must be a positive finite number.");
   }
   if (open.mcp !== undefined && (!open.mcp || typeof open.mcp !== "object" || (open.mcp.persephone !== undefined && typeof open.mcp.persephone !== "boolean"))) throw protocolError("MCP options are invalid.");
+  if (open.groupChat !== undefined) validateGroupIdentity(open.groupChat);
   return open;
+}
+
+export function validateGroupIdentity(value) {
+  const modes = ["read-only", "ask", "auto-edit", "full-auto"];
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw protocolError("Group identity must be an object.");
+  if (value.position === "main") {
+    if (Object.keys(value).some((key) => key !== "position" && key !== "name")) throw protocolError("Main group identity contains unsupported fields.");
+    if (value.name !== undefined && value.name !== "Master") throw protocolError("The main group identity is Master.");
+    return value;
+  }
+  if (value.position !== "joined" || value.internal !== true || typeof value.name !== "string" || !value.name.trim() || value.name.length > 40 || /[\]\r\n\u0000-\u001f\u007f]/.test(value.name)) throw protocolError("Joined group identity is invalid.");
+  if (typeof value.participantId !== "string" || !/^[0-9a-f-]{36}$/i.test(value.participantId) || !modes.includes(value.permissionMode)) throw protocolError("Joined participant metadata is invalid.");
+  return value;
+}
+
+export function authorHeader(name, role = "") {
+  const valid = (value) => typeof value === "string" && value.length > 0 && value.length <= 80 && !/[\]\r\n\u0000-\u001f\u007f]/.test(value);
+  if (!valid(name) || (role && !valid(role))) throw protocolError("Author identity must be bounded single-line text.");
+  return role ? `[[from: ${name} | role: ${role}]]` : `[[from: ${name}]]`;
 }
 
 export function protocolError(message) {

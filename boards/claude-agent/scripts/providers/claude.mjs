@@ -193,7 +193,8 @@ function listenSettings() {
 }
 
 async function makePreamble(open, mcpAttached) {
-  const environment = `You are running inside Persephone's Claude Agent board. Working directory: ${open.cwd}. Persephone MCP is ${mcpAttached ? "attached for this session" : "not attached"}. Your output is shown in a chat UI.`;
+  const identity = open.groupChat || { name: "Master", position: "main" };
+  const environment = `You are running inside the Agent Chat board. Working directory: ${open.cwd}. Persephone MCP is ${mcpAttached ? "attached for this session" : "not attached"}. Your output is shown in a chat UI.\n\n${host.groupCore(identity.name || "Master", identity.position || "main")}`;
   return host.composeInstructions("claude", environment, open.instructions);
 }
 
@@ -452,7 +453,16 @@ async function sessionHistory(channel, request, info) {
   catch (error) { await replyError(channel, request, error.code || "provider-setup-required", error.message, true); return; }
   try {
     const messages = await sdk.getSessionMessages(request.sessionId, typeof request.cwd === "string" && request.cwd ? { dir: request.cwd } : undefined);
-    const entries = messages.filter((message) => !message.parent_tool_use_id).flatMap(historyEntries);
+    const visible = messages.filter((message) => !message.parent_tool_use_id);
+    const groupHistory = await host.hasGroupParticipants(request.sessionId).catch(() => false);
+    const entries = visible.flatMap((message) => {
+      const rows = historyEntries(message);
+      if (groupHistory && message.type === "assistant" && !message.message?.content?.some?.((block) => block?.type === "tool_use")) {
+        const last = rows.findLastIndex?.((entry) => entry.role === "agent") ?? rows.length - 1;
+        if (last >= 0 && rows[last]?.role === "agent") rows[last] = { ...rows[last], text: `[[from: Master | role: main]]\n${rows[last].text}` };
+      }
+      return rows;
+    });
     const batch = await sendEntries(channel, request, entries);
     await send(channel, echo({ type: "history", entries: batch, done: true }, request));
     await closeChannel(channel);
@@ -520,16 +530,19 @@ function sessionOptions(session) {
     includePartialMessages: true,
     ...(open.limits?.maxAgentSteps ? { maxTurns: open.limits.maxAgentSteps } : {}),
     ...(open.limits?.maxBudgetUsd ? { maxBudgetUsd: open.limits.maxBudgetUsd } : {}),
-    ...(session.endpoint ? { mcpServers: { persephone: { type: "http", url: session.endpoint.url, headers: session.endpoint.headers } } } : {}),
+    ...((session.endpoint || session.groupEndpoint) ? { mcpServers: {
+      ...(session.endpoint ? { persephone: { type: "http", url: session.endpoint.url, headers: session.endpoint.headers } } : {}),
+      ...(session.groupEndpoint ? { agent_chat: { type: "http", url: session.groupEndpoint.url, headers: { Authorization: `Bearer ${session.groupEndpoint.token}` } } } : {}),
+    } } : {}),
     ...(session.endpoint && session.crossBoard && session.mode === "full-auto" ? { allowedTools: ["mcp__persephone__*"] } : {}),
     canUseTool: (name, input, opts) => requestApproval(session, name, input, opts),
     hooks: {
       PreToolUse: [{ hooks: [async (input) => {
         // Page sessions leave the decision to Claude Code's own mode; an allow here would let plan mode edit files.
-        if (!session.crossBoard) return {};
+        if (!session.crossBoard && !session.groupParticipant) return {};
         const decision = policyDecision(session, input.tool_name, input.tool_input);
         if (decision.permissionDecision === "ask" && session.allowedScopes.has(`${decision.kind}:${input.tool_name}`)) return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: "Allowed for this session by user choice." } };
-        return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: decision.permissionDecision, permissionDecisionReason: decision.permissionDecision === "deny" ? `Denied by ${session.mode} contract policy.` : "Eligible for contract approval flow." } };
+        return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: decision.permissionDecision, permissionDecisionReason: decision.permissionDecision === "deny" ? (decision.message || `Denied by ${session.mode} contract policy.`) : "Eligible for contract approval flow." } };
       }] }],
     },
     pathToClaudeCodeExecutable: session.executable,
@@ -552,6 +565,11 @@ function sessionOptions(session) {
 }
 
 async function requestApproval(session, toolName, input, { signal } = {}) {
+  if (session.groupParticipant) {
+    const decision = policyDecision(session, toolName, input);
+    if (decision.permissionDecision === "allow") return { behavior: "allow", updatedInput: input };
+    return { behavior: "deny", message: decision.message || "This action is outside the joined agent's permission preset." };
+  }
   if (!session.crossBoard) return pageApproval(session, toolName, input, signal);
   const decision = policyDecision(session, toolName, input);
   const scope = `${decision.kind}:${toolName}`;
@@ -724,10 +742,12 @@ async function startSession(channel, openRequest, info) {
   const endpoint = await issueOpenEndpoint(prepared);
   // The board's own chat page is unrestricted by contract and picks Claude Code's mode itself (PAGE_MODES).
   // Cross-board consumers use the contract's modes, clamped to the configured ceiling.
-  const nativeMode = crossBoard ? MODE_NATIVE[mode] : PAGE_MODES.includes(open.mode) ? open.mode : "auto";
+  const groupJoined = open.groupChat?.position === "joined";
+  const groupEndpoint = groupJoined ? await host.issueGroupEndpoint(open.groupChat.participantId) : null;
+  const nativeMode = groupJoined ? (mode === "read-only" ? "plan" : mode === "auto-edit" ? "acceptEdits" : mode === "full-auto" ? "bypassPermissions" : "default") : crossBoard ? MODE_NATIVE[mode] : PAGE_MODES.includes(open.mode) ? open.mode : "auto";
   const id = open.resume || randomUUID();
   const session = {
-    id, channel, open, providerId: open.provider, adapter: provider, defaults, sdk, executable, mode, nativeMode, crossBoard, endpoint, composed: await makePreamble(open, Boolean(endpoint)),
+    id, channel, open, providerId: open.provider, adapter: provider, defaults, sdk, executable, mode, nativeMode, crossBoard, endpoint, groupEndpoint, groupMain: open.groupChat?.position === "main", policyMode: groupJoined ? mode : mode, composed: await makePreamble(open, Boolean(endpoint)),
     inputQueue: new AsyncQueue(), children: new Set(), approvals: new Map(), allowedScopes: new Set(),
     closed: false, busy: false, completedTurns: 0, initSeen: false, query: null, queryTask: null,
     interrupted: false, pendingFirstTurn: true, started: false, nativeState: { pendingFiles: new Map() }, status: {},

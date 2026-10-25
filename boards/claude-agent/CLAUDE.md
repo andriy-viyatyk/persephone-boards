@@ -27,3 +27,7 @@ The SDK's `SpawnOptions` and `SpawnedProcess` declarations are from pinned versi
 ## Authoring and release
 
 Keep browser CSP limited to local assets, use Persephone `--p-*` theme tokens, and localize page text with `i18n.js` and `lang/en.json`. Do not add `node_modules`, SDK code, a bundled package, or a build script. Increase `version` and add a matching `WHATS-NEW.md` heading for release changes. Capture the catalog screenshot in the running development app with synthetic content and no personal paths or data.
+
+## Group-chat lifecycle
+
+The local page opens the main session with service-owned `groupChat` identity metadata. `scripts/service.mjs` owns role defaults, participant snapshots, routing queues, and the shared token-gated loopback MCP endpoint. Group data belongs under `%LOCALAPPDATA%/Persephone/board-data/claude-agent/group-chat/`; never persist a participant bearer token. The main session owns the live participant lifetimes, and closing or shutting down it must revoke endpoints and stop child sessions while retaining resumable participant ids. Only user messages, main final replies, and explicit `post_message` calls enter the shared timeline. Preserve separate provider transcripts and only decorate history at the provider boundary. Keep participant transcript browsing, the role editor, participant approval cards, nested sidebar rows, and group icon polish scoped to BT-052.

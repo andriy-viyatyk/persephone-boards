@@ -1,3 +1,6 @@
+## 1.2.0
+- Added group chats with invited Claude and Codex agents, shared visible messages, resumable participants, and role-based permissions.
+
 ## 1.1.0
 - Renamed the board to Agent Chat, with a new icon; its board id remains `claude-agent`.
 - Added Codex as a second selectable engine using the installed Codex app-server, with provider-specific models, efforts, permissions, instructions and saved sessions.

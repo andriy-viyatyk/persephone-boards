@@ -50,8 +50,22 @@
         <button id="mode-chip" type="button" class="meta-chip" data-i18n-title="mode"></button>
         <button id="model-chip" type="button" class="meta-chip" data-i18n-title="model"></button>
         <button id="effort-chip" type="button" class="meta-chip" data-i18n-title="effort"></button>
+        <button id="group-invite" type="button" class="meta-chip hidden" data-i18n="group.invite"></button>
+        <button id="group-stop" type="button" class="meta-chip hidden" data-i18n="group.stopAll"></button>
         <button id="context-chip" type="button" class="meta-chip context hidden"></button>
       </div>
+      <section id="group-panel" class="group-panel hidden">
+        <div class="group-panel-head"><strong data-i18n="group.participants"></strong><button id="group-close" type="button" data-i18n="close"></button></div>
+        <div id="group-roster" class="group-roster"></div>
+        <div class="group-invite-form">
+          <label><span data-i18n="group.role"></span><select id="group-role"></select></label>
+          <label><span data-i18n="group.name"></span><input id="group-name" type="text" maxlength="40"></label>
+          <label><span data-i18n="group.engine"></span><select id="group-engine"></select></label>
+          <label><span data-i18n="group.model"></span><select id="group-model"></select></label>
+          <label><span data-i18n="group.effort"></span><select id="group-effort"></select></label>
+          <button id="group-add" class="primary" type="button" data-i18n="group.add"></button>
+        </div>
+      </section>
       </div>
     </section>
   </main>

@@ -12,7 +12,11 @@ Overview of active and planned board work in this repo.
 
 ## Planned
 
-Persephone EPIC-131 / US-1707: Codex becomes a second engine in this board instead of a separate `codex-agent` board (decided 2026-10-25).
+Board work for Persephone's **EPIC-133** (*Speech to text*); the epic document lives in the Persephone repo (`doc/epics/EPIC-133.md`). Starts after Persephone US-1723 reserves `speech.transcribe`.
+
+- [ ] BT-055: Whisper runtime build workflow and release
+- [ ] BT-056: Speech to Text board — `speech.transcribe` provider
+- [ ] BT-057: Agent Chat voice input
 
 
 Board work for Persephone's **EPIC-128** (*Audio Player board*) is finished: BT-038 – BT-045 shipped as

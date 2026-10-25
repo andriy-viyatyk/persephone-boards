@@ -30,6 +30,7 @@ how-to/                     board-building recipes (esp. Persephone integration 
                             docs only, never shipped in a board ZIP. See how-to/README.md
 scripts/publish-board.mjs   zip + release + manifest updater (CI and local fallback)
 .github/workflows/publish-boards.yml   runs the publish script on push to main
+.github/workflows/build-whisper-runtime.yml   manually builds and releases the separately versioned Whisper runtime; manual only
 doc/                        task tracking (repo docs only, never shipped in a board ZIP)
   active-work.md            dashboard — Active / Planned board tasks
   tasks/                    one folder per task with a README.md; completed.md, backlog.md

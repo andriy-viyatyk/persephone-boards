@@ -1,0 +1,352 @@
+name: Build Whisper Runtime
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_tag:
+        description: "whisper.cpp upstream release tag"
+        required: true
+        default: "v1.9.5"
+        type: string
+      runtime_revision:
+        description: "Runtime package revision for this upstream tag"
+        required: true
+        default: "1"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: whisper-runtime-${{ inputs.upstream_tag }}-${{ inputs.runtime_revision }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout workflow repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Validate inputs and clone upstream to a short path
+        shell: pwsh
+        env:
+          UPSTREAM_TAG: ${{ inputs.upstream_tag }}
+          RUNTIME_REVISION: ${{ inputs.runtime_revision }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:UPSTREAM_TAG -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw 'upstream_tag must be vMAJOR.MINOR.PATCH' }
+          if ($env:RUNTIME_REVISION -notmatch '^[1-9][0-9]*$') { throw 'runtime_revision must be a positive integer' }
+          New-Item -ItemType Directory -Force C:\w | Out-Null
+          git clone --depth 1 --branch $env:UPSTREAM_TAG https://github.com/ggml-org/whisper.cpp.git C:\w\src
+          if ($LASTEXITCODE -ne 0) { throw 'Upstream clone failed' }
+          $commit = (git -C C:\w\src rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -ne 0) { throw 'Could not resolve upstream commit' }
+          "UPSTREAM_COMMIT=$commit" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "RUNTIME_TAG=whisper-runtime-$($env:UPSTREAM_TAG.Substring(1))-r$($env:RUNTIME_REVISION)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "ASSET_STEM=whisper-runtime-windows-x64-$($env:UPSTREAM_TAG)-r$($env:RUNTIME_REVISION)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Install Vulkan SDK 1.4.363.0
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = 'C:\w\vulkansdk-windows-X64-1.4.363.0.exe'
+          Invoke-WebRequest 'https://sdk.lunarg.com/sdk/download/1.4.363.0/windows/vulkansdk-windows-X64-1.4.363.0.exe' -OutFile $installer
+          $expected = '94a82d378f7a5e3e54c9db7d2fb7016af136e14ac0a18dbf0f2f67a36352d141'
+          $actual = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "Vulkan SDK installer SHA-256 mismatch: $actual" }
+          $proc = Start-Process -FilePath $installer -ArgumentList @('--root', 'C:\w\vulkan', '--accept-licenses', '--default-answer', '--confirm-command', 'install') -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { throw "Vulkan SDK installer exited $($proc.ExitCode)" }
+          "VULKAN_SDK=C:\w\vulkan" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "VK_SDK_PATH=C:\w\vulkan" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "C:\w\vulkan\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      - name: Install pinned Ninja
+        shell: pwsh
+        run: choco install ninja --version=1.12.1 --yes --no-progress
+
+      - name: Configure and build whisper-server
+        shell: cmd
+        run: |
+          set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+          if not exist "%VSWHERE%" (
+            echo ERROR: Visual Studio Installer vswhere.exe was not found at "%VSWHERE%".
+            exit /b 1
+          )
+          for /f "usebackq tokens=*" %%i in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VS_INSTALL=%%i"
+          if not defined VS_INSTALL (
+            echo ERROR: vswhere found no Visual Studio installation with the x86/x64 VC tools.
+            exit /b 1
+          )
+          if not exist "%VS_INSTALL%\VC\Auxiliary\Build\vcvars64.bat" (
+            echo ERROR: vcvars64.bat was not found under "%VS_INSTALL%".
+            exit /b 1
+          )
+          call "%VS_INSTALL%\VC\Auxiliary\Build\vcvars64.bat"
+          if errorlevel 1 exit /b 1
+          cmake -S C:\w\src -B C:\w\b -G Ninja ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_POLICY_DEFAULT_CMP0091=NEW ^
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded ^
+            -DBUILD_SHARED_LIBS=ON ^
+            -DWHISPER_BUILD_IS_DEV=OFF ^
+            -DWHISPER_BUILD_EXAMPLES=ON ^
+            -DWHISPER_BUILD_TESTS=OFF ^
+            -DWHISPER_BUILD_SERVER=ON ^
+            -DWHISPER_SDL2=OFF ^
+            -DWHISPER_COMMON_FFMPEG=OFF ^
+            -DGGML_NATIVE=OFF ^
+            -DGGML_BACKEND_DL=ON ^
+            -DGGML_CPU_ALL_VARIANTS=ON ^
+            -DGGML_VULKAN=ON
+          if errorlevel 1 exit /b 1
+          cmake --build C:\w\b --config Release --target whisper-server --parallel
+          if errorlevel 1 exit /b 1
+
+      - name: Default fallback and CPU-only server smoke tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $model = 'C:\w\ggml-tiny.bin'
+          Invoke-WebRequest 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin' -OutFile $model
+          $expected = 'be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21'
+          $actual = (Get-FileHash $model -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "tiny model SHA-256 mismatch: $actual" }
+          function Invoke-WhisperSmoke {
+            param([string]$RunName, [switch]$ForceCpu)
+            $stdout = "C:\w\server.$RunName.stdout.log"
+            $stderr = "C:\w\server.$RunName.stderr.log"
+            $arguments = @('--model', $model, '--host', '127.0.0.1', '--port', '8080', '--language', 'auto')
+            if ($ForceCpu) { $arguments += '--no-gpu' }
+            Write-Host "Starting smoke run '$RunName'; --no-gpu supplied: $([bool]$ForceCpu)"
+            $server = Start-Process -FilePath 'C:\w\b\bin\whisper-server.exe' -ArgumentList $arguments -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+            try {
+              $ready = $false
+              for ($i = 0; $i -lt 120; $i++) {
+                if ($server.HasExited) { throw "whisper-server exited early: $((Get-Content $stderr -Raw))" }
+                try {
+                  $health = Invoke-RestMethod 'http://127.0.0.1:8080/health' -TimeoutSec 2
+                  if ($health.status -eq 'ok') { $ready = $true; break }
+                } catch { Start-Sleep -Seconds 1 }
+              }
+              if (-not $ready) { throw "whisper-server ($RunName) did not become healthy within 120 seconds" }
+              $form = @{
+                file = Get-Item 'C:\w\src\samples\jfk.wav'
+                response_format = 'json'
+                temperature = '0.0'
+                temperature_inc = '0.2'
+              }
+              $result = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/inference' -Form $form -TimeoutSec 300
+              if (-not $result.text) { throw "Inference response did not contain text: $($result | ConvertTo-Json -Compress)" }
+              $transcript = $result.text.ToLowerInvariant()
+              if (-not $transcript.Contains('ask not what you can do')) { throw "Unexpected JFK transcript: $($result.text)" }
+              Write-Host "Smoke run '$RunName' transcript: $($result.text)"
+              if ($ForceCpu) { Write-Host "Backend conclusion for '$RunName': CPU forced by --no-gpu; inference succeeded." }
+              else { Write-Host "Backend conclusion for '$RunName': no usable Vulkan GPU is present on this runner; successful inference used the CPU fallback." }
+            } finally {
+              if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force }
+              Wait-Process -Id $server.Id -Timeout 10 -ErrorAction SilentlyContinue
+              Write-Host "Backend/device stderr lines for '$RunName':"
+              $backendLines = Select-String -Path $stderr -Pattern '(?i)backend|device|vulkan|cpu|gpu'
+              if ($backendLines) { $backendLines | ForEach-Object { Write-Host $_.Line } }
+              else { Write-Host '(no backend/device lines emitted)' }
+            }
+          }
+          Invoke-WhisperSmoke -RunName 'default-fallback'
+          Invoke-WhisperSmoke -RunName 'forced-cpu' -ForceCpu
+
+      - name: Package runtime and checksums
+        shell: pwsh
+        env:
+          UPSTREAM_TAG: ${{ inputs.upstream_tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $out = 'C:\w\package'
+          New-Item -ItemType Directory -Force "$out\licenses" | Out-Null
+          Copy-Item 'C:\w\b\bin\whisper-server.exe' $out
+          Get-ChildItem 'C:\w\b\bin' -Filter '*.dll' | Copy-Item -Destination $out
+          if (-not (Get-ChildItem $out -Filter '*.dll')) { throw 'No runtime DLLs were emitted' }
+          $licenseRoot = 'C:\w\src'
+          Copy-Item "$licenseRoot\LICENSE" "$out\licenses\whisper.cpp-ggml-MIT.txt"
+          function Assert-NoticeSource {
+            param([string]$Path, [string[]]$Patterns)
+            foreach ($pattern in $Patterns) {
+              if (-not (Select-String -Path $Path -SimpleMatch -Pattern $pattern -Quiet)) {
+                throw "Expected notice identifier '$pattern' not found in $Path; re-verify third-party notices for this tag"
+              }
+            }
+          }
+          Assert-NoticeSource "$licenseRoot\examples\server\httplib.h" @('#define CPPHTTPLIB_VERSION "0.20.0"', 'Copyright (c) 2025 Yuji Hirose. All rights reserved.')
+          @'
+          cpp-httplib 0.20.0
+          Copyright (c) 2025 Yuji Hirose. All rights reserved.
+          MIT License
+
+          Permission is hereby granted, free of charge, to any person obtaining a copy
+          of this software and associated documentation files (the "Software"), to deal
+          in the Software without restriction, including without limitation the rights
+          to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+          copies of the Software, and to permit persons to whom the Software is
+          furnished to do so, subject to the following conditions:
+
+          The above copyright notice and this permission notice shall be included in all
+          copies or substantial portions of the Software.
+
+          THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+          IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+          FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+          AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+          LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+          OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+          SOFTWARE.
+          '@ | Set-Content "$out\licenses\cpp-httplib-MIT.txt" -Encoding utf8
+          Assert-NoticeSource "$licenseRoot\examples\json.hpp" @('Copyright (c) 2013-2026 Niels Lohmann')
+          @'
+          nlohmann/json (vendored examples/json.hpp), MIT License
+          Copyright (c) 2013-2026 Niels Lohmann
+          Includes the UTF-8 Decoder, Copyright (c) 2008-2009 Björn Hoehrmann, and
+          modified Grisu2 algorithm, Copyright (c) 2009 Florian Loitsch, both under MIT.
+          Includes Hedley by Evan Nemerson under CC0-1.0 (https://creativecommons.org/publicdomain/zero/1.0/).
+
+          Permission is hereby granted, free of charge, to any person obtaining a copy
+          of this software and associated documentation files (the "Software"), to deal
+          in the Software without restriction, including without limitation the rights
+          to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+          copies of the Software, and to permit persons to whom the Software is
+          furnished to do so, subject to the following conditions:
+
+          The above copyright notice and this permission notice shall be included in all
+          copies or substantial portions of the Software.
+
+          THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+          IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+          FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+          AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+          LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+          OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+          SOFTWARE.
+          '@ | Set-Content "$out\licenses\nlohmann-json-MIT-and-notices.txt" -Encoding utf8
+          Assert-NoticeSource "$licenseRoot\examples\miniaudio.h" @('miniaudio - v0.11.24', 'Copyright 2025 David Reid')
+          @'
+          miniaudio v0.11.24
+          Copyright 2025 David Reid
+          Alternative 2: MIT No Attribution (MIT-0)
+
+          Permission is hereby granted, free of charge, to any person obtaining a copy of
+          this software and associated documentation files (the "Software"), to deal in
+          the Software without restriction, including without limitation the rights to
+          use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+          of the Software, and to permit persons to whom the Software is furnished to do
+          so.
+
+          THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+          IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+          FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+          AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+          LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+          OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+          SOFTWARE.
+          '@ | Set-Content "$out\licenses\miniaudio-MIT-0.txt" -Encoding utf8
+          Assert-NoticeSource "$licenseRoot\examples\stb_vorbis.c" @('Ogg Vorbis audio decoder - v1.22', 'Copyright (c) 2017 Sean Barrett')
+          @'
+          stb_vorbis v1.22
+          Copyright (c) 2017 Sean Barrett
+          MIT License
+
+          Permission is hereby granted, free of charge, to any person obtaining a copy of
+          this software and associated documentation files (the "Software"), to deal in
+          the Software without restriction, including without limitation the rights to
+          use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+          of the Software, and to permit persons to whom the Software is furnished to do
+          so, subject to the following conditions:
+
+          The above copyright notice and this permission notice shall be included in all
+          copies or substantial portions of the Software.
+
+          THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+          IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+          FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+          AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+          LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+          OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+          SOFTWARE.
+          '@ | Set-Content "$out\licenses\stb-vorbis-MIT.txt" -Encoding utf8
+          @"
+          whisper.cpp Windows x64 runtime
+          Upstream: ggml-org/whisper.cpp $env:UPSTREAM_TAG
+          Commit: $env:UPSTREAM_COMMIT
+          Architecture: Windows x64 (MSVC)
+          Build: Release; CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded; BUILD_SHARED_LIBS=ON
+          Flags: WHISPER_BUILD_IS_DEV=OFF; WHISPER_BUILD_EXAMPLES=ON; WHISPER_BUILD_TESTS=OFF;
+          WHISPER_BUILD_SERVER=ON; WHISPER_SDL2=OFF; WHISPER_COMMON_FFMPEG=OFF;
+          GGML_NATIVE=OFF; GGML_BACKEND_DL=ON; GGML_CPU_ALL_VARIANTS=ON; GGML_VULKAN=ON
+          Vulkan SDK: LunarG 1.4.363.0 (build time only)
+          Run: whisper-server.exe --model <model-path> --host 127.0.0.1 --port 8080
+          Use --no-gpu to force CPU execution. Vulkan acceleration requires a compatible installed GPU driver.
+          See licenses/ for the notices of components linked into this runtime.
+          "@ | Set-Content "$out\README.txt" -Encoding utf8
+          $files = Get-ChildItem $out -File -Recurse | Sort-Object { $_.FullName.Substring($out.Length + 1).Replace('\', '/') }
+          $entries = foreach ($file in $files) {
+            $relative = $file.FullName.Substring($out.Length + 1).Replace('\', '/')
+            [ordered]@{ path = $relative; sha256 = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
+          }
+          [ordered]@{ upstreamTag = $env:UPSTREAM_TAG; upstreamCommit = $env:UPSTREAM_COMMIT; files = @($entries) } |
+            ConvertTo-Json -Depth 5 | Set-Content "$out\manifest.json" -Encoding utf8
+          $zip = "$env:GITHUB_WORKSPACE\$env:ASSET_STEM.zip"
+          Compress-Archive -Path "$out\*" -DestinationPath $zip -CompressionLevel Optimal
+          $zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$zipHash  $([IO.Path]::GetFileName($zip))" | Set-Content "$zip.sha256" -Encoding ascii
+
+      - name: Upload release payload
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: whisper-runtime-payload
+          path: |
+            ${{ github.workspace }}\whisper-runtime-windows-x64-${{ inputs.upstream_tag }}-r${{ inputs.runtime_revision }}.zip
+            ${{ github.workspace }}\whisper-runtime-windows-x64-${{ inputs.upstream_tag }}-r${{ inputs.runtime_revision }}.zip.sha256
+          if-no-files-found: error
+          retention-days: 2
+
+  publish:
+    runs-on: windows-latest
+    needs: build
+    permissions:
+      contents: write
+    steps:
+      - name: Download release payload
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: whisper-runtime-payload
+          path: release
+
+      - name: Create runtime release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          UPSTREAM_TAG: ${{ inputs.upstream_tag }}
+          RUNTIME_REVISION: ${{ inputs.runtime_revision }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:UPSTREAM_TAG -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$' -or $env:RUNTIME_REVISION -notmatch '^[1-9][0-9]*$') { throw 'Invalid release inputs' }
+          $tag = "whisper-runtime-$($env:UPSTREAM_TAG.Substring(1))-r$($env:RUNTIME_REVISION)"
+          $stem = "whisper-runtime-windows-x64-$($env:UPSTREAM_TAG)-r$($env:RUNTIME_REVISION)"
+          $zip = "release\$stem.zip"
+          $checksum = "$zip.sha256"
+          if (-not (Test-Path $zip) -or -not (Test-Path $checksum)) { throw 'Release ZIP or checksum asset is missing' }
+          $expected = ((Get-Content $checksum -Raw).Trim() -split '\s+')[0].ToLowerInvariant()
+          $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw 'ZIP checksum does not match detached checksum file' }
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) { throw "Release $tag already exists; choose a new runtime_revision" }
+          $notes = @"
+          Windows x64 whisper-server runtime built from ggml-org/whisper.cpp $env:UPSTREAM_TAG.
+
+          Built with dynamically loaded Vulkan and CPU backends. CPU variants are selected at runtime. Includes upstream notices and a per-file SHA-256 manifest. The attached .sha256 file covers the ZIP bytes.
+
+          Smoke-tested on windows-latest with a SHA-256-verified tiny model, localhost /inference multipart upload of upstream samples/jfk.wav, once with default GPU preference to prove CPU fallback without a usable Vulkan device and once with --no-gpu. Backend/device stderr lines are printed for both runs.
+          "@
+          gh release create $tag $zip $checksum --target $env:GITHUB_SHA --title "Whisper Runtime $($env:UPSTREAM_TAG.Substring(1)) r$($env:RUNTIME_REVISION) ($tag)" --notes $notes --latest=false
+          if ($LASTEXITCODE -ne 0) { throw 'gh release create failed' }

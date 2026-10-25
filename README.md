@@ -35,6 +35,7 @@ scripts/
   publish-board.mjs         zip + release + manifest updater (CI and local fallback)
 .github/workflows/
   publish-boards.yml        runs the publish script on push to main
+  build-whisper-runtime.yml manually builds and releases the separately versioned Whisper runtime; manual only
 ```
 
 ## Publishing a board

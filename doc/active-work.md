@@ -8,13 +8,12 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-*(none)*
+Board work for Persephone's **EPIC-133** (*Speech to text*); the epic document lives in the Persephone repo (`doc/epics/EPIC-133.md`). US-1723 has reserved `speech.transcribe`; BT-055 is now in progress.
+
+- [ ] [BT-055: Whisper runtime build workflow and release](tasks/BT-055-whisper-runtime/README.md)
 
 ## Planned
 
-Board work for Persephone's **EPIC-133** (*Speech to text*); the epic document lives in the Persephone repo (`doc/epics/EPIC-133.md`). Starts after Persephone US-1723 reserves `speech.transcribe`.
-
-- [ ] BT-055: Whisper runtime build workflow and release
 - [ ] BT-056: Speech to Text board — `speech.transcribe` provider
 - [ ] BT-057: Agent Chat voice input
 

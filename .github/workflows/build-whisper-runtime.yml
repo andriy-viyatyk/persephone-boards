@@ -63,9 +63,12 @@ jobs:
           "VK_SDK_PATH=C:\w\vulkan" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "C:\w\vulkan\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
-      - name: Install pinned Ninja
+      - name: Ensure Ninja
         shell: pwsh
-        run: choco install ninja --version=1.12.1 --yes --no-progress
+        run: |
+          # windows-latest ships Ninja; install it only when an image lacks it.
+          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja --yes --no-progress; if ($LASTEXITCODE -ne 0) { throw 'Ninja install failed' } }
+          ninja --version
 
       - name: Configure and build whisper-server
         shell: cmd

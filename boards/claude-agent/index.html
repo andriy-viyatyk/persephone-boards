@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title data-i18n="board.title">Claude Agent</title>
+  <title data-i18n="board.title">Agent Chat</title>
   <link rel="stylesheet" href="./board-base.css">
   <link rel="stylesheet" href="./markdown.css">
   <link rel="stylesheet" href="./app.css">
@@ -46,9 +46,12 @@
         <button id="send" class="primary" data-i18n="send"></button>
       </form>
       <div id="composer-meta" class="composer-meta">
+        <button id="engine-chip" type="button" class="meta-chip" data-i18n-title="engine"></button>
         <button id="mode-chip" type="button" class="meta-chip" data-i18n-title="mode"></button>
         <button id="model-chip" type="button" class="meta-chip" data-i18n-title="model"></button>
         <button id="effort-chip" type="button" class="meta-chip" data-i18n-title="effort"></button>
+        <button id="group-invite" type="button" class="meta-chip hidden" data-i18n="group.invite"></button>
+        <button id="group-stop" type="button" class="meta-chip hidden" data-i18n="group.stopAll"></button>
         <button id="context-chip" type="button" class="meta-chip context hidden"></button>
       </div>
       </div>
@@ -60,15 +63,47 @@
     <button type="button" role="menuitem" data-action="rename" data-i18n="rename"></button>
     <button type="button" role="menuitem" data-action="delete" class="danger" data-i18n="delete"></button>
   </div>
-  <dialog id="instructions-dialog" class="dialog wide">
-    <form method="dialog">
-      <h2 data-i18n="instructions"></h2>
-      <p data-i18n="instructionsNote"></p>
-      <textarea id="instructions-text" spellcheck="false"></textarea>
+  <dialog id="config-dialog" class="dialog wide config-dialog">
+    <form method="dialog" id="config-form">
+      <div class="config-header">
+        <h2 data-i18n="configure"></h2>
+        <div class="config-tabs" role="tablist">
+          <button type="button" role="tab" data-tab="instructions" data-i18n="instructions"></button>
+          <button type="button" role="tab" data-tab="profiles" data-i18n="profiles.title"></button>
+        </div>
+      </div>
+      <section id="config-instructions" class="config-panel" role="tabpanel">
+        <p data-i18n="instructionsNote"></p>
+        <textarea id="instructions-text" spellcheck="false"></textarea>
+      </section>
+      <section id="config-profiles" class="config-panel" role="tabpanel">
+        <p id="profiles-warning" class="profile-warning hidden" data-i18n="profiles.sharedFolderWarning"></p>
+        <div class="profiles-layout">
+          <section class="profile-list-pane">
+            <nav id="profiles-list" class="profiles-list"></nav>
+            <div class="profile-list-actions">
+              <button type="button" id="profile-new" data-i18n="profiles.new"></button>
+              <button type="button" id="profile-duplicate" data-i18n="profiles.duplicate"></button>
+              <button type="button" id="profile-delete" data-i18n="profiles.delete"></button>
+              <button type="button" id="profile-reset" data-i18n="profiles.reset"></button>
+            </div>
+          </section>
+          <section class="profile-editor">
+            <label><span data-i18n="profiles.name"></span><input id="profile-name" maxlength="60"></label>
+            <label><span data-i18n="profiles.roleTitle"></span><input id="profile-role-title" maxlength="60"></label>
+            <label><span data-i18n="profiles.instructions"></span><textarea id="profile-instructions" maxlength="16384"></textarea></label>
+            <label><span data-i18n="profiles.summary"></span><textarea id="profile-summary" maxlength="2048"></textarea></label>
+            <label><span data-i18n="profiles.provider"></span><select id="profile-provider"></select></label>
+            <label><span data-i18n="profiles.model"></span><select id="profile-model"></select></label>
+            <label><span data-i18n="profiles.effort"></span><select id="profile-effort"></select></label>
+            <label><span data-i18n="profiles.permission"></span><select id="profile-permission"></select></label>
+          </section>
+        </div>
+      </section>
       <div class="actions">
         <button type="button" id="instructions-reset" class="start" data-i18n="resetToDefault"></button>
-        <button value="cancel" formnovalidate data-i18n="cancel"></button>
-        <button value="save" class="primary" data-i18n="save"></button>
+        <button type="button" id="config-cancel" data-i18n="close"></button>
+        <button type="button" id="config-save" class="primary" data-i18n="save"></button>
       </div>
     </form>
   </dialog>

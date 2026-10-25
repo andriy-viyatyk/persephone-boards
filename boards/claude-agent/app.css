@@ -32,6 +32,10 @@ body.resizing { cursor: col-resize; user-select: none; }
 .agent-toggle:hover:not(:disabled) { background: transparent; text-decoration: underline; }
 .agent-type { flex: none; max-width: 38%; overflow: hidden; color: var(--p-text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .session-list .empty { padding: 8px; color: var(--p-text-muted); }
+/* Shown until the first session listing arrives. */
+.session-list .loading { display: flex; align-items: center; gap: 8px; padding: 8px; color: var(--p-text-muted); }
+.spinner { flex: none; width: 14px; height: 14px; border: 2px solid color-mix(in srgb, var(--p-text-muted) 35%, transparent); border-top-color: var(--p-accent); border-radius: 50%; box-sizing: border-box; animation: spinner-turn .8s linear infinite; }
+@keyframes spinner-turn { to { transform: rotate(360deg); } }
 /* Two-level tree: folder rows, then their sessions indented under them. */
 /* Expand/collapse chevrons, as in Persephone's Explorer tree: its chevron-right icon, turned to point down
    when open. A mask paints it in the text colour. It marks the sidebar folders and every collapsible line. */
@@ -48,6 +52,7 @@ details[open] > summary::before, .folder.expanded .caret { transform: rotate(90d
 .folder-toggle:hover:not(:disabled) { background: transparent; }
 .folder-toggle .caret { color: var(--p-text-muted); }
 .folder-toggle .folder-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-toggle .folder-name.no-folder { font-style: italic; font-weight: normal; color: var(--p-text-muted); }
 .folder-head .count { flex: none; min-width: 16px; padding-right: 8px; text-align: right; font-size: 11px; color: var(--p-text-muted); }
 /* Whole-pixel plus: an odd-sized box and 1px bars on integer offsets, so both strokes render equally crisp. */
 .folder-new { flex: none; position: relative; visibility: hidden; width: 21px; height: 21px; padding: 0; margin-right: 2px; border: 0; background: transparent; color: var(--p-text-muted); }
@@ -70,6 +75,16 @@ details[open] > summary::before, .folder.expanded .caret { transform: rotate(90d
 @keyframes session-pulse { 50% { opacity: .3; } }
 .session-item.unread .title { color: var(--p-text); font-weight: 600; }
 .session-item .when { flex: none; font-size: 11px; color: var(--p-text-muted); }
+.participant-item { width: calc(100% - 34px); margin-left: 34px; border-style: dashed; }
+.participant-item .title { font-size: 12px; }
+.participant-item.removed { opacity: .65; }
+.participant-item.removed .title { text-decoration: line-through; }
+/* Engine icon in place of the dot, drawn through the icon's shape in the engine's color (--engine-color, from its
+   description): muted toward the theme's gray when not running, full color when the board runs it, pulsing while it works.
+   Without an engine color it falls back to the dot's gray / green. */
+.engine-icon { flex: none; align-self: center; width: 13px; height: 13px; background: color-mix(in srgb, var(--engine-color, var(--p-text-muted)) 40%, var(--p-text-muted)); -webkit-mask: var(--engine-icon) center / contain no-repeat; mask: var(--engine-icon) center / contain no-repeat; }
+.engine-icon.live { background: var(--engine-color, var(--p-success)); }
+.engine-icon.busy { animation: session-pulse 1.2s ease-in-out infinite; }
 
 /* Main column */
 .main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
@@ -157,6 +172,10 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--p-text-mut
 .meta-chip.context { margin-left: auto; }
 .meta-chip.context[data-tone="accent"] { color: var(--p-accent); }
 .meta-chip.context[data-tone="error"] { color: var(--p-error); }
+.author-badge { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; color: var(--p-text-muted); font-family: var(--chat-font); font-size: 11px; }
+.author-badge .engine-icon { width: 13px; height: 13px; }
+.group-notice { border-left: 2px solid var(--p-accent); padding-left: 10px; }
+.group-notice details { margin-top: 5px; color: var(--p-text-muted); font-size: 12px; }
 .choice-menu { min-width: 180px; max-height: min(360px, 60vh); overflow-y: auto; }
 .choice-menu button { display: flex; align-items: baseline; gap: 10px; }
 .choice-menu button .desc { flex: 1; color: var(--p-text-muted); font-size: 12px; }
@@ -235,6 +254,35 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--p-text-mut
 .panel-body details { margin-top: 10px; }
 .panel-body details summary { cursor: pointer; font-weight: 600; }
 .dialog button.danger { background: var(--p-error); border-color: var(--p-error); color: var(--p-accent-text); }
+/* Configure: fixed-height dialog; title, tabs, list pane and action bar stay put; only the form fields scroll. */
+.config-dialog { width: min(980px, calc(100vw - 32px)); height: min(90vh, 760px); max-height: none; overflow: hidden; box-sizing: border-box; }
+.config-dialog[open] { display: flex; flex-direction: column; }
+.config-dialog form { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.config-header { flex: none; display: flex; align-items: baseline; gap: 20px; margin-bottom: 12px; border-bottom: 1px solid var(--p-border); }
+.config-header h2 { margin: 0; }
+.config-tabs { display: flex; gap: 2px; }
+.config-tabs button { border: none; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--p-text-muted); margin-bottom: -1px; }
+.config-tabs button.active { color: var(--p-text); border-bottom-color: var(--p-accent); }
+.config-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#config-instructions p { flex: none; margin-top: 0; }
+#config-instructions textarea { flex: 1; min-height: 0; max-height: none; resize: none; margin-top: 0; }
+.profiles-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(190px, 28%) minmax(0, 1fr); gap: 16px; }
+.profile-list-pane, .profile-editor { min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.profile-list-pane { overflow: hidden; }
+/* Scroll containers clip the focus ring; the padding keeps it visible. */
+.profile-editor { padding: 4px 8px 4px 4px; }
+.config-dialog .actions { flex: none; margin-bottom: 0; margin-top: 0; padding-top: 12px; border-top: 1px solid var(--p-border); }
+.profiles-list { flex: 1; min-height: 100px; overflow: auto; padding: 4px; display: flex; flex-direction: column; gap: 3px; }
+.profile-list-item { overflow: hidden; text-align: left; text-overflow: ellipsis; }
+.profile-list-item.active { background: var(--p-tree-selection, var(--p-hover)); border-color: var(--p-accent); }
+.profile-list-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.profile-list-actions button { white-space: normal; }
+.profile-editor { overflow: auto; }
+.profile-editor label { flex: none; }
+.profile-editor textarea { min-height: 70px; resize: vertical; }
+.profile-editor label:nth-child(3) textarea { min-height: 112px; }
+.profile-warning { padding: 8px 10px; border-left: 3px solid var(--p-warning, var(--p-accent)); background: var(--p-panel); }
+@media (max-width: 680px) { .profiles-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } .profile-list-pane { max-height: 170px; } }
 
 @media (max-width: 760px) {
   .msg, .activity { max-width: 100%; }

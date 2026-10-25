@@ -1,122 +1,143 @@
 import { spawn } from "node:child_process";
+import { appliedLimits, authorHeader, boundedString, clampMode, hookDecision, serializeEvent, validateOpen } from "./agent-session-protocol.mjs";
 import { randomUUID } from "node:crypto";
-import { watch } from "node:fs";
-import { mkdir, open as openFile, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import os from "node:os";
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createServer } from "node:http";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import {
-  appliedLimits, boundedString, clampMode, classifyTool, composeInstructions, hookDecision,
-  MODE_NATIVE, normalizeModel, normalizeNativeMessage, parseTaskNotification, protocolError, serializeEvent, summarizeToolInput, validateOpen,
-} from "./agent-session-protocol.mjs";
-import { resolveClaudeExecutable } from "./claude-executable.mjs";
-import { installSdk, loadSdk, sdkIsInstalled } from "./sdk-install.mjs";
+import { createClaudeProvider } from "./providers/claude.mjs";
+import { createCodexProvider } from "./providers/codex.mjs";
+import { composeInstructions } from "./agent-session-protocol.mjs";
 
-const boardRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const sessions = new Map();
-// Teardowns still in progress, by session id, so a delete can wait for the CLI to release the transcript.
-const closingSessions = new Map();
-const MODEL_ALIASES = [
-  { id: "", label: "Default", efforts: [] },
-  { id: "sonnet", label: "Sonnet (CLI alias)", efforts: [] },
-  { id: "opus", label: "Opus (CLI alias)", efforts: [] },
-  { id: "haiku", label: "Haiku (CLI alias)", efforts: [] },
-];
-let cachedModels = null;
-let settings = {};
-const settingIds = ["claude-executable", "default-model", "default-effort", "cross-board-permission-ceiling"];
-
+// The resident service is the provider registry and channel entry point. Adapters own
+// their operation implementations and receive every opening and live-session request
+// through this boundary.
 class AsyncQueue {
-  values = [];
-  waiters = [];
-  ended = false;
-  push(value) {
-    if (this.ended) return false;
-    const waiter = this.waiters.shift();
-    if (waiter) waiter({ value, done: false }); else this.values.push(value);
-    return true;
-  }
-  close() {
-    this.ended = true;
-    for (const waiter of this.waiters.splice(0)) waiter({ value: undefined, done: true });
-  }
-  next() {
-    if (this.values.length) return Promise.resolve({ value: this.values.shift(), done: false });
-    if (this.ended) return Promise.resolve({ value: undefined, done: true });
-    return new Promise((resolve) => this.waiters.push(resolve));
-  }
+  values = []; waiters = []; ended = false;
+  push(value) { if (this.ended) return false; const waiter = this.waiters.shift(); if (waiter) waiter({ value, done: false }); else this.values.push(value); return true; }
+  close() { this.ended = true; for (const waiter of this.waiters.splice(0)) waiter({ value: undefined, done: true }); }
+  next() { if (this.values.length) return Promise.resolve({ value: this.values.shift(), done: false }); if (this.ended) return Promise.resolve({ value: undefined, done: true }); return new Promise((resolve) => this.waiters.push(resolve)); }
   [Symbol.asyncIterator]() { return this; }
 }
-
-async function refreshSettings() {
-  const next = {};
-  await Promise.all(settingIds.map(async (id) => { next[id] = await persephone.settings.get(id); }));
-  settings = next;
-  return settings;
+const sessions = new Map();
+const closingSessions = new Map();
+const watchers = new Set();
+const groups = new Map();
+const groupTokens = new Map();
+const participantIds = new Set();
+let groupHttpServer = null;
+let groupHttpAddress = null;
+const GROUP_ROOT = () => {
+  const base = process.env.LOCALAPPDATA;
+  if (!base || !path.isAbsolute(base)) throw new Error("LOCALAPPDATA is not available; cannot store group chats.");
+  return path.resolve(base, "Persephone", "board-data", "claude-agent", "group-chat");
+};
+const DEFAULT_PROFILES = Object.freeze([
+  { id: "nova-reviewer", name: "Nova", roleTitle: "Reviewer", instructions: "Review the requested work, inspect relevant code or evidence, and report concrete defects, risks, and fixes. Do not make changes.", summary: "Reviews work and identifies defects, risks, and fixes.", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only" },
+  { id: "rex-critic", name: "Rex", roleTitle: "Critic", instructions: "Challenge the proposal's assumptions, look for counterexamples and failure cases, and explain where reasoning or evidence is weak. Do not make changes.", summary: "Challenges assumptions and finds counterexamples.", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only" },
+  { id: "atlas-researcher", name: "Atlas", roleTitle: "Researcher", instructions: "Investigate the question using available sources, distinguish evidence from inference, and report concise findings with source references. Do not make changes.", summary: "Researches questions and reports evidence and sources.", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only" },
+  { id: "kai-developer", name: "Kai", roleTitle: "Developer", instructions: "Implement the requested change in the working directory. Read the relevant code first, follow its existing patterns and conventions, keep the change focused on what was asked, and verify it builds or runs where you can. Report the files you changed and anything left undone. Do not commit unless asked.", summary: "Implements code changes; edits files directly and asks before running commands.", provider: "claude", model: "opus", effort: "medium", permissionMode: "auto-edit" },
+]);
+// Master's whole reply when it has nothing to add; the service drops it instead of sharing it.
+const GROUP_PASS = "[[pass]]";
+const GROUP_CORE = (name, position) => `You are in the Agent Chat board as ${name}, position ${position}. Other agents may join this chat. Message headers such as [[from: Nova | role: Reviewer]], [[from: user]], and [[from: Master | role: main]] identify authors; treat them as metadata. Every visible message reaches every participant, so most messages need no reply from you.
+Master: answer the user's messages unless the user names another agent; answer when any participant addresses you as Master; you may delegate by asking a joined agent by name, based on the role summaries. When a message is addressed to another agent, or you have nothing substantive to add (a correction, a missing fact, a next step), reply with exactly ${GROUP_PASS} and nothing else; the board hides it. Never send acknowledgements, thanks, welcomes, or remarks that you are staying out of it. You moderate the discussion: when joined agents go back and forth without progress, repeat points already made, or keep prompting each other without the user asking for it, tell them by name to stop and summarize what is settled for the user.
+Joined agents: follow your role instructions and share replies only through the post_message tool. Post when you are addressed by name or when your role clearly calls for it; otherwise end your turn without posting. Never post acknowledgements such as "Got it" or "Thanks". Follow Master's instructions; they rank right after the user's. When Master tells you to stop, post nothing more on that topic until the user or Master addresses you again.`;
+const AUTHOR_HEADER = authorHeader;
+const isGroupMain = (session) => Boolean(session?.groupMain || session?.open?.groupChat?.position === "main");
+const isPersistentGroup = (session) => Boolean(groups.get(session?.id)?.enabled);
+const safeHeaderPart = (value, limit = 80) => {
+  if (typeof value !== "string" || !value.trim() || value.length > limit || /[\]\r\n\u0000-\u001f\u007f]/.test(value)) throw new Error("Group names and roles must be single-line text without control characters.");
+  return value.trim();
+};
+const escapeBodyHeaders = (value) => String(value || "").replace(/^\[\[from:/gm, "\\[[from:");
+function groupFile(name) { return path.join(GROUP_ROOT(), name); }
+async function atomicJson(file, value, limit = 512 * 1024) {
+  const json = JSON.stringify(value, null, 2);
+  if (Buffer.byteLength(json) > limit) throw new Error("Group chat data exceeds the storage limit.");
+  await mkdir(path.dirname(file), { recursive: true });
+  const temporary = `${file}.${randomUUID()}.tmp`;
+  try { await writeFile(temporary, json, { encoding: "utf8", flag: "wx" }); await (await import("node:fs/promises")).rename(temporary, file); }
+  finally { await rm(temporary, { force: true }).catch(() => {}); }
 }
-
-// The model and effort a session starts with when the page picks none: the board settings, then the Claude Code
-// settings the CLI reads (user, then the folder's project and local files; later wins), then Opus at medium effort.
-const FALLBACK_MODEL = "opus";
-const FALLBACK_EFFORT = "medium";
-async function claudeSettingsDefaults(cwd) {
-  const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
-  const files = [path.join(configDir, "settings.json")];
-  if (cwd) files.push(path.join(cwd, ".claude", "settings.json"), path.join(cwd, ".claude", "settings.local.json"));
-  const found = {};
-  for (const file of files) {
-    const json = await readFile(file, "utf8").then(JSON.parse).catch(() => null);
-    if (typeof json?.model === "string" && json.model) found.model = json.model;
-    if (typeof json?.effortLevel === "string" && json.effortLevel) found.effort = json.effortLevel;
-  }
-  return found;
-}
-// `model`/`effort` are what the session runs with; `pass*` is what the board must send the SDK (empty when the CLI applies its own settings).
-async function sessionDefaults(cwd) {
-  const claude = await claudeSettingsDefaults(cwd);
-  const passModel = settings["default-model"] || (claude.model ? "" : FALLBACK_MODEL);
-  const passEffort = settings["default-effort"] || (claude.effort ? "" : FALLBACK_EFFORT);
-  return { model: passModel || claude.model, effort: passEffort || claude.effort, passModel, passEffort };
-}
-
-function listenSettings() {
-  persephone.settings.onChange(({ id, value }) => {
-    if (settingIds.includes(id)) settings[id] = value;
-  });
-}
-
-async function send(channel, event, session) {
-  if (session?.closed) return;
+async function readJson(file, fallback, maxBytes = 512 * 1024) {
   try {
-    if (!channel.writable) await channel.whenWritable();
-    if (session?.closed) return;
-    const withId = session?.currentRequestId && event.id === undefined ? { ...event, id: session.currentRequestId } : event;
-    channel.send(serializeEvent(withId));
-  } catch (error) {
-    if (!session?.closed) console.warn("Claude Agent channel send failed:", error?.code || error?.message || "unknown error");
+    const text = await readFile(file, "utf8");
+    if (Buffer.byteLength(text) > maxBytes) throw new Error("Saved group chat data exceeds its size limit.");
+    return JSON.parse(text);
+  }
+  catch (error) { if (error.code === "ENOENT") return fallback; throw error; }
+}
+const profilesFile = () => groupFile("profiles.json");
+const participantsFile = (id) => groupFile(`participants-${encodeURIComponent(id)}.json`);
+async function readProfiles() {
+  const stored = await readJson(profilesFile(), null, 256 * 1024);
+  if (stored !== null) {
+    if (!Array.isArray(stored) || stored.length > 64) throw new Error("Saved profile list is invalid.");
+    for (const profile of stored) await validateProfile(profile, { catalog: false });
+    return stored;
+  }
+  await atomicJson(profilesFile(), DEFAULT_PROFILES, 256 * 1024);
+  return DEFAULT_PROFILES;
+}
+const PROFILE_MODES = ["read-only", "ask", "auto-edit", "full-auto"];
+const PROFILE_FIELDS = ["id", "name", "roleTitle", "instructions", "summary", "provider", "model", "effort", "permissionMode"];
+function nextProfileName(name, profiles) {
+  for (let suffix = 2; suffix < 100000; suffix++) {
+    const tail = ` ${suffix}`, candidate = `${name.slice(0, 60 - tail.length)}${tail}`;
+    if (!profiles.some((profile) => profile.name.toLowerCase() === candidate.toLowerCase())) return candidate;
+  }
+  throw new Error("No available duplicate profile name could be generated.");
+}
+async function validateProfile(profile, { catalog = true } = {}) {
+  if (!profile || typeof profile !== "object" || Array.isArray(profile) || Object.keys(profile).some((key) => !PROFILE_FIELDS.includes(key)) || PROFILE_FIELDS.some((key) => !Object.hasOwn(profile, key))) throw new Error("Profile data is invalid.");
+  if (typeof profile.id !== "string" || !/^[a-z0-9-]{1,48}$/.test(profile.id)) throw new Error("Profile id is invalid.");
+  safeHeaderPart(profile.name, 60); safeHeaderPart(profile.roleTitle, 60);
+  if (typeof profile.instructions !== "string" || Buffer.byteLength(profile.instructions) > 16 * 1024 || typeof profile.summary !== "string" || Buffer.byteLength(profile.summary) > 2048) throw new Error("Profile instructions or summary exceed the size limit.");
+  if (!providers.has(profile.provider)) throw new Error("The selected provider is unavailable.");
+  if (typeof profile.model !== "string" || !profile.model || profile.model.length > 200 || typeof profile.effort !== "string" || profile.effort.length > 40) throw new Error("Profile model or effort is invalid.");
+  if (!PROFILE_MODES.includes(profile.permissionMode)) throw new Error("The permission preset is unsupported.");
+  const normalized = Object.fromEntries(PROFILE_FIELDS.map((key) => [key, key === "instructions" || key === "summary" ? profile[key] : String(profile[key]).trim()]));
+  if (!catalog) return normalized;
+  const description = await providers.get(profile.provider).describe({ cwd: "" });
+  if (description.available === false) throw new Error("The selected provider is unavailable.");
+  const aliases = profile.provider === "claude" ? ["opus", "sonnet", "haiku"] : [];
+  const model = description.models?.find((entry) => entry.id === profile.model);
+  if (!model && !aliases.includes(profile.model)) throw new Error("The selected model is unavailable.");
+  const efforts = model?.efforts || (aliases.includes(profile.model) ? ["low", "medium", "high", "xhigh", "max"] : []);
+  if (profile.effort && !efforts.includes(profile.effort)) throw new Error("The selected effort is unavailable.");
+  return normalized;
+}
+async function readParticipants(id) {
+  const rows = await readJson(participantsFile(id), [], 512 * 1024);
+  if (!Array.isArray(rows) || rows.length > 32) throw new Error("Saved participant list is invalid.");
+  for (const row of rows) {
+    if (!row || typeof row !== "object") throw new Error("Saved participant metadata is invalid.");
+    row.profileId ||= row.roleId;
+    row.roleTitle ||= row.role;
+    row.provider ||= row.engine;
+    if (Object.hasOwn(row, "token") || !/^[0-9a-f-]{36}$/i.test(row.id || "") || !/^[0-9a-f-]{36}$/i.test(row.mainSessionId || "") || row.mainSessionId !== id) throw new Error("Saved participant metadata is invalid.");
+    safeHeaderPart(row.name, 60); safeHeaderPart(row.roleTitle, 60);
+    if (typeof row.profileId !== "string" || !/^[a-z0-9-]{1,48}$/.test(row.profileId) || !["claude", "codex"].includes(row.provider) || !["read-only", "ask", "auto-edit", "full-auto"].includes(row.permissionMode)) throw new Error("Saved participant metadata is invalid.");
+    if (typeof row.instructions !== "string" || Buffer.byteLength(row.instructions) > 16 * 1024 || typeof row.summary !== "string" || Buffer.byteLength(row.summary) > 2048 || typeof row.model !== "string" || row.model.length > 200 || typeof row.effort !== "string" || row.effort.length > 40 || typeof row.cwd !== "string" || row.cwd.length > 32768 || !path.isAbsolute(row.cwd)) throw new Error("Saved participant metadata is invalid.");
+    if (row.sessionId !== "" && (typeof row.sessionId !== "string" || !row.sessionId || row.sessionId.length > 512 || /[\u0000-\u001f\u007f]/.test(row.sessionId))) throw new Error("Saved participant session id is invalid.");
+    if (row.sessionId) participantIds.add(row.sessionId);
+  }
+  return rows;
+}
+async function loadParticipantIds() {
+  for (const file of await readdir(GROUP_ROOT()).catch(() => [])) {
+    if (!/^participants-.+\.json$/.test(file)) continue;
+    const rows = await readJson(groupFile(file), [], 512 * 1024).catch(() => []);
+    if (Array.isArray(rows)) for (const row of rows) if (typeof row?.sessionId === "string") participantIds.add(row.sessionId);
   }
 }
-
-function echo(event, request) {
-  return request?.id === undefined ? event : { ...event, id: request.id };
-}
-
-async function replyError(channel, request, code, message, fatal = false, session) {
-  await send(channel, echo({ type: "error", code, message: boundedString(message, 32 * 1024).value, fatal }, request), session);
-  if (fatal) {
-    if (session) await closeSession(session, "fatal-error", true);
-    else await closeChannel(channel, { code: "service-error", message: "Discovery request failed." });
-  }
-}
-
-async function closeChannel(channel, reason) {
-  try { channel.close(reason); } catch { /* already closed */ }
-}
-
-// Provider instructions (layer 2 of the contract's composition): the board's default until the user saves their own
-// text from the page's Instructions dialog. Stored beside the SDK in the board's data folder, not in board settings,
-// because a board page cannot write its settings.
-const DEFAULT_INSTRUCTIONS = [
+async function hasGroupParticipants(id) { return readFile(participantsFile(id)).then(() => true).catch((error) => { if (error.code === "ENOENT") return false; throw error; }); }
+function registerSession(session) { sessions.set(session.channel, { providerId: session.providerId, adapter: session.adapter, providerSession: session }); }
+const activeSessions = () => [...sessions.values()].map((record) => record.providerSession);
+const HISTORY_BATCH_BYTES = 600 * 1024;
+const INSTRUCTIONS_LIMIT = 64 * 1024;
+const CLAUDE_DEFAULT_INSTRUCTIONS = [
   "You are the user's assistant inside Persephone, a desktop workspace where they keep their work open in pages (tabs): files and notes, web pages in Persephone's browser (for example Teams, mail, tickets or documentation), screenshots and images they pasted, grids, diagrams and boards. Treat what is open in Persephone as the base context of every question.",
   "",
   "- When a question points at something without saying where it is (\"read the active chat\", \"check my screenshot\", \"what does this error mean\", \"summarize the discussion\"), assume it is open in Persephone and inspect Persephone before answering: list the open pages and read the one that matches.",
@@ -130,440 +151,101 @@ const DEFAULT_INSTRUCTIONS = [
   "",
   "Write replies in GitHub-flavored Markdown: the chat renders headings, lists, tables, links and fenced code blocks. Keep replies concise and lead with the answer.",
 ].join("\n");
-const INSTRUCTIONS_LIMIT = 64 * 1024;
-function instructionsFile() {
+const CODEX_DEFAULT_INSTRUCTIONS = "You are the user's assistant inside Persephone, a desktop workspace where they keep their work open in pages. Treat open Persephone pages as context when relevant. Inspect the active or grouped page before asking the user to paste visible content. Do not act in Persephone unless asked. Questions about files in the working directory use your normal tools. Write concise replies in GitHub-flavored Markdown.";
+const instructionDefaults = new Map([["claude", CLAUDE_DEFAULT_INSTRUCTIONS], ["codex", CODEX_DEFAULT_INSTRUCTIONS]]);
+function instructionsFile(providerId) {
   const base = process.env.LOCALAPPDATA;
   if (!base || !path.isAbsolute(base)) throw new Error("LOCALAPPDATA is not available; cannot store instructions.");
-  return path.resolve(base, "Persephone", "board-data", "claude-agent", "instructions.md");
+  return path.resolve(base, "Persephone", "board-data", "claude-agent", providerId === "codex" ? "instructions-codex.md" : "instructions.md");
 }
-async function readInstructions() {
-  try { return { text: await readFile(instructionsFile(), "utf8"), custom: true }; }
-  catch (error) { if (error.code === "ENOENT") return { text: DEFAULT_INSTRUCTIONS, custom: false }; throw error; }
+async function readInstructions(providerId) {
+  const defaultText = instructionDefaults.get(providerId) || CLAUDE_DEFAULT_INSTRUCTIONS;
+  try { return { text: await readFile(instructionsFile(providerId), "utf8"), custom: true, defaultText }; }
+  catch (error) { if (error.code === "ENOENT") return { text: defaultText, custom: false, defaultText }; throw error; }
 }
-
-async function makePreamble(open, mcpAttached) {
-  const { text } = await readInstructions().catch(() => ({ text: DEFAULT_INSTRUCTIONS }));
-  return composeInstructions(open.cwd, mcpAttached, text.trim(), open.instructions);
+async function composeProviderInstructions(providerId, environment, caller) {
+  const stored = await readInstructions(providerId).catch(() => ({ text: instructionDefaults.get(providerId) || CLAUDE_DEFAULT_INSTRUCTIONS }));
+  return composeInstructions(environment, stored.text.trim(), caller);
 }
-
-// Local page only: read or replace the provider instructions. Saving the default text (or "reset") removes the file.
 async function manageInstructions(channel, request, info) {
-  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Instructions are editable only from the local board page." });
+  if (info?.interface || info?.caller) return closeChannel(channel, { code: "connection-refused", message: "Instructions are editable only from the local board page." });
+  const providerId = request.provider || "claude";
+  const defaultText = instructionDefaults.get(providerId);
+  if (!defaultText) return replyError(channel, request, "provider-unavailable", "The selected provider is unavailable.", true);
   try {
     if (request.action === "set" || request.action === "reset") {
-      const text = request.action === "set" && typeof request.text === "string" ? request.text.replace(/\r\n/g, "\n") : DEFAULT_INSTRUCTIONS;
+      const text = request.action === "set" && typeof request.text === "string" ? request.text.replace(/\r\n/g, "\n") : defaultText;
       if (Buffer.byteLength(text) > INSTRUCTIONS_LIMIT) return replyError(channel, request, "protocol-error", "Instructions are limited to 64 KiB.", true);
-      const file = instructionsFile();
-      if (text.trim() === DEFAULT_INSTRUCTIONS) await rm(file, { force: true });
+      const file = instructionsFile(providerId);
+      if (text.trim() === defaultText) await rm(file, { force: true });
       else { await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, text, "utf8"); }
     } else if (request.action !== "get") return replyError(channel, request, "protocol-error", "action must be get, set, or reset.", true);
-    const { text, custom } = await readInstructions();
-    await send(channel, echo({ type: "instructions", text, custom, defaultText: DEFAULT_INSTRUCTIONS }, request));
-    await closeChannel(channel);
+    const stored = await readInstructions(providerId);
+    await send(channel, echo({ type: "instructions", ...stored }, request));
+    closeChannel(channel);
   } catch (error) { await replyError(channel, request, "protocol-error", error.message || "Could not update the instructions.", true); }
 }
-
-async function describe(channel, request, info) {
-  await refreshSettings();
-  const installed = await sdkIsInstalled();
-  await send(channel, echo({
-    type: "description",
-    contractVersion: 1,
-    models: cachedModels || MODEL_ALIASES,
-    defaults: await sessionDefaults(typeof request.cwd === "string" && request.cwd.length <= 4096 ? request.cwd : ""),
-    permissionModes: ["read-only", "ask", "auto-edit", "full-auto"],
-    permissionCeiling: settings["cross-board-permission-ceiling"] || "read-only",
-    features: { resume: installed, thinkingStream: installed, usage: installed, cost: installed, maxAgentSteps: installed, maxBudgetUsd: installed },
-    sdkInstalled: installed,
-  }, request));
-  await closeChannel(channel);
-}
-
-async function listSessions(channel, request) {
-  await refreshSettings();
-  let sdk;
-  try { sdk = await loadSdk(); }
-  catch (error) { await replyError(channel, request, error.code || "sdk-not-installed", error.message, true); return; }
-  try {
-    const options = { limit: 200, ...(request.cwd ? { dir: request.cwd } : {}) };
-    const rows = await sdk.listSessions(options);
-    const normalizePath = (value) => process.platform === "win32" ? path.resolve(value).toLowerCase() : path.resolve(value);
-    const filtered = request.cwd ? rows.filter((row) => row.cwd && normalizePath(row.cwd) === normalizePath(request.cwd)) : rows;
-    const result = filtered.map((row) => ({
-      id: row.sessionId,
-      title: boundedString(row.customTitle || row.summary || row.firstPrompt || "Untitled session", 32 * 1024).value,
-      updatedAt: new Date(row.lastModified).toISOString(),
-      cwd: row.cwd || "",
-    }));
-    await send(channel, echo({ type: "sessions", sessions: result }, request));
-    await closeChannel(channel);
-  } catch (error) { await replyError(channel, request, "protocol-error", error.message || "Could not list sessions.", true); }
-}
-
-// CLI-generated user turns (caveats, reminders) are not things the user typed. Slash commands are stored as
-// tagged user turns: the command line becomes a "command" entry and its printed output a "command-output" one.
-const SYNTHETIC_USER_TEXT = /^\s*<(command-|local-command-|system-reminder)/;
-const COMMAND_NAME = /<command-name>\s*([^<]*?)\s*<\/command-name>/;
-const COMMAND_ARGS = /<command-args>([\s\S]*?)<\/command-args>/;
-const COMMAND_OUTPUT = /<local-command-(?:stdout|stderr)>([\s\S]*?)<\/local-command-(?:stdout|stderr)>/;
-const COMPACT_SUMMARY = /^This session is being continued from a previous conversation/;
-const HISTORY_BATCH_BYTES = 600 * 1024;
-
-const textEntry = (role, value) => {
-  const text = boundedString(value, 32 * 1024);
-  return { role, text: text.value, ...(text.truncated ? { truncated: true } : {}) };
+const OPEN_CAPABILITIES = {
+  "list-sessions": "sessionStore", "session-history": "sessionStore", "manage-session": "sessionStore",
+  "follow-session": "transcriptFollow", "watch-sessions": "transcriptFollow",
+  "watch-subagents": "subagents", "subagent-history": "subagents", "provider-setup": "providerSetup",
 };
-function commandOutputEntries(text) {
-  const output = COMMAND_OUTPUT.exec(text || "")?.[1].trim();
-  return output ? [textEntry("command-output", output)] : [];
-}
-function userTextEntry(message, text) {
-  const task = parseTaskNotification(message, text);
-  if (task) return { role: "task", text: task.summary, detail: task.detail, ...(task.truncated ? { truncated: true } : {}) };
-  if (message.isCompactSummary || COMPACT_SUMMARY.test(text)) return textEntry("compact", text);
-  const command = COMMAND_NAME.exec(text);
-  if (command) {
-    const name = command[1].startsWith("/") ? command[1] : `/${command[1]}`;
-    const args = COMMAND_ARGS.exec(text)?.[1].trim();
-    return textEntry("command", args ? `${name} ${args}` : name);
-  }
-  if (COMMAND_OUTPUT.test(text)) return commandOutputEntries(text)[0] || null;
-  return SYNTHETIC_USER_TEXT.test(text) ? null : textEntry("user", text);
-}
-
-function historyEntries(message) {
-  const content = message.message?.content;
-  const blocks = typeof content === "string" ? [{ type: "text", text: content }] : Array.isArray(content) ? content : [];
-  const entries = [];
-  for (const block of blocks) {
-    if (block?.type === "text" && block.text?.trim()) {
-      const entry = message.type === "user" ? userTextEntry(message, block.text) : textEntry("agent", block.text);
-      if (entry) entries.push(entry);
-    } else if (block?.type === "tool_use" && message.type === "assistant") {
-      entries.push({ role: "tool", name: block.name, input: summarizeToolInput(block.name, block.input).summary, ...(typeof block.id === "string" ? { callId: block.id } : {}) });
+const LOCAL_PAGE_ONLY = new Set(["session-history", "follow-session", "manage-session", "instructions", "watch-sessions", "watch-subagents", "subagent-history", "provider-setup", "manage-profiles", "group-index", "participant-observer"]);
+async function send(channel, event, session) {
+  if (session?.closed) return;
+  if (session?.groupParticipant) {
+    const group = session.group;
+    if (group) for (const observer of group.observers || []) if (observer.participantId === session.groupParticipant.id && !observer.closed) {
+      try { if (!observer.channel.writable) await observer.channel.whenWritable(); observer.channel.send(serializeEvent(event)); } catch { /* observer closed */ }
     }
+    return;
   }
-  return entries;
+  if (isGroupMain(session) && event?.type === "turn-started") session.groupTurnShared = isPersistentGroup(session);
+  if (isGroupMain(session) && session.groupTurnShared && event?.type === "text-delta") { session.groupTurnText = (session.groupTurnText || "") + (event.text || ""); return; }
+  if (isGroupMain(session) && session.groupTurnShared && event?.type === "text") { session.groupTurnText = event.text || session.groupTurnText || ""; return; }
+  if (isGroupMain(session) && session.groupTurnShared && event?.type === "turn-ended") {
+    const finalText = (session.groupTurnText || "").trim();
+    session.groupTurnText = "";
+    if (finalText && finalText !== GROUP_PASS && !session.groupCommandTurn) await publishGroupMessage(getGroup(session.id, session), `${AUTHOR_HEADER("Master", "main")}\n${escapeBodyHeaders(finalText)}`, { name: "Master", role: "main", engine: session.providerId, kind: "agent" });
+    session.groupCommandTurn = false;
+    session.groupTurnShared = false;
+    await flushGroupQueue(getGroup(session.id, session), session);
+  }
+  try {
+    if (!channel.writable) await channel.whenWritable();
+    if (session?.closed) return;
+    const withId = session?.currentRequestId && event.id === undefined ? { ...event, id: session.currentRequestId } : event;
+    channel.send(serializeEvent(withId));
+  } catch (error) { if (!session?.closed) console.warn("Agent channel send failed:", error?.code || error?.message || "unknown error"); }
 }
-
-// Sends history entries in batches that stay under the channel's message budget.
+const echo = (event, request) => request?.id === undefined ? event : { ...event, id: request.id };
+function closeChannel(channel, reason) { try { channel.close(reason); } catch { /* already closed */ } }
+async function replyError(channel, request, code, message, fatal = false, session) {
+  await send(channel, echo({ type: "error", code, message: boundedString(message, 32 * 1024).value, fatal }, request), session);
+  if (!fatal) return;
+  if (session) await session.adapter.close(session, { reason: "fatal-error", force: true });
+  else closeChannel(channel, { code: "service-error", message: "Discovery request failed." });
+}
+function registerProcess(session, child) { session.children.add(child); return child; }
+async function killChildren(session, force) {
+  for (const child of [...session.children]) {
+    if (child.exitCode !== null) continue;
+    if (force && process.platform === "win32" && child.pid) spawnTaskkill(child.pid);
+    else if (!child.killed) { try { child.kill(force ? "SIGKILL" : "SIGTERM"); } catch { /* already exited */ } }
+  }
+}
+function spawnTaskkill(pid) {
+  const child = spawn("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" }); child.unref();
+}
 async function sendEntries(channel, request, entries, extra = {}) {
-  let batch = [];
-  let batchBytes = 0;
+  let batch = [], bytes = 0;
   for (const entry of entries) {
     const size = Buffer.byteLength(JSON.stringify(entry));
-    if (batch.length && batchBytes + size > HISTORY_BATCH_BYTES) {
-      await send(channel, echo({ type: "history", entries: batch, ...extra }, request));
-      batch = []; batchBytes = 0;
-    }
-    batch.push(entry); batchBytes += size;
+    if (batch.length && bytes + size > HISTORY_BATCH_BYTES) { await send(channel, echo({ type: "history", entries: batch, ...extra }, request)); batch = []; bytes = 0; }
+    batch.push(entry); bytes += size;
   }
   return batch;
 }
-
-// ── Watching transcripts written by other processes (a terminal Claude Code, another board) ──
-const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const FOLLOW_INTERVAL_MS = 1000;
-const LIST_THROTTLE_MS = 3000;
-const watchers = new Set();
-const claudeProjectsDir = () => path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude"), "projects");
-async function findTranscript(sessionId) {
-  const root = claudeProjectsDir();
-  for (const entry of await readdir(root, { withFileTypes: true }).catch(() => [])) {
-    if (!entry.isDirectory()) continue;
-    const file = path.join(root, entry.name, `${sessionId}.jsonl`);
-    try { await stat(file); return file; } catch { /* not in this project */ }
-  }
-  return null;
-}
-function watchFor(channel, stop) {
-  const entry = { stop };
-  watchers.add(entry);
-  channel.onClose(() => { watchers.delete(entry); stop(); });
-}
-
-// One raw transcript line: user/assistant turns, plus the compaction marker and local command output,
-// which the transcript stores as system entries.
-function transcriptLineEntries(message, { allowSidechain = false } = {}) {
-  if (message.isSidechain && !allowSidechain) return [];
-  if (message.type === "system") {
-    if (message.subtype === "compact_boundary") return [{ role: "compacted" }];
-    if (message.subtype === "local_command") return commandOutputEntries(message.content);
-    return [];
-  }
-  if ((message.type !== "user" && message.type !== "assistant") || (message.isMeta && !message.isCompactSummary)) return [];
-  return historyEntries(message);
-}
-
-// Local page only: streams turns appended to a stored transcript after the page loaded its history.
-async function followTranscript(channel, request, file, { allowSidechain = false, agentId = null, startOffset } = {}) {
-  let offset = Number.isFinite(startOffset) ? startOffset : (await stat(file)).size;
-  let pending = Buffer.alloc(0);
-  let reading = false;
-  let stopped = false;
-  const poll = async () => {
-    if (reading || stopped) return;
-    reading = true;
-    try {
-      const { size } = await stat(file);
-      if (size < offset) { offset = size; pending = Buffer.alloc(0); }
-      if (size === offset) return;
-      const chunk = Buffer.alloc(size - offset);
-      const handle = await openFile(file, "r");
-      try { await handle.read(chunk, 0, chunk.length, offset); } finally { await handle.close(); }
-      offset = size;
-      // Decode only complete lines; a line still being written stays pending until its newline arrives.
-      pending = Buffer.concat([pending, chunk]);
-      const end = pending.lastIndexOf(0x0a);
-      if (end < 0) return;
-      const lines = pending.subarray(0, end).toString("utf8").split("\n");
-      pending = pending.subarray(end + 1);
-      const entries = [];
-      for (const line of lines) {
-        let message;
-        try { message = JSON.parse(line); } catch { continue; }
-        entries.push(...transcriptLineEntries(message, { allowSidechain }));
-      }
-      if (!entries.length) return;
-      const rest = await sendEntries(channel, request, entries, { live: true, ...(agentId ? { agentId } : {}) });
-      if (rest.length) await send(channel, echo({ type: "history", entries: rest, live: true, ...(agentId ? { agentId } : {}) }, request));
-    } catch (error) {
-      if (error.code === "ENOENT") { stopped = true; await closeChannel(channel, { code: "session-deleted", message: "The session transcript was removed." }); }
-    } finally { reading = false; }
-  };
-  const timer = setInterval(() => void poll(), FOLLOW_INTERVAL_MS);
-  watchFor(channel, () => { stopped = true; clearInterval(timer); });
-}
-
-// Local page only: follow the selected main session's appended transcript.
-async function followSession(channel, request, info) {
-  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Following a session is available only from the local board page." });
-  if (typeof request.sessionId !== "string" || !SESSION_ID.test(request.sessionId)) return replyError(channel, request, "protocol-error", "A valid sessionId is required.", true);
-  const file = await findTranscript(request.sessionId);
-  if (!file) return closeChannel(channel, { code: "not-found", message: "The session transcript was not found." });
-  await followTranscript(channel, request, file);
-}
-
-const AGENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
-// A session's subagents live beside its transcript: <project>/<sessionId>/subagents/agent-<id>.jsonl (+ .meta.json).
-async function subagentsDir(sessionId) {
-  if (typeof sessionId !== "string" || !SESSION_ID.test(sessionId)) throw Object.assign(new Error("A valid sessionId is required."), { code: "protocol-error" });
-  const main = await findTranscript(sessionId);
-  if (!main) throw Object.assign(new Error("The session transcript was not found."), { code: "not-found" });
-  return path.join(path.dirname(main), sessionId, "subagents");
-}
-function subagentFiles(dir, agentId) {
-  if (typeof agentId !== "string" || !AGENT_ID.test(agentId)) throw Object.assign(new Error("A valid agentId is required."), { code: "protocol-error" });
-  const prefix = path.join(dir, `agent-${agentId}`);
-  return { transcript: `${prefix}.jsonl`, metadata: `${prefix}.meta.json` };
-}
-
-async function subagentHistory(channel, request, info) {
-  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Subagent history is available only from the local board page." });
-  try {
-    const files = subagentFiles(await subagentsDir(request.sessionId), request.agentId);
-    // Replay up to the last complete line and follow from exactly there, so a running agent loses no line.
-    const buffer = await readFile(files.transcript);
-    const end = buffer.lastIndexOf(0x0a) + 1;
-    const entries = [];
-    for (const line of buffer.subarray(0, end).toString("utf8").split("\n")) {
-      let message;
-      try { message = JSON.parse(line); } catch { continue; }
-      entries.push(...transcriptLineEntries(message, { allowSidechain: true }));
-    }
-    const batch = await sendEntries(channel, request, entries, { agentId: request.agentId });
-    await send(channel, echo({ type: "history", entries: batch, done: true, agentId: request.agentId }, request));
-    await followTranscript(channel, request, files.transcript, { allowSidechain: true, agentId: request.agentId, startOffset: end });
-  } catch (error) { await replyError(channel, request, error.code || "protocol-error", error.message || "Could not read subagent history.", true); }
-}
-
-// Local page only: polls the session's subagents folder (it appears only when the first subagent starts)
-// and sends the list whenever an agent appears or its running state changes.
-async function watchSubagents(channel, request, info) {
-  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Subagents are available only from the local board page." });
-  let dir;
-  try { dir = await subagentsDir(request.sessionId); }
-  catch (error) { return error.code === "not-found" ? closeChannel(channel, { code: "not-found", message: error.message }) : replyError(channel, request, error.code, error.message, true); }
-  let stopped = false, polling = false, previous = "";
-  const poll = async () => {
-    if (stopped || polling) return;
-    polling = true;
-    try {
-      const names = (await readdir(dir, { withFileTypes: true }).catch(() => [])).filter((entry) => entry.isFile()).map((entry) => entry.name);
-      const ids = names.map((name) => /^agent-(.+)\.jsonl$/.exec(name)?.[1]).filter((id) => id && AGENT_ID.test(id));
-      const boardRunning = [...sessions.values()].some((session) => session.id === request.sessionId && !session.closed);
-      const agents = [];
-      for (const id of ids) {
-        const files = subagentFiles(dir, id);
-        let meta = {}, mtime = 0, started = 0;
-        try { meta = JSON.parse(await readFile(files.metadata, "utf8")); } catch { /* metadata may not be written yet */ }
-        try { ({ mtimeMs: mtime, birthtimeMs: started } = await stat(files.transcript)); } catch { /* transcript removed during this poll */ }
-        // The CLI writes finished: true on completion; an agent whose process died never gets it,
-        // so a missing key counts as running only while the session runs here or the transcript is fresh.
-        const unfinished = !Object.hasOwn(meta, "finished");
-        const running = unfinished && (boardRunning || Date.now() - mtime <= 120000);
-        agents.push({ id, description: String(meta.description || meta.agentType || id), agentType: String(meta.agentType || "agent"), toolUseId: typeof meta.toolUseId === "string" ? meta.toolUseId : "", finished: meta.finished === true, unfinished, mtime, started, running });
-      }
-      agents.sort((a, b) => a.started - b.started || a.id.localeCompare(b.id));
-      const signature = JSON.stringify(agents.map(({ id, finished, unfinished, running }) => [id, finished, unfinished, running]));
-      if (signature !== previous) { previous = signature; await send(channel, { type: "subagents", agents }); }
-    } catch { /* a failed poll is retried on the next tick */ }
-    finally { polling = false; }
-  };
-  await poll();
-  const timer = setInterval(() => void poll(), FOLLOW_INTERVAL_MS);
-  watchFor(channel, () => { stopped = true; clearInterval(timer); });
-}
-
-// Local page only: tells the page when any stored transcript changed, at most once per LIST_THROTTLE_MS.
-async function watchSessions(channel, request, info) {
-  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Watching sessions is available only from the local board page." });
-  let timer = null;
-  let last = 0;
-  const notify = () => { timer = null; last = Date.now(); void send(channel, { type: "sessions-changed" }).catch(() => {}); };
-  let watcher;
-  try {
-    watcher = watch(claudeProjectsDir(), { recursive: true }, () => {
-      if (!timer) timer = setTimeout(notify, Math.max(500, LIST_THROTTLE_MS - (Date.now() - last)));
-    });
-  } catch (error) { return replyError(channel, request, "protocol-error", `Cannot watch Claude sessions: ${error.message}`, true); }
-  watcher.on("error", () => {});
-  watchFor(channel, () => { clearTimeout(timer); watcher.close(); });
-}
-
-// Local page only: replays a stored transcript so a resumed session shows its earlier turns.
-async function sessionHistory(channel, request, info) {
-  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Session history is available only from the local board page." });
-  if (typeof request.sessionId !== "string" || !request.sessionId) return replyError(channel, request, "protocol-error", "sessionId is required.", true);
-  let sdk;
-  try { sdk = await loadSdk(); }
-  catch (error) { await replyError(channel, request, error.code || "sdk-not-installed", error.message, true); return; }
-  try {
-    const messages = await sdk.getSessionMessages(request.sessionId, typeof request.cwd === "string" && request.cwd ? { dir: request.cwd } : undefined);
-    const entries = messages.filter((message) => !message.parent_tool_use_id).flatMap(historyEntries);
-    const batch = await sendEntries(channel, request, entries);
-    await send(channel, echo({ type: "history", entries: batch, done: true }, request));
-    await closeChannel(channel);
-  } catch (error) { await replyError(channel, request, "protocol-error", error.message || "Could not read session history.", true); }
-}
-
-// Local page only: rename a stored session (an appended custom title) or delete its transcript from disk.
-async function manageSession(channel, request, info) {
-  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Session management is available only from the local board page." });
-  const { action, sessionId } = request;
-  if (!["rename", "delete"].includes(action) || typeof sessionId !== "string" || !sessionId) return replyError(channel, request, "protocol-error", "action (rename or delete) and sessionId are required.", true);
-  const title = typeof request.title === "string" ? request.title.trim() : "";
-  if (action === "rename" && !title) return replyError(channel, request, "protocol-error", "A session name is required.", true);
-  const live = [...sessions.values()].filter((session) => session.id === sessionId);
-  if (action === "delete" && live.some((session) => session.crossBoard)) return replyError(channel, request, "session-busy", "Another board is using this session.", true);
-  let sdk;
-  try { sdk = await loadSdk(); }
-  catch (error) { await replyError(channel, request, error.code || "sdk-not-installed", error.message, true); return; }
-  try {
-    const options = typeof request.cwd === "string" && request.cwd ? { dir: request.cwd } : undefined;
-    if (action === "rename") await sdk.renameSession(sessionId, boundedString(title, 1024).value, options);
-    else {
-      // The page closes its own channel first; wait for that teardown (or close a session still open) so the CLI has released the transcript.
-      await Promise.all([...live.map((session) => closeSession(session, "session-deleted", true)), closingSessions.get(sessionId)]);
-      await sdk.deleteSession(sessionId, options);
-    }
-    await send(channel, echo({ type: "session-updated", action, sessionId }, request));
-    await closeChannel(channel);
-  } catch (error) { await replyError(channel, request, "protocol-error", error.message || "Could not update the session.", true); }
-}
-
-// A new session's requested title becomes its stored custom title once the first turn has written the transcript.
-async function applyPendingTitle(session) {
-  const title = session.pendingTitle;
-  session.pendingTitle = "";
-  try { await session.sdk.renameSession(session.id, title, { dir: session.open.cwd }); }
-  catch (error) { await send(session.channel, { type: "notice", message: `Could not save the session name: ${error.message || "rename failed"}` }, session); }
-}
-
-function sessionLimits(open) {
-  return appliedLimits(open.limits || {});
-}
-
-async function getSdkModels(session) {
-  try {
-    const models = await session.query.supportedModels();
-    cachedModels = models.map(normalizeModel).filter((model) => model.id);
-  } catch (error) {
-    await send(session.channel, { type: "notice", message: `Could not refresh available model metadata: ${error.message || "SDK query unavailable"}` }, session);
-  }
-}
-
-// Permission modes the board's own chat page can pick, as the terminal names them. Cross-board sessions use the
-// contract's modes instead. Auto is the default; auto and plan let Claude Code decide, asking the page when it must.
-const PAGE_MODES = ["bypassPermissions", "auto", "plan"];
-
-function sessionOptions(session) {
-  const open = session.open;
-  const options = {
-    cwd: open.cwd,
-    ...(open.resume ? { resume: open.resume } : { sessionId: session.id }),
-    ...(open.title ? { title: open.title } : {}),
-    ...(open.model || session.defaults.passModel ? { model: open.model || session.defaults.passModel } : {}),
-    ...(open.effort || session.defaults.passEffort ? { effort: open.effort || session.defaults.passEffort } : {}),
-    permissionMode: session.nativeMode,
-    allowDangerouslySkipPermissions: session.mode === "full-auto",
-    settingSources: ["user", "project", "local"],
-    systemPrompt: { type: "preset", preset: "claude_code", append: session.composed },
-    includePartialMessages: true,
-    ...(open.limits?.maxAgentSteps ? { maxTurns: open.limits.maxAgentSteps } : {}),
-    ...(open.limits?.maxBudgetUsd ? { maxBudgetUsd: open.limits.maxBudgetUsd } : {}),
-    ...(session.endpoint ? { mcpServers: { persephone: { type: "http", url: session.endpoint.url, headers: session.endpoint.headers } } } : {}),
-    ...(session.endpoint && session.crossBoard && session.mode === "full-auto" ? { allowedTools: ["mcp__persephone__*"] } : {}),
-    canUseTool: (name, input, opts) => requestApproval(session, name, input, opts),
-    hooks: {
-      PreToolUse: [{ hooks: [async (input) => {
-        // Page sessions leave the decision to Claude Code's own mode; an allow here would let plan mode edit files.
-        if (!session.crossBoard) return {};
-        const decision = hookDecision(session.mode, input.tool_name, input.tool_input, open.cwd);
-        if (decision.permissionDecision === "ask" && session.allowedScopes.has(`${decision.kind}:${input.tool_name}`)) return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: "Allowed for this session by user choice." } };
-        return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: decision.permissionDecision, permissionDecisionReason: decision.permissionDecision === "deny" ? `Denied by ${session.mode} contract policy.` : "Eligible for contract approval flow." } };
-      }] }],
-    },
-    pathToClaudeCodeExecutable: session.executable,
-    spawnClaudeCodeProcess: (spawnOptions) => {
-      const childEnv = { ...spawnOptions.env };
-      delete childEnv.ANTHROPIC_API_KEY;
-      delete childEnv.ANTHROPIC_AUTH_TOKEN;
-      const child = spawn(session.executable, spawnOptions.args, {
-        cwd: spawnOptions.cwd || open.cwd,
-        env: childEnv,
-        stdio: "pipe",
-        windowsHide: true,
-        signal: spawnOptions.signal,
-      });
-      session.children.add(child);
-      return child;
-    },
-  };
-  return options;
-}
-
-function approvalKind(name) {
-  const { kind } = hookDecision("ask", name);
-  return kind === "read" ? "other" : kind;
-}
-
-async function requestApproval(session, toolName, input, { signal } = {}) {
-  if (!session.crossBoard) return pageApproval(session, toolName, input, signal);
-  const decision = hookDecision(session.mode, toolName, input, session.open.cwd);
-  const scope = `${decision.kind}:${toolName}`;
-  if (decision.permissionDecision === "deny") return { behavior: "deny", message: `Denied by ${session.mode} policy.` };
-  if (decision.permissionDecision === "allow" || session.allowedScopes.has(scope)) return { behavior: "allow", updatedInput: input };
-  if (session.mode === "read-only" || session.closed) return { behavior: "deny", message: "Session is no longer available." };
-  const summary = summarizeToolInput(toolName, input);
-  const detail = boundedString(summary.summary, 32 * 1024);
-  const result = await askApproval(session, scope, { kind: approvalKind(toolName), summary: summary.summary, detail: detail.value, ...(summary.truncated || detail.truncated ? { truncated: true } : {}) }, signal, 5 * 60 * 1000);
-  if (result.decision === "allow-session") session.allowedScopes.add(scope);
-  if (result.decision === "allow" || result.decision === "allow-session") return { behavior: "allow", updatedInput: input };
-  return { behavior: "deny", message: result.message || "Denied by the user." };
-}
-
-// Sends an approval request and waits for the answer. A timeout of 0 waits until the turn is interrupted.
 async function askApproval(session, scope, event, signal, timeoutMs) {
   const requestId = randomUUID();
   const answer = new Promise((resolve) => {
@@ -573,449 +255,549 @@ async function askApproval(session, scope, event, signal, timeoutMs) {
     session.approvals.set(requestId, { resolve, cleanup, scope });
     signal?.addEventListener("abort", abort, { once: true });
   });
-  await send(session.channel, { type: "approval-request", requestId, ...event }, session);
+  if (session.groupParticipant && session.groupParticipant.permissionMode !== "read-only") {
+    const group = session.group;
+    await send(group.mainSession.channel, { type: "approval-request", requestId, participantApproval: true, author: { name: session.groupParticipant.name, roleTitle: session.groupParticipant.roleTitle, provider: session.providerId }, ...event }, group.mainSession);
+  } else await send(session.channel, { type: "approval-request", requestId, ...event }, session);
   return answer;
 }
-
-// The board's chat page, like the terminal: bypass allows everything; auto and plan ask only when Claude Code cannot
-// decide. Approving a plan (ExitPlanMode) also picks the mode the work continues in.
-async function pageApproval(session, toolName, input, signal) {
-  if (session.closed) return { behavior: "deny", message: "Session is no longer available." };
-  if (toolName === "ExitPlanMode") {
-    const plan = boundedString(typeof input?.plan === "string" ? input.plan : "", 64 * 1024);
-    const result = await askApproval(session, "plan:ExitPlanMode", { kind: "plan", summary: "Approve the plan?", plan: plan.value, ...(plan.truncated ? { truncated: true } : {}) }, signal, 0);
-    if (result.decision !== "allow") return { behavior: "deny", message: result.message || "The user wants to keep planning. Ask what to change, then revise the plan." };
-    const mode = PAGE_MODES.includes(result.mode) && result.mode !== "plan" ? result.mode : "auto";
-    session.nativeMode = mode;
-    await send(session.channel, sessionStatus(session), session);
-    return { behavior: "allow", updatedInput: input, updatedPermissions: [{ type: "setMode", mode, destination: "session" }] };
-  }
-  const scope = `${classifyTool(toolName)}:${toolName}`;
-  if (session.nativeMode === "bypassPermissions" || session.allowedScopes.has(scope)) return { behavior: "allow", updatedInput: input };
-  const summary = summarizeToolInput(toolName, input);
-  const detail = boundedString(summary.summary, 32 * 1024);
-  const result = await askApproval(session, scope, { kind: approvalKind(toolName), tool: toolName, summary: summary.summary, detail: detail.value, ...(summary.truncated || detail.truncated ? { truncated: true } : {}) }, signal, 0);
-  if (result.decision === "allow-session") session.allowedScopes.add(scope);
-  if (result.decision === "allow" || result.decision === "allow-session") return { behavior: "allow", updatedInput: input };
-  return { behavior: "deny", message: result.message || "Denied by the user." };
-}
-
 function settleApproval(session, id, result) {
   const pending = session.approvals.get(id);
   if (!pending) return;
-  session.approvals.delete(id);
-  pending.cleanup();
-  pending.resolve(result);
+  session.approvals.delete(id); pending.cleanup(); pending.resolve(result);
+  if (session.groupParticipant && !session.suppressApprovalResolved) {
+    const group = session.group;
+    void send(group.mainSession.channel, { type: "approval-resolved", requestId: id, outcome: result.decision === "deny" ? (String(result.message || "").includes("timed out") ? "expired" : "denied") : "allowed" }, group.mainSession);
+  }
 }
-
-function userMessage(text) {
-  return { type: "user", message: { role: "user", content: text }, parent_tool_use_id: null };
+function approve(session, request) {
+  if (!request || !["allow", "allow-session", "deny"].includes(request.decision) || typeof request.requestId !== "string") return replyError(session.channel, request, "protocol-error", "Invalid approval response.", false, session);
+  if (request.message !== undefined && typeof request.message !== "string") return replyError(session.channel, request, "protocol-error", "Approval message must be a string.", false, session);
+  const pending = session.approvals.get(request.requestId);
+  if (!pending) return;
+  const toolName = pending.scope.split(":").slice(1).join(":");
+  if ((request.decision === "allow" || request.decision === "allow-session") && hookDecision(session.policyMode || session.mode, toolName).permissionDecision === "deny") {
+    return settleApproval(session, request.requestId, { decision: "deny", message: "Action exceeds the effective permission mode." });
+  }
+  if (request.mode !== undefined && !session.adapter.acceptsMode(request.mode)) return replyError(session.channel, request, "protocol-error", "Approval continuation mode is invalid.", false, session);
+  settleApproval(session, request.requestId, { decision: request.decision, message: request.message ? boundedString(request.message, 32 * 1024).value : undefined, ...(request.mode ? { mode: request.mode } : {}) });
 }
-
-// Provider-specific additive event (consumers ignore unknown types): model, effort, context fill,
-// and plan rate-limit windows for the chat page's footer. Unknown values are omitted.
-function sessionStatus(session) {
-  const status = session.status;
-  const percent = (value) => Number.isFinite(value) ? Math.round(value * 1000) / 10 : undefined;
-  const window = (info) => info && Number.isFinite(info.utilization) ? { percent: percent(info.utilization), ...(info.resetsAt ? { resetsAt: new Date(info.resetsAt * 1000).toISOString() } : {}) } : undefined;
-  const fiveHour = window(status.windows?.five_hour);
-  const sevenDay = window(status.windows?.seven_day);
+const policyDecision = (session, toolName, input = {}) => {
+  if (session?.groupParticipant && /^(?:mcp__)?agent_chat(?:__|\.)post_message$/.test(toolName)) return { permissionDecision: "allow", kind: "mcp" };
+  const decision = hookDecision(session.policyMode || session.mode, toolName, input, session.open.cwd);
+  if (session?.groupParticipant && session.groupParticipant.permissionMode === "read-only" && decision.permissionDecision === "ask") return { ...decision, permissionDecision: "deny", message: "This action is outside the joined agent's permission preset." };
+  return decision;
+};
+function approvalKind(toolName) { const kind = hookDecision("ask", toolName).kind; return kind === "read" ? "other" : kind; }
+function selectPermissionMode({ requested, ceiling, crossBoard }) { return crossBoard ? clampMode(requested, ceiling) : "full-auto"; }
+const sessionLimits = (open) => appliedLimits(open.limits || {});
+const issueEndpoint = (enabled) => enabled ? persephone.mcp.issueSessionEndpoint() : null;
+function revokeEndpoint(session) {
+  if (!session?.endpoint || session.endpointRevoked) return;
+  session.endpointRevoked = true;
+  try { session.endpoint.revoke(); } catch { /* already revoked */ }
+}
+async function prepareOpen(request, info) {
+  const open = validateOpen(request);
+  const crossBoard = Boolean(info?.interface && info?.caller);
+  if (crossBoard) delete open.groupChat;
+  else if (open.groupChat?.internal === true && open.groupChat.position === "joined") {
+    open.groupChat.name = safeHeaderPart(open.groupChat.name, 60);
+    if (!/^[0-9a-f-]{36}$/i.test(open.groupChat.participantId || "") || !["read-only", "ask", "auto-edit", "full-auto"].includes(open.groupChat.permissionMode)) throw new Error("Group participant metadata is invalid.");
+  } else if (open.groupChat?.position === "main") open.groupChat = { name: "Master", position: "main" };
+  else delete open.groupChat;
+  const ceiling = (await persephone.settings.get("cross-board-permission-ceiling")) || "read-only";
+  const mode = open.groupChat?.position === "joined" ? open.groupChat.permissionMode : selectPermissionMode({ requested: open.permissionMode, ceiling, crossBoard });
+  return { open, crossBoard, mode };
+}
+const issueOpenEndpoint = (prepared) => issueEndpoint(prepared.open.mcp?.persephone !== false && prepared.mode !== "read-only");
+function getGroup(mainSessionId, mainSession) {
+  let group = groups.get(mainSessionId);
+  if (!group) {
+    group = { mainSessionId, mainSession, participants: [], live: new Map(), queues: new Map(), channelClosed: false };
+    groups.set(mainSessionId, group);
+  }
+  if (mainSession) { group.mainSession = mainSession; group.channelClosed = false; }
+  return group;
+}
+async function saveParticipants(group) {
+  await atomicJson(participantsFile(group.mainSessionId), group.participants.map(({ token, ...row }) => row));
+  for (const row of group.participants) if (row.sessionId) participantIds.add(row.sessionId);
+}
+function internalParticipantChannel(group, participantId) {
+  const listeners = { message: null, close: null };
+  let closed = false;
   return {
-    type: "session-status",
-    model: session.actualModel || session.open.model || session.defaults.model || "",
-    effort: session.open.effort || session.defaults.effort || "",
-    ...(session.crossBoard ? {} : { mode: session.nativeMode }),
-    ...(Number.isFinite(status.contextTokens) ? { contextTokens: status.contextTokens } : {}),
-    ...(status.contextWindow ? { contextWindow: status.contextWindow } : {}),
-    ...(Number.isFinite(status.contextTokens) && status.contextWindow ? { contextPercent: percent(status.contextTokens / status.contextWindow) } : {}),
-    ...(fiveHour || sevenDay ? { limits: { ...(fiveHour ? { fiveHour } : {}), ...(sevenDay ? { sevenDay } : {}) } } : {}),
+    get writable() { return !closed; },
+    async whenWritable() {},
+    send(event) {
+      if (closed) return;
+      const participant = group.participants.find((row) => row.id === participantId);
+      if (event.type === "session-started" && participant) participant.sessionId = event.sessionId;
+      if (event.type === "error" && event.fatal) void send(group.mainSession.channel, { type: "group-participant-error", participantId, message: event.message || "Participant session failed." }, group.mainSession);
+      if (event.type === "turn-started" || event.type === "turn-ended") {
+        const live = group.live.get(participantId);
+        if (live) live.busy = event.type === "turn-started";
+        if (event.type === "turn-ended") void flushGroupQueue(group, live);
+      }
+    },
+    onMessage(callback) { listeners.message = callback; },
+    onClose(callback) { listeners.close = callback; },
+    close(reason) { if (closed) return; closed = true; listeners.close?.(reason); },
   };
 }
-
-// Returns true when a native message changed the footer status.
-function trackStatus(session, message) {
-  const status = session.status;
-  // Claude Code reports its mode on init and on every change, such as leaving plan mode.
-  if (message.type === "system" && (message.subtype === "status" || message.subtype === "init") && !session.crossBoard && message.permissionMode && message.permissionMode !== session.nativeMode) {
-    session.nativeMode = message.permissionMode;
-    return true;
-  }
-  if (message.type === "rate_limit_event" && message.rate_limit_info?.unifiedWindows) {
-    status.windows = message.rate_limit_info.unifiedWindows;
-    return true;
-  }
-  // Local command replies (/effort, /model) come back as "<synthetic>" assistant messages with zero usage; they say nothing about the model or context.
-  if (message.type === "assistant" && !message.parent_tool_use_id && message.message?.usage && message.message.model !== "<synthetic>") {
-    const usage = message.message.usage;
-    status.contextTokens = (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0);
-    if (message.message.model) session.actualModel = message.message.model;
-    return true;
-  }
-  if (message.type === "system" && message.subtype === "compact_boundary" && Number.isFinite(message.compact_metadata?.post_tokens)) {
-    status.contextTokens = message.compact_metadata.post_tokens;
-    return true;
-  }
-  if (message.type === "result" && message.modelUsage) {
-    const entries = Object.entries(message.modelUsage);
-    const main = entries.find(([id]) => id === session.actualModel) || entries.sort((a, b) => (b[1].outputTokens || 0) - (a[1].outputTokens || 0))[0];
-    if (main?.[1]?.contextWindow) status.contextWindow = main[1].contextWindow;
-    return true;
-  }
-  return false;
-}
-
-async function emitNative(session, message) {
-  if (message?.parent_tool_use_id != null) return;
-  if (trackStatus(session, message)) await send(session.channel, sessionStatus(session), session);
-  if (message.type === "system" && message.subtype === "init") {
-    if (message.session_id) session.id = message.session_id;
-    session.actualModel = message.model || session.actualModel;
-    session.initSeen = true;
-    await send(session.channel, sessionStatus(session), session);
-    if (!session.modelNoticeSent && session.actualModel && session.actualModel !== (session.open.model || settings["default-model"] || "Default")) {
-      session.modelNoticeSent = true;
-      await send(session.channel, { type: "notice", message: `Claude selected model ${session.actualModel}.` }, session);
+async function startGroupHttpServer() {
+  if (groupHttpServer?.listening) return groupHttpAddress;
+  groupHttpServer = createServer(async (req, res) => {
+    if (req.url !== "/mcp") { res.writeHead(404).end(); return; }
+    const hostHeader = String(req.headers.host || "").toLowerCase();
+    const origin = req.headers.origin;
+    if (req.method !== "POST") { res.writeHead(405, { Allow: "POST" }).end(); return; }
+    if (!/^127\.0\.0\.1(?::\d+)?$/.test(hostHeader) || (origin && origin !== `http://${hostHeader}`)) { res.writeHead(403).end(); return; }
+    const auth = /^Bearer ([a-f0-9]{64})$/.exec(String(req.headers.authorization || ""));
+    if (!auth) { res.writeHead(401).end(); return; }
+    const tokenBytes = Buffer.from(auth[1], "hex");
+    const matchedToken = [...groupTokens.keys()].find((candidate) => timingSafeEqual(Buffer.from(candidate, "hex"), tokenBytes));
+    const record = matchedToken ? groupTokens.get(matchedToken) : null;
+    if (!record || !record.group.participants.includes(record.participant)) { res.writeHead(401).end(); return; }
+    let body = "";
+    for await (const chunk of req) { body += chunk; if (Buffer.byteLength(body) > 64 * 1024) { res.writeHead(413).end(); return; } }
+    let message;
+    try { message = JSON.parse(body); } catch { res.writeHead(400).end(); return; }
+    const reply = (payload) => { res.writeHead(200, { "Content-Type": "application/json", "MCP-Protocol-Version": "2025-03-26" }).end(JSON.stringify(payload)); };
+    if (!message || message.jsonrpc !== "2.0" || typeof message.method !== "string") { res.writeHead(400).end(); return; }
+    if (message.method === "notifications/initialized" && message.id === undefined) { res.writeHead(202).end(); return; }
+    if (message.method === "initialize") return reply({ jsonrpc: "2.0", id: message.id, result: { protocolVersion: "2025-03-26", capabilities: { tools: {} }, serverInfo: { name: "agent-chat", version: "1" } } });
+    if (message.method === "tools/list") return reply({ jsonrpc: "2.0", id: message.id, result: { tools: [{ name: "post_message", description: "Post a message to the group chat", inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false } }] } });
+    if (message.method === "tools/call") {
+      const params = message.params || {};
+      if (params.name !== "post_message") return reply({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Unknown tool." } });
+      const input = params.arguments || {};
+      if (Object.keys(input).some((key) => key !== "text") || typeof input.text !== "string" || !input.text.trim() || Buffer.byteLength(input.text) > 16 * 1024) return reply({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: "The message must be non-empty text of at most 16 KiB." }], isError: true } });
+      // Joined agents read the Master rules too and sometimes post the pass marker; it is never shared.
+      if (input.text.trim() === GROUP_PASS) return reply({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: "Nothing was posted. When you have nothing to add, end your turn without calling post_message." }], isError: false } });
+      const author = record.participant;
+      const stamped = `${AUTHOR_HEADER(author.name, author.roleTitle)}\n${escapeBodyHeaders(input.text.trim())}`;
+      await publishGroupMessage(record.group, stamped, { name: author.name, roleTitle: author.roleTitle, profileId: author.profileId, provider: author.provider, kind: "participant" }, author.id);
+      return reply({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: "Posted to group chat." }], isError: false } });
     }
-    await getSdkModels(session);
+    if (message.id === undefined) { res.writeHead(202).end(); return; }
+    return reply({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Unknown method." } });
+  });
+  await new Promise((resolve, reject) => { groupHttpServer.once("error", reject); groupHttpServer.listen(0, "127.0.0.1", resolve); });
+  groupHttpAddress = `http://127.0.0.1:${groupHttpServer.address().port}/mcp`;
+  return groupHttpAddress;
+}
+async function issueGroupEndpoint(participantId) {
+  const participant = [...groups.values()].flatMap((group) => group.participants.map((row) => ({ row, group }))).find(({ row }) => row.id === participantId);
+  if (!participant) throw new Error("The joined participant is unavailable.");
+  const token = randomBytes(32).toString("hex");
+  const url = await startGroupHttpServer();
+  participant.row.token = token;
+  groupTokens.set(token, { participant: participant.row, group: participant.group });
+  return { url, token, revoke: () => { groupTokens.delete(token); participant.row.token = undefined; } };
+}
+function revokeGroupEndpoint(session) { try { session?.groupEndpoint?.revoke?.(); } catch { /* expired token */ } }
+async function publishGroupMessage(group, stamped, author, sourceParticipantId = "") {
+  const timelineText = stamped.replace(/^\[\[from: [^\n]+\]\]\n/, "");
+  const notice = author.kind === "notice";
+  const event = {
+    type: "group-visible-message",
+    text: notice ? `Agent ${author.name} (${author.roleTitle}) ${author.action}` : timelineText,
+    timelineText,
+    author,
+    ...(notice ? { noticeAction: author.action, summary: author.summary, reminder: author.reminder || "" } : {}),
+  };
+  await send(group.mainSession.channel, event, group.mainSession);
+  if (sourceParticipantId || author.kind === "notice") queueGroupText(group, group.mainSession, stamped);
+  for (const participant of group.participants.filter((row) => !row.removed)) {
+    const live = group.live.get(participant.id);
+    if (!live) continue;
+    // The source receives the shared timeline on its next turn too; agents are instructed to answer only when named.
+    queueGroupText(group, live, stamped);
+  }
+}
+function queueGroupText(group, session, text) {
+  if (!session) return;
+  const queue = group.queues.get(session.id) || [];
+  queue.push(text);
+  group.queues.set(session.id, queue);
+  if (!session.busy) void flushGroupQueue(group, session);
+}
+async function flushGroupQueue(group, session) {
+  if (!session || session.busy || session.groupDispatch || session.closed) return;
+  const queue = group.queues.get(session.id);
+  if (!queue?.length) return;
+  group.queues.delete(session.id);
+  session.groupDispatch = true;
+  try { await session.adapter.dispatchSession(session, { type: "send", id: randomUUID(), text: queue.join("\n\n") }); }
+  catch { /* send failure is reported by the provider; the queue is consumed for v1 */ }
+  finally { session.groupDispatch = false; }
+}
+async function addGroupParticipant(group, request) {
+  const profile = (await readProfiles()).find((item) => item.id === request.profileId);
+  if (!profile) throw new Error("Choose an available profile.");
+  await validateProfile(profile);
+  const providerDescription = await providers.get(profile.provider).describe({ cwd: group.mainSession.open.cwd });
+  if (providerDescription.available === false || profile.provider === "claude" && providerDescription.setup?.ready !== true) throw new Error("The selected provider is not ready.");
+  if (group.participants.filter((row) => !row.removed).length >= 32) throw new Error("A group can have at most 32 participants.");
+  const name = safeHeaderPart(profile.name, 60);
+  if (name.toLowerCase() === "master" || group.participants.some((row) => !row.removed && (row.profileId === profile.id || row.name.toLowerCase() === name.toLowerCase()))) throw new Error("That profile or name is already in this chat.");
+  const providerId = profile.provider;
+  const adapter = providers.get(providerId);
+  if (!adapter) throw new Error("The selected provider is unavailable.");
+  const hadParticipantFile = await readFile(participantsFile(group.mainSessionId)).then(() => true).catch(() => false);
+  const id = randomUUID();
+  const participant = { id, profileId: profile.id, name, roleTitle: profile.roleTitle, instructions: profile.instructions, summary: profile.summary, provider: profile.provider, model: profile.model, effort: profile.effort, permissionMode: profile.permissionMode, sessionId: "", mainSessionId: group.mainSessionId, mainProvider: group.mainSession.providerId, cwd: group.mainSession.open.cwd };
+  group.participants.push(participant);
+  group.enabled = true;
+  await saveParticipants(group);
+  const channel = internalParticipantChannel(group, id);
+  const open = { type: "open", contractVersion: 1, id: randomUUID(), provider: providerId, model: participant.model, effort: participant.effort, cwd: participant.cwd, permissionMode: participant.permissionMode, instructions: profile.instructions, groupChat: { internal: true, name, position: "joined", participantId: id, permissionMode: profile.permissionMode } };
+  try {
+    const live = await adapter.open(channel, open, {});
+    live.group = group; live.groupParticipant = participant; group.live.set(id, live);
+    const roster = group.participants.filter((item) => !item.removed).map((item) => `${item.name} (${item.roleTitle})`).join(", ");
+    const history = request.historyText || "";
+    const firstTurn = `You are ${name}, a joined agent with role ${profile.roleTitle}. ${profile.summary}\nCurrent participants: Master (main), ${roster}.\nVisible timeline so far:\n${boundedString(history, 64 * 1024).value || "No earlier visible messages."}`;
+    await adapter.dispatchSession(live, { type: "send", id: randomUUID(), text: firstTurn });
+    const reminder = hadParticipantFile ? "" : GROUP_CORE("Master", "main");
+    const notice = `${AUTHOR_HEADER(name, profile.roleTitle)}\nAgent ${name} (${profile.roleTitle}) joined\n\n${escapeBodyHeaders(profile.summary)}${reminder ? `\n\n${reminder}` : ""}`;
+    await publishGroupMessage(group, notice, { name, roleTitle: profile.roleTitle, profileId: profile.id, provider: providerId, summary: profile.summary, reminder, action: "joined", kind: "notice" });
+    await saveParticipants(group);
+    return participant;
+  } catch (error) {
+    group.participants = group.participants.filter((row) => row.id !== id);
+    groupTokens.forEach((record, token) => { if (record.participant.id === id) groupTokens.delete(token); });
+    await saveParticipants(group).catch(() => {});
+    throw error;
+  }
+}
+async function removeGroupParticipant(group, id) {
+  const participant = group.participants.find((row) => row.id === id && !row.removed);
+  if (!participant) return;
+  const live = group.live.get(id);
+  if (live) await denyParticipantApprovals(group, live, "denied");
+  for (const observer of group.observers || []) if (observer.participantId === id) closeChannel(observer.channel, { code: "participant-removed", message: "The participant left the group." });
+  if (live) { revokeGroupEndpoint(live); await closeSession(live, "participant-removed", true, true); group.live.delete(id); }
+  groupTokens.forEach((record, token) => { if (record.participant.id === id) groupTokens.delete(token); });
+  participant.removed = true;
+  await saveParticipants(group);
+  await publishGroupMessage(group, `${AUTHOR_HEADER(participant.name, participant.roleTitle)}\nAgent ${participant.name} (${participant.roleTitle}) left`, { name: participant.name, roleTitle: participant.roleTitle, profileId: participant.profileId, provider: participant.provider, action: "left", kind: "notice" });
+}
+async function resumeGroupParticipants(group) {
+  for (const participant of group.participants) {
+    if (participant.removed) continue;
+    if (group.live.has(participant.id)) continue;
+    if (!participant.sessionId) {
+      await send(group.mainSession.channel, { type: "group-participant-error", participantId: participant.id, message: "The saved participant session id is unavailable." }, group.mainSession);
+      continue;
+    }
+    const provider = providers.get(participant.provider);
+    if (!provider) continue;
+    try {
+      const open = { type: "open", contractVersion: 1, id: randomUUID(), provider: participant.provider, model: participant.model, effort: participant.effort, cwd: participant.cwd || group.mainSession.open.cwd, resume: participant.sessionId, permissionMode: participant.permissionMode, instructions: participant.instructions, groupChat: { internal: true, name: participant.name, position: "joined", participantId: participant.id, permissionMode: participant.permissionMode } };
+      const internal = internalParticipantChannel(group, participant.id);
+      const live = await provider.open(internal, open, {});
+      live.group = group; live.groupParticipant = participant; group.live.set(participant.id, live);
+    } catch (error) { await send(group.mainSession.channel, { type: "group-participant-error", participantId: participant.id, message: boundedString(error.message || "Participant resume failed.", 4096).value }, group.mainSession); }
+  }
+}
+async function groupOperation(session, request) {
+  const group = getGroup(session.id, session);
+  if (request.action === "list") {
+    group.participants = await readParticipants(session.id);
+    group.enabled = await hasGroupParticipants(session.id);
+    await resumeGroupParticipants(group);
+    return send(session.channel, { type: "group-data", groupMode: group.enabled, profiles: await readProfiles(), participants: group.participants.filter((row) => !row.removed) }, session);
+  }
+  if (request.action === "invite") {
+    const participant = await addGroupParticipant(group, request);
+    return send(session.channel, { type: "group-participant-added", participant }, session);
+  }
+  if (request.action === "remove") return removeGroupParticipant(group, request.participantId);
+  if (request.action === "approval-response") {
+    const owner = [...group.live.values()].find((participant) => participant.approvals?.has(request.requestId));
+    if (owner) await owner.adapter.approve(owner, { type: "approval-response", requestId: request.requestId, decision: request.decision });
     return;
   }
-  let events = normalizeNativeMessage(message, session.nativeState);
-  // An interrupted turn ends with an error_during_execution result; it ends the turn, not the session.
-  if (session.interrupted && events.some((event) => event.type === "turn-ended")) events = events.filter((event) => event.type !== "error");
-  let turnEnded = false;
-  for (const event of events) {
-    if (event.type === "turn-ended") {
-      if (session.interrupted) event.reason = "interrupted";
-      if (session.pendingTitle) await applyPendingTitle(session);
-      turnEnded = true;
-      if (session.busy) {
-        session.busy = false;
-        session.completedTurns++;
-        session.turnResolve?.();
-        session.turnResolve = null;
+  if (request.action === "save-profile") {
+    const next = await validateProfile(request.profile);
+    const rows = await readProfiles(), index = rows.findIndex((item) => item.id === next.id);
+    if (index < 0 && rows.length >= 64) throw new Error("A maximum of 64 profiles is supported.");
+    if (index < 0) rows.push(next); else rows[index] = next;
+    await atomicJson(profilesFile(), rows, 256 * 1024);
+    return send(session.channel, { type: "profile-data", profiles: rows }, session);
+  }
+  if (request.action === "delete-profile") {
+    const rows = (await readProfiles()).filter((profile) => profile.id !== request.profileId);
+    await atomicJson(profilesFile(), rows, 256 * 1024);
+    return send(session.channel, { type: "profile-data", profiles: rows }, session);
+  }
+  if (request.action === "duplicate-profile") {
+    const rows = await readProfiles(), source = rows.find((profile) => profile.id === request.profileId);
+    if (!source) throw new Error("The selected profile is unavailable.");
+    if (rows.length >= 64) throw new Error("A maximum of 64 profiles is supported.");
+    const name = nextProfileName(source.name, rows);
+    const copy = { ...source, id: randomUUID(), name };
+    rows.push(copy); await atomicJson(profilesFile(), rows, 256 * 1024);
+    return send(session.channel, { type: "profile-data", profiles: rows, selectedId: copy.id }, session);
+  }
+  if (request.action === "reset-profiles") {
+    await atomicJson(profilesFile(), DEFAULT_PROFILES, 256 * 1024);
+    return send(session.channel, { type: "profile-data", profiles: DEFAULT_PROFILES }, session);
+  }
+  if (request.action === "user-message") {
+    const text = boundedString(request.text, 16 * 1024).value.trim();
+    if (!text) return;
+    const stamped = `${AUTHOR_HEADER("user", "")}\n${escapeBodyHeaders(text)}`;
+    session.groupCommandTurn = false;
+    await send(session.channel, { type: "group-visible-message", text, timelineText: escapeBodyHeaders(text), author: { name: "user", role: "", kind: "user" } }, session);
+    for (const participant of group.participants.filter((row) => !row.removed)) queueGroupText(group, group.live.get(participant.id), stamped);
+    if (session.busy) queueGroupText(group, session, stamped);
+    else await session.adapter.dispatchSession(session, { type: "send", id: randomUUID(), text: stamped });
+  }
+  if (request.action === "stop-all") {
+    group.queues.clear();
+    await Promise.all([...group.live.values()].map((live) => denyParticipantApprovals(group, live, "stopped")));
+    await session.adapter.dispatchSession(session, { type: "interrupt" });
+    await Promise.all([...group.live.values()].map((live) => live.adapter.dispatchSession(live, { type: "interrupt" }).catch(() => {})));
+  }
+  if (!["list", "invite", "remove", "approval-response", "save-profile", "delete-profile", "duplicate-profile", "reset-profiles", "user-message", "stop-all"].includes(request.action)) throw new Error("The group operation is unavailable.");
+}
+async function denyParticipantApprovals(group, participant, outcome) {
+  participant.suppressApprovalResolved = true;
+  for (const requestId of [...(participant.approvals?.keys() || [])]) {
+    try { await participant.adapter.approve(participant, { type: "approval-response", requestId, decision: "deny" }); } catch { /* participant is closing */ }
+    await send(group.mainSession.channel, { type: "approval-resolved", requestId, outcome }, group.mainSession);
+  }
+  participant.suppressApprovalResolved = false;
+}
+async function closeSession(session, reason, force = false, closeTransport = false) {
+  if (!session) return;
+  if (session.closeTask) return session.closeTask;
+  const task = (async () => {
+    if (session.status?.compacting) { session.status.compacting = false; await send(session.channel, session.adapter.sessionStatus(session), session); }
+    if (session.groupParticipant) {
+      revokeGroupEndpoint(session);
+      const group = session.groupParticipant.mainSessionId && groups.get(session.groupParticipant.mainSessionId);
+      if (group) { await denyParticipantApprovals(group, session, "stopped"); group.live.delete(session.groupParticipant.id); }
+    }
+    if (isGroupMain(session)) {
+      const group = groups.get(session.id);
+      if (group) {
+        group.channelClosed = true;
+        await Promise.all([...group.live.values()].map((participant) => denyParticipantApprovals(group, participant, "closed")));
+        for (const observer of group.observers || []) closeChannel(observer.channel, { code: "parent-closed", message: "The parent group session ended." });
+        await Promise.all([...group.live.values()].map((participant) => closeSession(participant, "parent-closed", true, true)));
+        group.live.clear();
+        group.queues.clear();
+        groups.delete(session.id);
       }
     }
-    await send(session.channel, event, session);
-    if (event.type === "error" && event.fatal) await closeSession(session, "fatal-result", true);
-  }
-  if (turnEnded) session.currentRequestId = null;
-}
-
-async function runQuery(session) {
-  try {
-    const prompt = session.inputQueue;
-    session.query = session.sdk.query({ prompt, options: sessionOptions(session) });
-    session.queryTask = (async () => {
-      for await (const message of session.query) await emitNative(session, message);
-    })();
-    await session.queryTask;
-  } catch (error) {
-    if (!session.closed) await replyError(session.channel, session.currentRequestId ? { id: session.currentRequestId } : session.open, error.code || "protocol-error", error.message || "Claude session failed.", true, session);
-  } finally {
-    if (!session.closed && session.busy) {
-      session.busy = false;
-      await send(session.channel, { type: "turn-ended", reason: session.interrupted ? "interrupted" : "error", usage: {} }, session);
-    }
-  }
-}
-
-async function startSession(channel, openRequest, info) {
-  await refreshSettings();
-  const open = validateOpen(openRequest);
-  // A missing cwd makes the CLI spawn fail with a misleading "binary failed to launch" ENOENT.
-  const cwdStat = await stat(open.cwd).catch(() => null);
-  if (!cwdStat?.isDirectory()) throw Object.assign(new Error(`The working directory does not exist: ${open.cwd}`), { code: "protocol-error" });
-  const sdk = await loadSdk();
-  const executable = await resolveClaudeExecutable(settings["claude-executable"] || "");
-  const defaults = await sessionDefaults(open.cwd);
-  const selectedModel = open.model || settings["default-model"] || "";
-  const selectedEffort = open.effort || settings["default-effort"] || "";
-  if (selectedModel && cachedModels && !cachedModels.some((model) => model.id === selectedModel)) throw Object.assign(new Error("The selected model is not in the current SDK model listing."), { code: "model-unavailable" });
-  if (selectedEffort && cachedModels && selectedModel) {
-    const modelInfo = cachedModels.find((model) => model.id === selectedModel);
-    if (modelInfo && !modelInfo.efforts.includes(selectedEffort)) throw Object.assign(new Error("The selected effort is not supported by this model."), { code: "protocol-error" });
-  }
-  const crossBoard = Boolean(info.interface && info.caller);
-  // The board's own chat page is unrestricted by contract and picks Claude Code's mode itself (PAGE_MODES).
-  // Cross-board consumers use the contract's modes, clamped to the configured ceiling.
-  const mode = crossBoard ? clampMode(open.permissionMode, settings["cross-board-permission-ceiling"] || "read-only") : "full-auto";
-  const nativeMode = crossBoard ? MODE_NATIVE[mode] : PAGE_MODES.includes(open.mode) ? open.mode : "auto";
-  const wantsMcp = open.mcp?.persephone !== false && mode !== "read-only";
-  const endpoint = wantsMcp ? await persephone.mcp.issueSessionEndpoint() : null;
-  const id = open.resume || randomUUID();
-  const session = {
-    id, channel, open, defaults, sdk, executable, mode, nativeMode, crossBoard, endpoint, composed: await makePreamble(open, Boolean(endpoint)),
-    inputQueue: new AsyncQueue(), children: new Set(), approvals: new Map(), allowedScopes: new Set(),
-    closed: false, busy: false, completedTurns: 0, initSeen: false, query: null, queryTask: null,
-    interrupted: false, pendingFirstTurn: true, started: false, nativeState: { pendingFiles: new Map() }, status: {},
-    pendingTitle: !open.resume && typeof open.title === "string" ? boundedString(open.title.trim(), 1024).value : "",
-  };
-  sessions.set(channel, session);
-  await send(channel, echo({ type: "session-started", contractVersion: 1, sessionId: id, model: open.model || defaults.model || "Default", permissionMode: mode, limits: sessionLimits(open), instructions: { composed: session.composed }, mcp: { persephone: Boolean(endpoint) } }, open), session);
-  await send(channel, sessionStatus(session), session);
-  channel.onMessage((request) => void handleSessionMessage(session, request));
-  channel.onClose((reason) => void closeSession(session, reason?.code || "channel-closed", false));
-  session.runTask = runQuery(session);
-  session.runTask.catch((error) => console.error("Claude session pump failed:", error));
-}
-
-async function handleSessionMessage(session, request) {
-  if (session.closed || !request || typeof request.type !== "string") return;
-  if (request.type === "send") {
-    if (typeof request.text !== "string" || !request.text.trim()) return replyError(session.channel, request, "protocol-error", "send.text must be a non-empty string.", false, session);
-    if (request.id !== undefined && (typeof request.id !== "string" || request.id.length > 256)) return replyError(session.channel, request, "protocol-error", "Request id must be a short string.", false, session);
-    if (session.busy) return replyError(session.channel, request, "busy", "A turn is already running.", false, session);
-    if (session.open.limits?.maxUserTurns && session.completedTurns >= session.open.limits.maxUserTurns) return replyError(session.channel, request, "limit-reached", "The session reached maxUserTurns.", false, session);
-    if (request.attachments?.length) return replyError(session.channel, request, "protocol-error", "Attachments are not supported by this provider.", false, session);
-    session.busy = true;
-    session.interrupted = false;
-    session.currentRequestId = request.id;
-    await send(session.channel, echo({ type: "turn-started", turnId: randomUUID() }, request), session);
-    trackTypedCommand(session, request.text);
-    session.inputQueue.push(userMessage(request.text));
-    return;
-  }
-  if (request.type === "interrupt") {
-    if (session.busy && session.query) {
-      session.interrupted = true;
-      try { await session.query.interrupt(); } catch { /* query may already have stopped */ }
-      const query = session.query;
-      setTimeout(async () => {
-        if (!session.closed && session.busy) {
-          try { await query.close?.(); } catch { /* best effort escalation */ }
-          await killChildren(session, true);
-        }
-      }, 5000).unref?.();
-    }
-    return;
-  }
-  if (request.type === "approval-response") {
-    if (!["allow", "allow-session", "deny"].includes(request.decision) || typeof request.requestId !== "string") return replyError(session.channel, request, "protocol-error", "Invalid approval response.", false, session);
-    if (request.message !== undefined && typeof request.message !== "string") return replyError(session.channel, request, "protocol-error", "Approval message must be a string.", false, session);
-    const pending = session.approvals.get(request.requestId);
-    if (!pending) return;
-    if ((request.decision === "allow" || request.decision === "allow-session") && hookDecision(session.mode, pending.scope.split(":").slice(1).join(":" )).permissionDecision === "deny") {
-      return settleApproval(session, request.requestId, { decision: "deny", message: "Action exceeds the effective permission mode." });
-    }
-    settleApproval(session, request.requestId, { decision: request.decision, message: request.message ? boundedString(request.message, 32 * 1024).value : undefined, ...(PAGE_MODES.includes(request.mode) ? { mode: request.mode } : {}) });
-    return;
-  }
-  if (request.type === "close") return closeSession(session, "client-close", true);
-  if (request.type === "control") return handleControl(session, request);
-  // Unknown v1 additive message types are ignored.
-}
-
-// "/model <name>" and "/effort <level>" typed as messages change the live session; keep the footer in step.
-const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
-function trackTypedCommand(session, text) {
-  const command = /^\/(model|effort)\s+(\S+)\s*$/.exec(text.trim());
-  if (command?.[1] === "model") { session.open.model = command[2] === "default" ? "" : command[2]; session.actualModel = ""; }
-  if (command?.[1] === "effort" && (command[2] === "auto" || EFFORT_LEVELS.includes(command[2]))) session.open.effort = command[2] === "auto" ? "" : command[2];
-}
-
-// ── Session controls behind the board page's slash-command panels (/mcp, /model, /context) and its
-// command menu. The SDK has no terminal UI, so the page draws its own from these. Local page only.
-const validName = (value) => typeof value === "string" && value.length > 0 && value.length <= 256;
-async function mcpStatus(session) {
-  const servers = await session.query.mcpServerStatus();
-  return (servers || []).map((server) => ({
-    name: String(server.name),
-    status: String(server.status || "pending"),
-    ...(server.error ? { error: boundedString(String(server.error), 4096).value } : {}),
-    scope: server.scope || "",
-    transport: server.transport || server.config?.type || "",
-    ...(server.urlHost ? { host: server.urlHost } : {}),
-    ...(server.serverInfo ? { info: [server.serverInfo.title || server.serverInfo.name, server.serverInfo.version].filter(Boolean).join(" ") } : {}),
-    tools: (server.tools || []).map((tool) => tool?.name).filter((name) => typeof name === "string"),
-  }));
-}
-// The authenticate response is not documented; take the first web URL it carries for the user to open.
-function findUrl(value, depth = 0) {
-  if (typeof value === "string") return /^https?:\/\//i.test(value) ? value : "";
-  if (!value || typeof value !== "object" || depth > 3) return "";
-  for (const item of Object.values(value)) { const url = findUrl(item, depth + 1); if (url) return url; }
-  return "";
-}
-const CONTROL_ACTIONS = {
-  async commands(session) {
-    const commands = await session.query.supportedCommands();
-    return {
-      commands: (commands || []).filter((command) => validName(command?.name) && !command.name.startsWith("__")).map((command) => ({
-        name: command.name,
-        description: boundedString(command.description || "", 1024).value,
-        ...(command.argumentHint ? { argumentHint: boundedString(command.argumentHint, 512).value } : {}),
-      })),
-    };
-  },
-  async "mcp-status"(session) { return { servers: await mcpStatus(session) }; },
-  async "mcp-reconnect"(session, request) {
-    await session.query.reconnectMcpServer(request.server);
-    return { servers: await mcpStatus(session) };
-  },
-  async "mcp-toggle"(session, request) {
-    await session.query.toggleMcpServer(request.server, request.enabled === true);
-    return { servers: await mcpStatus(session) };
-  },
-  async "mcp-authenticate"(session, request) {
-    const response = await session.query.mcpAuthenticate(request.server);
-    const url = findUrl(response);
-    return { ...(url ? { url } : {}), servers: await mcpStatus(session) };
-  },
-  async models(session) {
-    const models = await session.query.supportedModels();
-    return {
-      current: session.open.model || session.defaults.model || "default",
-      effort: session.open.effort || session.defaults.effort || "",
-      models: (models || []).map((model) => ({
-        id: String(model.value ?? ""),
-        label: String(model.displayName ?? model.value ?? ""),
-        description: String(model.description ?? ""),
-        efforts: Array.isArray(model.supportedEffortLevels) ? model.supportedEffortLevels.filter((effort) => typeof effort === "string") : [],
-      })).filter((model) => model.id),
-    };
-  },
-  async "set-model"(session, request) {
-    const model = request.model === "default" ? "" : request.model;
-    const known = (await session.query.supportedModels()).find((entry) => entry.value === request.model);
-    await session.query.setModel(model || undefined);
-    session.open.model = model;
-    session.actualModel = known?.resolvedModel || model;
-    await send(session.channel, sessionStatus(session), session);
-    return {};
-  },
-  async "set-mode"(session, request) {
-    await session.query.setPermissionMode(request.mode);
-    session.nativeMode = request.mode;
-    await send(session.channel, sessionStatus(session), session);
-    return {};
-  },
-  async context(session) {
-    const usage = await session.query.getContextUsage() || {};
-    if (Number.isFinite(usage.totalTokens)) {
-      session.status.contextTokens = usage.totalTokens;
-      if (usage.maxTokens) session.status.contextWindow = usage.maxTokens;
-      await send(session.channel, sessionStatus(session), session);
-    }
-    const tokens = (value) => Number.isFinite(value) ? value : 0;
-    return {
-      usage: {
-        model: usage.model || "",
-        totalTokens: tokens(usage.totalTokens),
-        maxTokens: tokens(usage.maxTokens),
-        percentage: tokens(usage.percentage),
-        autoCompact: usage.isAutoCompactEnabled === true,
-        ...(Number.isFinite(usage.autoCompactThreshold) ? { autoCompactThreshold: usage.autoCompactThreshold } : {}),
-        categories: (usage.categories || []).map((category) => ({ id: String(category.id || category.name), name: String(category.name || category.id), tokens: tokens(category.tokens), kind: category.kind || "used" })),
-        memoryFiles: (usage.memoryFiles || []).map((file) => ({ path: String(file.path || ""), tokens: tokens(file.tokens) })),
-        mcpTools: (usage.mcpTools || []).map((tool) => ({ name: String(tool.name || ""), server: String(tool.serverName || tool.server || ""), tokens: tokens(tool.tokens) })),
-        ...(usage.skills ? { skills: { count: tokens(usage.skills.includedSkills), tokens: tokens(usage.skills.tokens) } } : {}),
-        ...(Array.isArray(usage.agents) ? { agents: { count: usage.agents.length, tokens: usage.agents.reduce((sum, agent) => sum + tokens(agent.tokens), 0) } } : {}),
-      },
-    };
-  },
-};
-async function handleControl(session, request) {
-  if (typeof request.id !== "string" || request.id.length > 256 || !Object.hasOwn(CONTROL_ACTIONS, request.action)) return replyError(session.channel, request, "protocol-error", "Invalid control request.", false, session);
-  const reply = (body) => send(session.channel, { type: "control-result", id: request.id, action: request.action, ...body }, session);
-  if (session.crossBoard) return reply({ ok: false, message: "Session controls are available only from the local board page." });
-  if (request.action.startsWith("mcp-") && request.action !== "mcp-status" && !validName(request.server)) return reply({ ok: false, message: "A server name is required." });
-  if (request.action === "set-model" && !validName(request.model)) return reply({ ok: false, message: "A model is required." });
-  if (request.action === "set-mode" && !PAGE_MODES.includes(request.mode)) return reply({ ok: false, message: "Unknown permission mode." });
-  if (!session.query) return reply({ ok: false, message: "The session is still starting." });
-  try { await reply({ ok: true, ...(await CONTROL_ACTIONS[request.action](session, request)) }); }
-  catch (error) { await reply({ ok: false, message: boundedString(error.message || "The control request failed.", 4096).value }); }
-}
-
-async function killChildren(session, force) {
-  const children = [...session.children];
-  for (const child of children) {
-    if (child.exitCode !== null) continue;
-    if (force && process.platform === "win32" && child.pid) {
-      const killer = spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
-      killer.unref();
-    } else {
-      if (child.killed) continue;
-      try { child.kill(force ? "SIGKILL" : "SIGTERM"); } catch { /* already exited */ }
-    }
-  }
-}
-
-function closeSession(session, reason, closeTransport) {
-  if (!session) return Promise.resolve();
-  if (!session.closeTask) {
-    const task = teardownSession(session, reason, closeTransport).finally(() => { if (closingSessions.get(session.id) === task) closingSessions.delete(session.id); });
-    session.closeTask = task;
-    closingSessions.set(session.id, task);
-  }
-  return session.closeTask;
-}
-
-async function teardownSession(session, reason, closeTransport) {
-  session.closed = true;
-  sessions.delete(session.channel);
-  for (const id of [...session.approvals.keys()]) settleApproval(session, id, { decision: "deny", message: "Session closed." });
-  session.inputQueue.close();
-  try { await session.query?.interrupt(); } catch { /* best effort */ }
-  try { await session.query?.close?.(); } catch { /* best effort */ }
-  await killChildren(session, true);
-  try { session.endpoint?.revoke(); } catch { /* host also revokes on shutdown */ }
-  if (closeTransport) await closeChannel(session.channel, { code: "channel-closed", message: `Claude session ended (${reason}).` });
-}
-
-async function installConsent(channel) {
-  try {
-    const result = await installSdk();
-    await send(channel, { type: "sdk-installed", ...result });
-  } catch (error) {
-    await send(channel, { type: "sdk-install-error", message: boundedString(error.message || "SDK install failed.", 32 * 1024).value });
-  }
-  await closeChannel(channel);
-}
-
-async function onChannel(channel, openMessage, info) {
-  if (openMessage?.type === "describe") {
-    try { return await describe(channel, openMessage, info); }
-    catch (error) { return replyError(channel, openMessage, error.code || "protocol-error", error.message || "Description failed.", true); }
-  }
-  if (openMessage?.type === "list-sessions") return listSessions(channel, openMessage);
-  if (openMessage?.type === "session-history") return sessionHistory(channel, openMessage, info);
-  if (openMessage?.type === "subagent-history") return subagentHistory(channel, openMessage, info);
-  if (openMessage?.type === "manage-session") return manageSession(channel, openMessage, info);
-  if (openMessage?.type === "instructions") return manageInstructions(channel, openMessage, info);
-  if (openMessage?.type === "follow-session") return followSession(channel, openMessage, info);
-  if (openMessage?.type === "watch-subagents") return watchSubagents(channel, openMessage, info);
-  if (openMessage?.type === "watch-sessions") return watchSessions(channel, openMessage, info);
-  if (openMessage?.type === "consent-sdk") {
-    if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "SDK consent is available only from the local board page." });
-    return installConsent(channel);
-  }
-  if (openMessage?.type !== "open") {
-    await replyError(channel, openMessage, "protocol-error", "Unsupported agent.session opening request.", true);
-    return;
-  }
-  try { await startSession(channel, openMessage, info); }
-  catch (error) {
-    await replyError(channel, openMessage, error.code || "protocol-error", error.message || "Could not start Claude session.", true);
-    await closeChannel(channel, { code: "service-error", message: "Claude session could not start." });
-  }
-}
-
-persephone.service.onChannel((channel, openMessage, info) => { void onChannel(channel, openMessage, info); });
-persephone.service.onShutdown(async () => {
-  const active = [...sessions.values()];
-  for (const session of active) {
-    for (const id of [...session.approvals.keys()]) settleApproval(session, id, { decision: "deny", message: "Service shutting down." });
     session.closed = true;
-    session.inputQueue.close();
-    try { void session.query?.interrupt().catch(() => {}); } catch { /* best effort */ }
-    try { void session.query?.close?.().catch(() => {}); } catch { /* best effort */ }
-    try { session.endpoint?.revoke(); } catch { /* best effort */ }
+    sessions.delete(session.channel);
+    for (const [id, approval] of session.approvals) { approval.cleanup?.(); approval.resolve({ decision: "deny", message: "Session closed." }); session.approvals.delete(id); }
+    session.inputQueue?.close();
+    await session.adapter.closeProviderSession(session, { reason, force });
+    await killChildren(session, true);
+    revokeEndpoint(session);
+    if (closeTransport) closeChannel(session.channel, { code: "channel-closed", message: `Agent session ended (${reason}).` });
+  })().finally(() => { if (closingSessions.get(session.id) === task) closingSessions.delete(session.id); });
+  session.closeTask = task; closingSessions.set(session.id, task); return task;
+}
+async function dispatchSession(session, request) {
+  if (isGroupMain(session) && request?.type === "group") {
+    try { return await groupOperation(session, request); }
+    catch (error) { return send(session.channel, { type: "group-error", message: boundedString(error.message || "The group operation failed.", 4096).value }, session); }
   }
-  await Promise.all(active.map((session) => killChildren(session, true)));
-  sessions.clear();
-  for (const entry of [...watchers]) entry.stop();
-  watchers.clear();
+  if (isGroupMain(session) && request?.type === "send") session.groupCommandTurn = isPersistentGroup(session) && typeof request.text === "string" && request.text.trimStart().startsWith("/");
+  const capability = session.adapter.sessionCapability?.(request);
+  if (capability && session.adapter.capabilities?.[capability] !== true) return replyError(session.channel, request, "unsupported-operation", `This provider does not support ${request.action || request.type}.`, false, session);
+  try { return await session.adapter.dispatchSession(session, request); }
+  catch (error) {
+    if (request?.type === "send") { session.busy = false; await send(session.channel, { type: "turn-ended", reason: "error", usage: {} }, session); }
+    return replyError(session.channel, request, error.code || "protocol-error", error.message || "The session operation failed.", false, session);
+  }
+}
+function bindSession(session) {
+  session.channel.onMessage((request) => void dispatchSession(session, request));
+  session.channel.onClose((reason) => void closeSession(session, reason?.code || "channel-closed"));
+}
+function watchFor(channel, stop) {
+  const entry = { stop };
+  watchers.add(entry);
+  channel.onClose(() => { watchers.delete(entry); stop(); });
+}
+const host = { AsyncQueue, sessions, closingSessions, watchers, send, echo, replyError, closeChannel, registerSession, activeSessions, registerProcess, killChildren, sendEntries, closeSession, askApproval, settleApproval, approve, policyDecision, approvalKind, selectPermissionMode, sessionLimits, issueEndpoint, issueOpenEndpoint, issueGroupEndpoint, revokeEndpoint, revokeGroupEndpoint, prepareOpen, bindSession, watchFor, composeInstructions: composeProviderInstructions, groupCore: GROUP_CORE, hasGroupParticipants };
+const providers = new Map([["claude", createClaudeProvider(host)], ["codex", createCodexProvider(host)]]);
+
+async function sendProviderError(channel, request, code, message) {
+  const event = { type: "error", code, message, fatal: true, ...(request?.id === undefined ? {} : { id: request.id }) };
+  await send(channel, event);
+  try { channel.close({ code, message }); } catch { /* already closed */ }
+}
+
+const OPEN_OPERATIONS = {
+  describe: "describeRequest", "list-sessions": "listSessions", "session-history": "history",
+  "follow-session": "follow", "watch-sessions": "watchSessions", "manage-session": "manageSession",
+  "watch-subagents": "watchSubagents", "subagent-history": "subagentHistory",
+  "provider-setup": "setupRequest", instructions: "instructions", open: "open",
+};
+
+async function manageProfiles(channel, request) {
+  try {
+    let profiles = await readProfiles(), selectedId;
+    if (request.action === "save") {
+      const next = await validateProfile(request.profile), index = profiles.findIndex((item) => item.id === next.id);
+      if (index < 0 && profiles.length >= 64) throw new Error("A maximum of 64 profiles is supported.");
+      if (index < 0) profiles.push(next); else profiles[index] = next;
+      await atomicJson(profilesFile(), profiles, 256 * 1024); selectedId = next.id;
+    } else if (request.action === "delete") {
+      profiles = profiles.filter((profile) => profile.id !== request.profileId);
+    } else if (request.action === "duplicate") {
+      const source = profiles.find((profile) => profile.id === request.profileId);
+      if (!source) throw new Error("The selected profile is unavailable.");
+      if (profiles.length >= 64) throw new Error("A maximum of 64 profiles is supported.");
+      const name = nextProfileName(source.name, profiles);
+      const copy = { ...source, id: randomUUID(), name }; profiles.push(copy); selectedId = copy.id;
+      await atomicJson(profilesFile(), profiles, 256 * 1024);
+    } else if (request.action === "reset") {
+      profiles = DEFAULT_PROFILES; await atomicJson(profilesFile(), profiles, 256 * 1024);
+    } else if (request.action !== "get") throw new Error("The profile operation is unavailable.");
+    await send(channel, { type: "profile-data", profiles, selectedId, descriptions: await Promise.all([...providers.values()].map((provider) => provider.describe({ cwd: "" }))) });
+    closeChannel(channel);
+  } catch (error) { await send(channel, { type: "profile-error", message: boundedString(error.message || "The profile operation failed.", 4096).value }); closeChannel(channel); }
+}
+
+async function sendGroupIndex(channel, request) {
+  const groupsIndex = [];
+  for (const file of await readdir(GROUP_ROOT()).catch(() => [])) {
+    const match = /^participants-(.+)\.json$/.exec(file);
+    if (!match) continue;
+    let participants;
+    try { participants = await readParticipants(decodeURIComponent(match[1])); } catch { continue; }
+    if (!participants.length) continue;
+    groupsIndex.push({ mainSessionId: participants[0].mainSessionId, provider: participants[0].mainProvider || "", participants: participants.map(({ profileId, name, roleTitle, provider, sessionId, removed }) => ({ profileId, name, roleTitle, provider, sessionId, removed: Boolean(removed) })) });
+  }
+  const start = Number.isSafeInteger(request.offset) && request.offset >= 0 ? request.offset : 0;
+  let page = [], bytes = 0, offset = start;
+  while (offset < groupsIndex.length) {
+    const row = groupsIndex[offset], size = Buffer.byteLength(JSON.stringify(row));
+    if (page.length && bytes + size > 480 * 1024) break;
+    if (size > 480 * 1024) throw new Error("A group index entry exceeds the response size limit.");
+    page.push(row); bytes += size; offset++;
+  }
+  await send(channel, { type: "group-index", groups: page, offset, done: offset >= groupsIndex.length, total: groupsIndex.length, ...(request.id === undefined ? {} : { id: request.id }) });
+  closeChannel(channel);
+}
+
+persephone.service.onChannel(async (channel, request, info) => {
+  if (request?.type === "open") {
+    try { validateOpen(request); }
+    catch (error) { await sendProviderError(channel, request, error.code || "protocol-error", error.message); return; }
+  }
+  const requested = request?.provider || "claude";
+  const sessionId = request?.sessionId || request?.resume;
+  const ownerRecord = sessionId && [...sessions.values()].find((record) => record.providerSession.id === sessionId);
+  const owner = ownerRecord?.providerSession;
+  if (owner && request?.provider && request.provider !== ownerRecord.providerId) {
+    await sendProviderError(channel, request, "provider-unavailable", "The requested provider does not own this live session.");
+    return;
+  }
+  const adapter = ownerRecord?.adapter || providers.get(requested);
+  if (request?.type === "group-participant-open") {
+    if (info?.interface || info?.caller || !request.mainSessionId) return closeChannel(channel, { code: "connection-refused", message: "Group participants can be invited only from the local board page." });
+    const main = [...sessions.values()].map((record) => record.providerSession).find((item) => item.id === request.mainSessionId && isGroupMain(item));
+    if (!main) return sendProviderError(channel, request, "session-unavailable", "The group chat is not live.");
+    const group = getGroup(main.id, main);
+    const participant = group.participants.find((row) => row.id === request.participantId);
+    const provider = participant && providers.get(participant.provider);
+    if (!participant || !provider) return sendProviderError(channel, request, "session-unavailable", "The participant is unavailable.");
+    const resume = { ...participant, provider, adapter: provider };
+    try {
+      const open = { type: "open", contractVersion: 1, id: randomUUID(), provider: participant.provider, model: participant.model, effort: participant.effort, cwd: participant.cwd || main.open.cwd, resume: participant.sessionId, permissionMode: participant.permissionMode, instructions: participant.instructions, groupChat: { internal: true, name: participant.name, position: "joined", participantId: participant.id, permissionMode: participant.permissionMode } };
+      const internal = internalParticipantChannel(group, participant.id);
+      const live = await provider.open(internal, open, {});
+      live.group = group; live.groupParticipant = participant; group.live.set(participant.id, live);
+    } catch (error) { await send(main.channel, { type: "group-participant-error", participantId: participant.id, message: boundedString(error.message || "Participant resume failed.", 4096).value }, main); }
+    closeChannel(channel);
+    return;
+  }
+  if (request?.type === "instructions") { await manageInstructions(channel, request, info); return; }
+  if (request?.type === "manage-profiles") {
+    if (info?.interface || info?.caller) return closeChannel(channel, { code: "connection-refused", message: "Profiles are editable only from the local board page." });
+    await manageProfiles(channel, request); return;
+  }
+  if (request?.type === "group-index") {
+    if (info?.interface || info?.caller) return closeChannel(channel, { code: "connection-refused", message: "The group index is available only from the local board page." });
+    try { await sendGroupIndex(channel, request); } catch (error) { await sendProviderError(channel, request, "protocol-error", error.message); }
+    return;
+  }
+  if (request?.type === "participant-observer") {
+    if (info?.interface || info?.caller) return closeChannel(channel, { code: "connection-refused", message: "Participant observation is available only from the local board page." });
+    const main = [...sessions.values()].map((record) => record.providerSession).find((item) => item.id === request.mainSessionId && isGroupMain(item) && !item.closed);
+    const group = main && groups.get(main.id), participant = group?.participants.find((row) => row.sessionId === request.sessionId && !row.removed), live = participant && group.live.get(participant.id);
+    if (!group || !live || !participant) { await send(channel, { type: "observer-unavailable" }); closeChannel(channel); return; }
+    group.observers ||= new Set();
+    const observer = { channel, participantId: participant.id, closed: false };
+    group.observers.add(observer);
+    channel.onClose(() => { observer.closed = true; group.observers.delete(observer); });
+    await send(channel, { type: "observer-ready", participant: { profileId: participant.profileId, name: participant.name, roleTitle: participant.roleTitle, provider: participant.provider } });
+    return;
+  }
+  if (request?.type === "describe" && !request.provider) {
+    try {
+      const catalog = [];
+      for (const [id, entry] of providers) {
+        if (typeof entry.describe !== "function") continue;
+        const detail = await entry.describe({ cwd: request.cwd || "" });
+        catalog.push(detail);
+      }
+      const defaultEntry = catalog.find((entry) => entry.available !== false) || catalog[0];
+      if (defaultEntry) await send(channel, echo({ type: "description", contractVersion: 1, catalog, ...defaultEntry }, request));
+      closeChannel(channel);
+    } catch (error) { await sendProviderError(channel, request, error.code || "provider-unavailable", error.message); }
+    return;
+  }
+  if (!adapter) {
+    await sendProviderError(channel, request, "provider-unavailable", `Provider is unavailable: ${requested}`);
+    return;
+  }
+  if (request?.type === "list-sessions") {
+    const rows = [];
+    for (const [providerId, candidate] of providers) {
+      if (request.provider && request.provider !== providerId) continue;
+      if (candidate.capabilities?.sessionStore !== true || typeof candidate.collectSessions !== "function") continue;
+      try { rows.push(...await candidate.collectSessions(request)); } catch { /* unavailable provider rows are omitted */ }
+    }
+    await loadParticipantIds();
+    for (const group of groups.values()) for (const participant of group.participants) if (participant.sessionId) participantIds.add(participant.sessionId);
+    await send(channel, echo({ type: "sessions", sessions: rows.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))) }, request));
+    closeChannel(channel); return;
+  }
+  const method = OPEN_OPERATIONS[request?.type];
+  if (!method || typeof adapter[method] !== "function") {
+    await sendProviderError(channel, request, method ? "unsupported-operation" : "protocol-error", method ? `This provider does not support ${request.type}.` : "Unsupported agent.session opening request.");
+    return;
+  }
+  if (LOCAL_PAGE_ONLY.has(request.type) && (info?.interface || info?.caller)) {
+    closeChannel(channel, { code: "connection-refused", message: "This operation is available only from the local board page." });
+    return;
+  }
+  const requiredCapability = OPEN_CAPABILITIES[request.type];
+  if (requiredCapability && adapter.capabilities?.[requiredCapability] !== true) {
+    await sendProviderError(channel, request, "unsupported-operation", `This provider does not support ${request.type}.`);
+    return;
+  }
+  try { await adapter[method](channel, request, info); }
+  catch (error) { await sendProviderError(channel, request, error.code || "protocol-error", error.message || "The provider request failed."); }
 });
 
-void refreshSettings().catch((error) => console.error("Could not load Claude Agent settings:", error));
-listenSettings();
+persephone.service.onShutdown(async () => {
+  for (const token of groupTokens.keys()) groupTokens.delete(token);
+  if (groupHttpServer?.listening) await new Promise((resolve) => groupHttpServer.close(resolve));
+  await Promise.all([...providers.values()].map((adapter) => adapter.shutdownSessions()));
+  for (const watcher of [...watchers]) watcher.stop();
+  watchers.clear();
+});

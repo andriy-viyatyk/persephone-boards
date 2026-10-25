@@ -1,3 +1,17 @@
+## 1.2.0
+- Added group chats with invited Claude and Codex agents, shared visible messages, resumable participants, and role-based permissions.
+- Added editable agent profiles, four shipped defaults, and one-click invitations from new, resumed, or live chats.
+- Nested participant histories in the sidebar with read-only views, a restored group index, and provider-colored group icons.
+- Added shared-folder permission warnings and participant approval cards for ask-capable profiles.
+- The toolbar's **Instructions** button is now **Configure**: one dialog with Instructions and Agent profiles tabs.
+- `/clear` keeps the chat's engine, model, and effort for the new session and deletes the chat it replaces.
+
+## 1.1.0
+- Renamed the board to Agent Chat, with a new icon; its board id remains `claude-agent`.
+- Added Codex as a second selectable engine using the installed Codex app-server, with provider-specific models, efforts, permissions, instructions and saved sessions.
+- Each session in the sidebar shows its engine icon (Claude or Codex) in its own color instead of a dot: muted when not running, bright when running.
+- The session sidebar shows a spinner while the sessions load.
+
 ## 1.0.0
 - Added the Claude Agent provider service, SDK consent flow, and a chat page with a recent-sessions sidebar, Markdown-rendered replies, and resumed-session history.
 - Added a selectable Agents tree with read-only subagent transcripts and live status dots.

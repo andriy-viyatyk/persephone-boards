@@ -2,7 +2,14 @@
 applyI18n();
 
 const $ = (selector) => document.querySelector(selector);
-const state = { sdkInstalled: null, models: [{ id: "", label: "Default", efforts: [] }], defaults: {}, settingsOff: null, sessions: [] };
+const state = { setup: null, capabilities: {}, descriptions: new Map(), catalog: [], defaultProvider: "", description: null, models: [{ id: "", label: "Default", efforts: [] }], defaults: {}, settingsOff: null, sessions: [], allSessions: [], groupIndex: [], sessionsLoaded: false };
+const sessionsByKey = new Map();
+// Sessions deleted on this page, in flight or done (viewKey). A list refresh must never bring one back: a listing
+// read while a delete was still removing files can arrive after that delete finished. A failed delete leaves the set.
+const pendingDeletes = new Set();
+// Master's "nothing to add" reply in a group chat; the service never shares it and history skips it.
+const GROUP_PASS = "[[pass]]";
+const sessionFor = (id, provider = "") => provider ? sessionsByKey.get(viewKey(id, provider)) : state.sessions.find((item) => item.id === id);
 const showError = (message) => { const node = $("#error"); node.textContent = message; node.classList.toggle("hidden", !message); };
 // Transient state line above the prompt; empty (hidden) while the session is ready.
 const setStatus = (text = "", busy = false) => { const node = $("#status"); node.textContent = text; node.classList.toggle("busy", busy); node.classList.toggle("hidden", !text); };
@@ -12,22 +19,27 @@ const setStatus = (text = "", busy = false) => { const node = $("#status"); node
 // their Claude process) keep running while another view is shown, like terminal tabs. A view that is only being
 // read is dropped when you leave it and reloaded from its transcript the next time it opens.
 const views = new Set();
+const viewsByKey = new Map();
+const viewKey = (id, provider) => `${provider || ""}\u0000${id || ""}`;
+const participantSessionIds = () => new Set((state.groupIndex || []).flatMap((group) => group.participants.map((participant) => participant.sessionId).filter(Boolean)));
 let current = null;
 function createView(item = {}) {
+  const provider = item.provider || current?.provider || state.defaultProvider || "";
   const view = {
-    id: item.id || "", cwd: item.cwd || "", title: item.title || "", messages: element("div", "messages hidden"),
+    id: item.id || "", provider, description: state.descriptions.get(provider) || null, cwd: item.cwd || "", title: item.title || "", messages: element("div", "messages hidden"),
     channel: null, follow: null, live: false, busy: false, pendingPrompt: "", liveWaiters: [], controls: new Map(), approvals: new Map(),
     stream: null, lastText: "", thinkingNode: null, tools: new Map(), commandTurn: false, historyToken: 0,
     footer: null, usage: null, sessionCost: 0, statusText: "", statusBusy: false, error: "",
     draft: "", unread: false, stick: true, scrollTop: 0,
-    agents: [], agentsChannel: null, selectedAgentId: "", agentViews: new Map(),
-    model: "", effort: "", defaults: null,
+    agents: [], agentsChannel: null, selectedAgentId: "", agentViews: new Map(), groupMain: false, groupMode: false, groupLoading: false, groupProfiles: [], groupParticipants: [], groupMessages: [], readOnlyParticipant: item.participant || null,
+    model: item.model || "", effort: item.effort || "", defaults: null,
   };
   $("#views").append(view.messages);
   views.add(view);
+  if (view.id) viewsByKey.set(viewKey(view.id, view.provider), view);
   return view;
 }
-const viewFor = (id) => (id && [...views].find((view) => view.id === id)) || null;
+const viewFor = (id, provider = "") => id ? (provider ? viewsByKey.get(viewKey(id, provider)) : [...views].find((view) => view.id === id)) || null : null;
 function setViewStatus(view, text = "", busy = false) {
   view.statusText = text; view.statusBusy = busy;
   if (view === current) setStatus(text, busy);
@@ -72,6 +84,46 @@ function addAgentMessage(view, text) {
   const node = element("div", "msg agent markdown-body");
   renderMarkdown(node, text);
   return appendMessage(view, node);
+}
+function parseAuthorHeader(text) {
+  const lines = String(text || "").split("\n"), messages = [];
+  let author = null, body = [];
+  const flush = () => { if (body.length) messages.push({ author, text: body.join("\n") }); body = []; };
+  for (const line of lines) {
+    const match = /^\[\[from: ([^\]\r\n]{1,80}?)(?: \| role: ([^\]\r\n]{1,80}?))?\]\]$/.exec(line);
+    if (match) { flush(); author = { name: match[1], role: match[2] || "" }; }
+    else body.push(line);
+  }
+  flush();
+  return messages.length ? messages : [{ author: null, text: String(text || "") }];
+}
+function addAuthorBadge(node, author, provider = "") {
+  if (!author || author.kind === "user") return;
+  const badge = element("div", "author-badge");
+  badge.dataset.authorName = author.name;
+  badge.append(engineIcon(state.descriptions.get(provider), ""), element("span", "", [author.name, author.roleTitle || author.role].filter(Boolean).join(" · ")));
+  node.append(badge);
+}
+function addGroupMessage(view, text, author, options = {}) {
+  const node = element("div", `msg ${author?.kind === "user" ? "user" : "agent markdown-body"}${options.notice ? " group-notice" : ""}`);
+  addAuthorBadge(node, author, author?.provider || author?.engine || "");
+  if (author?.kind === "user") {
+    const displayText = String(text || "").split("\n").map((line) => line.startsWith("\\[[from:") ? line.slice(1) : line).join("\n");
+    const body = element("div", "group-message-body", displayText);
+    node.append(body);
+    messageSources.set(node, text);
+  } else {
+    const body = element("div", "markdown-body");
+    renderMarkdown(body, text);
+    node.append(body);
+    messageSources.set(node, text);
+  }
+  if (options.summary) {
+    const details = element("details", "");
+    details.append(element("summary", "", t("group.summaryDisclosure")), element("div", "summary", `${options.summary}${options.reminder ? `\n\n${options.reminder}` : ""}`));
+    node.append(details);
+  }
+  return appendMessage(view, node, options.forceScroll === true);
 }
 // Tool inputs arrive as a bounded JSON summary string; show its fields as "key: value" lines.
 const describeInput = (input) => {
@@ -287,7 +339,8 @@ function resetFooter() {
 const percentTone = (percent) => percent >= 90 ? "error" : percent >= 70 ? "accent" : "normal";
 const resetsTitle = (label, resetsAt) => resetsAt ? `${label} — ${t("resets")} ${new Date(resetsAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : label;
 // Both limits in one item, toned by the fuller one; the tooltip lists each reset time.
-function updateFooter(status) {
+function updateFooter(status, view = current) {
+  if (!capabilities(view).rateLimits) { setChip("limits", ""); return; }
   const limits = [["limit5h", "fiveHour", "5h"], ["limit7d", "sevenDay", "7d"]]
     .map(([id, key, label]) => ({ id, label, limit: status.limits?.[key] })).filter((entry) => entry.limit);
   setChip("limits", limits.map(({ label, limit }) => `${label} ${limit.percent}%`).join(`  ${DIVIDER}  `), {
@@ -295,18 +348,18 @@ function updateFooter(status) {
     title: limits.map(({ id, limit }) => resetsTitle(t(id), limit.resetsAt)).join("\n"),
   });
 }
-function updateFooterUsage(usage, sessionCost) {
+function updateFooterUsage(usage, sessionCost, view = current) {
   if (!usage) return;
-  setChip("tokens", formatUsage({ ...usage, costUsd: undefined }), { title: t("lastTurnTokens") });
-  setChip("turnCost", Number.isFinite(usage.costUsd) ? `$${usage.costUsd.toFixed(4)}` : "", { title: t("lastTurnCost") });
-  setChip("sessionCost", sessionCost ? `${t("session")} $${sessionCost.toFixed(2)}` : "", { title: t("sessionCost") });
+  setChip("tokens", capabilities(view).tokenUsage ? formatUsage({ ...usage, costUsd: undefined }) : "", { title: t("lastTurnTokens") });
+  setChip("turnCost", capabilities(view).costUsage && Number.isFinite(usage.costUsd) ? `$${usage.costUsd.toFixed(4)}` : "", { title: t("lastTurnCost") });
+  setChip("sessionCost", capabilities(view).costUsage && sessionCost ? `${t("session")} $${sessionCost.toFixed(2)}` : "", { title: t("sessionCost") });
   updateDividers();
 }
 // The footer shows the view on screen; each view keeps its last status and usage.
 function renderFooter(view) {
   resetFooter();
-  if (view.footer) updateFooter(view.footer);
-  updateFooterUsage(view.usage, view.sessionCost);
+  if (view.footer) updateFooter(view.footer, view);
+  updateFooterUsage(view.usage, view.sessionCost, view);
 }
 
 // ── Service channels ───────────────────────────────────────────────────────
@@ -314,73 +367,166 @@ const channelSend = async (channel, message) => {
   if (!channel.writable) await channel.whenWritable();
   channel.send(message);
 };
+// A session's state marker: the engine icon its description names (icons/<icon>.svg, drawn as a mask so CSS colors it)
+// in the engine's iconColor, or the plain dot when the description has no icon.
+function engineIcon(description, stateClass, group = false) {
+  const icon = group ? "group" : /^[a-z0-9-]{1,40}$/.test(description?.icon || "") ? description.icon : "";
+  const marker = element("span", `${icon ? "engine-icon" : "session-dot"} ${stateClass}`.trim());
+  if (group) { marker.setAttribute("role", "img"); marker.setAttribute("aria-label", t("group.iconLabel")); }
+  if (icon) marker.style.setProperty("--engine-icon", `url("icons/${icon}.svg")`);
+  if (icon && /^#[0-9a-f]{6}$/i.test(description.iconColor || "")) marker.style.setProperty("--engine-color", description.iconColor);
+  return marker;
+}
+// A request with provider: null goes to the service unrouted (list-sessions then merges every engine).
 async function discovery(request) {
-  const channel = await persephone.service.openChannel(request);
+  const { provider, ...rest } = request;
+  const routed = provider === null ? null : provider || current?.provider || state.defaultProvider;
+  const channel = await persephone.service.openChannel({ ...rest, ...(routed ? { provider: routed } : {}) });
   return new Promise((resolve) => {
     channel.onMessage((message) => resolve({ message, channel }));
     channel.onClose(() => resolve({ message: null, channel }));
   });
 }
 function applyDescription(message, view = null) {
+  const provider = message.provider || "";
+  state.descriptions.set(provider, message);
+  if (Array.isArray(message.catalog)) {
+    state.catalog = message.catalog;
+    for (const item of state.catalog) if (item?.provider) state.descriptions.set(item.provider, item);
+  }
+  state.defaultProvider ||= provider;
+  if (view) view.description = message; else state.description = message;
+  state.capabilities = message.capabilities || {};
+  state.setup = message.setup || { required: false, ready: true };
   if (message.models?.length) state.models = message.models;
   if (view) view.defaults = message.defaults || null;
   else if (message.defaults) state.defaults = message.defaults;
   renderChips();
 }
+const openViewChannel = (view, request) => persephone.service.openChannel({ ...request, ...(view?.provider ? { provider: view.provider } : {}) });
 async function refreshDescription() {
-  const { message } = await discovery({ type: "describe" });
+  const { message } = await discovery({ type: "describe", ...(current?.provider ? { provider: current.provider } : {}) });
   if (message?.type === "description") {
-    state.sdkInstalled = Boolean(message.sdkInstalled);
-    applyDescription(message);
+    applyDescription(message, current?.provider ? current : null);
+    if (current && !current.id && !current.channel && !current.provider) {
+      current.provider = state.defaultProvider;
+      current.description = state.descriptions.get(current.provider) || message;
+    }
   }
-  $("#consent").classList.toggle("hidden", state.sdkInstalled);
-  if (state.sdkInstalled && !state.sessions.length) await refreshSessions();
+  const caps = capabilities();
+  $("#consent").classList.toggle("hidden", !caps.providerSetup || state.setup?.ready !== false);
+  if (caps.sessionStore && !state.sessions.length) await refreshSessions();
+  // No session store, or no description at all: nothing more will load, so drop the spinner.
+  else if (!state.sessionsLoaded && (!caps.sessionStore || message?.type !== "description")) { state.sessionsLoaded = true; renderSessions(); }
 }
 // Defaults depend on the folder (its project and local Claude settings), so a view not yet running asks for its own.
 async function refreshDefaults(view) {
   const cwd = view.cwd || (view.id ? "" : $("#cwd").value.trim());
-  const { message } = await discovery({ type: "describe", ...(cwd ? { cwd } : {}) });
+  const { message } = await discovery({ type: "describe", ...(view.provider ? { provider: view.provider } : {}), ...(cwd ? { cwd } : {}) });
   if (message?.type === "description") applyDescription(message, view);
 }
+function capabilities(view = current) { return view?.description?.capabilities || state.description?.capabilities || {}; }
+function providerDescription(view = current) { return view?.description || state.description || {}; }
 
 // ── Model and effort chips under the composer ──────────────────────────────
 // A view uses the model and effort picked for it, or else the defaults the service reports (the board settings,
 // then Claude Code's own settings, then Opus at medium effort). A session the board runs reports what it uses.
-const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
 const isLive = (view) => Boolean(view?.channel && view.live);
 // Listed ids show their display names; a full model id such as "claude-opus-5-5" shows as "Opus 5.5".
 function modelLabel(id, models = state.models) {
   const listed = models.find((model) => model.id === id);
   if (listed?.label) return listed.label.replace(/\s*\(CLI alias\)$/, "");
-  const match = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?(\[1m\])?$/i.exec(id || "");
-  if (match) return `${match[1][0].toUpperCase()}${match[1].slice(1)} ${match[2]}${match[3] ? `.${match[3]}` : ""}${match[4] ? " 1M" : ""}`;
-  return id ? id[0].toUpperCase() + id.slice(1) : t("default");
+  return id || t("default");
 }
-const viewDefaults = (view) => view.defaults || state.defaults;
+const viewDefaults = (view) => view.defaults || providerDescription(view).defaults || state.defaults;
 const viewModel = (view) => (isLive(view) && view.footer?.model) || view.model || viewDefaults(view).model || "";
 const viewEffort = (view) => (isLive(view) && view.footer?.effort) || view.effort || viewDefaults(view).effort || "";
 // Permission modes the page offers, as the terminal names them; a running session reports its own (which may be
 // another one, such as "default" after a typed command). Every new chat starts in Auto; the last pick is not kept.
-const MODES = ["bypassPermissions", "auto", "plan"];
-const DEFAULT_MODE = "auto";
-const viewMode = (view) => (isLive(view) && view.footer?.mode) || view.mode || DEFAULT_MODE;
+const modeDescriptors = (view = current) => providerDescription(view).chatOptions?.permissionModes || [];
+const modeDescriptor = (id, view = current) => modeDescriptors(view).find((mode) => mode.id === id);
+const viewMode = (view) => (isLive(view) && view.footer?.mode) || view.mode || viewDefaults(view).mode || modeDescriptors(view)[0]?.id || "";
 function renderChips() {
   const view = current;
   $("#composer-meta").classList.toggle("hidden", !view || Boolean(view.selectedAgentId));
   if (!view) return;
-  const mode = viewMode(view);
-  $("#mode-chip").textContent = t(`mode.${mode}`);
+  const mode = viewMode(view), selectedMode = modeDescriptor(mode, view);
+  $("#mode-chip").textContent = selectedMode?.labelKey ? t(selectedMode.labelKey) : "";
   $("#mode-chip").dataset.mode = mode;
-  $("#model-chip").textContent = modelLabel(viewModel(view));
+  const models = providerDescription(view).models || state.models;
+  const engine = $("#engine-chip");
+  engine.textContent = providerDescription(view).providerLabel || t(providerDescription(view).providerLabelKey || "provider.claude");
+  engine.classList.toggle("hidden", Boolean(view.id || view.channel) || state.catalog.length < 2);
+  $("#model-chip").textContent = (isLive(view) && view.footer?.modelLabel) || modelLabel(viewModel(view), models);
+  $("#model-chip").classList.toggle("hidden", !capabilities().modelSelection);
+  $("#effort-chip").classList.toggle("hidden", !capabilities().effortSelection);
+  $("#mode-chip").classList.toggle("hidden", !capabilities().permissionModes);
   $("#effort-chip").textContent = viewEffort(view) || t("defaultEffort");
   // Context fill, from the session's last status; it highlights at 70% and 90% like the footer's limit chips.
   const status = view.footer || {};
   const chip = $("#context-chip");
-  chip.textContent = Number.isFinite(status.contextPercent) ? `${t("context")} ${status.contextPercent}%` : Number.isFinite(status.contextTokens) ? `${t("context")} ${formatTokens(status.contextTokens)}` : "";
+  chip.textContent = capabilities(view).contextUsage ? Number.isFinite(status.contextPercent) ? `${t("context")} ${status.contextPercent}%` : Number.isFinite(status.contextTokens) ? `${t("context")} ${formatTokens(status.contextTokens)}` : "" : "";
   chip.classList.toggle("hidden", !chip.textContent);
   chip.dataset.tone = percentTone(status.contextPercent || 0);
-  chip.title = status.contextWindow ? `${(status.contextTokens || 0).toLocaleString()} / ${status.contextWindow.toLocaleString()} ${t("tokens")}` : t("context");
+  chip.title = capabilities(view).contextUsage && status.contextWindow ? `${(status.contextTokens || 0).toLocaleString()} / ${status.contextWindow.toLocaleString()} ${t("tokens")}` : t("context");
+  const canInvite = Boolean(view && !view.selectedAgentId && !view.readOnlyParticipant);
+  $("#group-invite").classList.toggle("hidden", !canInvite);
+  $("#group-stop").classList.toggle("hidden", !view.groupMain || !view.channel || view.groupLoading || !view.groupParticipants.length);
 }
+function groupProfiles(view = current) { return view?.groupProfiles ?? state.profiles ?? []; }
+function profileAvailability(profile) {
+  const description = state.descriptions.get(profile.provider);
+  if (!description || description.available === false || (profile.provider === "claude" && !description.setup?.ready)) return { available: false, reason: t("profiles.providerUnavailable") };
+  const alias = profile.provider === "claude" && ["opus", "sonnet", "haiku"].includes(profile.model);
+  if (!alias && !(description.models || []).some((model) => model.id === profile.model)) return { available: false, reason: t("profiles.modelUnavailable") };
+  return { available: true, reason: "" };
+}
+function renderParticipantBadges(view = current) {
+  for (const badge of view?.messages.querySelectorAll(".author-badge[data-author-name]") || []) {
+    const participant = state.groupIndex.find((group) => group.mainSessionId === (view.readOnlyParticipant?.mainSessionId || view.id))?.participants.find((item) => item.name === badge.dataset.authorName);
+    const provider = badge.dataset.authorName === "Master" ? view.provider : participant?.provider;
+    if (!provider) continue;
+    const label = badge.querySelector("span:last-child")?.textContent || badge.dataset.authorName;
+    badge.replaceChildren(engineIcon(state.descriptions.get(provider), ""), element("span", "", label));
+  }
+}
+async function ensureGroupChannel(view) {
+  if (view.channel && view.groupMain && !view.groupLoading) return;
+  if (!view.cwd && !view.id) view.cwd = $("#cwd").value.trim();
+  if (!view.cwd && !view.id) { setViewError(view, t("cwdRequired")); return false; }
+  if (!view.channel) {
+    view.groupLoading = true;
+    const ready = new Promise((resolve) => view.liveWaiters.push(resolve));
+    if (!(await connect(view))) return false;
+    if (!(await ready)) return false;
+  }
+  if (view.groupLoading) await new Promise((resolve) => (view.groupDataWaiters ||= []).push(resolve));
+  return Boolean(view.channel && view.groupMain);
+}
+async function inviteProfile(view, profile) {
+  if (!(await ensureGroupChannel(view))) return;
+  const historyText = view.groupMessages.map((item) => `${authorHeaderForUi(item.author)}\n${item.text}`).join("\n\n");
+  await channelSend(view.channel, { type: "group", action: "invite", profileId: profile.id, historyText });
+}
+function authorHeaderForUi(author) { return author?.roleTitle || author?.role ? `[[from: ${author.name} | role: ${author.roleTitle || author.role}]]` : `[[from: ${author?.name || "user"}]]`; }
+async function openInviteMenu() {
+  if (!current) return;
+  await refreshProfileCatalog();
+  const view = current, profiles = groupProfiles(view);
+  // A history-only chat has no live roster yet; the sidebar index knows who already joined.
+  const participants = view.groupParticipants?.length ? view.groupParticipants : (state.groupIndex.find((group) => group.mainSessionId === view.id)?.participants || []).filter((item) => !item.removed);
+  const items = profiles.map((profile) => {
+    const duplicate = participants.some((item) => item.profileId === profile.id || item.name.toLowerCase() === profile.name.toLowerCase());
+    const availability = profileAvailability(profile);
+    const reason = duplicate ? t("profiles.alreadyJoined") : availability.reason;
+    return { label: `${profile.name} (${profile.roleTitle})`, desc: reason, disabled: Boolean(reason), reason, run: () => inviteProfile(view, profile) };
+  });
+  items.push({ label: t("profiles.editAgents"), run: () => openConfig("profiles") });
+  openChoiceMenu($("#group-invite"), items);
+}
+$("#group-invite").addEventListener("click", () => void openInviteMenu().catch((error) => showError(error.message || t("profiles.error"))));
+$("#group-stop").addEventListener("click", () => current?.channel && void channelSend(current.channel, { type: "group", action: "stop-all" }));
+$("#group-stop").addEventListener("click", () => void refreshSessions());
 const choiceMenu = $("#choice-menu");
 let choiceAnchor = null;
 function closeChoiceMenu() { choiceMenu.classList.add("hidden"); choiceAnchor?.classList.remove("open"); choiceAnchor = null; }
@@ -390,6 +536,7 @@ function openChoiceMenu(anchor, items, note = "") {
   choiceMenu.replaceChildren(...items.map((item) => {
     const button = element("button", item.current ? "current" : "");
     button.type = "button"; button.disabled = Boolean(item.disabled);
+    if (item.disabled && item.reason) button.title = item.reason;
     button.setAttribute("role", "menuitemradio"); button.setAttribute("aria-checked", String(Boolean(item.current)));
     button.append(element("span", "label", item.label));
     if (item.desc) button.append(element("span", "desc", item.desc));
@@ -403,6 +550,31 @@ function openChoiceMenu(anchor, items, note = "") {
   choiceMenu.style.top = `${Math.max(4, rect.top - choiceMenu.offsetHeight - 4)}px`;
   anchor.classList.add("open"); choiceAnchor = anchor;
 }
+function changeEngine(view, description) {
+  if (!view || !description?.provider || view.id || view.channel) return;
+  view.provider = description.provider;
+  view.description = description;
+  view.model = "";
+  view.effort = "";
+  view.mode = description.defaults?.mode || "";
+  view.defaults = description.defaults || {};
+  rememberSession();
+  renderChips();
+  void refreshDefaults(view).catch(() => {});
+}
+function showEngineMenu() {
+  const view = current, anchor = $("#engine-chip");
+  if (!view || view.id || view.channel || state.catalog.length < 2) return;
+  if (choiceAnchor === anchor) { closeChoiceMenu(); return; }
+  const items = state.catalog.map((description) => ({
+    label: description.providerLabel || t(description.providerLabelKey || "provider.claude"),
+    desc: description.available === false ? t(description.unavailableReasonKey || "providerUnavailable") : "",
+    current: description.provider === view.provider,
+    disabled: description.available === false,
+    run: () => changeEngine(view, description),
+  }));
+  openChoiceMenu(anchor, items);
+}
 document.addEventListener("mousedown", (event) => { if (choiceAnchor && !choiceMenu.contains(event.target) && !choiceAnchor.contains(event.target)) closeChoiceMenu(); });
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && choiceAnchor) closeChoiceMenu(); });
 // A running session lists its own models and answers which one it uses; a view that is not running uses the
@@ -410,39 +582,49 @@ document.addEventListener("keydown", (event) => { if (event.key === "Escape" && 
 async function modelListing(view) {
   if (isLive(view)) { const result = await control(view, "models"); return { models: result.models || [], selected: result.current }; }
   await refreshDefaults(view);
-  return { models: state.models, selected: viewModel(view) };
+  return { models: providerDescription(view).models || state.models, selected: viewModel(view) };
 }
 // Like the terminal, a running session changes model or effort only between turns.
 async function showModelMenu() {
+  if (!capabilities().modelSelection) return;
   const view = current, anchor = $("#model-chip");
   if (choiceAnchor === anchor) { closeChoiceMenu(); return; }
   const live = isLive(view);
   const { models, selected } = await modelListing(view);
   if (view !== current) return;
-  openChoiceMenu(anchor, models.filter((model) => model.id && model.id !== "default").map((model) => ({
-    label: modelLabel(model.id, models), desc: model.description || "", current: model.id === selected, disabled: live && view.busy,
+  const groups = live ? [{ description: providerDescription(view), models }] : (state.catalog.length ? state.catalog.filter((description) => description.capabilities?.modelSelection).map((description) => ({ description, models: description.models || [] })) : [{ description: providerDescription(view), models }]);
+  openChoiceMenu(anchor, groups.flatMap(({ description, models: groupModels }) => description.available === false ? [{ label: description.providerLabel || t(description.providerLabelKey || "provider.claude"), desc: t(description.unavailableReasonKey || "providerUnavailable"), disabled: true, run: () => {} }] : groupModels.filter((model) => model.id && model.id !== "default").map((model) => ({
+    label: `${description.providerLabel || t(description.providerLabelKey || "provider.claude")} · ${modelLabel(model.id, groupModels)}`, desc: model.description || "", current: description.provider === view.provider && model.id === selected, disabled: live && view.busy,
     run: async () => {
-      if (live) { await control(view, "set-model", { model: model.id }); addDivider(view, t("modelSet", { model: modelLabel(model.id, models) })); return; }
+      if (description.provider !== view.provider) changeEngine(view, description);
+      if (live) { await control(view, "set-model", { model: model.id }); addDivider(view, t("modelSet", { model: modelLabel(model.id, groupModels) })); return; }
       view.model = model.id;
       const efforts = model.efforts || [];
       if (efforts.length && !efforts.includes(viewEffort(view))) view.effort = efforts.includes("medium") ? "medium" : efforts[0];
       renderChips();
     },
-  })), live ? t(view.busy ? "changeBusy" : "modelSwitchNote") : "");
+  }))), live ? t(view.busy ? "changeBusy" : "modelSwitchNote") : "");
 }
 async function showEffortMenu() {
+  if (!capabilities().effortSelection) return;
   const view = current, anchor = $("#effort-chip");
   if (choiceAnchor === anchor) { closeChoiceMenu(); return; }
   const live = isLive(view);
   const { models, selected } = await modelListing(view);
   if (view !== current) return;
-  const efforts = models.find((model) => model.id === selected)?.efforts;
+  if (!capabilities(view).effortSelection) return;
+  const efforts = models.find((model) => model.id === selected)?.efforts || [];
   const effort = viewEffort(view);
-  openChoiceMenu(anchor, (efforts?.length ? efforts : EFFORT_LEVELS).map((level) => ({
+  if (!efforts.length) return;
+  openChoiceMenu(anchor, efforts.map((level) => ({
     label: level, current: level === effort, disabled: live && view.busy,
     run: async () => {
       // The CLI applies /effort to the running session only and answers with a confirmation line.
-      if (live) { await sendPrompt(view, `/effort ${level}`); return; }
+      if (live) {
+        if (capabilities(view).slashCommands) await sendPrompt(view, `/effort ${level}`);
+        else await control(view, "set-effort", { effort: level });
+        return;
+      }
       view.effort = level; renderChips();
     },
   })), live && view.busy ? t("changeBusy") : "");
@@ -452,15 +634,17 @@ function showModeMenu() {
   const view = current, anchor = $("#mode-chip");
   if (choiceAnchor === anchor) { closeChoiceMenu(); return; }
   const live = isLive(view), mode = viewMode(view);
-  openChoiceMenu(anchor, MODES.map((id) => ({
-    label: t(`mode.${id}`), desc: t(`mode.${id}.desc`), current: id === mode,
+  if (!capabilities(view).permissionModes) return;
+  openChoiceMenu(anchor, modeDescriptors(view).map((descriptor) => ({
+    label: t(descriptor.labelKey), desc: t(descriptor.descriptionKey), current: descriptor.id === mode,
     run: async () => {
-      if (live) { await control(view, "set-mode", { mode: id }); return; }
-      view.mode = id; renderChips();
+      if (live) { await control(view, "set-mode", { mode: descriptor.id }); return; }
+      view.mode = descriptor.id; renderChips();
     },
   })), live ? t("modeNote") : "");
 }
 $("#mode-chip").addEventListener("click", () => showModeMenu());
+$("#engine-chip").addEventListener("click", () => showEngineMenu());
 $("#context-chip").addEventListener("click", () => void showContextPanel().catch((error) => showError(error.message)));
 $("#model-chip").addEventListener("click", () => void showModelMenu().catch((error) => showError(error.message)));
 $("#effort-chip").addEventListener("click", () => void showEffortMenu().catch((error) => showError(error.message)));
@@ -482,10 +666,13 @@ $("#cwd-browse").addEventListener("click", async () => {
 async function consentSdk(accept) {
   $("#accept").disabled = true;
   if (!accept) { $("#consent").classList.add("hidden"); $("#accept").disabled = false; return; }
-  const channel = await persephone.service.openChannel({ type: "consent-sdk" });
+  const provider = current?.provider || state.defaultProvider;
+  const channel = await persephone.service.openChannel({ type: "provider-setup", action: "install", ...(provider ? { provider } : {}) });
   channel.onMessage(async (message) => {
-    if (message.type === "sdk-installed") { state.sdkInstalled = true; $("#consent").classList.add("hidden"); await refreshDescription(); }
-    if (message.type === "sdk-install-error") { showError(message.message); $("#accept").disabled = false; }
+    if (message.type === "provider-setup") {
+      if (message.ready === false) { showError(message.error || t("error")); $("#accept").disabled = false; return; }
+      $("#consent").classList.add("hidden"); await refreshDescription();
+    }
   });
 }
 
@@ -535,11 +722,19 @@ function sessionGroups(rows) {
 }
 function renderSessions() {
   const list = $("#session-list");
-  const rows = state.sessions;
+  const hiddenParticipants = participantSessionIds();
+  const rows = state.sessions.filter((item) => !hiddenParticipants.has(item.id));
   list.replaceChildren();
+  // Until the first listing arrives (the service starts and every engine answers), show a spinner, not an empty panel.
+  if (!state.sessionsLoaded) {
+    const loading = element("div", "loading");
+    loading.append(element("span", "spinner"), element("span", "", t("loadingSessions")));
+    list.append(loading);
+    return;
+  }
+  if (!capabilities().sessionStore) { renderAgents(); return; }
   if (!rows.length) {
-    // sdkInstalled is null until the first describe reply; say nothing rather than guess.
-    if (state.sdkInstalled !== null) list.append(element("div", "empty", t(state.sdkInstalled ? "noSessions" : "consentRequired")));
+    if (state.setup) list.append(element("div", "empty", t(state.setup.ready ? "noSessions" : "consentRequired")));
     renderAgents();
     return;
   }
@@ -549,13 +744,14 @@ function renderSessions() {
     const expanded = expandedFolders.has(group.key);
     const folder = element("div", `folder${expanded ? " expanded" : ""}`);
     const head = element("div", "folder-head");
-    head.title = group.cwd;
+    // A transcript with no messages (only metadata lines) records no working directory; its folder says so.
+    head.title = group.cwd || t("noFolderHint");
     const toggle = element("button", "folder-toggle");
     toggle.type = "button";
     toggle.setAttribute("aria-expanded", String(expanded));
-    toggle.append(element("span", "caret"), element("span", "folder-name", folderName(group.cwd)));
+    toggle.append(element("span", "caret"), element("span", `folder-name${group.cwd ? "" : " no-folder"}`, group.cwd ? folderName(group.cwd) : t("noFolder")));
     // A collapsed folder still shows that one of its sessions is running.
-    const running = group.sessions.map((item) => viewFor(item.id)).filter((view) => view?.channel);
+    const running = group.sessions.map((item) => viewFor(item.id, item.provider)).filter((view) => view?.channel);
     if (running.length && !expanded) toggle.append(element("span", `session-dot live${running.some((view) => view.busy) ? " busy" : ""}`));
     toggle.addEventListener("click", () => {
       if (expandedFolders.has(group.key)) expandedFolders.delete(group.key); else expandedFolders.add(group.key);
@@ -572,16 +768,39 @@ function renderSessions() {
     folder.append(head);
     if (expanded) {
       for (const item of group.sessions) {
-        const view = viewFor(item.id);
+        const view = viewFor(item.id, item.provider);
         const button = element("button", `session-item${item.id && item.id === current?.id ? " active" : ""}${view?.unread ? " unread" : ""}`);
         button.type = "button";
-        // Gray: not running. Green: the board runs it (pulsing while Claude works).
+        // The engine's icon, gray when not running, green when the board runs it (pulsing while the agent works).
         const dotState = view?.channel ? (view.busy ? "live busy" : "live") : "";
-        button.title = [item.title, formatWhenExact(item.updatedAt), t(view?.channel ? (view.busy ? "sessionWorking" : "sessionLive") : "sessionIdle")].filter(Boolean).join("\n");
-        button.append(element("span", `session-dot ${dotState}`.trim()), element("span", "title", item.title), element("span", "when", formatWhen(item.updatedAt)));
+        const providerInfo = state.descriptions.get(item.provider || "");
+        const engine = providerInfo ? providerInfo.providerLabel || t(providerInfo.providerLabelKey) : "";
+        button.title = [item.title, engine, formatWhenExact(item.updatedAt), t(view?.channel ? (view.busy ? "sessionWorking" : "sessionLive") : "sessionIdle")].filter(Boolean).join("\n");
+        const group = state.groupIndex.find((entry) => entry.mainSessionId === item.id);
+        const hasParticipants = Boolean(group?.participants.some((participant) => !participant.removed));
+        button.append(engineIcon(providerInfo, dotState, hasParticipants), element("span", "title", item.title), element("span", "when", formatWhen(item.updatedAt)));
         button.addEventListener("click", () => void openStoredSession(item));
         button.addEventListener("contextmenu", (event) => { event.preventDefault(); openSessionMenu(item, event.clientX, event.clientY); });
         folder.append(button);
+        if (group) for (const participant of group.participants) {
+          const session = state.allSessions.find((candidate) => candidate.id === participant.sessionId);
+          const child = element("button", `session-item participant-item${participant.removed ? " removed" : ""}${current?.readOnlyParticipant?.sessionId === participant.sessionId ? " active" : ""}`);
+          child.type = "button"; child.title = participant.removed ? t("group.participantLeft") : t("group.participantHistory", { name: participant.name, role: participant.roleTitle });
+          const provider = state.descriptions.get(participant.provider || "");
+          child.append(engineIcon(provider, "", false), element("span", "title", `${participant.name} · ${participant.roleTitle}${participant.removed ? ` · ${t("group.leftState")}` : ""}`), element("span", "when", formatWhen(session?.updatedAt || "")));
+          child.addEventListener("click", () => void openParticipantSession(item, participant, session));
+          child.addEventListener("contextmenu", (event) => {
+            if (participant.removed) return;
+            event.preventDefault();
+            void (async () => {
+              const parentView = viewFor(item.id, item.provider);
+              if (!parentView?.channel) { showError(t("group.openMainToRemove")); return; }
+              const answer = await askDialog({ title: t("group.removeTitle"), message: t("group.removeConfirm", { name: participant.name }), confirmLabel: t("group.remove"), danger: true });
+              if (answer !== null) { await channelSend(parentView.channel, { type: "group", action: "remove", participantId: participant.id }); await refreshSessions(); }
+            })();
+          });
+          folder.append(child);
+        }
       }
     }
     list.append(folder);
@@ -594,6 +813,7 @@ const AGENT_LIST_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 function renderAgents() {
   const panel = $("#agents-panel"), list = $("#agents-list");
   list.replaceChildren();
+  if (!capabilities(current).subagents) { panel.classList.add("hidden"); return; }
   // Running agents always show; recent inactive ones sit behind a toggle; the shown one stays until you switch away.
   const isRunning = (agent) => agent.running && !agent.finished;
   const isSelected = (agent) => agent.id === current.selectedAgentId;
@@ -630,7 +850,8 @@ const sessionMenu = $("#session-menu");
 let menuItem = null;
 function openSessionMenu(item, x, y) {
   menuItem = item;
-  sessionMenu.querySelector("[data-action=disconnect]").classList.toggle("hidden", !viewFor(item.id)?.channel);
+  sessionMenu.querySelector("[data-action=disconnect]").classList.toggle("hidden", !viewFor(item.id, item.provider)?.channel);
+  sessionMenu.querySelectorAll("[data-action=rename], [data-action=delete]").forEach((button) => button.classList.toggle("hidden", !capabilities(viewFor(item.id, item.provider)).sessionStore));
   sessionMenu.classList.remove("hidden");
   const { width, height } = sessionMenu.getBoundingClientRect();
   sessionMenu.style.left = `${Math.min(x, window.innerWidth - width - 4)}px`;
@@ -648,7 +869,7 @@ sessionMenu.addEventListener("click", (event) => {
   closeSessionMenu();
   if (item && action === "rename") void renameSession(item);
   if (item && action === "delete") void deleteSession(item);
-  if (item && action === "disconnect") { const view = viewFor(item.id); if (view) disconnect(view); }
+  if (item && action === "disconnect") { const view = viewFor(item.id, item.provider); if (view) disconnect(view); }
 });
 
 // Modal dialog; resolves with the input text (or "" without one) on confirm, null on cancel.
@@ -669,12 +890,123 @@ function askDialog({ title, message = "", value = null, confirmLabel, danger = f
     dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm" ? input.value.trim() : null), { once: true });
   });
 }
+let profileEditor = { profiles: [], descriptions: [], selectedId: "", original: null, dirty: false, newIds: new Set() };
+async function profileRequest(action, fields = {}) {
+  const channel = await persephone.service.openChannel({ type: "manage-profiles", action, ...fields });
+  return new Promise((resolve, reject) => {
+    channel.onMessage((message) => {
+      if (message.type === "profile-data") resolve(message);
+      else if (message.type === "profile-error" || message.type === "error") reject(new Error(t("profiles.error")));
+    });
+    channel.onClose(() => {});
+  });
+}
+async function refreshProfileCatalog() {
+  const response = await profileRequest("get");
+  state.profiles = response.profiles || [];
+  for (const description of response.descriptions || []) { state.descriptions.set(description.provider, description); if (!state.catalog.some((item) => item.provider === description.provider)) state.catalog.push(description); }
+  if (current) current.groupProfiles = state.profiles;
+}
+function profileDraft() {
+  const currentProfile = profileEditor.profiles.find((profile) => profile.id === profileEditor.selectedId);
+  if (!currentProfile) return null;
+  return { id: currentProfile.id, name: $("#profile-name").value.trim(), roleTitle: $("#profile-role-title").value.trim(), instructions: $("#profile-instructions").value, summary: $("#profile-summary").value, provider: $("#profile-provider").value, model: $("#profile-model").value, effort: $("#profile-effort").value, permissionMode: $("#profile-permission").value };
+}
+function setProfileDirty() {
+  profileEditor.dirty = JSON.stringify(profileDraft()) !== JSON.stringify(profileEditor.original);
+  $("#profiles-warning").classList.toggle("hidden", !["ask", "auto-edit", "full-auto"].includes($("#profile-permission").value));
+}
+function profileProviderOptions() {
+  const select = $("#profile-provider");
+  select.replaceChildren(...state.catalog.map((description) => { const option = element("option", "", description.providerLabel || t(description.providerLabelKey)); option.value = description.provider; return option; }));
+}
+function refreshProfileModels(preferredModel = "", preferredEffort = "") {
+  const provider = $("#profile-provider").value, description = state.descriptions.get(provider);
+  let models = (description?.models || []).filter((model) => model.id);
+  if (provider === "claude") models = [{ id: "opus", label: t("model.alias.opus"), efforts: ["low", "medium", "high", "xhigh", "max"] }, { id: "sonnet", label: t("model.alias.sonnet"), efforts: ["low", "medium", "high", "xhigh", "max"] }, { id: "haiku", label: t("model.alias.haiku"), efforts: ["low", "medium", "high", "xhigh", "max"] }, ...models.filter((item) => !["opus", "sonnet", "haiku"].includes(item.id))];
+  const modelSelect = $("#profile-model");
+  modelSelect.replaceChildren(...models.map((model) => { const option = element("option", "", model.label || model.id); option.value = model.id; return option; }));
+  if (models.some((model) => model.id === preferredModel)) modelSelect.value = preferredModel;
+  refreshProfileEfforts(preferredEffort);
+}
+function refreshProfileEfforts(preferred = "") {
+  const info = state.descriptions.get($("#profile-provider").value)?.models?.find((item) => item.id === $("#profile-model").value);
+  const levels = info?.efforts || (["opus", "sonnet", "haiku"].includes($("#profile-model").value) ? ["low", "medium", "high", "xhigh", "max"] : []);
+  const select = $("#profile-effort");
+  select.replaceChildren(...levels.map((level) => { const option = element("option", "", level); option.value = level; return option; }));
+  if (levels.includes(preferred)) select.value = preferred;
+}
+function renderProfileEditor() {
+  const list = $("#profiles-list");
+  list.replaceChildren(...profileEditor.profiles.map((profile) => {
+    const item = element("button", `profile-list-item${profile.id === profileEditor.selectedId ? " active" : ""}`, `${profile.name} (${profile.roleTitle})`);
+    item.type = "button"; item.addEventListener("click", () => void selectProfile(profile.id)); return item;
+  }));
+  const profile = profileEditor.profiles.find((item) => item.id === profileEditor.selectedId);
+  const permission = $("#profile-permission");
+  permission.replaceChildren(...[["read-only", t("profiles.permission.readOnly")], ["ask", t("profiles.permission.ask")], ["auto-edit", t("profiles.permission.autoEdit")], ["full-auto", t("profiles.permission.fullAuto")]].map(([value, label]) => { const option = element("option", "", label); option.value = value; return option; }));
+  const disabled = !profile;
+  for (const id of ["profile-name", "profile-role-title", "profile-instructions", "profile-summary", "profile-provider", "profile-model", "profile-effort", "profile-permission", "profile-duplicate", "profile-delete"]) $("#" + id).disabled = disabled;
+  updateConfigSave();
+  if (!profile) return;
+  $("#profile-name").value = profile.name; $("#profile-role-title").value = profile.roleTitle;
+  $("#profile-instructions").value = profile.instructions; $("#profile-summary").value = profile.summary;
+  profileProviderOptions(); $("#profile-provider").value = profile.provider;
+  refreshProfileModels(profile.model, profile.effort); $("#profile-permission").value = profile.permissionMode;
+  profileEditor.original = structuredClone(profile); profileEditor.dirty = false; setProfileDirty();
+}
+async function saveSelectedProfile() {
+  const profile = profileDraft();
+  if (!profile || !profile.name || !profile.roleTitle || !profile.instructions.trim() || !profile.summary.trim()) { showError(t("profiles.validation")); return false; }
+  try {
+    const result = await profileRequest("save", { profile });
+    profileEditor.profiles = result.profiles || []; profileEditor.selectedId = result.selectedId || profile.id;
+    profileEditor.newIds.delete(profile.id);
+    state.profiles = profileEditor.profiles; if (current) current.groupProfiles = state.profiles;
+    renderProfileEditor(); return true;
+  } catch (error) { showError(error.message); return false; }
+}
+async function unsavedChoice(dirty = profileEditor.dirty, titleKey = "profiles.unsavedTitle") {
+  if (!dirty) return "discard";
+  return new Promise((resolve) => {
+    const dialog = $("#dialog"), confirm = $("#dialog-confirm"), form = dialog.querySelector("form");
+    const stay = element("button", "", t("profiles.stay")); stay.type = "button"; form.querySelector(".actions").prepend(stay);
+    stay.onclick = () => { stay.remove(); dialog.close("stay"); };
+    $("#dialog-title").textContent = t(titleKey); $("#dialog-message").textContent = t("profiles.unsavedMessage"); $("#dialog-message").classList.remove("hidden"); $("#dialog-input").classList.add("hidden");
+    const cancel = form.querySelector('button[value="cancel"]'); cancel.textContent = t("profiles.discard");
+    confirm.textContent = t("save"); confirm.classList.add("primary"); dialog.returnValue = ""; dialog.showModal();
+    dialog.addEventListener("close", () => { stay.remove(); cancel.textContent = t("cancel"); resolve(dialog.returnValue === "confirm" ? "save" : dialog.returnValue === "stay" ? "stay" : "discard"); }, { once: true });
+  });
+}
+async function selectProfile(id) {
+  const choice = await unsavedChoice(); if (choice === "stay") return;
+  if (choice === "save" && !(await saveSelectedProfile())) return;
+  if (choice === "discard" && profileEditor.newIds.has(profileEditor.selectedId)) {
+    profileEditor.profiles = profileEditor.profiles.filter((profile) => profile.id !== profileEditor.selectedId);
+    profileEditor.newIds.delete(profileEditor.selectedId);
+  }
+  profileEditor.selectedId = id; renderProfileEditor();
+}
+$("#profile-new").addEventListener("click", () => {
+  void (async () => { const choice = await unsavedChoice(); if (choice === "stay" || choice === "save" && !(await saveSelectedProfile())) return;
+    const profile = { id: crypto.randomUUID(), name: "", roleTitle: "", instructions: "", summary: "", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only" };
+    profileEditor.profiles.push(profile); profileEditor.newIds.add(profile.id); profileEditor.selectedId = profile.id; renderProfileEditor(); $("#profile-name").focus();
+  })();
+});
+$("#profile-duplicate").addEventListener("click", async () => { const choice = await unsavedChoice(); if (choice === "stay") return; if (choice === "save" && !(await saveSelectedProfile())) return; const result = await profileRequest("duplicate", { profileId: profileEditor.selectedId }); profileEditor.profiles = result.profiles; profileEditor.selectedId = result.selectedId; state.profiles = result.profiles; renderProfileEditor(); });
+$("#profile-delete").addEventListener("click", async () => { const choice = await unsavedChoice(); if (choice === "stay") return; if (choice === "save" && !(await saveSelectedProfile())) return; if (await askDialog({ title: t("profiles.deleteTitle"), message: t("profiles.deleteConfirm"), confirmLabel: t("profiles.delete"), danger: true }) === null) return; const result = await profileRequest("delete", { profileId: profileEditor.selectedId }); profileEditor.profiles = result.profiles; state.profiles = result.profiles; profileEditor.selectedId = result.profiles[0]?.id || ""; renderProfileEditor(); });
+$("#profile-reset").addEventListener("click", async () => { const choice = await unsavedChoice(); if (choice === "stay") return; if (choice === "save" && !(await saveSelectedProfile())) return; if (await askDialog({ title: t("profiles.resetTitle"), message: t("profiles.resetConfirm"), confirmLabel: t("profiles.reset"), danger: true }) === null) return; const result = await profileRequest("reset"); profileEditor.profiles = result.profiles; state.profiles = result.profiles; profileEditor.selectedId = result.profiles[0]?.id || ""; renderProfileEditor(); });
+for (const id of ["profile-name", "profile-role-title", "profile-instructions", "profile-summary", "profile-permission"]) $("#" + id).addEventListener("input", setProfileDirty);
+$("#profile-permission").addEventListener("change", setProfileDirty);
+$("#profile-provider").addEventListener("change", () => { refreshProfileModels(); setProfileDirty(); });
+$("#profile-model").addEventListener("change", () => { refreshProfileEfforts(); setProfileDirty(); });
 // Enter would submit through the form's first button (Cancel); make it confirm instead.
 $("#dialog-input").addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.isComposing) { event.preventDefault(); $("#dialog").close("confirm"); }
 });
 async function manageSession(item, action, title) {
-  const { message } = await discovery({ type: "manage-session", action, sessionId: item.id, cwd: item.cwd, ...(title ? { title } : {}) });
+  if (!capabilities(viewFor(item.id, item.provider) || current).sessionStore) return false;
+  const { message } = await discovery({ type: "manage-session", ...(item.provider ? { provider: item.provider } : {}), action, sessionId: item.id, cwd: item.cwd, ...(title ? { title } : {}) });
   if (message?.type === "session-updated") return true;
   showError(message?.type === "error" ? `${message.code}: ${message.message}` : t("error"));
   return false;
@@ -684,17 +1016,29 @@ async function renameSession(item) {
   if (!title || title === item.title) return;
   if (!(await manageSession(item, "rename", title))) return;
   item.title = title;
-  const view = viewFor(item.id);
+  const view = viewFor(item.id, item.provider);
   if (view) view.title = title;
   renderSessions();
 }
 async function deleteSession(item) {
   const answer = await askDialog({ title: t("deleteSession"), message: t("deleteConfirm", { title: item.title }), confirmLabel: t("delete"), danger: true });
   if (answer === null) return;
-  const view = viewFor(item.id);
+  await removeSession(item);
+}
+async function removeSession(item) {
+  const view = viewFor(item.id, item.provider);
   if (view) { if (view === current) showNewSession(); dropView(view); }
-  if (!(await manageSession(item, "delete"))) return;
-  state.sessions = state.sessions.filter((row) => row.id !== item.id);
+  // The row goes at once: the service may first have to end a running session (up to ~2 s) or start
+  // an engine's discovery server. If the delete fails, the row comes back and the error shows.
+  const key = viewKey(item.id, item.provider);
+  pendingDeletes.add(key);
+  state.sessions = state.sessions.filter((row) => viewKey(row.id, row.provider) !== key);
+  sessionsByKey.delete(key);
+  renderSessions();
+  if (await manageSession(item, "delete")) return;
+  pendingDeletes.delete(key);
+  state.sessions = [...state.sessions.filter((row) => viewKey(row.id, row.provider) !== key), item].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  sessionsByKey.set(key, item);
   renderSessions();
 }
 
@@ -729,14 +1073,40 @@ $("#splitter").addEventListener("pointerdown", (event) => {
   window.addEventListener("pointercancel", end);
 });
 $("#splitter").addEventListener("dblclick", () => prefs.write("sidebar-width", applySidebarWidth(280)));
+// Refreshes can overlap (watcher, Refresh, a description change); only the newest listing is applied, so an
+// older answer that arrives late never replaces a newer one.
+let sessionsRequest = 0;
 async function refreshSessions() {
-  if (!state.sdkInstalled) { renderSessions(); return; }
-  const { message } = await discovery({ type: "list-sessions" });
+  if (!capabilities().sessionStore) { state.sessionsLoaded = true; renderSessions(); return; }
+  const request = ++sessionsRequest;
+  const [sessionsResult, indexResult] = await Promise.all([discovery({ type: "list-sessions", provider: null }), loadGroupIndex()]);
+  const message = sessionsResult.message;
+  if (request !== sessionsRequest) return;
+  state.sessionsLoaded = true;
   if (message?.type === "sessions") {
-    state.sessions = [...message.sessions].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
-    for (const item of state.sessions) { const view = viewFor(item.id); if (view) view.title = item.title; }
+    state.allSessions = message.sessions.filter((item) => !pendingDeletes.has(viewKey(item.id, item.provider)));
+    const hiddenParticipants = participantSessionIds();
+    state.sessions = state.allSessions.filter((item) => !hiddenParticipants.has(item.id))
+      .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    sessionsByKey.clear();
+    for (const item of state.sessions) sessionsByKey.set(viewKey(item.id, item.provider), item);
+    for (const item of state.sessions) { const view = viewFor(item.id, item.provider); if (view) { view.title = item.title; if (!isLive(view)) { view.model = item.model || view.model; view.effort = item.effort || view.effort; } } }
   } else if (message?.type === "error") showError(`${message.code}: ${message.message}`);
+  if (indexResult) for (const group of state.groupIndex) if (!group.provider) group.provider = state.allSessions.find((item) => item.id === group.mainSessionId)?.provider || "";
+  for (const view of views) renderParticipantBadges(view);
   renderSessions();
+}
+async function loadGroupIndex() {
+  const groups = []; let offset = 0;
+  for (let pages = 0; pages < 1000; pages++) {
+    const { message } = await discovery({ type: "group-index", offset });
+    if (message?.type !== "group-index") return false;
+    groups.push(...message.groups || []);
+    if (message.done) { state.groupIndex = groups; return true; }
+    if (!Number.isSafeInteger(message.offset) || message.offset <= offset) return false;
+    offset = message.offset;
+  }
+  return false;
 }
 
 // ── Page toolbar: the session folder in the text slot, every button on the right ──
@@ -751,7 +1121,7 @@ function updateToolbar() {
       ...(interruptible ? [{ id: "interrupt", type: "button", label: t("interrupt"), icon: { name: "stop" } }] : []),
       { id: "new-session", type: "button", label: t("newSession"), icon: { name: "plus" } },
       { id: "refresh-sessions", type: "button", title: t("refresh"), icon: { name: "refresh" } },
-      { id: "instructions", type: "button", label: t("instructions"), icon: { name: "edit" } },
+      { id: "configure", type: "button", label: t("configure"), icon: { name: "settings" } },
     ]);
   }
   persephone.toolbar.setText(current?.cwd || "");
@@ -760,33 +1130,66 @@ persephone.toolbar.onAction(({ id }) => {
   if (id === "new-session") showNewSession();
   else if (id === "refresh-sessions") void refreshSessions();
   else if (id === "interrupt" && current?.channel) void channelSend(current.channel, { type: "interrupt" });
-  else if (id === "instructions") void editInstructions();
+  else if (id === "configure") void openConfig("instructions");
 });
 function updateControls() {
   $("#intro").classList.toggle("hidden", Boolean(current?.id || current?.channel));
-  $("#send").disabled = Boolean(current?.busy);
+  const slash = promptText().trim().startsWith("/");
+  $("#send").disabled = Boolean(current?.readOnlyParticipant || current?.busy && (slash || !current.groupMode));
+  $("#readonly-hint").classList.toggle("hidden", !current?.readOnlyParticipant);
+  $("#prompt").classList.toggle("hidden", Boolean(current?.readOnlyParticipant));
+  $("#send").classList.toggle("hidden", Boolean(current?.readOnlyParticipant));
   updateToolbar(); renderChips();
 }
 
 // ── Instructions dialog: the provider instructions the service adds to every new or reopened session ──
-let instructionsDefault = "";
-async function editInstructions() {
-  showError("");
-  const { message } = await discovery({ type: "instructions", action: "get" });
-  if (message?.type !== "instructions") { showError(message?.type === "error" ? `${message.code}: ${message.message}` : t("error")); return; }
-  instructionsDefault = message.defaultText;
-  const dialog = $("#instructions-dialog"), text = $("#instructions-text");
-  text.value = message.text;
-  dialog.returnValue = "";
-  dialog.showModal();
-  text.focus(); text.setSelectionRange(0, 0); text.scrollTop = 0;
-  const saved = await new Promise((resolve) => dialog.addEventListener("close", () => resolve(dialog.returnValue === "save"), { once: true }));
-  if (!saved || text.value === message.text) return;
-  const reply = await discovery({ type: "instructions", action: "set", text: text.value });
-  if (reply.message?.type !== "instructions") showError(reply.message?.type === "error" ? `${reply.message.code}: ${reply.message.message}` : t("error"));
+// ── Configure dialog: Instructions and Agent profiles tabs ───────────────────
+// Save acts on the visible tab and keeps the dialog open; Close asks about unsaved changes in either tab.
+let configTab = "instructions";
+const instructionsEditor = { provider: "", saved: "", defaultText: "" };
+function instructionsDirty() { return $("#instructions-text").value !== instructionsEditor.saved; }
+function updateConfigSave() { $("#config-save").disabled = configTab === "profiles" && !profileEditor.profiles.some((profile) => profile.id === profileEditor.selectedId); }
+function setConfigTab(tab) {
+  configTab = tab;
+  for (const button of document.querySelectorAll("#config-dialog [role=tab]")) { const active = button.dataset.tab === tab; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); }
+  $("#config-instructions").classList.toggle("hidden", tab !== "instructions");
+  $("#config-profiles").classList.toggle("hidden", tab !== "profiles");
+  $("#instructions-reset").classList.toggle("hidden", tab !== "instructions");
+  updateConfigSave();
 }
+async function openConfig(tab) {
+  showError("");
+  const provider = current?.provider || state.defaultProvider;
+  const { message } = await discovery({ type: "instructions", ...(provider ? { provider } : {}), action: "get" });
+  if (message?.type !== "instructions") { showError(message?.type === "error" ? `${message.code}: ${message.message}` : t("error")); return; }
+  Object.assign(instructionsEditor, { provider, saved: message.text, defaultText: message.defaultText });
+  const text = $("#instructions-text"); text.value = message.text;
+  await refreshProfileCatalog();
+  profileEditor = { profiles: state.profiles, descriptions: state.catalog, selectedId: state.profiles[0]?.id || "", original: null, dirty: false, newIds: new Set() };
+  renderProfileEditor(); setConfigTab(tab);
+  $("#config-dialog").showModal();
+  if (tab === "instructions") { text.focus(); text.setSelectionRange(0, 0); text.scrollTop = 0; }
+}
+async function saveInstructions() {
+  const text = $("#instructions-text").value, { provider } = instructionsEditor;
+  if (text === instructionsEditor.saved) return true;
+  const reply = await discovery({ type: "instructions", ...(provider ? { provider } : {}), action: "set", text });
+  if (reply.message?.type !== "instructions") { showError(reply.message?.type === "error" ? `${reply.message.code}: ${reply.message.message}` : t("error")); return false; }
+  instructionsEditor.saved = text; return true;
+}
+async function closeConfig() {
+  const profileChoice = await unsavedChoice(); if (profileChoice === "stay") return;
+  if (profileChoice === "save" && !(await saveSelectedProfile())) return;
+  const instructionsChoice = await unsavedChoice(instructionsDirty(), "instructionsUnsavedTitle"); if (instructionsChoice === "stay") return;
+  if (instructionsChoice === "save" && !(await saveInstructions())) return;
+  $("#config-dialog").close();
+}
+for (const button of document.querySelectorAll("#config-dialog [role=tab]")) button.addEventListener("click", () => setConfigTab(button.dataset.tab));
+$("#config-dialog").addEventListener("cancel", (event) => { event.preventDefault(); void closeConfig(); });
+$("#config-cancel").addEventListener("click", () => void closeConfig());
+$("#config-save").addEventListener("click", () => void (configTab === "instructions" ? saveInstructions() : saveSelectedProfile()));
 // Reset only fills the editor; nothing is stored until Save.
-$("#instructions-reset").addEventListener("click", () => { $("#instructions-text").value = instructionsDefault; $("#instructions-text").focus(); });
+$("#instructions-reset").addEventListener("click", () => { $("#instructions-text").value = instructionsEditor.defaultText; $("#instructions-text").focus(); });
 // ── Session lifecycle ──────────────────────────────────────────────────────
 // A live view is one whose channel the service has started; panels wait for it.
 function endLive(view) {
@@ -815,6 +1218,7 @@ function dropView(view) {
   endStream(view); endLive(view); closeChannel(channel);
   view.messages.remove();
   views.delete(view);
+  viewsByKey.delete(viewKey(view.id, view.provider));
 }
 // Shows a view. The one it replaces keeps running if it is live; otherwise it is dropped.
 function showView(view) {
@@ -836,8 +1240,6 @@ function showView(view) {
   current = view;
   view.selectedAgentId = "";
   view.messages.classList.remove("hidden");
-  $("#readonly-hint").classList.add("hidden");
-  $("#prompt").classList.remove("hidden"); $("#send").classList.remove("hidden");
   view.unread = false;
   view.messages.classList.remove("hidden");
   prompt.textContent = view.draft; hideCommandMenu();
@@ -854,14 +1256,38 @@ function showView(view) {
 function appendEntries(view, entries) {
   for (const entry of entries || []) {
     const suffix = entry.truncated ? ` ${t("truncated")}` : "";
-    if (entry.role === "user") addUserMessage(view, entry.text + suffix, false);
-    else if (entry.role === "agent") addAgentMessage(view, entry.text + suffix);
+    if (entry.role === "user" || entry.role === "agent") {
+      for (const segment of parseAuthorHeader(entry.text || "")) {
+        const parentId = view.readOnlyParticipant?.mainSessionId || view.id;
+        const participant = state.groupIndex.find((group) => group.mainSessionId === parentId)?.participants.find((item) => item.name === segment.author?.name);
+        if (segment.text.trim() === GROUP_PASS) continue;
+        // Posts reach Master as user turns, so the header, not the transcript role, says who wrote it.
+        const author = segment.author ? { ...segment.author, roleTitle: participant?.roleTitle || segment.author.role, provider: participant?.provider || (segment.author.name === "Master" ? view.provider : ""), kind: segment.author.name === "user" ? "user" : "agent" } : null;
+        // A join/leave notice is stored as "Agent X (Role) joined" plus the role summary (and, on the first join, the rules reminder).
+        const notice = author && /^Agent .+ \(.+\) (joined|left)$/.exec(segment.text.split("\n")[0]);
+        if (notice) {
+          author.kind = "notice";
+          view.groupMessages.push({ author, text: segment.text });
+          addGroupMessage(view, segment.text.split("\n")[0], author, { notice: true, summary: notice[1] === "joined" ? segment.text.split("\n").slice(1).join("\n").trim() : "" });
+        }
+        else if (author) { view.groupMessages.push({ author, text: segment.text }); addGroupMessage(view, segment.text + suffix, author); }
+        else if (entry.role === "user") addUserMessage(view, segment.text + suffix, false);
+        else addAgentMessage(view, segment.text + suffix);
+        if (!author) view.groupMessages.push({ author: entry.role === "user" ? { name: "user", role: "", kind: "user" } : { name: "Master", role: "main", engine: view.provider, kind: "agent" }, text: segment.text });
+      }
+    }
     else if (entry.role === "tool") addToolCall(view, entry.name, entry.input, entry.callId);
     else if (entry.role === "command") addCommandMessage(view, entry.text, false);
     else if (entry.role === "command-output") addCommandOutput(view, entry.text + suffix);
     else if (entry.role === "compacted") addCompacted(view);
     else if (entry.role === "compact") addCompactSummary(view, entry.text + suffix);
     else if (entry.role === "task") addTaskNotice(view, entry.text, entry.detail);
+    else if (entry.role === "file-change") addActivity(view, t("file"), entry.text || entry.path || "", "file");
+    else if (entry.role === "reasoning") {
+      const details = element("details", "reasoning-history");
+      details.append(element("summary", "", t("thinking")), element("div", "", entry.text));
+      appendMessage(view, details);
+    }
   }
 }
 function stopFollow(view) {
@@ -871,8 +1297,8 @@ function stopFollow(view) {
 }
 async function startFollow(view) {
   stopFollow(view);
-  if (!view.id || view.channel || view !== current) return;
-  const channel = await persephone.service.openChannel({ type: "follow-session", sessionId: view.id });
+  if (!capabilities(view).transcriptFollow || !view.id || view.channel || view !== current) return;
+  const channel = await openViewChannel(view, { type: "follow-session", sessionId: view.id, cwd: view.cwd });
   if (view !== current || view.channel || view.follow || !views.has(view)) { closeChannel(channel); return; }
   view.follow = channel;
   channel.onMessage((message) => { if (view.follow === channel && message.type === "history") appendEntries(view, message.entries); });
@@ -894,8 +1320,8 @@ function stopAgentFollow(view) {
 }
 function startAgentWatch(view) {
   stopAgentWatch(view);
-  if (!view.id || view !== current) return;
-  void persephone.service.openChannel({ type: "watch-subagents", sessionId: view.id, cwd: view.cwd }).then((channel) => {
+  if (!capabilities(view).subagents || !view.id || view !== current) return;
+  void openViewChannel(view, { type: "watch-subagents", sessionId: view.id, cwd: view.cwd }).then((channel) => {
     if (view !== current || view.agentsChannel) { closeChannel(channel); return; }
     view.agentsChannel = channel;
     channel.onMessage((message) => {
@@ -918,7 +1344,7 @@ function showMainTranscript(view) {
   transcript.scrollTop = view.scrollTop;
 }
 async function showAgentTranscript(view, agentId) {
-  if (!view || view !== current || !view.agents.some((agent) => agent.id === agentId)) return;
+  if (!capabilities(view).subagents || !view || view !== current || !view.agents.some((agent) => agent.id === agentId)) return;
   const previous = view.agentViews.get(view.selectedAgentId);
   if (view.selectedAgentId) {
     if (previous) { previous.scrollTop = transcript.scrollTop; previous.messages.classList.add("hidden"); }
@@ -938,7 +1364,7 @@ async function showAgentTranscript(view, agentId) {
   $("#readonly-hint").classList.remove("hidden");
   $("#prompt").classList.add("hidden"); $("#send").classList.add("hidden");
   hideCommandMenu(); renderSessions(); renderChips(); updateTyping(); closeChoiceMenu(); transcript.scrollTop = child.scrollTop ?? 0;
-  const channel = await persephone.service.openChannel({ type: "subagent-history", sessionId: view.id, agentId, cwd: view.cwd });
+  const channel = await openViewChannel(view, { type: "subagent-history", sessionId: view.id, agentId, cwd: view.cwd });
   if (view !== current || view.selectedAgentId !== agentId) { closeChannel(channel); return; }
   child.follow = channel;
   channel.onMessage((message) => {
@@ -952,7 +1378,13 @@ async function showAgentTranscript(view, agentId) {
   });
   channel.onClose(() => { if (child.follow === channel) child.follow = null; });
 }
-$("#back-to-main").addEventListener("click", () => showMainTranscript(current));
+$("#back-to-main").addEventListener("click", () => {
+  if (current?.readOnlyParticipant) {
+    const group = state.groupIndex.find((entry) => entry.mainSessionId === current.readOnlyParticipant.mainSessionId);
+    const parentItem = state.sessions.find((item) => item.id === group?.mainSessionId);
+    if (parentItem) void openStoredSession(parentItem);
+  } else showMainTranscript(current);
+});
 $("#transcript").addEventListener("click", (event) => {
   const tool = event.target.closest(".activity.tool[data-call-id]");
   if (!tool || !current || current.selectedAgentId) return;
@@ -969,16 +1401,24 @@ async function refreshFromWatch() {
   finally { refreshing = false; }
 }
 async function watchSessionList() {
-  const channel = await persephone.service.openChannel({ type: "watch-sessions" });
+  if (!capabilities().sessionStore || !capabilities().transcriptFollow) return;
+  const provider = current?.provider || state.defaultProvider;
+  const channel = await persephone.service.openChannel({ type: "watch-sessions", ...(provider ? { provider } : {}) });
   channel.onMessage((message) => { if (message.type === "sessions-changed") void refreshFromWatch(); });
 }
 // The shown session is restorable page state, so the page reopens it after a reload, a restart, or a move to another window.
-const rememberSession = () => persephone.state.merge({ session: current?.id ? { id: current.id, cwd: current.cwd } : null });
+const rememberSession = () => persephone.state.merge({ session: current ? { ...(current.id ? { id: current.id } : {}), provider: current.provider, cwd: current.cwd || $("#cwd").value.trim() } : null });
 // Shows the New session form; a form already open (and not yet started) is reused.
 // From a folder (its + button, /clear) the form only shows the folder; from the toolbar it asks for one.
-function showNewSession(cwd = "") {
-  if (!current || current.id || current.channel) showView(createView());
-  // A blank view is reused, but each new chat starts in the default mode again.
+function showNewSession(cwd = "", provider = state.defaultProvider) {
+  // A new chat starts on the default engine (the service's first provider), whichever chat was shown before;
+  // a blank view is reused, but it too returns to the default engine, model, effort and mode. /clear passes its engine.
+  if (!current || current.id || current.channel) showView(createView({ provider }));
+  else if (provider && current.provider !== provider) {
+    current.provider = provider;
+    current.description = state.descriptions.get(current.provider) || null;
+    current.model = ""; current.effort = "";
+  }
   current.mode = ""; renderChips();
   if (cwd) $("#cwd").value = cwd;
   $("#cwd-field").classList.toggle("hidden", Boolean(cwd));
@@ -998,9 +1438,10 @@ function sessionTitle(text) {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 async function loadHistory(view) {
+  if (!capabilities(view).sessionStore) return false;
   const token = ++view.historyToken;
   setViewStatus(view, t("loadingHistory"), true);
-  const channel = await persephone.service.openChannel({ type: "session-history", sessionId: view.id, cwd: view.cwd });
+  const channel = await openViewChannel(view, { type: "session-history", sessionId: view.id, cwd: view.cwd });
   await new Promise((resolve) => {
     channel.onMessage((message) => {
       if (token !== view.historyToken) return;
@@ -1017,32 +1458,64 @@ async function loadHistory(view) {
 }
 // Selecting a session shows it live; the board resumes it (a Claude process of its own) only when you send from here.
 async function openStoredSession(item) {
-  const existing = viewFor(item.id);
+  let description = state.descriptions.get(item.provider || "");
+  if (!description) {
+    const { message } = await discovery({ type: "describe", ...(item.provider ? { provider: item.provider } : {}), ...(item.cwd ? { cwd: item.cwd } : {}) });
+    if (message?.type === "description") { description = message; state.descriptions.set(message.provider || "", message); }
+  }
+  if (!description?.capabilities?.sessionStore) return;
+  const existing = viewFor(item.id, item.provider);
   if (existing) {
+    if (item.participant) existing.readOnlyParticipant = item.participant;
     if (existing === current) return;
     showView(existing);
-    startAgentWatch(existing);
-    if (!existing.channel) await startFollow(existing);
+    if (!existing.readOnlyParticipant) { startAgentWatch(existing); if (!existing.channel) await startFollow(existing); }
     return;
   }
   const view = createView(item);
   expandedFolders.add(folderKey(item.cwd));
   showView(view);
-  startAgentWatch(view);
+  if (!view.readOnlyParticipant) startAgentWatch(view);
   if (!(await loadHistory(view))) return;
-  await startFollow(view);
+  if (view.readOnlyParticipant) await startParticipantObserver(view, view.readOnlyParticipant);
+  else await startFollow(view);
+}
+async function openParticipantSession(parent, participant, session) {
+  if (!participant.sessionId || !session) { showError(t("group.participantHistoryUnavailable")); return; }
+  const item = { ...session, participant: { ...participant, mainSessionId: parent.id, mainProvider: parent.provider } };
+  if (!state.descriptions.has(item.provider)) { const { message } = await discovery({ type: "describe", provider: item.provider, cwd: item.cwd }); if (message?.type === "description") state.descriptions.set(item.provider, message); }
+  await openStoredSession(item);
+}
+async function startParticipantObserver(view, participant) {
+  const group = state.groupIndex.find((entry) => entry.mainSessionId === participant.mainSessionId);
+  const parent = group && viewFor(group.mainSessionId, group.provider);
+  if (!parent?.channel || !parent.groupMain) return;
+  const channel = await persephone.service.openChannel({ type: "participant-observer", mainSessionId: participant.mainSessionId, sessionId: participant.sessionId });
+  view.follow = channel;
+  channel.onMessage((event) => { if (view.follow === channel && !["observer-ready", "observer-unavailable"].includes(event.type)) handleEvent(view, event); });
+  channel.onClose(() => { if (view.follow === channel) view.follow = null; });
 }
 async function connect(view) {
+  if (view.connectTask) return view.connectTask;
+  const task = connectView(view);
+  view.connectTask = task;
+  try { return await task; }
+  finally { if (view.connectTask === task) view.connectTask = null; }
+}
+async function connectView(view) {
   setViewError(view, "");
   const resume = view.id || undefined;
   const cwd = resume ? view.cwd : $("#cwd").value.trim();
   if (!cwd) { setViewError(view, t("cwdRequired")); return false; }
-  if (!state.sdkInstalled) { $("#consent").classList.remove("hidden"); setViewError(view, t("consentRequired")); return false; }
+  if (capabilities(view).providerSetup && !providerDescription(view).setup?.ready) { $("#consent").classList.remove("hidden"); setViewError(view, t("consentRequired")); return false; }
+  if (resume && !capabilities(view).sessionStore) return false;
   stopFollow(view);
+  view.groupLoading = true;
   const title = resume ? "" : sessionTitle(view.pendingPrompt);
   if (!resume) view.title = title;
   const open = {
-    type: "open", contractVersion: 1, model: view.model, cwd,
+    type: "open", contractVersion: 1, ...(view.provider ? { provider: view.provider } : {}), model: view.model, cwd,
+    groupChat: { position: "main" },
     // Required by the agent.session contract; the service runs local page sessions unrestricted and takes
     // Claude Code's own mode from `mode`.
     permissionMode: "full-auto", mode: viewMode(view),
@@ -1057,7 +1530,7 @@ async function connect(view) {
   channel.onMessage((event) => { if (view.channel === channel) handleEvent(view, event); });
   channel.onClose((reason) => {
     if (view.channel !== channel) return;
-    view.channel = null; view.busy = false; view.pendingPrompt = "";
+    view.channel = null; view.busy = false; view.pendingPrompt = ""; view.groupLoading = false;
     // Resuming continues in the mode the session last ran in.
     if (MODES.includes(view.footer?.mode)) view.mode = view.footer.mode;
     endStream(view); endLive(view); expireApprovals(view); updateTyping();
@@ -1072,16 +1545,21 @@ async function connect(view) {
 function handleEvent(view, event) {
   switch (event.type) {
     case "session-started": {
-      view.id = event.sessionId;
+      if (view.id) viewsByKey.delete(viewKey(view.id, view.provider));
+      view.id = event.sessionId; view.provider = event.provider || view.provider || "";
+      viewsByKey.set(viewKey(view.id, view.provider), view);
+      if (!view.description) void refreshDefaults(view).catch(() => {});
       if (view === current) rememberSession();
       // Keep the open session visible in the tree.
       expandedFolders.add(folderKey(view.cwd));
       startAgentWatch(view);
       setViewStatus(view); updateControls(); renderSessions();
       view.live = true;
+      view.groupMain = true;
+      void channelSend(view.channel, { type: "group", action: "list" });
       for (const resolve of view.liveWaiters.splice(0)) resolve(true);
       void refreshCommands(view);
-      if (view.pendingPrompt) { const text = view.pendingPrompt; view.pendingPrompt = ""; void sendPrompt(view, text); }
+      if (view.pendingPrompt && !view.groupLoading) { const text = view.pendingPrompt; view.pendingPrompt = ""; void sendPrompt(view, text); }
       break;
     }
     case "control-result": {
@@ -1094,7 +1572,7 @@ function handleEvent(view, event) {
     case "approval-request": endStream(view); view.thinkingNode = null; addApproval(view, event); break;
     case "compacted": endStream(view); addCompacted(view, event); break;
     case "compact-summary": addCompactSummary(view, event.text); break;
-    case "session-status": view.footer = event; if (view === current) { updateFooter(event); renderChips(); } break;
+    case "session-status": view.footer = event; if (view === current) { updateFooter(event, view); renderChips(); setViewStatus(view, event.compacting ? t("compacting") : "", Boolean(event.compacting)); } break;
     case "turn-started": view.busy = true; setViewStatus(view); updateTyping(); updateControls(); renderSessions(); break;
     case "text-delta":
       view.thinkingNode = null;
@@ -1135,32 +1613,74 @@ function handleEvent(view, event) {
       if (view !== current) view.unread = true;
       setViewStatus(view); updateControls();
       if (event.usage) {
-        if (Number.isFinite(event.usage.costUsd)) view.sessionCost += event.usage.costUsd;
+        if (capabilities(view).costUsage && Number.isFinite(event.usage.costUsd)) view.sessionCost += event.usage.costUsd;
         view.usage = event.usage;
-        if (view === current) updateFooterUsage(view.usage, view.sessionCost);
+        if (view === current) updateFooterUsage(view.usage, view.sessionCost, view);
       }
       if (event.reason && event.reason !== "completed") addDivider(view, event.reason);
       renderSessions();
       void refreshSessions(); void refreshDescription();
       break;
     }
+    case "group-data":
+      view.groupMain = true;
+      view.groupLoading = false;
+      view.groupProfiles = event.profiles || [];
+      view.groupMode = Boolean(event.groupMode);
+      view.groupParticipants = event.participants || [];
+      renderParticipantBadges(view); updateControls(); renderSessions();
+      for (const resolve of (view.groupDataWaiters || []).splice(0)) resolve();
+      void refreshSessions();
+      if (view.pendingPrompt) { const text = view.pendingPrompt; view.pendingPrompt = ""; void sendPrompt(view, text); }
+      break;
+    case "group-participant-added":
+      view.groupMode = true;
+      if (event.participant && !view.groupParticipants.some((item) => item.id === event.participant.id)) view.groupParticipants.push(event.participant);
+      renderParticipantBadges(view); updateControls(); renderSessions(); void refreshSessions();
+      break;
+    case "group-visible-message": {
+      const author = event.author || { name: "user", roleTitle: "", kind: "user" };
+      if (event.noticeAction === "left") {
+        view.groupParticipants = view.groupParticipants.filter((item) => item.name !== author.name);
+        renderParticipantBadges(view); updateControls(); renderSessions();
+      }
+      const displayText = event.noticeAction ? t(`group.${event.noticeAction}`, { name: author.name, role: author.roleTitle || author.role }) : event.text || "";
+      const item = { author, text: event.timelineText || event.text || "" };
+      view.groupMessages.push(item);
+      const notice = author.kind === "notice";
+      const summary = event.noticeAction === "joined" ? (event.author?.summary || "") : "";
+      addGroupMessage(view, displayText, author, { notice, summary, reminder: event.reminder });
+      break;
+    }
+    case "group-participant-error":
+      setViewError(view, t("group.error.resume"));
+      break;
+    case "group-error":
+      view.groupLoading = false;
+      // The service's reason is plain text (bounded, no secrets); it is what tells the user what to change.
+      setViewError(view, event.message ? `${t("group.error.operation")} ${event.message}` : t("group.error.operation"));
+      if (view.pendingPrompt) { const text = view.pendingPrompt; view.pendingPrompt = ""; void sendPrompt(view, text); }
+      break;
+    case "approval-resolved": {
+      const actions = view.approvals.get(event.requestId);
+      if (actions) { actions.replaceChildren(element("span", "approval-outcome", t(`approval.${event.outcome || "denied"}`))); view.approvals.delete(event.requestId); }
+      updateTyping(); break;
+    }
     case "error":
       setViewError(view, `${event.code}: ${event.message}`);
       if (event.fatal) setViewStatus(view, t("error"));
-      if (event.code === "sdk-not-installed") { state.sdkInstalled = false; $("#consent").classList.remove("hidden"); }
+      if (event.code === "provider-setup-required") { $("#consent").classList.remove("hidden"); }
       break;
     case "notice":
-      // The footer already shows the model the service picked.
-      if (/^Claude selected model /.test(event.message)) break;
-      if (/^Claude is compacting /.test(event.message)) { setViewStatus(view, t("compacting"), true); break; }
       addActivity(view, `${t("notice")} · ${event.message.split("\n")[0]}`, event.detail || event.message); break;
   }
 }
 // ── Approvals: auto mode asks about what its classifier cannot decide, and plan mode ends with the plan to approve.
 // The card stays in the chat with the answer given; one left unanswered when the turn ends no longer applies.
 function addApproval(view, event) {
-  const isPlan = event.kind === "plan";
+  const isPlan = event.kind === "plan" && Boolean(modeDescriptor(viewMode(view), view)?.planApproval);
   const node = element("div", `msg approval${isPlan ? " plan" : ""}`);
+  if (event.participantApproval && event.author) addAuthorBadge(node, { ...event.author, kind: "agent" }, event.author.provider);
   node.append(element("div", "approval-title", isPlan ? t("plan.title") : t("approval.title", { tool: event.tool || t("tool") })));
   if (isPlan) {
     const body = element("div", "markdown-body");
@@ -1171,16 +1691,23 @@ function addApproval(view, event) {
   const actions = element("div", "approval-actions");
   const answer = (decision, extra, outcome) => {
     actions.querySelectorAll("button").forEach((button) => { button.disabled = true; });
-    channelSend(view.channel, { type: "approval-response", requestId: event.requestId, decision, ...extra })
+    const response = event.participantApproval
+      ? channelSend(view.channel, { type: "group", action: "approval-response", requestId: event.requestId, decision })
+      : channelSend(view.channel, { type: "approval-response", requestId: event.requestId, decision, ...extra });
+    response
       .then(() => { view.approvals.delete(event.requestId); actions.replaceChildren(element("span", "approval-outcome", outcome)); updateTyping(); })
       .catch((error) => { actions.querySelectorAll("button").forEach((button) => { button.disabled = false; }); setViewError(view, error.message); });
   };
   const button = (label, className, run) => { const node = element("button", className, label); node.type = "button"; node.addEventListener("click", run); return node; };
-  if (isPlan) actions.append(
-    button(t("plan.approveAuto"), "primary", () => answer("allow", { mode: "auto" }, t("plan.approved", { mode: t("mode.auto") }))),
-    button(t("plan.approveBypass"), "", () => answer("allow", { mode: "bypassPermissions" }, t("plan.approved", { mode: t("mode.bypassPermissions") }))),
-    button(t("plan.keepPlanning"), "", () => answer("deny", {}, t("plan.rejected"))),
-  );
+  if (isPlan) {
+    const continuationModes = modeDescriptors(view).filter((mode) => !mode.planApproval).reverse();
+    for (const mode of continuationModes) actions.append(button(
+      t("plan.approveMode", { mode: t(mode.labelKey) }),
+      mode === continuationModes[0] ? "primary" : "",
+      () => answer("allow", { mode: mode.id }, t("plan.approved", { mode: t(mode.labelKey) })),
+    ));
+    actions.append(button(t("plan.keepPlanning"), "", () => answer("deny", {}, t("plan.rejected"))));
+  }
   else actions.append(
     button(t("approval.allow"), "primary", () => answer("allow", {}, t("approval.allowed"))),
     button(t("approval.allowSession"), "", () => answer("allow-session", {}, t("approval.allowed"))),
@@ -1200,8 +1727,12 @@ function expireApprovals(view) {
 
 async function sendPrompt(view, text) {
   view.commandTurn = text.startsWith("/");
-  if (view.commandTurn) addCommandMessage(view, text); else addUserMessage(view, text);
-  try { await channelSend(view.channel, { type: "send", id: crypto.randomUUID(), text }); }
+  if (view.commandTurn) addCommandMessage(view, text);
+  else if (!view.groupMode) addUserMessage(view, text);
+  try {
+    if (!view.commandTurn && view.groupMode) await channelSend(view.channel, { type: "group", action: "user-message", text });
+    else await channelSend(view.channel, { type: "send", id: crypto.randomUUID(), text });
+  }
   catch (error) { setViewError(view, error.message); }
 }
 
@@ -1211,7 +1742,7 @@ const prompt = $("#prompt");
 const promptText = () => { const text = prompt.innerText; return text === "\n" ? "" : text.endsWith("\n") ? text.slice(0, -1) : text; };
 const clearPrompt = () => { prompt.textContent = ""; };
 // Chromium can leave a stray <br> after deleting everything, which would hide the :empty placeholder.
-prompt.addEventListener("input", () => { if (!promptText()) clearPrompt(); updateCommandMenu(); });
+prompt.addEventListener("input", () => { if (!promptText()) clearPrompt(); updateCommandMenu(); updateControls(); });
 prompt.addEventListener("keydown", (event) => {
   if (commandMenuKey(event)) return;
   if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); $("#composer").requestSubmit(); }
@@ -1235,7 +1766,7 @@ $("#composer").addEventListener("submit", async (event) => {
   hideCommandMenu();
   const boardCommand = text && boardCommandFor(text);
   if (boardCommand) { clearPrompt(); await boardCommand(); return; }
-  if (!text || view.busy || view.pendingPrompt) return;
+  if (!text || (view.busy && (!view.groupMode || text.startsWith("/"))) || view.pendingPrompt) return;
   clearPrompt();
   if (view.channel) { await sendPrompt(view, text); return; }
   // Not running yet: start a new session from the form, or resume the shown one, then send.
@@ -1258,9 +1789,18 @@ const BOARD_COMMANDS = {
   clear: { run: () => clearSession(), anyArgs: true },
   rename: { run: () => renameActiveSession() },
 };
+function boardCommandAvailable(name, view = current) {
+  const caps = capabilities(view);
+  return name === "mcp" ? caps.mcpPanel
+    : name === "model" ? caps.modelSelection
+      : name === "effort" ? caps.effortSelection
+        : name === "context" ? caps.contextUsage
+          : name === "clear" || name === "rename" ? caps.sessionStore : false;
+}
 state.commands = prefs.read("commands", []);
 // The list is cached from the last live session so the menu also works before the board connects.
 async function refreshCommands(view) {
+  if (!capabilities(view).slashCommands) return;
   try {
     const { commands } = await control(view, "commands");
     state.commands = commands || [];
@@ -1269,19 +1809,19 @@ async function refreshCommands(view) {
 }
 function boardCommandFor(text) {
   const match = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(text);
-  const command = match && Object.hasOwn(BOARD_COMMANDS, match[1]) ? BOARD_COMMANDS[match[1]] : null;
+  const command = match && Object.hasOwn(BOARD_COMMANDS, match[1]) && boardCommandAvailable(match[1]) ? BOARD_COMMANDS[match[1]] : null;
   if (!command || (match[2]?.trim() && !command.anyArgs)) return null;
   return command.run;
 }
 function commandList() {
-  const byName = new Map(state.commands.map((command) => [command.name, command]));
-  for (const name of Object.keys(BOARD_COMMANDS)) byName.set(name, { ...byName.get(name), name, description: t(`cmd.${name}`), board: true });
+  const byName = new Map((capabilities().slashCommands ? state.commands : []).map((command) => [command.name, command]));
+  for (const name of Object.keys(BOARD_COMMANDS)) if (boardCommandAvailable(name)) byName.set(name, { ...byName.get(name), name, description: t(`cmd.${name}`), board: true });
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 const commandMenu = $("#command-menu");
 const menu = { items: [], index: 0 };
 function updateCommandMenu() {
-  if (current?.selectedAgentId) { hideCommandMenu(); return; }
+  if (!capabilities().slashCommands || current?.selectedAgentId) { hideCommandMenu(); return; }
   const match = /^\/(\S*)$/.exec(promptText());
   if (!match) { hideCommandMenu(); return; }
   const query = match[1].toLowerCase();
@@ -1390,6 +1930,7 @@ async function loadPanel(title, action, render) {
 const MCP_REFRESH_MS = 3000;
 let mcpActionRunning = false;
 async function showMcpPanel() {
+  if (!capabilities().mcpPanel) return;
   const panel = await loadPanel(t("mcpServers"), (view) => control(view, "mcp-status"), renderMcp);
   while (panel?.current()) {
     await new Promise((resolve) => setTimeout(resolve, MCP_REFRESH_MS));
@@ -1456,6 +1997,7 @@ function renderMcp(view, body, { servers = [] }) {
 
 // /context — what fills the context window, as a stacked bar and a table.
 async function showContextPanel() {
+  if (!capabilities().contextUsage) return;
   if (!current.channel && !current.id) { showError(t("contextNeedsSession")); return; }
   await loadPanel(t("contextUsage"), (view) => control(view, "context"), renderContext);
 }
@@ -1503,10 +2045,17 @@ function renderContext(view, body, { usage }) {
   section(t("mcpToolsTitle"), [...usage.mcpTools].sort((a, b) => b.tokens - a.tokens).map((tool) => [tool.server ? `${tool.name} · ${tool.server}` : tool.name, tool.tokens]));
 }
 
-// /clear — the terminal starts a fresh conversation in place; here, a new session in the same folder.
-// The session it leaves keeps running if it is live; Disconnect in its menu ends it.
+// /clear — the terminal starts a fresh conversation in place; here, a new session in the same folder, engine,
+// model and effort. The chat it replaces is deleted (its process ended first), so the list does not keep it.
 function clearSession() {
-  showNewSession(current.cwd);
+  const old = current;
+  if (!old.id || old.readOnlyParticipant) { showNewSession(old.cwd); prompt.focus(); return; }
+  // The picked alias ("haiku") over the full id a running session reports, which the chip cannot label.
+  const model = old.model || viewModel(old), effort = old.effort || viewEffort(old);
+  showNewSession(old.cwd, old.provider);
+  current.model = model; current.effort = effort;
+  renderChips();
+  void removeSession(sessionFor(old.id, old.provider) || { id: old.id, provider: old.provider, cwd: old.cwd, title: old.title });
   prompt.focus();
 }
 function renameActiveSession() {
@@ -1518,14 +2067,23 @@ $("#accept").addEventListener("click", () => void consentSdk(true));
 $("#decline").addEventListener("click", () => void consentSdk(false));
 persephone.state.init({ session: null }, { restorableKeys: ["session"] });
 showNewSession();
+renderSessions();
 void (async () => {
   const saved = (await persephone.state.get())?.session;
   await refreshDescription();
-  if (state.sdkInstalled) void watchSessionList().catch(() => {});
+  if (saved?.provider) {
+    const cached = state.descriptions.get(saved.provider);
+    if (cached) { current.provider = saved.provider; applyDescription(cached, current); }
+    else {
+      const { message } = await discovery({ type: "describe", provider: saved.provider, ...(saved.cwd ? { cwd: saved.cwd } : {}) });
+      if (message?.type === "description") { current.provider = saved.provider; applyDescription(message, current); }
+    }
+  } else if (current && !current.provider) { current.provider = state.defaultProvider; current.description = state.descriptions.get(current.provider) || null; }
+  if (capabilities().sessionStore && capabilities().transcriptFollow && state.setup?.ready) void watchSessionList().catch(() => {});
   // A session missing from the list (older than the listing) still resumes by id.
-  if (saved?.id && saved.cwd && !current.id && state.sdkInstalled) await openStoredSession(state.sessions.find((item) => item.id === saved.id) || { id: saved.id, cwd: saved.cwd, title: "" });
+  if (saved?.id && saved.cwd && !current.id && capabilities().sessionStore && state.setup?.ready) await openStoredSession(sessionFor(saved.id, saved.provider) || { id: saved.id, provider: saved.provider || "", cwd: saved.cwd, title: "" });
 })().catch((error) => showError(error.message));
 // The board's default model and effort settings change what a view that is not running would use.
 state.settingsOff = persephone.settings.onChange(({ id }) => {
-  if ((id === "default-model" || id === "default-effort") && current && !isLive(current)) void refreshDefaults(current).catch(() => {});
+  if (["default-model", "default-effort", "codex-default-model", "codex-default-effort"].includes(id) && current && !isLive(current)) void refreshDefaults(current).catch(() => {});
 });

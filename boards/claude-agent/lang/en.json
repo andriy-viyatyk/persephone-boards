@@ -46,6 +46,8 @@
     "model": "Model",
     "effort": "Effort",
     "instructions": "Instructions",
+    "configure": "Configure",
+    "instructionsUnsavedTitle": "Unsaved instruction changes",
     "prompt": "Message the agent… (Ctrl+Enter to send)",
     "send": "Send",
     "interrupt": "Interrupt",

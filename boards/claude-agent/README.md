@@ -10,7 +10,7 @@ The Instructions editor uses separate files for each provider: `%LOCALAPPDATA%\P
 
 ## Group chats
 
-Choose **+ Invite agent** from any chat, including a new or history-only chat, then choose a profile to invite it in one click. **Edit agents…** opens the service-backed profile editor, where profiles can be created, duplicated, renamed, edited, deleted, or reset to the four shipped defaults: Nova (Reviewer), Rex (Critic), Atlas (Researcher), and Iris (Planner). Provider, model, effort, and permission preset are stored with each profile. Claude's Opus, Sonnet, and Haiku aliases remain available; Codex profiles require an exact model offered by the current Codex app-server. Write-capable permission presets show a shared-working-folder warning.
+Choose **+ Invite agent** from any chat, including a new or history-only chat, then choose a profile to invite it in one click. **Edit agents…** opens the service-backed profile editor, where profiles can be created, duplicated, renamed, edited, deleted, or reset to the four shipped defaults: Nova (Reviewer), Rex (Critic), Atlas (Researcher), and Kai (Developer, allowed to edit files; commands need approval). Provider, model, effort, and permission preset are stored with each profile. Claude's Opus, Sonnet, and Haiku aliases remain available; Codex profiles require an exact model offered by the current Codex app-server. Write-capable permission presets show a shared-working-folder warning.
 
 Each invited agent keeps a separate native session and receives the visible group timeline; tool activity and unposted replies stay in that agent's own transcript. User messages, the main agent's final replies, and explicit `post_message` posts are shared with author badges. Profile details are copied into participant records when invited, so later profile changes do not change existing participants. Ask-capable profiles can request approval in the main chat under their author badge; read-only profiles continue to have uncertain actions denied.
 
@@ -29,7 +29,7 @@ The left sidebar lists your recent sessions from both engines as a two-level tre
 
 ### Several sessions at once
 
-The board can run several sessions side by side, like terminal tabs. A session you send a message to (or open a panel for) runs on the board with its engine process, and it keeps running when you click another session: a reply in progress continues, and its turns are there when you come back. Each session keeps its own transcript, scroll position, unsent message, status line, and footer values. An engine icon before each session name (Claude or Codex) shows its state in the engine's color: muted when the board does not run it, bright when it does, pulsing while the agent works. A collapsed folder shows a green dot when one of its sessions is running, and a session that finished a reply while you were looking at another one has a bold title until you open it. Right-click a running session and choose **Disconnect** to end its process; its icon then turns muted, and selecting it again replays its stored conversation. **New session**, **+**, and `/clear` leave running sessions running. Running sessions end when the page is closed or reloaded; the page then reopens only the session it was showing, without running it.
+The board can run several sessions side by side, like terminal tabs. A session you send a message to (or open a panel for) runs on the board with its engine process, and it keeps running when you click another session: a reply in progress continues, and its turns are there when you come back. Each session keeps its own transcript, scroll position, unsent message, status line, and footer values. An engine icon before each session name (Claude or Codex) shows its state in the engine's color: muted when the board does not run it, bright when it does, pulsing while the agent works. A collapsed folder shows a green dot when one of its sessions is running, and a session that finished a reply while you were looking at another one has a bold title until you open it. Right-click a running session and choose **Disconnect** to end its process; its icon then turns muted, and selecting it again replays its stored conversation. **New session** and **+** leave running sessions running. Running sessions end when the page is closed or reloaded; the page then reopens only the session it was showing, without running it.
 
 ### Slash commands
 
@@ -40,7 +40,7 @@ The terminal draws its own screens for a few commands; the SDK has none, so the 
 - `/mcp` lists the session's MCP servers with their state, scope, transport, and tools, with **Reconnect**, **Disable**/**Enable**, and **Authenticate** for servers that need sign-in (it opens the sign-in page; press **Reconnect** afterwards). The panel refreshes itself while open, since claude.ai connectors appear a few seconds after the session starts.
 - `/model` and `/effort` with no argument open the model and effort chips' menus.
 - `/context` shows what fills the context window as a stacked bar and a table by category, with the auto-compaction threshold and the memory files and MCP tools that use tokens.
-- `/clear` returns to the start form with the same folder, ready for a new session. The session you leave keeps running if the board runs it.
+- `/clear` returns to the start form with the same folder, engine, model, and effort, ready for a new session, and deletes the session you leave (its process is ended and its transcript removed from disk), as the terminal leaves it behind.
 - `/rename` with no argument opens the rename dialog.
 
 These panels need a session the board runs: on a selected session that the board is only following, they resume it first, as sending a message does. A stored session's history shows its commands, compaction, and the summary it continues from; the output of local commands such as `/usage` is not part of the stored history the SDK returns, so it appears only live.
@@ -57,7 +57,7 @@ The board asks for `service` and `appScripting`. `service` runs its resident Nod
 
 Manifest `network` stays disabled. The board's Node module service downloads the pinned SDK directly from npm only after consent; that Node process can access the network independently of bridge networking. The board never reads CLI credential files or handles login tokens. It relies on the unmodified installed CLI and its existing login.
 
-Configure the executable override, model, effort, and the cross-board ceiling in **Settings → Editors → Agent Chat**; edit provider instructions with the toolbar's **Instructions** button. The service reads these itself; consumer boards' messages cannot replace the provider instructions or the ceiling.
+Configure the executable override, model, effort, and the cross-board ceiling in **Settings → Editors → Agent Chat**; edit provider instructions in the toolbar's **Configure** dialog (Instructions tab; the Agent profiles tab is the profile editor). The service reads these itself; consumer boards' messages cannot replace the provider instructions or the ceiling.
 
 ## Privacy
 

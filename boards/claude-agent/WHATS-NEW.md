@@ -3,6 +3,8 @@
 - Added editable agent profiles, four shipped defaults, and one-click invitations from new, resumed, or live chats.
 - Nested participant histories in the sidebar with read-only views, a restored group index, and provider-colored group icons.
 - Added shared-folder permission warnings and participant approval cards for ask-capable profiles.
+- The toolbar's **Instructions** button is now **Configure**: one dialog with Instructions and Agent profiles tabs.
+- `/clear` keeps the chat's engine, model, and effort for the new session and deletes the chat it replaces.
 
 ## 1.1.0
 - Renamed the board to Agent Chat, with a new icon; its board id remains `claude-agent`.

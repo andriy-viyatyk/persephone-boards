@@ -521,7 +521,7 @@ async function openInviteMenu() {
     const reason = duplicate ? t("profiles.alreadyJoined") : availability.reason;
     return { label: `${profile.name} (${profile.roleTitle})`, desc: reason, disabled: Boolean(reason), reason, run: () => inviteProfile(view, profile) };
   });
-  items.push({ label: t("profiles.editAgents"), run: () => openProfileEditor() });
+  items.push({ label: t("profiles.editAgents"), run: () => openConfig("profiles") });
   openChoiceMenu($("#group-invite"), items);
 }
 $("#group-invite").addEventListener("click", () => void openInviteMenu().catch((error) => showError(error.message || t("profiles.error"))));
@@ -946,7 +946,8 @@ function renderProfileEditor() {
   const permission = $("#profile-permission");
   permission.replaceChildren(...[["read-only", t("profiles.permission.readOnly")], ["ask", t("profiles.permission.ask")], ["auto-edit", t("profiles.permission.autoEdit")], ["full-auto", t("profiles.permission.fullAuto")]].map(([value, label]) => { const option = element("option", "", label); option.value = value; return option; }));
   const disabled = !profile;
-  for (const id of ["profile-name", "profile-role-title", "profile-instructions", "profile-summary", "profile-provider", "profile-model", "profile-effort", "profile-permission", "profile-duplicate", "profile-delete", "profiles-save"]) $("#" + id).disabled = disabled;
+  for (const id of ["profile-name", "profile-role-title", "profile-instructions", "profile-summary", "profile-provider", "profile-model", "profile-effort", "profile-permission", "profile-duplicate", "profile-delete"]) $("#" + id).disabled = disabled;
+  updateConfigSave();
   if (!profile) return;
   $("#profile-name").value = profile.name; $("#profile-role-title").value = profile.roleTitle;
   $("#profile-instructions").value = profile.instructions; $("#profile-summary").value = profile.summary;
@@ -965,13 +966,13 @@ async function saveSelectedProfile() {
     renderProfileEditor(); return true;
   } catch (error) { showError(error.message); return false; }
 }
-async function unsavedChoice() {
-  if (!profileEditor.dirty) return "discard";
+async function unsavedChoice(dirty = profileEditor.dirty, titleKey = "profiles.unsavedTitle") {
+  if (!dirty) return "discard";
   return new Promise((resolve) => {
     const dialog = $("#dialog"), confirm = $("#dialog-confirm"), form = dialog.querySelector("form");
     const stay = element("button", "", t("profiles.stay")); stay.type = "button"; form.querySelector(".actions").prepend(stay);
     stay.onclick = () => { stay.remove(); dialog.close("stay"); };
-    $("#dialog-title").textContent = t("profiles.unsavedTitle"); $("#dialog-message").textContent = t("profiles.unsavedMessage"); $("#dialog-message").classList.remove("hidden"); $("#dialog-input").classList.add("hidden");
+    $("#dialog-title").textContent = t(titleKey); $("#dialog-message").textContent = t("profiles.unsavedMessage"); $("#dialog-message").classList.remove("hidden"); $("#dialog-input").classList.add("hidden");
     const cancel = form.querySelector('button[value="cancel"]'); cancel.textContent = t("profiles.discard");
     confirm.textContent = t("save"); confirm.classList.add("primary"); dialog.returnValue = ""; dialog.showModal();
     dialog.addEventListener("close", () => { stay.remove(); cancel.textContent = t("cancel"); resolve(dialog.returnValue === "confirm" ? "save" : dialog.returnValue === "stay" ? "stay" : "discard"); }, { once: true });
@@ -986,14 +987,6 @@ async function selectProfile(id) {
   }
   profileEditor.selectedId = id; renderProfileEditor();
 }
-async function openProfileEditor() {
-  await refreshProfileCatalog();
-  profileEditor = { profiles: state.profiles, descriptions: state.catalog, selectedId: state.profiles[0]?.id || "", original: null, dirty: false, newIds: new Set() };
-  renderProfileEditor(); $("#profiles-dialog").showModal();
-}
-$("#profiles-dialog").addEventListener("cancel", async (event) => { if (profileEditor.dirty) { event.preventDefault(); const choice = await unsavedChoice(); if (choice === "save" && await saveSelectedProfile()) $("#profiles-dialog").close(); else if (choice === "discard") $("#profiles-dialog").close(); } });
-$("#profiles-cancel").addEventListener("click", async () => { const choice = await unsavedChoice(); if (choice === "save" && !(await saveSelectedProfile())) return; if (choice !== "stay") $("#profiles-dialog").close(); });
-$("#profiles-save").addEventListener("click", () => void saveSelectedProfile());
 $("#profile-new").addEventListener("click", () => {
   void (async () => { const choice = await unsavedChoice(); if (choice === "stay" || choice === "save" && !(await saveSelectedProfile())) return;
     const profile = { id: crypto.randomUUID(), name: "", roleTitle: "", instructions: "", summary: "", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only" };
@@ -1030,6 +1023,9 @@ async function renameSession(item) {
 async function deleteSession(item) {
   const answer = await askDialog({ title: t("deleteSession"), message: t("deleteConfirm", { title: item.title }), confirmLabel: t("delete"), danger: true });
   if (answer === null) return;
+  await removeSession(item);
+}
+async function removeSession(item) {
   const view = viewFor(item.id, item.provider);
   if (view) { if (view === current) showNewSession(); dropView(view); }
   // The row goes at once: the service may first have to end a running session (up to ~2 s) or start
@@ -1125,7 +1121,7 @@ function updateToolbar() {
       ...(interruptible ? [{ id: "interrupt", type: "button", label: t("interrupt"), icon: { name: "stop" } }] : []),
       { id: "new-session", type: "button", label: t("newSession"), icon: { name: "plus" } },
       { id: "refresh-sessions", type: "button", title: t("refresh"), icon: { name: "refresh" } },
-      { id: "instructions", type: "button", label: t("instructions"), icon: { name: "edit" } },
+      { id: "configure", type: "button", label: t("configure"), icon: { name: "settings" } },
     ]);
   }
   persephone.toolbar.setText(current?.cwd || "");
@@ -1134,7 +1130,7 @@ persephone.toolbar.onAction(({ id }) => {
   if (id === "new-session") showNewSession();
   else if (id === "refresh-sessions") void refreshSessions();
   else if (id === "interrupt" && current?.channel) void channelSend(current.channel, { type: "interrupt" });
-  else if (id === "instructions") void editInstructions();
+  else if (id === "configure") void openConfig("instructions");
 });
 function updateControls() {
   $("#intro").classList.toggle("hidden", Boolean(current?.id || current?.channel));
@@ -1147,25 +1143,53 @@ function updateControls() {
 }
 
 // ── Instructions dialog: the provider instructions the service adds to every new or reopened session ──
-let instructionsDefault = "";
-async function editInstructions() {
+// ── Configure dialog: Instructions and Agent profiles tabs ───────────────────
+// Save acts on the visible tab and keeps the dialog open; Close asks about unsaved changes in either tab.
+let configTab = "instructions";
+const instructionsEditor = { provider: "", saved: "", defaultText: "" };
+function instructionsDirty() { return $("#instructions-text").value !== instructionsEditor.saved; }
+function updateConfigSave() { $("#config-save").disabled = configTab === "profiles" && !profileEditor.profiles.some((profile) => profile.id === profileEditor.selectedId); }
+function setConfigTab(tab) {
+  configTab = tab;
+  for (const button of document.querySelectorAll("#config-dialog [role=tab]")) { const active = button.dataset.tab === tab; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); }
+  $("#config-instructions").classList.toggle("hidden", tab !== "instructions");
+  $("#config-profiles").classList.toggle("hidden", tab !== "profiles");
+  $("#instructions-reset").classList.toggle("hidden", tab !== "instructions");
+  updateConfigSave();
+}
+async function openConfig(tab) {
   showError("");
   const provider = current?.provider || state.defaultProvider;
   const { message } = await discovery({ type: "instructions", ...(provider ? { provider } : {}), action: "get" });
   if (message?.type !== "instructions") { showError(message?.type === "error" ? `${message.code}: ${message.message}` : t("error")); return; }
-  instructionsDefault = message.defaultText;
-  const dialog = $("#instructions-dialog"), text = $("#instructions-text");
-  text.value = message.text;
-  dialog.returnValue = "";
-  dialog.showModal();
-  text.focus(); text.setSelectionRange(0, 0); text.scrollTop = 0;
-  const saved = await new Promise((resolve) => dialog.addEventListener("close", () => resolve(dialog.returnValue === "save"), { once: true }));
-  if (!saved || text.value === message.text) return;
-  const reply = await discovery({ type: "instructions", ...(provider ? { provider } : {}), action: "set", text: text.value });
-  if (reply.message?.type !== "instructions") showError(reply.message?.type === "error" ? `${reply.message.code}: ${reply.message.message}` : t("error"));
+  Object.assign(instructionsEditor, { provider, saved: message.text, defaultText: message.defaultText });
+  const text = $("#instructions-text"); text.value = message.text;
+  await refreshProfileCatalog();
+  profileEditor = { profiles: state.profiles, descriptions: state.catalog, selectedId: state.profiles[0]?.id || "", original: null, dirty: false, newIds: new Set() };
+  renderProfileEditor(); setConfigTab(tab);
+  $("#config-dialog").showModal();
+  if (tab === "instructions") { text.focus(); text.setSelectionRange(0, 0); text.scrollTop = 0; }
 }
+async function saveInstructions() {
+  const text = $("#instructions-text").value, { provider } = instructionsEditor;
+  if (text === instructionsEditor.saved) return true;
+  const reply = await discovery({ type: "instructions", ...(provider ? { provider } : {}), action: "set", text });
+  if (reply.message?.type !== "instructions") { showError(reply.message?.type === "error" ? `${reply.message.code}: ${reply.message.message}` : t("error")); return false; }
+  instructionsEditor.saved = text; return true;
+}
+async function closeConfig() {
+  const profileChoice = await unsavedChoice(); if (profileChoice === "stay") return;
+  if (profileChoice === "save" && !(await saveSelectedProfile())) return;
+  const instructionsChoice = await unsavedChoice(instructionsDirty(), "instructionsUnsavedTitle"); if (instructionsChoice === "stay") return;
+  if (instructionsChoice === "save" && !(await saveInstructions())) return;
+  $("#config-dialog").close();
+}
+for (const button of document.querySelectorAll("#config-dialog [role=tab]")) button.addEventListener("click", () => setConfigTab(button.dataset.tab));
+$("#config-dialog").addEventListener("cancel", (event) => { event.preventDefault(); void closeConfig(); });
+$("#config-cancel").addEventListener("click", () => void closeConfig());
+$("#config-save").addEventListener("click", () => void (configTab === "instructions" ? saveInstructions() : saveSelectedProfile()));
 // Reset only fills the editor; nothing is stored until Save.
-$("#instructions-reset").addEventListener("click", () => { $("#instructions-text").value = instructionsDefault; $("#instructions-text").focus(); });
+$("#instructions-reset").addEventListener("click", () => { $("#instructions-text").value = instructionsEditor.defaultText; $("#instructions-text").focus(); });
 // ── Session lifecycle ──────────────────────────────────────────────────────
 // A live view is one whose channel the service has started; panels wait for it.
 function endLive(view) {
@@ -1386,12 +1410,12 @@ async function watchSessionList() {
 const rememberSession = () => persephone.state.merge({ session: current ? { ...(current.id ? { id: current.id } : {}), provider: current.provider, cwd: current.cwd || $("#cwd").value.trim() } : null });
 // Shows the New session form; a form already open (and not yet started) is reused.
 // From a folder (its + button, /clear) the form only shows the folder; from the toolbar it asks for one.
-function showNewSession(cwd = "") {
+function showNewSession(cwd = "", provider = state.defaultProvider) {
   // A new chat starts on the default engine (the service's first provider), whichever chat was shown before;
-  // a blank view is reused, but it too returns to the default engine, model, effort and mode.
-  if (!current || current.id || current.channel) showView(createView({ provider: state.defaultProvider }));
-  else if (state.defaultProvider && current.provider !== state.defaultProvider) {
-    current.provider = state.defaultProvider;
+  // a blank view is reused, but it too returns to the default engine, model, effort and mode. /clear passes its engine.
+  if (!current || current.id || current.channel) showView(createView({ provider }));
+  else if (provider && current.provider !== provider) {
+    current.provider = provider;
     current.description = state.descriptions.get(current.provider) || null;
     current.model = ""; current.effort = "";
   }
@@ -2021,10 +2045,17 @@ function renderContext(view, body, { usage }) {
   section(t("mcpToolsTitle"), [...usage.mcpTools].sort((a, b) => b.tokens - a.tokens).map((tool) => [tool.server ? `${tool.name} · ${tool.server}` : tool.name, tool.tokens]));
 }
 
-// /clear — the terminal starts a fresh conversation in place; here, a new session in the same folder.
-// The session it leaves keeps running if it is live; Disconnect in its menu ends it.
+// /clear — the terminal starts a fresh conversation in place; here, a new session in the same folder, engine,
+// model and effort. The chat it replaces is deleted (its process ended first), so the list does not keep it.
 function clearSession() {
-  showNewSession(current.cwd);
+  const old = current;
+  if (!old.id || old.readOnlyParticipant) { showNewSession(old.cwd); prompt.focus(); return; }
+  // The picked alias ("haiku") over the full id a running session reports, which the chip cannot label.
+  const model = old.model || viewModel(old), effort = old.effort || viewEffort(old);
+  showNewSession(old.cwd, old.provider);
+  current.model = model; current.effort = effort;
+  renderChips();
+  void removeSession(sessionFor(old.id, old.provider) || { id: old.id, provider: old.provider, cwd: old.cwd, title: old.title });
   prompt.focus();
 }
 function renameActiveSession() {

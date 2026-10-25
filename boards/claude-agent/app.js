@@ -2,7 +2,9 @@
 applyI18n();
 
 const $ = (selector) => document.querySelector(selector);
-const state = { sdkInstalled: null, models: [{ id: "", label: "Default", efforts: [] }], defaults: {}, settingsOff: null, sessions: [] };
+const state = { setup: null, capabilities: {}, descriptions: new Map(), defaultProvider: "", description: null, models: [{ id: "", label: "Default", efforts: [] }], defaults: {}, settingsOff: null, sessions: [] };
+const sessionsByKey = new Map();
+const sessionFor = (id, provider = "") => provider ? sessionsByKey.get(viewKey(id, provider)) : state.sessions.find((item) => item.id === id);
 const showError = (message) => { const node = $("#error"); node.textContent = message; node.classList.toggle("hidden", !message); };
 // Transient state line above the prompt; empty (hidden) while the session is ready.
 const setStatus = (text = "", busy = false) => { const node = $("#status"); node.textContent = text; node.classList.toggle("busy", busy); node.classList.toggle("hidden", !text); };
@@ -12,10 +14,12 @@ const setStatus = (text = "", busy = false) => { const node = $("#status"); node
 // their Claude process) keep running while another view is shown, like terminal tabs. A view that is only being
 // read is dropped when you leave it and reloaded from its transcript the next time it opens.
 const views = new Set();
+const viewsByKey = new Map();
+const viewKey = (id, provider) => `${provider || ""}\u0000${id || ""}`;
 let current = null;
 function createView(item = {}) {
   const view = {
-    id: item.id || "", cwd: item.cwd || "", title: item.title || "", messages: element("div", "messages hidden"),
+    id: item.id || "", provider: item.provider || "", description: state.descriptions.get(item.provider || "") || null, cwd: item.cwd || "", title: item.title || "", messages: element("div", "messages hidden"),
     channel: null, follow: null, live: false, busy: false, pendingPrompt: "", liveWaiters: [], controls: new Map(), approvals: new Map(),
     stream: null, lastText: "", thinkingNode: null, tools: new Map(), commandTurn: false, historyToken: 0,
     footer: null, usage: null, sessionCost: 0, statusText: "", statusBusy: false, error: "",
@@ -25,9 +29,10 @@ function createView(item = {}) {
   };
   $("#views").append(view.messages);
   views.add(view);
+  if (view.id) viewsByKey.set(viewKey(view.id, view.provider), view);
   return view;
 }
-const viewFor = (id) => (id && [...views].find((view) => view.id === id)) || null;
+const viewFor = (id, provider = "") => id ? (provider ? viewsByKey.get(viewKey(id, provider)) : [...views].find((view) => view.id === id)) || null : null;
 function setViewStatus(view, text = "", busy = false) {
   view.statusText = text; view.statusBusy = busy;
   if (view === current) setStatus(text, busy);
@@ -287,7 +292,8 @@ function resetFooter() {
 const percentTone = (percent) => percent >= 90 ? "error" : percent >= 70 ? "accent" : "normal";
 const resetsTitle = (label, resetsAt) => resetsAt ? `${label} — ${t("resets")} ${new Date(resetsAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : label;
 // Both limits in one item, toned by the fuller one; the tooltip lists each reset time.
-function updateFooter(status) {
+function updateFooter(status, view = current) {
+  if (!capabilities(view).rateLimits) { setChip("limits", ""); return; }
   const limits = [["limit5h", "fiveHour", "5h"], ["limit7d", "sevenDay", "7d"]]
     .map(([id, key, label]) => ({ id, label, limit: status.limits?.[key] })).filter((entry) => entry.limit);
   setChip("limits", limits.map(({ label, limit }) => `${label} ${limit.percent}%`).join(`  ${DIVIDER}  `), {
@@ -295,18 +301,18 @@ function updateFooter(status) {
     title: limits.map(({ id, limit }) => resetsTitle(t(id), limit.resetsAt)).join("\n"),
   });
 }
-function updateFooterUsage(usage, sessionCost) {
+function updateFooterUsage(usage, sessionCost, view = current) {
   if (!usage) return;
-  setChip("tokens", formatUsage({ ...usage, costUsd: undefined }), { title: t("lastTurnTokens") });
-  setChip("turnCost", Number.isFinite(usage.costUsd) ? `$${usage.costUsd.toFixed(4)}` : "", { title: t("lastTurnCost") });
-  setChip("sessionCost", sessionCost ? `${t("session")} $${sessionCost.toFixed(2)}` : "", { title: t("sessionCost") });
+  setChip("tokens", capabilities(view).tokenUsage ? formatUsage({ ...usage, costUsd: undefined }) : "", { title: t("lastTurnTokens") });
+  setChip("turnCost", capabilities(view).costUsage && Number.isFinite(usage.costUsd) ? `$${usage.costUsd.toFixed(4)}` : "", { title: t("lastTurnCost") });
+  setChip("sessionCost", capabilities(view).costUsage && sessionCost ? `${t("session")} $${sessionCost.toFixed(2)}` : "", { title: t("sessionCost") });
   updateDividers();
 }
 // The footer shows the view on screen; each view keeps its last status and usage.
 function renderFooter(view) {
   resetFooter();
-  if (view.footer) updateFooter(view.footer);
-  updateFooterUsage(view.usage, view.sessionCost);
+  if (view.footer) updateFooter(view.footer, view);
+  updateFooterUsage(view.usage, view.sessionCost, view);
 }
 
 // ── Service channels ───────────────────────────────────────────────────────
@@ -315,71 +321,82 @@ const channelSend = async (channel, message) => {
   channel.send(message);
 };
 async function discovery(request) {
-  const channel = await persephone.service.openChannel(request);
+  const routed = request.provider || current?.provider || state.defaultProvider;
+  const channel = await persephone.service.openChannel({ ...request, ...(routed ? { provider: routed } : {}) });
   return new Promise((resolve) => {
     channel.onMessage((message) => resolve({ message, channel }));
     channel.onClose(() => resolve({ message: null, channel }));
   });
 }
 function applyDescription(message, view = null) {
+  const provider = message.provider || "";
+  state.descriptions.set(provider, message);
+  state.defaultProvider ||= provider;
+  if (view) view.description = message; else state.description = message;
+  state.capabilities = message.capabilities || {};
+  state.setup = message.setup || { required: false, ready: true };
   if (message.models?.length) state.models = message.models;
   if (view) view.defaults = message.defaults || null;
   else if (message.defaults) state.defaults = message.defaults;
   renderChips();
 }
+const openViewChannel = (view, request) => persephone.service.openChannel({ ...request, ...(view?.provider ? { provider: view.provider } : {}) });
 async function refreshDescription() {
-  const { message } = await discovery({ type: "describe" });
+  const { message } = await discovery({ type: "describe", ...(current?.provider ? { provider: current.provider } : {}) });
   if (message?.type === "description") {
-    state.sdkInstalled = Boolean(message.sdkInstalled);
-    applyDescription(message);
+    applyDescription(message, current?.provider ? current : null);
   }
-  $("#consent").classList.toggle("hidden", state.sdkInstalled);
-  if (state.sdkInstalled && !state.sessions.length) await refreshSessions();
+  const caps = capabilities();
+  $("#consent").classList.toggle("hidden", !caps.providerSetup || state.setup?.ready !== false);
+  if (caps.sessionStore && !state.sessions.length) await refreshSessions();
 }
 // Defaults depend on the folder (its project and local Claude settings), so a view not yet running asks for its own.
 async function refreshDefaults(view) {
   const cwd = view.cwd || (view.id ? "" : $("#cwd").value.trim());
-  const { message } = await discovery({ type: "describe", ...(cwd ? { cwd } : {}) });
+  const { message } = await discovery({ type: "describe", ...(view.provider ? { provider: view.provider } : {}), ...(cwd ? { cwd } : {}) });
   if (message?.type === "description") applyDescription(message, view);
 }
+function capabilities(view = current) { return view?.description?.capabilities || state.description?.capabilities || {}; }
+function providerDescription(view = current) { return view?.description || state.description || {}; }
 
 // ── Model and effort chips under the composer ──────────────────────────────
 // A view uses the model and effort picked for it, or else the defaults the service reports (the board settings,
 // then Claude Code's own settings, then Opus at medium effort). A session the board runs reports what it uses.
-const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
 const isLive = (view) => Boolean(view?.channel && view.live);
 // Listed ids show their display names; a full model id such as "claude-opus-5-5" shows as "Opus 5.5".
 function modelLabel(id, models = state.models) {
   const listed = models.find((model) => model.id === id);
   if (listed?.label) return listed.label.replace(/\s*\(CLI alias\)$/, "");
-  const match = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?(\[1m\])?$/i.exec(id || "");
-  if (match) return `${match[1][0].toUpperCase()}${match[1].slice(1)} ${match[2]}${match[3] ? `.${match[3]}` : ""}${match[4] ? " 1M" : ""}`;
-  return id ? id[0].toUpperCase() + id.slice(1) : t("default");
+  return id || t("default");
 }
-const viewDefaults = (view) => view.defaults || state.defaults;
+const viewDefaults = (view) => view.defaults || providerDescription(view).defaults || state.defaults;
 const viewModel = (view) => (isLive(view) && view.footer?.model) || view.model || viewDefaults(view).model || "";
 const viewEffort = (view) => (isLive(view) && view.footer?.effort) || view.effort || viewDefaults(view).effort || "";
 // Permission modes the page offers, as the terminal names them; a running session reports its own (which may be
 // another one, such as "default" after a typed command). Every new chat starts in Auto; the last pick is not kept.
-const MODES = ["bypassPermissions", "auto", "plan"];
-const DEFAULT_MODE = "auto";
-const viewMode = (view) => (isLive(view) && view.footer?.mode) || view.mode || DEFAULT_MODE;
+const modeDescriptors = (view = current) => providerDescription(view).chatOptions?.permissionModes || [];
+const modeDescriptor = (id, view = current) => modeDescriptors(view).find((mode) => mode.id === id);
+const viewMode = (view) => (isLive(view) && view.footer?.mode) || view.mode || viewDefaults(view).mode || modeDescriptors(view)[0]?.id || "";
 function renderChips() {
   const view = current;
   $("#composer-meta").classList.toggle("hidden", !view || Boolean(view.selectedAgentId));
   if (!view) return;
-  const mode = viewMode(view);
-  $("#mode-chip").textContent = t(`mode.${mode}`);
+  const mode = viewMode(view), selectedMode = modeDescriptor(mode, view);
+  $("#mode-chip").textContent = selectedMode?.labelKey ? t(selectedMode.labelKey) : "";
   $("#mode-chip").dataset.mode = mode;
-  $("#model-chip").textContent = modelLabel(viewModel(view));
+  const models = providerDescription(view).models || state.models;
+  $("#model-chip").textContent = (isLive(view) && view.footer?.modelLabel) || modelLabel(viewModel(view), models);
+  $("#model-chip").classList.toggle("hidden", !capabilities().modelSelection);
+  $("#effort-chip").classList.toggle("hidden", !capabilities().effortSelection);
+  $("#mode-chip").classList.toggle("hidden", !capabilities().permissionModes);
   $("#effort-chip").textContent = viewEffort(view) || t("defaultEffort");
   // Context fill, from the session's last status; it highlights at 70% and 90% like the footer's limit chips.
   const status = view.footer || {};
   const chip = $("#context-chip");
-  chip.textContent = Number.isFinite(status.contextPercent) ? `${t("context")} ${status.contextPercent}%` : Number.isFinite(status.contextTokens) ? `${t("context")} ${formatTokens(status.contextTokens)}` : "";
+  chip.textContent = capabilities(view).contextUsage ? Number.isFinite(status.contextPercent) ? `${t("context")} ${status.contextPercent}%` : Number.isFinite(status.contextTokens) ? `${t("context")} ${formatTokens(status.contextTokens)}` : "" : "";
   chip.classList.toggle("hidden", !chip.textContent);
   chip.dataset.tone = percentTone(status.contextPercent || 0);
-  chip.title = status.contextWindow ? `${(status.contextTokens || 0).toLocaleString()} / ${status.contextWindow.toLocaleString()} ${t("tokens")}` : t("context");
+  chip.title = capabilities(view).contextUsage && status.contextWindow ? `${(status.contextTokens || 0).toLocaleString()} / ${status.contextWindow.toLocaleString()} ${t("tokens")}` : t("context");
 }
 const choiceMenu = $("#choice-menu");
 let choiceAnchor = null;
@@ -414,6 +431,7 @@ async function modelListing(view) {
 }
 // Like the terminal, a running session changes model or effort only between turns.
 async function showModelMenu() {
+  if (!capabilities().modelSelection) return;
   const view = current, anchor = $("#model-chip");
   if (choiceAnchor === anchor) { closeChoiceMenu(); return; }
   const live = isLive(view);
@@ -431,14 +449,17 @@ async function showModelMenu() {
   })), live ? t(view.busy ? "changeBusy" : "modelSwitchNote") : "");
 }
 async function showEffortMenu() {
+  if (!capabilities().effortSelection) return;
   const view = current, anchor = $("#effort-chip");
   if (choiceAnchor === anchor) { closeChoiceMenu(); return; }
   const live = isLive(view);
   const { models, selected } = await modelListing(view);
   if (view !== current) return;
-  const efforts = models.find((model) => model.id === selected)?.efforts;
+  if (!capabilities(view).effortSelection) return;
+  const efforts = models.find((model) => model.id === selected)?.efforts || [];
   const effort = viewEffort(view);
-  openChoiceMenu(anchor, (efforts?.length ? efforts : EFFORT_LEVELS).map((level) => ({
+  if (!efforts.length) return;
+  openChoiceMenu(anchor, efforts.map((level) => ({
     label: level, current: level === effort, disabled: live && view.busy,
     run: async () => {
       // The CLI applies /effort to the running session only and answers with a confirmation line.
@@ -452,11 +473,12 @@ function showModeMenu() {
   const view = current, anchor = $("#mode-chip");
   if (choiceAnchor === anchor) { closeChoiceMenu(); return; }
   const live = isLive(view), mode = viewMode(view);
-  openChoiceMenu(anchor, MODES.map((id) => ({
-    label: t(`mode.${id}`), desc: t(`mode.${id}.desc`), current: id === mode,
+  if (!capabilities(view).permissionModes) return;
+  openChoiceMenu(anchor, modeDescriptors(view).map((descriptor) => ({
+    label: t(descriptor.labelKey), desc: t(descriptor.descriptionKey), current: descriptor.id === mode,
     run: async () => {
-      if (live) { await control(view, "set-mode", { mode: id }); return; }
-      view.mode = id; renderChips();
+      if (live) { await control(view, "set-mode", { mode: descriptor.id }); return; }
+      view.mode = descriptor.id; renderChips();
     },
   })), live ? t("modeNote") : "");
 }
@@ -482,10 +504,13 @@ $("#cwd-browse").addEventListener("click", async () => {
 async function consentSdk(accept) {
   $("#accept").disabled = true;
   if (!accept) { $("#consent").classList.add("hidden"); $("#accept").disabled = false; return; }
-  const channel = await persephone.service.openChannel({ type: "consent-sdk" });
+  const provider = current?.provider || state.defaultProvider;
+  const channel = await persephone.service.openChannel({ type: "provider-setup", action: "install", ...(provider ? { provider } : {}) });
   channel.onMessage(async (message) => {
-    if (message.type === "sdk-installed") { state.sdkInstalled = true; $("#consent").classList.add("hidden"); await refreshDescription(); }
-    if (message.type === "sdk-install-error") { showError(message.message); $("#accept").disabled = false; }
+    if (message.type === "provider-setup") {
+      if (message.ready === false) { showError(message.error || t("error")); $("#accept").disabled = false; return; }
+      $("#consent").classList.add("hidden"); await refreshDescription();
+    }
   });
 }
 
@@ -537,9 +562,9 @@ function renderSessions() {
   const list = $("#session-list");
   const rows = state.sessions;
   list.replaceChildren();
+  if (!capabilities().sessionStore) { renderAgents(); return; }
   if (!rows.length) {
-    // sdkInstalled is null until the first describe reply; say nothing rather than guess.
-    if (state.sdkInstalled !== null) list.append(element("div", "empty", t(state.sdkInstalled ? "noSessions" : "consentRequired")));
+    if (state.setup) list.append(element("div", "empty", t(state.setup.ready ? "noSessions" : "consentRequired")));
     renderAgents();
     return;
   }
@@ -555,7 +580,7 @@ function renderSessions() {
     toggle.setAttribute("aria-expanded", String(expanded));
     toggle.append(element("span", "caret"), element("span", "folder-name", folderName(group.cwd)));
     // A collapsed folder still shows that one of its sessions is running.
-    const running = group.sessions.map((item) => viewFor(item.id)).filter((view) => view?.channel);
+    const running = group.sessions.map((item) => viewFor(item.id, item.provider)).filter((view) => view?.channel);
     if (running.length && !expanded) toggle.append(element("span", `session-dot live${running.some((view) => view.busy) ? " busy" : ""}`));
     toggle.addEventListener("click", () => {
       if (expandedFolders.has(group.key)) expandedFolders.delete(group.key); else expandedFolders.add(group.key);
@@ -572,7 +597,7 @@ function renderSessions() {
     folder.append(head);
     if (expanded) {
       for (const item of group.sessions) {
-        const view = viewFor(item.id);
+        const view = viewFor(item.id, item.provider);
         const button = element("button", `session-item${item.id && item.id === current?.id ? " active" : ""}${view?.unread ? " unread" : ""}`);
         button.type = "button";
         // Gray: not running. Green: the board runs it (pulsing while Claude works).
@@ -594,6 +619,7 @@ const AGENT_LIST_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 function renderAgents() {
   const panel = $("#agents-panel"), list = $("#agents-list");
   list.replaceChildren();
+  if (!capabilities(current).subagents) { panel.classList.add("hidden"); return; }
   // Running agents always show; recent inactive ones sit behind a toggle; the shown one stays until you switch away.
   const isRunning = (agent) => agent.running && !agent.finished;
   const isSelected = (agent) => agent.id === current.selectedAgentId;
@@ -630,7 +656,8 @@ const sessionMenu = $("#session-menu");
 let menuItem = null;
 function openSessionMenu(item, x, y) {
   menuItem = item;
-  sessionMenu.querySelector("[data-action=disconnect]").classList.toggle("hidden", !viewFor(item.id)?.channel);
+  sessionMenu.querySelector("[data-action=disconnect]").classList.toggle("hidden", !viewFor(item.id, item.provider)?.channel);
+  sessionMenu.querySelectorAll("[data-action=rename], [data-action=delete]").forEach((button) => button.classList.toggle("hidden", !capabilities(viewFor(item.id, item.provider)).sessionStore));
   sessionMenu.classList.remove("hidden");
   const { width, height } = sessionMenu.getBoundingClientRect();
   sessionMenu.style.left = `${Math.min(x, window.innerWidth - width - 4)}px`;
@@ -648,7 +675,7 @@ sessionMenu.addEventListener("click", (event) => {
   closeSessionMenu();
   if (item && action === "rename") void renameSession(item);
   if (item && action === "delete") void deleteSession(item);
-  if (item && action === "disconnect") { const view = viewFor(item.id); if (view) disconnect(view); }
+  if (item && action === "disconnect") { const view = viewFor(item.id, item.provider); if (view) disconnect(view); }
 });
 
 // Modal dialog; resolves with the input text (or "" without one) on confirm, null on cancel.
@@ -674,7 +701,8 @@ $("#dialog-input").addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.isComposing) { event.preventDefault(); $("#dialog").close("confirm"); }
 });
 async function manageSession(item, action, title) {
-  const { message } = await discovery({ type: "manage-session", action, sessionId: item.id, cwd: item.cwd, ...(title ? { title } : {}) });
+  if (!capabilities(viewFor(item.id, item.provider) || current).sessionStore) return false;
+  const { message } = await discovery({ type: "manage-session", ...(item.provider ? { provider: item.provider } : {}), action, sessionId: item.id, cwd: item.cwd, ...(title ? { title } : {}) });
   if (message?.type === "session-updated") return true;
   showError(message?.type === "error" ? `${message.code}: ${message.message}` : t("error"));
   return false;
@@ -684,17 +712,18 @@ async function renameSession(item) {
   if (!title || title === item.title) return;
   if (!(await manageSession(item, "rename", title))) return;
   item.title = title;
-  const view = viewFor(item.id);
+  const view = viewFor(item.id, item.provider);
   if (view) view.title = title;
   renderSessions();
 }
 async function deleteSession(item) {
   const answer = await askDialog({ title: t("deleteSession"), message: t("deleteConfirm", { title: item.title }), confirmLabel: t("delete"), danger: true });
   if (answer === null) return;
-  const view = viewFor(item.id);
+  const view = viewFor(item.id, item.provider);
   if (view) { if (view === current) showNewSession(); dropView(view); }
   if (!(await manageSession(item, "delete"))) return;
-  state.sessions = state.sessions.filter((row) => row.id !== item.id);
+  state.sessions = state.sessions.filter((row) => row !== item);
+  sessionsByKey.delete(viewKey(item.id, item.provider));
   renderSessions();
 }
 
@@ -730,11 +759,13 @@ $("#splitter").addEventListener("pointerdown", (event) => {
 });
 $("#splitter").addEventListener("dblclick", () => prefs.write("sidebar-width", applySidebarWidth(280)));
 async function refreshSessions() {
-  if (!state.sdkInstalled) { renderSessions(); return; }
+  if (!capabilities().sessionStore || !state.setup?.ready) { renderSessions(); return; }
   const { message } = await discovery({ type: "list-sessions" });
   if (message?.type === "sessions") {
     state.sessions = [...message.sessions].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
-    for (const item of state.sessions) { const view = viewFor(item.id); if (view) view.title = item.title; }
+    sessionsByKey.clear();
+    for (const item of state.sessions) sessionsByKey.set(viewKey(item.id, item.provider), item);
+    for (const item of state.sessions) { const view = viewFor(item.id, item.provider); if (view) view.title = item.title; }
   } else if (message?.type === "error") showError(`${message.code}: ${message.message}`);
   renderSessions();
 }
@@ -815,6 +846,7 @@ function dropView(view) {
   endStream(view); endLive(view); closeChannel(channel);
   view.messages.remove();
   views.delete(view);
+  viewsByKey.delete(viewKey(view.id, view.provider));
 }
 // Shows a view. The one it replaces keeps running if it is live; otherwise it is dropped.
 function showView(view) {
@@ -871,8 +903,8 @@ function stopFollow(view) {
 }
 async function startFollow(view) {
   stopFollow(view);
-  if (!view.id || view.channel || view !== current) return;
-  const channel = await persephone.service.openChannel({ type: "follow-session", sessionId: view.id });
+  if (!capabilities(view).transcriptFollow || !view.id || view.channel || view !== current) return;
+  const channel = await openViewChannel(view, { type: "follow-session", sessionId: view.id, cwd: view.cwd });
   if (view !== current || view.channel || view.follow || !views.has(view)) { closeChannel(channel); return; }
   view.follow = channel;
   channel.onMessage((message) => { if (view.follow === channel && message.type === "history") appendEntries(view, message.entries); });
@@ -894,8 +926,8 @@ function stopAgentFollow(view) {
 }
 function startAgentWatch(view) {
   stopAgentWatch(view);
-  if (!view.id || view !== current) return;
-  void persephone.service.openChannel({ type: "watch-subagents", sessionId: view.id, cwd: view.cwd }).then((channel) => {
+  if (!capabilities(view).subagents || !view.id || view !== current) return;
+  void openViewChannel(view, { type: "watch-subagents", sessionId: view.id, cwd: view.cwd }).then((channel) => {
     if (view !== current || view.agentsChannel) { closeChannel(channel); return; }
     view.agentsChannel = channel;
     channel.onMessage((message) => {
@@ -918,7 +950,7 @@ function showMainTranscript(view) {
   transcript.scrollTop = view.scrollTop;
 }
 async function showAgentTranscript(view, agentId) {
-  if (!view || view !== current || !view.agents.some((agent) => agent.id === agentId)) return;
+  if (!capabilities(view).subagents || !view || view !== current || !view.agents.some((agent) => agent.id === agentId)) return;
   const previous = view.agentViews.get(view.selectedAgentId);
   if (view.selectedAgentId) {
     if (previous) { previous.scrollTop = transcript.scrollTop; previous.messages.classList.add("hidden"); }
@@ -938,7 +970,7 @@ async function showAgentTranscript(view, agentId) {
   $("#readonly-hint").classList.remove("hidden");
   $("#prompt").classList.add("hidden"); $("#send").classList.add("hidden");
   hideCommandMenu(); renderSessions(); renderChips(); updateTyping(); closeChoiceMenu(); transcript.scrollTop = child.scrollTop ?? 0;
-  const channel = await persephone.service.openChannel({ type: "subagent-history", sessionId: view.id, agentId, cwd: view.cwd });
+  const channel = await openViewChannel(view, { type: "subagent-history", sessionId: view.id, agentId, cwd: view.cwd });
   if (view !== current || view.selectedAgentId !== agentId) { closeChannel(channel); return; }
   child.follow = channel;
   channel.onMessage((message) => {
@@ -969,11 +1001,13 @@ async function refreshFromWatch() {
   finally { refreshing = false; }
 }
 async function watchSessionList() {
-  const channel = await persephone.service.openChannel({ type: "watch-sessions" });
+  if (!capabilities().sessionStore || !capabilities().transcriptFollow) return;
+  const provider = current?.provider || state.defaultProvider;
+  const channel = await persephone.service.openChannel({ type: "watch-sessions", ...(provider ? { provider } : {}) });
   channel.onMessage((message) => { if (message.type === "sessions-changed") void refreshFromWatch(); });
 }
 // The shown session is restorable page state, so the page reopens it after a reload, a restart, or a move to another window.
-const rememberSession = () => persephone.state.merge({ session: current?.id ? { id: current.id, cwd: current.cwd } : null });
+const rememberSession = () => persephone.state.merge({ session: current?.id ? { id: current.id, provider: current.provider, cwd: current.cwd } : null });
 // Shows the New session form; a form already open (and not yet started) is reused.
 // From a folder (its + button, /clear) the form only shows the folder; from the toolbar it asks for one.
 function showNewSession(cwd = "") {
@@ -998,9 +1032,10 @@ function sessionTitle(text) {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 async function loadHistory(view) {
+  if (!capabilities(view).sessionStore) return false;
   const token = ++view.historyToken;
   setViewStatus(view, t("loadingHistory"), true);
-  const channel = await persephone.service.openChannel({ type: "session-history", sessionId: view.id, cwd: view.cwd });
+  const channel = await openViewChannel(view, { type: "session-history", sessionId: view.id, cwd: view.cwd });
   await new Promise((resolve) => {
     channel.onMessage((message) => {
       if (token !== view.historyToken) return;
@@ -1017,7 +1052,13 @@ async function loadHistory(view) {
 }
 // Selecting a session shows it live; the board resumes it (a Claude process of its own) only when you send from here.
 async function openStoredSession(item) {
-  const existing = viewFor(item.id);
+  let description = state.descriptions.get(item.provider || "");
+  if (!description) {
+    const { message } = await discovery({ type: "describe", ...(item.provider ? { provider: item.provider } : {}), ...(item.cwd ? { cwd: item.cwd } : {}) });
+    if (message?.type === "description") { description = message; state.descriptions.set(message.provider || "", message); }
+  }
+  if (!description?.capabilities?.sessionStore) return;
+  const existing = viewFor(item.id, item.provider);
   if (existing) {
     if (existing === current) return;
     showView(existing);
@@ -1037,12 +1078,13 @@ async function connect(view) {
   const resume = view.id || undefined;
   const cwd = resume ? view.cwd : $("#cwd").value.trim();
   if (!cwd) { setViewError(view, t("cwdRequired")); return false; }
-  if (!state.sdkInstalled) { $("#consent").classList.remove("hidden"); setViewError(view, t("consentRequired")); return false; }
+  if (capabilities(view).providerSetup && !providerDescription(view).setup?.ready) { $("#consent").classList.remove("hidden"); setViewError(view, t("consentRequired")); return false; }
+  if (resume && !capabilities(view).sessionStore) return false;
   stopFollow(view);
   const title = resume ? "" : sessionTitle(view.pendingPrompt);
   if (!resume) view.title = title;
   const open = {
-    type: "open", contractVersion: 1, model: view.model, cwd,
+    type: "open", contractVersion: 1, ...(view.provider ? { provider: view.provider } : {}), model: view.model, cwd,
     // Required by the agent.session contract; the service runs local page sessions unrestricted and takes
     // Claude Code's own mode from `mode`.
     permissionMode: "full-auto", mode: viewMode(view),
@@ -1072,7 +1114,10 @@ async function connect(view) {
 function handleEvent(view, event) {
   switch (event.type) {
     case "session-started": {
-      view.id = event.sessionId;
+      if (view.id) viewsByKey.delete(viewKey(view.id, view.provider));
+      view.id = event.sessionId; view.provider = event.provider || view.provider || "";
+      viewsByKey.set(viewKey(view.id, view.provider), view);
+      if (!view.description) void refreshDefaults(view).catch(() => {});
       if (view === current) rememberSession();
       // Keep the open session visible in the tree.
       expandedFolders.add(folderKey(view.cwd));
@@ -1094,7 +1139,7 @@ function handleEvent(view, event) {
     case "approval-request": endStream(view); view.thinkingNode = null; addApproval(view, event); break;
     case "compacted": endStream(view); addCompacted(view, event); break;
     case "compact-summary": addCompactSummary(view, event.text); break;
-    case "session-status": view.footer = event; if (view === current) { updateFooter(event); renderChips(); } break;
+    case "session-status": view.footer = event; if (view === current) { updateFooter(event, view); renderChips(); setViewStatus(view, event.compacting ? t("compacting") : "", Boolean(event.compacting)); } break;
     case "turn-started": view.busy = true; setViewStatus(view); updateTyping(); updateControls(); renderSessions(); break;
     case "text-delta":
       view.thinkingNode = null;
@@ -1135,9 +1180,9 @@ function handleEvent(view, event) {
       if (view !== current) view.unread = true;
       setViewStatus(view); updateControls();
       if (event.usage) {
-        if (Number.isFinite(event.usage.costUsd)) view.sessionCost += event.usage.costUsd;
+        if (capabilities(view).costUsage && Number.isFinite(event.usage.costUsd)) view.sessionCost += event.usage.costUsd;
         view.usage = event.usage;
-        if (view === current) updateFooterUsage(view.usage, view.sessionCost);
+        if (view === current) updateFooterUsage(view.usage, view.sessionCost, view);
       }
       if (event.reason && event.reason !== "completed") addDivider(view, event.reason);
       renderSessions();
@@ -1147,19 +1192,16 @@ function handleEvent(view, event) {
     case "error":
       setViewError(view, `${event.code}: ${event.message}`);
       if (event.fatal) setViewStatus(view, t("error"));
-      if (event.code === "sdk-not-installed") { state.sdkInstalled = false; $("#consent").classList.remove("hidden"); }
+      if (event.code === "provider-setup-required") { $("#consent").classList.remove("hidden"); }
       break;
     case "notice":
-      // The footer already shows the model the service picked.
-      if (/^Claude selected model /.test(event.message)) break;
-      if (/^Claude is compacting /.test(event.message)) { setViewStatus(view, t("compacting"), true); break; }
       addActivity(view, `${t("notice")} · ${event.message.split("\n")[0]}`, event.detail || event.message); break;
   }
 }
 // ── Approvals: auto mode asks about what its classifier cannot decide, and plan mode ends with the plan to approve.
 // The card stays in the chat with the answer given; one left unanswered when the turn ends no longer applies.
 function addApproval(view, event) {
-  const isPlan = event.kind === "plan";
+  const isPlan = event.kind === "plan" && Boolean(modeDescriptor(viewMode(view), view)?.planApproval);
   const node = element("div", `msg approval${isPlan ? " plan" : ""}`);
   node.append(element("div", "approval-title", isPlan ? t("plan.title") : t("approval.title", { tool: event.tool || t("tool") })));
   if (isPlan) {
@@ -1176,11 +1218,15 @@ function addApproval(view, event) {
       .catch((error) => { actions.querySelectorAll("button").forEach((button) => { button.disabled = false; }); setViewError(view, error.message); });
   };
   const button = (label, className, run) => { const node = element("button", className, label); node.type = "button"; node.addEventListener("click", run); return node; };
-  if (isPlan) actions.append(
-    button(t("plan.approveAuto"), "primary", () => answer("allow", { mode: "auto" }, t("plan.approved", { mode: t("mode.auto") }))),
-    button(t("plan.approveBypass"), "", () => answer("allow", { mode: "bypassPermissions" }, t("plan.approved", { mode: t("mode.bypassPermissions") }))),
-    button(t("plan.keepPlanning"), "", () => answer("deny", {}, t("plan.rejected"))),
-  );
+  if (isPlan) {
+    const continuationModes = modeDescriptors(view).filter((mode) => !mode.planApproval).reverse();
+    for (const mode of continuationModes) actions.append(button(
+      t("plan.approveMode", { mode: t(mode.labelKey) }),
+      mode === continuationModes[0] ? "primary" : "",
+      () => answer("allow", { mode: mode.id }, t("plan.approved", { mode: t(mode.labelKey) })),
+    ));
+    actions.append(button(t("plan.keepPlanning"), "", () => answer("deny", {}, t("plan.rejected"))));
+  }
   else actions.append(
     button(t("approval.allow"), "primary", () => answer("allow", {}, t("approval.allowed"))),
     button(t("approval.allowSession"), "", () => answer("allow-session", {}, t("approval.allowed"))),
@@ -1258,9 +1304,18 @@ const BOARD_COMMANDS = {
   clear: { run: () => clearSession(), anyArgs: true },
   rename: { run: () => renameActiveSession() },
 };
+function boardCommandAvailable(name, view = current) {
+  const caps = capabilities(view);
+  return name === "mcp" ? caps.mcpPanel
+    : name === "model" ? caps.modelSelection
+      : name === "effort" ? caps.effortSelection
+        : name === "context" ? caps.contextUsage
+          : name === "clear" || name === "rename" ? caps.sessionStore : false;
+}
 state.commands = prefs.read("commands", []);
 // The list is cached from the last live session so the menu also works before the board connects.
 async function refreshCommands(view) {
+  if (!capabilities(view).slashCommands) return;
   try {
     const { commands } = await control(view, "commands");
     state.commands = commands || [];
@@ -1269,19 +1324,19 @@ async function refreshCommands(view) {
 }
 function boardCommandFor(text) {
   const match = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(text);
-  const command = match && Object.hasOwn(BOARD_COMMANDS, match[1]) ? BOARD_COMMANDS[match[1]] : null;
+  const command = match && Object.hasOwn(BOARD_COMMANDS, match[1]) && boardCommandAvailable(match[1]) ? BOARD_COMMANDS[match[1]] : null;
   if (!command || (match[2]?.trim() && !command.anyArgs)) return null;
   return command.run;
 }
 function commandList() {
-  const byName = new Map(state.commands.map((command) => [command.name, command]));
-  for (const name of Object.keys(BOARD_COMMANDS)) byName.set(name, { ...byName.get(name), name, description: t(`cmd.${name}`), board: true });
+  const byName = new Map((capabilities().slashCommands ? state.commands : []).map((command) => [command.name, command]));
+  for (const name of Object.keys(BOARD_COMMANDS)) if (boardCommandAvailable(name)) byName.set(name, { ...byName.get(name), name, description: t(`cmd.${name}`), board: true });
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 const commandMenu = $("#command-menu");
 const menu = { items: [], index: 0 };
 function updateCommandMenu() {
-  if (current?.selectedAgentId) { hideCommandMenu(); return; }
+  if (!capabilities().slashCommands || current?.selectedAgentId) { hideCommandMenu(); return; }
   const match = /^\/(\S*)$/.exec(promptText());
   if (!match) { hideCommandMenu(); return; }
   const query = match[1].toLowerCase();
@@ -1390,6 +1445,7 @@ async function loadPanel(title, action, render) {
 const MCP_REFRESH_MS = 3000;
 let mcpActionRunning = false;
 async function showMcpPanel() {
+  if (!capabilities().mcpPanel) return;
   const panel = await loadPanel(t("mcpServers"), (view) => control(view, "mcp-status"), renderMcp);
   while (panel?.current()) {
     await new Promise((resolve) => setTimeout(resolve, MCP_REFRESH_MS));
@@ -1456,6 +1512,7 @@ function renderMcp(view, body, { servers = [] }) {
 
 // /context — what fills the context window, as a stacked bar and a table.
 async function showContextPanel() {
+  if (!capabilities().contextUsage) return;
   if (!current.channel && !current.id) { showError(t("contextNeedsSession")); return; }
   await loadPanel(t("contextUsage"), (view) => control(view, "context"), renderContext);
 }
@@ -1521,9 +1578,17 @@ showNewSession();
 void (async () => {
   const saved = (await persephone.state.get())?.session;
   await refreshDescription();
-  if (state.sdkInstalled) void watchSessionList().catch(() => {});
+  if (saved?.provider) {
+    const cached = state.descriptions.get(saved.provider);
+    if (cached) { current.provider = saved.provider; applyDescription(cached, current); }
+    else {
+      const { message } = await discovery({ type: "describe", provider: saved.provider, ...(saved.cwd ? { cwd: saved.cwd } : {}) });
+      if (message?.type === "description") { current.provider = saved.provider; applyDescription(message, current); }
+    }
+  }
+  if (capabilities().sessionStore && capabilities().transcriptFollow && state.setup?.ready) void watchSessionList().catch(() => {});
   // A session missing from the list (older than the listing) still resumes by id.
-  if (saved?.id && saved.cwd && !current.id && state.sdkInstalled) await openStoredSession(state.sessions.find((item) => item.id === saved.id) || { id: saved.id, cwd: saved.cwd, title: "" });
+  if (saved?.id && saved.cwd && !current.id && capabilities().sessionStore && state.setup?.ready) await openStoredSession(sessionFor(saved.id, saved.provider) || { id: saved.id, provider: saved.provider || "", cwd: saved.cwd, title: "" });
 })().catch((error) => showError(error.message));
 // The board's default model and effort settings change what a view that is not running would use.
 state.settingsOff = persephone.settings.onChange(({ id }) => {

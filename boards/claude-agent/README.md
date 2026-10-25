@@ -1,6 +1,6 @@
 # Claude Agent
 
-Claude Agent provides the `agent.session` v1 service and a local chat page backed by your installed `claude` CLI.
+Claude Agent provides the `agent.session` v1 service and a local chat page backed by your installed `claude` CLI. The service routes v1 sessions through provider adapters: `open.provider` is optional and defaults to `claude`, while descriptions advertise provider identity and capability-gated features alongside the permanent v1 feature set. The page consumes those capabilities and typed session status events without relying on vendor identifiers. Provider selection, session identity, and capability/status additions remain additive fields in contract v1.
 
 ## Requirements and first run
 

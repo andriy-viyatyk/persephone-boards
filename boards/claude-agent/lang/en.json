@@ -143,6 +143,7 @@
     "plan.title": "Plan ready for review",
     "plan.approveAuto": "Approve, continue in Auto",
     "plan.approveBypass": "Approve, continue in Bypass",
+    "plan.approveMode": "Approve, continue in {mode}",
     "plan.keepPlanning": "Keep planning",
     "plan.approved": "Plan approved · {mode}",
     "plan.rejected": "Kept planning"

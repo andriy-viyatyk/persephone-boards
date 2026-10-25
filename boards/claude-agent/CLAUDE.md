@@ -5,13 +5,14 @@ Standalone provider board; it is not a custom editor and has no file association
 ## Runtime design
 
 - `scripts/agent-session-protocol.mjs` owns v1 validation, bounds, policy classification, and instruction composition.
-- `scripts/service.mjs` owns settings, channel lifecycle, SDK query sessions, approval callbacks, MCP endpoint revocation, and child process cleanup.
+- `scripts/service.mjs` owns provider-neutral contract validation, channel lifecycle, policy and approvals, MCP endpoint revocation, and child process cleanup. `scripts/providers/claude.mjs` owns Claude SDK/CLI integration, Claude session storage, native event normalization, model/mode metadata, and setup.
+- Providers are selected by the bounded `open.provider` id (default `claude`) from a closed registry. Keep provider-specific behavior behind the adapter boundary; descriptions publish capability flags and localized mode keys for the page.
 - `scripts/sdk-install.mjs` downloads SDK 0.3.302 only after a local consent message and verifies both the archive SRI and the SDK entrypoint SHA-256. Do not vendor SDK files or add a package manager/build step.
 - `scripts/claude-executable.mjs` resolves only the installed CLI. The SDK process spawn hook always launches that resolved executable.
 
 Local chat-page sessions have no permission modes: `startSession` forces `full-auto` for them (unrestricted, no approvals, Persephone MCP endpoint always issued), and the page has no mode selector or approval UI. The contract's modes, approvals, and `cross-board-permission-ceiling` apply only to cross-board consumers, so keep that code for the `agent.session` v1 contract.
 
-`session-history` is a board-page-only opening request (refused for cross-board callers, like `consent-sdk`): it replays a stored transcript via the SDK's `getSessionMessages` as batched `history` messages (each batch under 600 KB) so the chat page can show a resumed session's earlier turns. It is not part of the `agent.session` v1 contract.
+`session-history` is a board-page-only opening request (refused for cross-board callers, like `provider-setup`): it replays a stored transcript via the SDK's `getSessionMessages` as batched `history` messages (each batch under 600 KB) so the chat page can show a resumed session's earlier turns. It is not part of the `agent.session` v1 contract.
 
 The chat page renders agent text with vendored marked 15.0.12 and DOMPurify 3.4.16 (`lib/`, see `lib/VERSION.txt`) and the catalog `markdown.css` skin; always sanitize marked output.
 

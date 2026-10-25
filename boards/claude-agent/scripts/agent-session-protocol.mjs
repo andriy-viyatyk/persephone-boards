@@ -2,13 +2,6 @@ import path from "node:path";
 
 export const CONTRACT_VERSION = 1;
 export const MODES = ["read-only", "ask", "auto-edit", "full-auto"];
-export const MODE_NATIVE = Object.freeze({
-  "read-only": "default",
-  ask: "default",
-  "auto-edit": "acceptEdits",
-  "full-auto": "bypassPermissions",
-});
-
 const MODE_RANK = new Map(MODES.map((mode, index) => [mode, index]));
 
 export function clampMode(requested, ceiling) {
@@ -21,9 +14,11 @@ export function clampMode(requested, ceiling) {
 export function validateOpen(open) {
   if (!open || open.type !== "open" || open.contractVersion !== CONTRACT_VERSION) throw protocolError("Open requires contractVersion 1.");
   if (typeof open.model !== "string" || open.model.length > 200) throw protocolError("Model must be a string.");
+  if (open.provider !== undefined && (typeof open.provider !== "string" || !/^[a-z][a-z0-9-]{0,63}$/.test(open.provider))) throw protocolError("Provider must be a bounded identifier.");
+  if (open.provider === undefined) open.provider = "claude";
   if (open.effort !== undefined && (typeof open.effort !== "string" || open.effort.length > 40)) throw protocolError("Effort must be a string.");
   if (typeof open.cwd !== "string" || !open.cwd.trim() || open.cwd.length > 32768 || !/^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(open.cwd)) throw protocolError("An absolute working directory is required.");
-  if (open.resume !== undefined && (typeof open.resume !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(open.resume))) throw protocolError("Resume id must be a session UUID.");
+  if (open.resume !== undefined && (typeof open.resume !== "string" || !open.resume.length || open.resume.length > 512 || /[\u0000-\u001f\u007f]/.test(open.resume))) throw protocolError("Resume id must be a bounded opaque string.");
   if (!MODE_RANK.has(open.permissionMode)) throw protocolError("Permission mode is invalid.");
   if (open.instructions !== undefined && (typeof open.instructions !== "string" || utf8Size(open.instructions) > 32 * 1024)) throw protocolError("Caller instructions exceed 32 KiB.");
   if (open.title !== undefined && (typeof open.title !== "string" || utf8Size(open.title) > 32 * 1024)) throw protocolError("Title exceeds 32 KiB.");
@@ -43,9 +38,9 @@ export function protocolError(message) {
   return Object.assign(new Error(message), { code: "protocol-error" });
 }
 
-export function composeInstructions(cwd, mcpAttached, provider, caller) {
+export function composeInstructions(environment, provider, caller) {
   const layers = [
-    `You are running inside Persephone's Claude Agent board. Working directory: ${cwd}. Persephone MCP is ${mcpAttached ? "attached for this session" : "not attached"}. Your output is shown in a chat UI.`,
+    environment || "",
     provider || "",
     caller || "",
   ].filter(Boolean);
@@ -109,142 +104,6 @@ export function summarizeToolInput(name, input) {
 }
 
 export function utf8Size(value) { return new TextEncoder().encode(value).byteLength; }
-
-export function normalizeModel(info) {
-  return {
-    id: String(info.value ?? info.resolvedModel ?? ""),
-    label: String(info.displayName ?? info.value ?? "Claude model"),
-    efforts: Array.isArray(info.supportedEffortLevels) ? info.supportedEffortLevels.filter((x) => typeof x === "string") : [],
-  };
-}
-
-function resultReason(message) {
-  if (message.subtype === "error_max_turns" || message.subtype === "error_max_budget_usd") return "limit";
-  const detail = `${message.errors?.join(" ") || ""} ${message.result || ""}`.toLowerCase();
-  if (detail.includes("not logged") || detail.includes("login")) return "not-logged-in";
-  if (detail.includes("model") && (detail.includes("unavailable") || detail.includes("not found"))) return "model-unavailable";
-  if (detail.includes("resume") && detail.includes("not found")) return "resume-not-found";
-  return message.subtype === "success" ? "completed" : "error";
-}
-
-function resultUsage(message) {
-  const usage = message.usage || {};
-  const out = {};
-  if (Number.isFinite(usage.input_tokens)) out.inputTokens = usage.input_tokens;
-  if (Number.isFinite(usage.output_tokens)) out.outputTokens = usage.output_tokens;
-  if (Number.isFinite(usage.cache_read_input_tokens)) out.cachedTokens = usage.cache_read_input_tokens;
-  if (Number.isFinite(message.total_cost_usd)) out.costUsd = message.total_cost_usd;
-  return out;
-}
-
-const COMPACT_SUMMARY = /^This session is being continued from a previous conversation/;
-
-// A finished background task (shell command, subagent) is fed back as a <task-notification> user turn.
-// Like the terminal, show its one-line summary; the block itself is the expandable detail.
-const TASK_NOTIFICATION = /^\s*<task-notification>/;
-export function parseTaskNotification(message, text) {
-  if (typeof text !== "string" || (message?.origin?.kind !== "task-notification" && !TASK_NOTIFICATION.test(text))) return null;
-  const status = /<status>\s*([^<]*?)\s*<\/status>/.exec(text)?.[1] || "finished";
-  const summary = boundedString(/<summary>([\s\S]*?)<\/summary>/.exec(text)?.[1].trim() || `Background task ${status}`, 32 * 1024);
-  const detail = boundedString(text.trim(), 32 * 1024);
-  return { summary: summary.value, detail: detail.value, ...(summary.truncated || detail.truncated ? { truncated: true } : {}) };
-}
-
-export function normalizeNativeMessage(message, state = { pendingFiles: new Map() }) {
-  const events = [];
-  const addText = (type, value, extra = {}) => {
-    const text = boundedString(value, 32 * 1024);
-    events.push({ type, text: text.value, ...(text.truncated ? { truncated: true } : {}), ...extra });
-  };
-  if (message.type === "stream_event") {
-    const event = message.event || {};
-    if (event.type === "content_block_delta" && event.delta?.type === "text_delta") addText("text-delta", event.delta.text);
-    else if (event.type === "content_block_delta" && event.delta?.type === "thinking_delta") addText("thinking-delta", event.delta.thinking);
-    return events;
-  }
-  // Compaction re-sends the messages it preserved verbatim; they are already on screen.
-  if ((message.type === "assistant" || message.type === "user") && state.preserved?.has(message.uuid)) return events;
-  if (message.type === "assistant") {
-    // Local slash commands (/usage, /context, ...) answer with a synthetic assistant message instead of a model turn.
-    const synthetic = message.message?.model === "<synthetic>" ? { synthetic: true } : {};
-    for (const block of message.message?.content || []) {
-      if (block.type === "text" && block.text) addText("text", block.text, synthetic);
-      else if (block.type === "thinking" && block.thinking?.trim()) addText("thinking-delta", block.thinking);
-      else if (block.type === "tool_use") {
-        const input = summarizeToolInput(block.name, block.input);
-        events.push({ type: "tool-call", callId: block.id, name: block.name, input: { summary: input.summary, ...(input.truncated ? { truncated: true } : {}) } });
-        if (["Edit", "Write", "NotebookEdit", "MultiEdit"].includes(block.name)) {
-          const fileName = block.input?.file_path || block.input?.notebook_path || "";
-          if (fileName) state.pendingFiles.set(block.id, { fileName, kind: block.name === "Write" ? "created-or-updated" : "modified" });
-        }
-      }
-    }
-    return events;
-  }
-  if (message.type === "user") {
-    // After /compact (or auto-compaction) the CLI feeds the summary back as a synthetic user message.
-    const content = message.message?.content;
-    if (typeof content === "string" && (message.isCompactSummary || (message.isSynthetic && COMPACT_SUMMARY.test(content)))) {
-      addText("compact-summary", content);
-      return events;
-    }
-    const task = parseTaskNotification(message, typeof content === "string" ? content : content?.find?.((block) => block?.type === "text")?.text);
-    if (task) {
-      events.push({ type: "task", ...task });
-      return events;
-    }
-    for (const block of Array.isArray(message.message?.content) ? message.message.content : []) if (block?.type === "tool_result") {
-      events.push({ type: "tool-result", callId: block.tool_use_id, ok: !block.is_error, summary: "Tool result received; output content omitted." });
-      const pendingFile = state.pendingFiles.get(block.tool_use_id);
-      state.pendingFiles.delete(block.tool_use_id);
-      if (pendingFile && !block.is_error) {
-        const filePath = boundedString(path.normalize(pendingFile.fileName), 32 * 1024);
-        events.push({ type: "file-change", path: filePath.value, kind: pendingFile.kind, ...(filePath.truncated ? { truncated: true } : {}) });
-      }
-    }
-    return events;
-  }
-  if (message.type === "tool_use_summary") {
-    const summary = boundedString(message.summary, 32 * 1024);
-    for (const id of message.preceding_tool_use_ids || []) events.push({ type: "tool-result", callId: id, ok: true, summary: summary.value, ...(summary.truncated ? { truncated: true } : {}) });
-    return events;
-  }
-  if (message.type === "system" && message.subtype === "files_persisted") {
-    for (const file of message.files || []) {
-      if (typeof file.filename !== "string") continue;
-      const filePath = boundedString(path.normalize(file.filename), 32 * 1024);
-      events.push({ type: "file-change", path: filePath.value, kind: "persisted", ...(filePath.truncated ? { truncated: true } : {}) });
-    }
-    return events;
-  }
-  if (message.type === "tool_progress") {
-    const summary = boundedString(`${message.tool_name} running (${message.elapsed_time_seconds}s)`, 32 * 1024);
-    events.push({ type: "tool-result", callId: message.tool_use_id, ok: true, summary: summary.value, ...(summary.truncated ? { truncated: true } : {}) });
-    return events;
-  }
-  if (message.type === "result") {
-    const code = resultReason(message);
-    const reason = code === "completed" ? "completed" : code === "limit" ? "limit" : "error";
-    events.push({ type: "turn-ended", reason, usage: resultUsage(message) });
-    if (reason === "error") {
-      const errorText = boundedString((message.errors || []).join("; ") || message.result || "Claude turn failed.", 32 * 1024);
-      events.push({ type: "error", code, message: errorText.value, fatal: Boolean(message.is_error), ...(errorText.truncated ? { truncated: true } : {}) });
-    }
-    return events;
-  }
-  if (message.type === "rate_limit_event" && message.rate_limit_info?.status && message.rate_limit_info.status !== "allowed") {
-    const info = message.rate_limit_info;
-    const resets = Number.isFinite(info.resetsAt) ? ` Resets at ${new Date(info.resetsAt * 1000).toISOString()}.` : "";
-    events.push({ type: "notice", message: info.status === "rejected" ? `Claude usage limit reached.${resets}` : `Claude usage is close to its limit.${resets}` });
-  } else if (message.type === "system" && message.subtype === "status" && message.status === "compacting") {
-    events.push({ type: "notice", message: "Claude is compacting the conversation." });
-  } else if (message.type === "system" && message.subtype === "compact_boundary") {
-    const meta = message.compact_metadata || {};
-    state.preserved = new Set(meta.preserved_messages?.all_uuids || meta.preserved_messages?.uuids || []);
-    events.push({ type: "compacted", trigger: meta.trigger || "", ...(Number.isFinite(meta.pre_tokens) ? { preTokens: meta.pre_tokens } : {}), ...(Number.isFinite(meta.post_tokens) ? { postTokens: meta.post_tokens } : {}) });
-  }
-  return events;
-}
 
 export function appliedLimits(requested = {}) {
   return {

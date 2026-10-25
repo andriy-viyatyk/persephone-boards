@@ -496,3 +496,12 @@ jobs:
 - Workflows are documented in both the repository layout sections of `README.md` and `CLAUDE.md`; implementation should add the runtime workflow there while preserving the existing Publish Boards description.
 - For BT-056, the default model `ggml-large-v3-turbo-q5_0.bin` is 574041195 bytes with SHA-256 `394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2`, from the [ggerganov/whisper.cpp Hugging Face paths-info API](https://huggingface.co/api/models/ggerganov/whisper.cpp/paths-info/main/ggml-large-v3-turbo-q5_0.bin), verified 2026-10-25.
 - No workflow was run, no release was created, and no commit was made as part of this investigation.
+
+## Release result (2026-10-26)
+
+- Published [`whisper-runtime-1.9.5-r1`](https://github.com/andriy-viyatyk/persephone-boards/releases/tag/whisper-runtime-1.9.5-r1) from run 40240986322; not marked Latest (Latest stays `claude-agent-v1.2.1`).
+- `whisper-runtime-windows-x64-v1.9.5-r1.zip`: 19,958,389 bytes, SHA-256 `f3db3e57713053721a85ea2269221db8b2b3bfda026fcec40442911566e1d046` — the value BT-056 pins.
+- CI smoke tests: default settings on the GPU-less runner loaded only `ggml-cpu-haswell.dll` and reported `no GPU found`; `--no-gpu` likewise; both transcribed `jfk.wav` correctly.
+- GPU check on the Intel Arc dev machine with the published zip and `ggml-large-v3-turbo-q5_0.bin`: `ggml-vulkan.dll` and `ggml-cpu-alderlake.dll` loaded, `using Vulkan0 backend`; server ready in 1.1 s; the 15 s Ukrainian clip took 5.8 s on the first request (shader compile) and 2.6 s warm, with the same text as the earlier CLI test.
+- Fixes needed on the way: the runner already ships Ninja 1.13.2 (step now uses it); the smoke check expected a JFK misquote; the nlohmann/json notice is 3.11.2, copyright 2013-2022 (caught by the source check).
+- Known wart, left for the next revision: the `.sha256` file ends with CRLF, so `sha256sum -c` rejects it. Write it with an LF ending when a revision 2 is built.

@@ -1,6 +1,12 @@
 # Claude Agent
 
-Claude Agent provides the `agent.session` v1 service and a local chat page backed by your installed `claude` CLI. The service routes v1 sessions through provider adapters: `open.provider` is optional and defaults to `claude`, while descriptions advertise provider identity and capability-gated features alongside the permanent v1 feature set. The page consumes those capabilities and typed session status events without relying on vendor identifiers. Provider selection, session identity, and capability/status additions remain additive fields in contract v1.
+Claude Agent provides the `agent.session` v1 service and a local chat page backed by your installed `claude` CLI or Codex app-server. The service routes v1 sessions through provider adapters: `open.provider` is optional and defaults to `claude`, while descriptions advertise provider identity and capability-gated features alongside the permanent v1 feature set. The page consumes those capabilities and typed session status events without relying on vendor identifiers. Provider selection, session identity, and capability/status additions remain additive fields in contract v1.
+
+## Codex engine
+
+Use the **Engine** chip on a new-session view to select Claude or Codex. Model choices are grouped by engine, and the selected provider is saved with the restorable page session. Saved sessions retain their owning provider for listing, history, rename, delete, and resume. Codex requires Codex CLI 0.163.0 and runs one `codex app-server --stdio` process per live session. It uses Codex's stored threads for history and resume and exposes model, effort, permission, token, and context controls. Transcript following, cost, rate limits, slash commands, MCP management, and subagent panels remain capability-gated and unavailable for Codex.
+
+The Instructions editor uses separate files for each provider: `%LOCALAPPDATA%\Persephone\board-data\claude-agent\instructions.md` remains Claude's existing file, and Codex uses the sibling `instructions-codex.md` file. Claude's default instructions and composed prompt remain unchanged.
 
 ## Requirements and first run
 
@@ -15,7 +21,7 @@ The left sidebar lists your recent Claude sessions as a two-level tree: each wor
 
 ### Several sessions at once
 
-The board can run several sessions side by side, like terminal tabs. A session you send a message to (or open a panel for) runs on the board with a Claude process of its own, and it keeps running when you click another session: a reply in progress continues, and its turns are there when you come back. Each session keeps its own transcript, scroll position, unsent message, status line, and footer values. A dot before each session name shows its state: gray when the board does not run it, green when it does, pulsing while Claude works. A collapsed folder shows a green dot when one of its sessions is running, and a session that finished a reply while you were looking at another one has a bold title until you open it. Right-click a running session and choose **Disconnect** to end its process; it then shows as gray, and selecting it again replays its stored conversation. **New session**, **+**, and `/clear` leave running sessions running. Running sessions end when the page is closed or reloaded; the page then reopens only the session it was showing, without running it.
+The board can run several sessions side by side, like terminal tabs. A session you send a message to (or open a panel for) runs on the board with a Claude process of its own, and it keeps running when you click another session: a reply in progress continues, and its turns are there when you come back. Each session keeps its own transcript, scroll position, unsent message, status line, and footer values. An engine icon before each session name (Claude or Codex) shows its state: gray when the board does not run it, green when it does, pulsing while the agent works. A collapsed folder shows a green dot when one of its sessions is running, and a session that finished a reply while you were looking at another one has a bold title until you open it. Right-click a running session and choose **Disconnect** to end its process; it then shows as gray, and selecting it again replays its stored conversation. **New session**, **+**, and `/clear` leave running sessions running. Running sessions end when the page is closed or reloaded; the page then reopens only the session it was showing, without running it.
 
 ### Slash commands
 

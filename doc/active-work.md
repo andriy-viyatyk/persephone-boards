@@ -11,12 +11,12 @@ Overview of active and planned board work in this repo.
 - [ ] [BT-046: `claude-agent` provider board — Persephone EPIC-131 / US-1706](tasks/BT-046-claude-agent-board/README.md)
 - [ ] [BT-047: `claude-agent` board — subagents panel](tasks/BT-047-claude-agent-subagents/README.md)
 - [ ] [BT-048: `claude-agent` — provider adapter interface and capability flags (no behavior change)](tasks/BT-048-agent-provider-adapters/README.md)
+- [ ] [BT-049: Codex engine over `codex app-server`](tasks/BT-049-codex-engine/README.md)
 
 ## Planned
 
 Persephone EPIC-131 / US-1707: Codex becomes a second engine in this board instead of a separate `codex-agent` board (decided 2026-10-25).
 
-- [ ] BT-049: Codex engine over `codex app-server` (task document after BT-048 lands)
 - [ ] BT-050: Rename the board for two engines and migrate `claude-agent:` storage (task document after BT-049)
 
 Board work for Persephone's **EPIC-128** (*Audio Player board*) is finished: BT-038 – BT-045 shipped as

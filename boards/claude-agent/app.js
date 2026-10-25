@@ -2,7 +2,7 @@
 applyI18n();
 
 const $ = (selector) => document.querySelector(selector);
-const state = { setup: null, capabilities: {}, descriptions: new Map(), defaultProvider: "", description: null, models: [{ id: "", label: "Default", efforts: [] }], defaults: {}, settingsOff: null, sessions: [] };
+const state = { setup: null, capabilities: {}, descriptions: new Map(), catalog: [], defaultProvider: "", description: null, models: [{ id: "", label: "Default", efforts: [] }], defaults: {}, settingsOff: null, sessions: [] };
 const sessionsByKey = new Map();
 const sessionFor = (id, provider = "") => provider ? sessionsByKey.get(viewKey(id, provider)) : state.sessions.find((item) => item.id === id);
 const showError = (message) => { const node = $("#error"); node.textContent = message; node.classList.toggle("hidden", !message); };
@@ -18,14 +18,15 @@ const viewsByKey = new Map();
 const viewKey = (id, provider) => `${provider || ""}\u0000${id || ""}`;
 let current = null;
 function createView(item = {}) {
+  const provider = item.provider || current?.provider || state.defaultProvider || "";
   const view = {
-    id: item.id || "", provider: item.provider || "", description: state.descriptions.get(item.provider || "") || null, cwd: item.cwd || "", title: item.title || "", messages: element("div", "messages hidden"),
+    id: item.id || "", provider, description: state.descriptions.get(provider) || null, cwd: item.cwd || "", title: item.title || "", messages: element("div", "messages hidden"),
     channel: null, follow: null, live: false, busy: false, pendingPrompt: "", liveWaiters: [], controls: new Map(), approvals: new Map(),
     stream: null, lastText: "", thinkingNode: null, tools: new Map(), commandTurn: false, historyToken: 0,
     footer: null, usage: null, sessionCost: 0, statusText: "", statusBusy: false, error: "",
     draft: "", unread: false, stick: true, scrollTop: 0,
     agents: [], agentsChannel: null, selectedAgentId: "", agentViews: new Map(),
-    model: "", effort: "", defaults: null,
+    model: item.model || "", effort: item.effort || "", defaults: null,
   };
   $("#views").append(view.messages);
   views.add(view);
@@ -320,9 +321,20 @@ const channelSend = async (channel, message) => {
   if (!channel.writable) await channel.whenWritable();
   channel.send(message);
 };
+// A session's state marker: the engine icon its description names (icons/<icon>.svg, drawn as a mask so CSS colors it)
+// in the engine's iconColor, or the plain dot when the description has no icon.
+function engineIcon(description, stateClass) {
+  const icon = /^[a-z0-9-]{1,40}$/.test(description?.icon || "") ? description.icon : "";
+  const marker = element("span", `${icon ? "engine-icon" : "session-dot"} ${stateClass}`.trim());
+  if (icon) marker.style.setProperty("--engine-icon", `url("icons/${icon}.svg")`);
+  if (icon && /^#[0-9a-f]{6}$/i.test(description.iconColor || "")) marker.style.setProperty("--engine-color", description.iconColor);
+  return marker;
+}
+// A request with provider: null goes to the service unrouted (list-sessions then merges every engine).
 async function discovery(request) {
-  const routed = request.provider || current?.provider || state.defaultProvider;
-  const channel = await persephone.service.openChannel({ ...request, ...(routed ? { provider: routed } : {}) });
+  const { provider, ...rest } = request;
+  const routed = provider === null ? null : provider || current?.provider || state.defaultProvider;
+  const channel = await persephone.service.openChannel({ ...rest, ...(routed ? { provider: routed } : {}) });
   return new Promise((resolve) => {
     channel.onMessage((message) => resolve({ message, channel }));
     channel.onClose(() => resolve({ message: null, channel }));
@@ -331,6 +343,10 @@ async function discovery(request) {
 function applyDescription(message, view = null) {
   const provider = message.provider || "";
   state.descriptions.set(provider, message);
+  if (Array.isArray(message.catalog)) {
+    state.catalog = message.catalog;
+    for (const item of state.catalog) if (item?.provider) state.descriptions.set(item.provider, item);
+  }
   state.defaultProvider ||= provider;
   if (view) view.description = message; else state.description = message;
   state.capabilities = message.capabilities || {};
@@ -345,6 +361,10 @@ async function refreshDescription() {
   const { message } = await discovery({ type: "describe", ...(current?.provider ? { provider: current.provider } : {}) });
   if (message?.type === "description") {
     applyDescription(message, current?.provider ? current : null);
+    if (current && !current.id && !current.channel && !current.provider) {
+      current.provider = state.defaultProvider;
+      current.description = state.descriptions.get(current.provider) || message;
+    }
   }
   const caps = capabilities();
   $("#consent").classList.toggle("hidden", !caps.providerSetup || state.setup?.ready !== false);
@@ -385,6 +405,9 @@ function renderChips() {
   $("#mode-chip").textContent = selectedMode?.labelKey ? t(selectedMode.labelKey) : "";
   $("#mode-chip").dataset.mode = mode;
   const models = providerDescription(view).models || state.models;
+  const engine = $("#engine-chip");
+  engine.textContent = providerDescription(view).providerLabel || t(providerDescription(view).providerLabelKey || "provider.claude");
+  engine.classList.toggle("hidden", Boolean(view.id || view.channel) || state.catalog.length < 2);
   $("#model-chip").textContent = (isLive(view) && view.footer?.modelLabel) || modelLabel(viewModel(view), models);
   $("#model-chip").classList.toggle("hidden", !capabilities().modelSelection);
   $("#effort-chip").classList.toggle("hidden", !capabilities().effortSelection);
@@ -420,6 +443,31 @@ function openChoiceMenu(anchor, items, note = "") {
   choiceMenu.style.top = `${Math.max(4, rect.top - choiceMenu.offsetHeight - 4)}px`;
   anchor.classList.add("open"); choiceAnchor = anchor;
 }
+function changeEngine(view, description) {
+  if (!view || !description?.provider || view.id || view.channel) return;
+  view.provider = description.provider;
+  view.description = description;
+  view.model = "";
+  view.effort = "";
+  view.mode = description.defaults?.mode || "";
+  view.defaults = description.defaults || {};
+  rememberSession();
+  renderChips();
+  void refreshDefaults(view).catch(() => {});
+}
+function showEngineMenu() {
+  const view = current, anchor = $("#engine-chip");
+  if (!view || view.id || view.channel || state.catalog.length < 2) return;
+  if (choiceAnchor === anchor) { closeChoiceMenu(); return; }
+  const items = state.catalog.map((description) => ({
+    label: description.providerLabel || t(description.providerLabelKey || "provider.claude"),
+    desc: description.available === false ? t(description.unavailableReasonKey || "providerUnavailable") : "",
+    current: description.provider === view.provider,
+    disabled: description.available === false,
+    run: () => changeEngine(view, description),
+  }));
+  openChoiceMenu(anchor, items);
+}
 document.addEventListener("mousedown", (event) => { if (choiceAnchor && !choiceMenu.contains(event.target) && !choiceAnchor.contains(event.target)) closeChoiceMenu(); });
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && choiceAnchor) closeChoiceMenu(); });
 // A running session lists its own models and answers which one it uses; a view that is not running uses the
@@ -427,7 +475,7 @@ document.addEventListener("keydown", (event) => { if (event.key === "Escape" && 
 async function modelListing(view) {
   if (isLive(view)) { const result = await control(view, "models"); return { models: result.models || [], selected: result.current }; }
   await refreshDefaults(view);
-  return { models: state.models, selected: viewModel(view) };
+  return { models: providerDescription(view).models || state.models, selected: viewModel(view) };
 }
 // Like the terminal, a running session changes model or effort only between turns.
 async function showModelMenu() {
@@ -437,16 +485,18 @@ async function showModelMenu() {
   const live = isLive(view);
   const { models, selected } = await modelListing(view);
   if (view !== current) return;
-  openChoiceMenu(anchor, models.filter((model) => model.id && model.id !== "default").map((model) => ({
-    label: modelLabel(model.id, models), desc: model.description || "", current: model.id === selected, disabled: live && view.busy,
+  const groups = live ? [{ description: providerDescription(view), models }] : (state.catalog.length ? state.catalog.filter((description) => description.capabilities?.modelSelection).map((description) => ({ description, models: description.models || [] })) : [{ description: providerDescription(view), models }]);
+  openChoiceMenu(anchor, groups.flatMap(({ description, models: groupModels }) => description.available === false ? [{ label: description.providerLabel || t(description.providerLabelKey || "provider.claude"), desc: t(description.unavailableReasonKey || "providerUnavailable"), disabled: true, run: () => {} }] : groupModels.filter((model) => model.id && model.id !== "default").map((model) => ({
+    label: `${description.providerLabel || t(description.providerLabelKey || "provider.claude")} · ${modelLabel(model.id, groupModels)}`, desc: model.description || "", current: description.provider === view.provider && model.id === selected, disabled: live && view.busy,
     run: async () => {
-      if (live) { await control(view, "set-model", { model: model.id }); addDivider(view, t("modelSet", { model: modelLabel(model.id, models) })); return; }
+      if (description.provider !== view.provider) changeEngine(view, description);
+      if (live) { await control(view, "set-model", { model: model.id }); addDivider(view, t("modelSet", { model: modelLabel(model.id, groupModels) })); return; }
       view.model = model.id;
       const efforts = model.efforts || [];
       if (efforts.length && !efforts.includes(viewEffort(view))) view.effort = efforts.includes("medium") ? "medium" : efforts[0];
       renderChips();
     },
-  })), live ? t(view.busy ? "changeBusy" : "modelSwitchNote") : "");
+  }))), live ? t(view.busy ? "changeBusy" : "modelSwitchNote") : "");
 }
 async function showEffortMenu() {
   if (!capabilities().effortSelection) return;
@@ -463,7 +513,11 @@ async function showEffortMenu() {
     label: level, current: level === effort, disabled: live && view.busy,
     run: async () => {
       // The CLI applies /effort to the running session only and answers with a confirmation line.
-      if (live) { await sendPrompt(view, `/effort ${level}`); return; }
+      if (live) {
+        if (capabilities(view).slashCommands) await sendPrompt(view, `/effort ${level}`);
+        else await control(view, "set-effort", { effort: level });
+        return;
+      }
       view.effort = level; renderChips();
     },
   })), live && view.busy ? t("changeBusy") : "");
@@ -483,6 +537,7 @@ function showModeMenu() {
   })), live ? t("modeNote") : "");
 }
 $("#mode-chip").addEventListener("click", () => showModeMenu());
+$("#engine-chip").addEventListener("click", () => showEngineMenu());
 $("#context-chip").addEventListener("click", () => void showContextPanel().catch((error) => showError(error.message)));
 $("#model-chip").addEventListener("click", () => void showModelMenu().catch((error) => showError(error.message)));
 $("#effort-chip").addEventListener("click", () => void showEffortMenu().catch((error) => showError(error.message)));
@@ -600,10 +655,12 @@ function renderSessions() {
         const view = viewFor(item.id, item.provider);
         const button = element("button", `session-item${item.id && item.id === current?.id ? " active" : ""}${view?.unread ? " unread" : ""}`);
         button.type = "button";
-        // Gray: not running. Green: the board runs it (pulsing while Claude works).
+        // The engine's icon, gray when not running, green when the board runs it (pulsing while the agent works).
         const dotState = view?.channel ? (view.busy ? "live busy" : "live") : "";
-        button.title = [item.title, formatWhenExact(item.updatedAt), t(view?.channel ? (view.busy ? "sessionWorking" : "sessionLive") : "sessionIdle")].filter(Boolean).join("\n");
-        button.append(element("span", `session-dot ${dotState}`.trim()), element("span", "title", item.title), element("span", "when", formatWhen(item.updatedAt)));
+        const providerInfo = state.descriptions.get(item.provider || "");
+        const engine = providerInfo ? providerInfo.providerLabel || t(providerInfo.providerLabelKey) : "";
+        button.title = [item.title, engine, formatWhenExact(item.updatedAt), t(view?.channel ? (view.busy ? "sessionWorking" : "sessionLive") : "sessionIdle")].filter(Boolean).join("\n");
+        button.append(engineIcon(providerInfo, dotState), element("span", "title", item.title), element("span", "when", formatWhen(item.updatedAt)));
         button.addEventListener("click", () => void openStoredSession(item));
         button.addEventListener("contextmenu", (event) => { event.preventDefault(); openSessionMenu(item, event.clientX, event.clientY); });
         folder.append(button);
@@ -759,13 +816,13 @@ $("#splitter").addEventListener("pointerdown", (event) => {
 });
 $("#splitter").addEventListener("dblclick", () => prefs.write("sidebar-width", applySidebarWidth(280)));
 async function refreshSessions() {
-  if (!capabilities().sessionStore || !state.setup?.ready) { renderSessions(); return; }
-  const { message } = await discovery({ type: "list-sessions" });
+  if (!capabilities().sessionStore) { renderSessions(); return; }
+  const { message } = await discovery({ type: "list-sessions", provider: null });
   if (message?.type === "sessions") {
     state.sessions = [...message.sessions].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
     sessionsByKey.clear();
     for (const item of state.sessions) sessionsByKey.set(viewKey(item.id, item.provider), item);
-    for (const item of state.sessions) { const view = viewFor(item.id, item.provider); if (view) view.title = item.title; }
+    for (const item of state.sessions) { const view = viewFor(item.id, item.provider); if (view) { view.title = item.title; if (!isLive(view)) { view.model = item.model || view.model; view.effort = item.effort || view.effort; } } }
   } else if (message?.type === "error") showError(`${message.code}: ${message.message}`);
   renderSessions();
 }
@@ -803,7 +860,8 @@ function updateControls() {
 let instructionsDefault = "";
 async function editInstructions() {
   showError("");
-  const { message } = await discovery({ type: "instructions", action: "get" });
+  const provider = current?.provider || state.defaultProvider;
+  const { message } = await discovery({ type: "instructions", ...(provider ? { provider } : {}), action: "get" });
   if (message?.type !== "instructions") { showError(message?.type === "error" ? `${message.code}: ${message.message}` : t("error")); return; }
   instructionsDefault = message.defaultText;
   const dialog = $("#instructions-dialog"), text = $("#instructions-text");
@@ -813,7 +871,7 @@ async function editInstructions() {
   text.focus(); text.setSelectionRange(0, 0); text.scrollTop = 0;
   const saved = await new Promise((resolve) => dialog.addEventListener("close", () => resolve(dialog.returnValue === "save"), { once: true }));
   if (!saved || text.value === message.text) return;
-  const reply = await discovery({ type: "instructions", action: "set", text: text.value });
+  const reply = await discovery({ type: "instructions", ...(provider ? { provider } : {}), action: "set", text: text.value });
   if (reply.message?.type !== "instructions") showError(reply.message?.type === "error" ? `${reply.message.code}: ${reply.message.message}` : t("error"));
 }
 // Reset only fills the editor; nothing is stored until Save.
@@ -894,6 +952,12 @@ function appendEntries(view, entries) {
     else if (entry.role === "compacted") addCompacted(view);
     else if (entry.role === "compact") addCompactSummary(view, entry.text + suffix);
     else if (entry.role === "task") addTaskNotice(view, entry.text, entry.detail);
+    else if (entry.role === "file-change") addActivity(view, t("file"), entry.text || entry.path || "", "file");
+    else if (entry.role === "reasoning") {
+      const details = element("details", "reasoning-history");
+      details.append(element("summary", "", t("thinking")), element("div", "", entry.text));
+      appendMessage(view, details);
+    }
   }
 }
 function stopFollow(view) {
@@ -1007,12 +1071,18 @@ async function watchSessionList() {
   channel.onMessage((message) => { if (message.type === "sessions-changed") void refreshFromWatch(); });
 }
 // The shown session is restorable page state, so the page reopens it after a reload, a restart, or a move to another window.
-const rememberSession = () => persephone.state.merge({ session: current?.id ? { id: current.id, provider: current.provider, cwd: current.cwd } : null });
+const rememberSession = () => persephone.state.merge({ session: current ? { ...(current.id ? { id: current.id } : {}), provider: current.provider, cwd: current.cwd || $("#cwd").value.trim() } : null });
 // Shows the New session form; a form already open (and not yet started) is reused.
 // From a folder (its + button, /clear) the form only shows the folder; from the toolbar it asks for one.
 function showNewSession(cwd = "") {
-  if (!current || current.id || current.channel) showView(createView());
-  // A blank view is reused, but each new chat starts in the default mode again.
+  // A new chat starts on the default engine (the service's first provider), whichever chat was shown before;
+  // a blank view is reused, but it too returns to the default engine, model, effort and mode.
+  if (!current || current.id || current.channel) showView(createView({ provider: state.defaultProvider }));
+  else if (state.defaultProvider && current.provider !== state.defaultProvider) {
+    current.provider = state.defaultProvider;
+    current.description = state.descriptions.get(current.provider) || null;
+    current.model = ""; current.effort = "";
+  }
   current.mode = ""; renderChips();
   if (cwd) $("#cwd").value = cwd;
   $("#cwd-field").classList.toggle("hidden", Boolean(cwd));
@@ -1585,12 +1655,12 @@ void (async () => {
       const { message } = await discovery({ type: "describe", provider: saved.provider, ...(saved.cwd ? { cwd: saved.cwd } : {}) });
       if (message?.type === "description") { current.provider = saved.provider; applyDescription(message, current); }
     }
-  }
+  } else if (current && !current.provider) { current.provider = state.defaultProvider; current.description = state.descriptions.get(current.provider) || null; }
   if (capabilities().sessionStore && capabilities().transcriptFollow && state.setup?.ready) void watchSessionList().catch(() => {});
   // A session missing from the list (older than the listing) still resumes by id.
   if (saved?.id && saved.cwd && !current.id && capabilities().sessionStore && state.setup?.ready) await openStoredSession(sessionFor(saved.id, saved.provider) || { id: saved.id, provider: saved.provider || "", cwd: saved.cwd, title: "" });
 })().catch((error) => showError(error.message));
 // The board's default model and effort settings change what a view that is not running would use.
 state.settingsOff = persephone.settings.onChange(({ id }) => {
-  if ((id === "default-model" || id === "default-effort") && current && !isLive(current)) void refreshDefaults(current).catch(() => {});
+  if (["default-model", "default-effort", "codex-default-model", "codex-default-effort"].includes(id) && current && !isLive(current)) void refreshDefaults(current).catch(() => {});
 });

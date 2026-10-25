@@ -70,6 +70,12 @@ details[open] > summary::before, .folder.expanded .caret { transform: rotate(90d
 @keyframes session-pulse { 50% { opacity: .3; } }
 .session-item.unread .title { color: var(--p-text); font-weight: 600; }
 .session-item .when { flex: none; font-size: 11px; color: var(--p-text-muted); }
+/* Engine icon in place of the dot, drawn through the icon's shape in the engine's color (--engine-color, from its
+   description): muted toward the theme's gray when not running, full color when the board runs it, pulsing while it works.
+   Without an engine color it falls back to the dot's gray / green. */
+.engine-icon { flex: none; align-self: center; width: 13px; height: 13px; background: color-mix(in srgb, var(--engine-color, var(--p-text-muted)) 40%, var(--p-text-muted)); -webkit-mask: var(--engine-icon) center / contain no-repeat; mask: var(--engine-icon) center / contain no-repeat; }
+.engine-icon.live { background: var(--engine-color, var(--p-success)); }
+.engine-icon.busy { animation: session-pulse 1.2s ease-in-out infinite; }
 
 /* Main column */
 .main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }

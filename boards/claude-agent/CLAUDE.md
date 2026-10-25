@@ -5,12 +5,16 @@ Standalone provider board; it is not a custom editor and has no file association
 ## Runtime design
 
 - `scripts/agent-session-protocol.mjs` owns v1 validation, bounds, policy classification, and instruction composition.
-- `scripts/service.mjs` owns provider-neutral contract validation, channel lifecycle, policy and approvals, MCP endpoint revocation, and child process cleanup. `scripts/providers/claude.mjs` owns Claude SDK/CLI integration, Claude session storage, native event normalization, model/mode metadata, and setup.
+- `scripts/service.mjs` owns provider-neutral contract validation, provider catalog/session aggregation, channel lifecycle, policy and approvals, provider-scoped instruction files, MCP endpoint revocation, watcher lifecycle, and child process cleanup. `scripts/providers/claude.mjs` owns Claude SDK/CLI integration, Claude session storage, native event normalization, model/mode metadata, and setup. `scripts/providers/codex.mjs` owns the installed Codex app-server JSON-RPC protocol, Codex thread store, event normalization, and Codex model/mode metadata.
 - Providers are selected by the bounded `open.provider` id (default `claude`) from a closed registry. Keep provider-specific behavior behind the adapter boundary; descriptions publish capability flags and localized mode keys for the page.
 - `scripts/sdk-install.mjs` downloads SDK 0.3.302 only after a local consent message and verifies both the archive SRI and the SDK entrypoint SHA-256. Do not vendor SDK files or add a package manager/build step.
 - `scripts/claude-executable.mjs` resolves only the installed CLI. The SDK process spawn hook always launches that resolved executable.
 
-Local chat-page sessions have no permission modes: `startSession` forces `full-auto` for them (unrestricted, no approvals, Persephone MCP endpoint always issued), and the page has no mode selector or approval UI. The contract's modes, approvals, and `cross-board-permission-ceiling` apply only to cross-board consumers, so keep that code for the `agent.session` v1 contract.
+Claude local chat sessions retain their existing Claude Code mode behavior. Codex local sessions use the capability-described Auto, Full access, and Read only modes; Auto is `on-request` plus `workspace-write`. Cross-board contract modes and `cross-board-permission-ceiling` apply to both providers and must never be broadened by native policy.
+
+Codex is version-gated to CLI 0.163.0 because its app-server protocol is experimental. Start one `codex app-server --stdio` child per live session with the private MCP endpoint passed through `-c`; keep its bearer token only in the child's environment. The shared discovery process has no MCP configuration or token and is stopped after idle time. Codex supports its stored-thread list, paged history, rename, delete, and resume. It does not support transcript following, cost, rate limits, subagent panels, slash commands, or the MCP panel.
+
+The service owns `instructions.md` for Claude and `instructions-codex.md` for Codex under the existing board-data directory. Preserve Claude's existing default text and file contents; compose environment, provider instructions, and caller instructions in the same order and with the same joiner. Do not add instruction settings to the manifest.
 
 `session-history` is a board-page-only opening request (refused for cross-board callers, like `provider-setup`): it replays a stored transcript via the SDK's `getSessionMessages` as batched `history` messages (each batch under 600 KB) so the chat page can show a resumed session's earlier turns. It is not part of the `agent.session` v1 contract.
 

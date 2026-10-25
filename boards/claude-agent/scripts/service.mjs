@@ -1,7 +1,11 @@
 import { spawn } from "node:child_process";
 import { appliedLimits, boundedString, clampMode, hookDecision, serializeEvent, validateOpen } from "./agent-session-protocol.mjs";
 import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { createClaudeProvider } from "./providers/claude.mjs";
+import { createCodexProvider } from "./providers/codex.mjs";
+import { composeInstructions } from "./agent-session-protocol.mjs";
 
 // The resident service is the provider registry and channel entry point. Adapters own
 // their operation implementations and receive every opening and live-session request
@@ -19,6 +23,55 @@ const watchers = new Set();
 function registerSession(session) { sessions.set(session.channel, { providerId: session.providerId, adapter: session.adapter, providerSession: session }); }
 const activeSessions = () => [...sessions.values()].map((record) => record.providerSession);
 const HISTORY_BATCH_BYTES = 600 * 1024;
+const INSTRUCTIONS_LIMIT = 64 * 1024;
+const CLAUDE_DEFAULT_INSTRUCTIONS = [
+  "You are the user's assistant inside Persephone, a desktop workspace where they keep their work open in pages (tabs): files and notes, web pages in Persephone's browser (for example Teams, mail, tickets or documentation), screenshots and images they pasted, grids, diagrams and boards. Treat what is open in Persephone as the base context of every question.",
+  "",
+  "- When a question points at something without saying where it is (\"read the active chat\", \"check my screenshot\", \"what does this error mean\", \"summarize the discussion\"), assume it is open in Persephone and inspect Persephone before answering: list the open pages and read the one that matches.",
+  "- This chat runs in Persephone's Claude Agent board. The user often keeps it pinned to the right of the window header and opens it as a popover over the page they are working on; the popover never becomes the active page. So when `pages.popoverPage` is this chat, the page the user means is almost always the active page (`page` / `pages.activePage`): read it first. When this chat is itself the active page, check the page grouped beside it first. Then look at the other open pages by title and type. Persephone can have several windows; look in the others when nothing in this one matches.",
+  "- When a question is uncertain or could depend on what the user is looking at, check Persephone first. Ask the user only if the open pages do not settle it.",
+  "- Read the content yourself instead of asking the user to paste it: the text or a screenshot of a browser page, the image on an image page, the content of a file or grid page.",
+  "- Name the page you used (its title) so the user can correct you if it was the wrong one.",
+  "- Inspecting is always fine; click, type, navigate or change pages only when the user asks you to act in Persephone.",
+  "- Persephone's MCP tool is `mcp__persephone__call`; call it with no path for an overview of what it can reach. If Persephone MCP is not attached to this session, say so when a question needs it.",
+  "- Questions about code or files in the working directory still use your normal tools.",
+  "",
+  "Write replies in GitHub-flavored Markdown: the chat renders headings, lists, tables, links and fenced code blocks. Keep replies concise and lead with the answer.",
+].join("\n");
+const CODEX_DEFAULT_INSTRUCTIONS = "You are the user's assistant inside Persephone, a desktop workspace where they keep their work open in pages. Treat open Persephone pages as context when relevant. Inspect the active or grouped page before asking the user to paste visible content. Do not act in Persephone unless asked. Questions about files in the working directory use your normal tools. Write concise replies in GitHub-flavored Markdown.";
+const instructionDefaults = new Map([["claude", CLAUDE_DEFAULT_INSTRUCTIONS], ["codex", CODEX_DEFAULT_INSTRUCTIONS]]);
+function instructionsFile(providerId) {
+  const base = process.env.LOCALAPPDATA;
+  if (!base || !path.isAbsolute(base)) throw new Error("LOCALAPPDATA is not available; cannot store instructions.");
+  return path.resolve(base, "Persephone", "board-data", "claude-agent", providerId === "codex" ? "instructions-codex.md" : "instructions.md");
+}
+async function readInstructions(providerId) {
+  const defaultText = instructionDefaults.get(providerId) || CLAUDE_DEFAULT_INSTRUCTIONS;
+  try { return { text: await readFile(instructionsFile(providerId), "utf8"), custom: true, defaultText }; }
+  catch (error) { if (error.code === "ENOENT") return { text: defaultText, custom: false, defaultText }; throw error; }
+}
+async function composeProviderInstructions(providerId, environment, caller) {
+  const stored = await readInstructions(providerId).catch(() => ({ text: instructionDefaults.get(providerId) || CLAUDE_DEFAULT_INSTRUCTIONS }));
+  return composeInstructions(environment, stored.text.trim(), caller);
+}
+async function manageInstructions(channel, request, info) {
+  if (info?.interface || info?.caller) return closeChannel(channel, { code: "connection-refused", message: "Instructions are editable only from the local board page." });
+  const providerId = request.provider || "claude";
+  const defaultText = instructionDefaults.get(providerId);
+  if (!defaultText) return replyError(channel, request, "provider-unavailable", "The selected provider is unavailable.", true);
+  try {
+    if (request.action === "set" || request.action === "reset") {
+      const text = request.action === "set" && typeof request.text === "string" ? request.text.replace(/\r\n/g, "\n") : defaultText;
+      if (Buffer.byteLength(text) > INSTRUCTIONS_LIMIT) return replyError(channel, request, "protocol-error", "Instructions are limited to 64 KiB.", true);
+      const file = instructionsFile(providerId);
+      if (text.trim() === defaultText) await rm(file, { force: true });
+      else { await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, text, "utf8"); }
+    } else if (request.action !== "get") return replyError(channel, request, "protocol-error", "action must be get, set, or reset.", true);
+    const stored = await readInstructions(providerId);
+    await send(channel, echo({ type: "instructions", ...stored }, request));
+    closeChannel(channel);
+  } catch (error) { await replyError(channel, request, "protocol-error", error.message || "Could not update the instructions.", true); }
+}
 const OPEN_CAPABILITIES = {
   "list-sessions": "sessionStore", "session-history": "sessionStore", "manage-session": "sessionStore",
   "follow-session": "transcriptFollow", "watch-sessions": "transcriptFollow",
@@ -85,17 +138,30 @@ function approve(session, request) {
   const pending = session.approvals.get(request.requestId);
   if (!pending) return;
   const toolName = pending.scope.split(":").slice(1).join(":");
-  if ((request.decision === "allow" || request.decision === "allow-session") && hookDecision(session.mode, toolName).permissionDecision === "deny") {
+  if ((request.decision === "allow" || request.decision === "allow-session") && hookDecision(session.policyMode || session.mode, toolName).permissionDecision === "deny") {
     return settleApproval(session, request.requestId, { decision: "deny", message: "Action exceeds the effective permission mode." });
   }
   if (request.mode !== undefined && !session.adapter.acceptsMode(request.mode)) return replyError(session.channel, request, "protocol-error", "Approval continuation mode is invalid.", false, session);
   settleApproval(session, request.requestId, { decision: request.decision, message: request.message ? boundedString(request.message, 32 * 1024).value : undefined, ...(request.mode ? { mode: request.mode } : {}) });
 }
-const policyDecision = (session, toolName, input = {}) => hookDecision(session.mode, toolName, input, session.open.cwd);
+const policyDecision = (session, toolName, input = {}) => hookDecision(session.policyMode || session.mode, toolName, input, session.open.cwd);
 function approvalKind(toolName) { const kind = hookDecision("ask", toolName).kind; return kind === "read" ? "other" : kind; }
 function selectPermissionMode({ requested, ceiling, crossBoard }) { return crossBoard ? clampMode(requested, ceiling) : "full-auto"; }
 const sessionLimits = (open) => appliedLimits(open.limits || {});
 const issueEndpoint = (enabled) => enabled ? persephone.mcp.issueSessionEndpoint() : null;
+function revokeEndpoint(session) {
+  if (!session?.endpoint || session.endpointRevoked) return;
+  session.endpointRevoked = true;
+  try { session.endpoint.revoke(); } catch { /* already revoked */ }
+}
+async function prepareOpen(request, info) {
+  const open = validateOpen(request);
+  const crossBoard = Boolean(info?.interface && info?.caller);
+  const ceiling = (await persephone.settings.get("cross-board-permission-ceiling")) || "read-only";
+  const mode = selectPermissionMode({ requested: open.permissionMode, ceiling, crossBoard });
+  return { open, crossBoard, mode };
+}
+const issueOpenEndpoint = (prepared) => issueEndpoint(prepared.open.mcp?.persephone !== false && prepared.mode !== "read-only");
 async function closeSession(session, reason, force = false, closeTransport = false) {
   if (!session) return;
   if (session.closeTask) return session.closeTask;
@@ -107,7 +173,7 @@ async function closeSession(session, reason, force = false, closeTransport = fal
     session.inputQueue?.close();
     await session.adapter.closeProviderSession(session, { reason, force });
     await killChildren(session, true);
-    try { session.endpoint?.revoke(); } catch { /* host also revokes at shutdown */ }
+    revokeEndpoint(session);
     if (closeTransport) closeChannel(session.channel, { code: "channel-closed", message: `Agent session ended (${reason}).` });
   })().finally(() => { if (closingSessions.get(session.id) === task) closingSessions.delete(session.id); });
   session.closeTask = task; closingSessions.set(session.id, task); return task;
@@ -115,14 +181,23 @@ async function closeSession(session, reason, force = false, closeTransport = fal
 async function dispatchSession(session, request) {
   const capability = session.adapter.sessionCapability?.(request);
   if (capability && session.adapter.capabilities?.[capability] !== true) return replyError(session.channel, request, "unsupported-operation", `This provider does not support ${request.action || request.type}.`, false, session);
-  return session.adapter.dispatchSession(session, request);
+  try { return await session.adapter.dispatchSession(session, request); }
+  catch (error) {
+    if (request?.type === "send") { session.busy = false; await send(session.channel, { type: "turn-ended", reason: "error", usage: {} }, session); }
+    return replyError(session.channel, request, error.code || "protocol-error", error.message || "The session operation failed.", false, session);
+  }
 }
 function bindSession(session) {
   session.channel.onMessage((request) => void dispatchSession(session, request));
   session.channel.onClose((reason) => void closeSession(session, reason?.code || "channel-closed"));
 }
-const host = { AsyncQueue, sessions, closingSessions, watchers, send, echo, replyError, closeChannel, registerSession, activeSessions, registerProcess, killChildren, sendEntries, closeSession, askApproval, settleApproval, approve, policyDecision, approvalKind, selectPermissionMode, sessionLimits, issueEndpoint, bindSession };
-const providers = new Map([["claude", createClaudeProvider(host)]]);
+function watchFor(channel, stop) {
+  const entry = { stop };
+  watchers.add(entry);
+  channel.onClose(() => { watchers.delete(entry); stop(); });
+}
+const host = { AsyncQueue, sessions, closingSessions, watchers, send, echo, replyError, closeChannel, registerSession, activeSessions, registerProcess, killChildren, sendEntries, closeSession, askApproval, settleApproval, approve, policyDecision, approvalKind, selectPermissionMode, sessionLimits, issueEndpoint, issueOpenEndpoint, revokeEndpoint, prepareOpen, bindSession, watchFor, composeInstructions: composeProviderInstructions };
+const providers = new Map([["claude", createClaudeProvider(host)], ["codex", createCodexProvider(host)]]);
 
 async function sendProviderError(channel, request, code, message) {
   const event = { type: "error", code, message, fatal: true, ...(request?.id === undefined ? {} : { id: request.id }) };
@@ -151,9 +226,33 @@ persephone.service.onChannel(async (channel, request, info) => {
     return;
   }
   const adapter = ownerRecord?.adapter || providers.get(requested);
+  if (request?.type === "instructions") { await manageInstructions(channel, request, info); return; }
+  if (request?.type === "describe" && !request.provider) {
+    try {
+      const catalog = [];
+      for (const [id, entry] of providers) {
+        if (typeof entry.describe !== "function") continue;
+        const detail = await entry.describe({ cwd: request.cwd || "" });
+        catalog.push(detail);
+      }
+      const defaultEntry = catalog.find((entry) => entry.available !== false) || catalog[0];
+      if (defaultEntry) await send(channel, echo({ type: "description", contractVersion: 1, catalog, ...defaultEntry }, request));
+      closeChannel(channel);
+    } catch (error) { await sendProviderError(channel, request, error.code || "provider-unavailable", error.message); }
+    return;
+  }
   if (!adapter) {
     await sendProviderError(channel, request, "provider-unavailable", `Provider is unavailable: ${requested}`);
     return;
+  }
+  if (request?.type === "list-sessions" && !request.provider) {
+    const rows = [];
+    for (const [providerId, candidate] of providers) {
+      if (candidate.capabilities?.sessionStore !== true || typeof candidate.collectSessions !== "function") continue;
+      try { rows.push(...await candidate.collectSessions(request)); } catch { /* unavailable provider rows are omitted */ }
+    }
+    await send(channel, echo({ type: "sessions", sessions: rows.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))) }, request));
+    closeChannel(channel); return;
   }
   const method = OPEN_OPERATIONS[request?.type];
   if (!method || typeof adapter[method] !== "function") {

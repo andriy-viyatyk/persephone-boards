@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- Codex: a scalloped cloud with a ">_" prompt cut out (single color, drawn as a CSS mask). -->
+  <mask id="prompt">
+    <g fill="#fff"><circle cx="12" cy="12" r="7.5"/><circle cx="17.82" cy="14.41" r="4.6"/><circle cx="14.41" cy="17.82" r="4.6"/><circle cx="9.59" cy="17.82" r="4.6"/><circle cx="6.18" cy="14.41" r="4.6"/><circle cx="6.18" cy="9.59" r="4.6"/><circle cx="9.59" cy="6.18" r="4.6"/><circle cx="14.41" cy="6.18" r="4.6"/><circle cx="17.82" cy="9.59" r="4.6"/></g>
+    <g fill="none" stroke="#000" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="7.6,8.6 10.9,12 7.6,15.4"/>
+      <line x1="13.4" y1="15.4" x2="17" y2="15.4"/>
+    </g>
+  </mask>
+  <rect width="24" height="24" fill="#000" mask="url(#prompt)"/>
+</svg>

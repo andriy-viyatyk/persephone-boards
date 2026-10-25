@@ -1,3 +1,7 @@
+## 1.1.0
+- Added Codex as a second selectable engine using the installed Codex app-server, with provider-specific models, efforts, permissions, instructions and saved sessions.
+- Each session in the sidebar shows its engine icon (Claude or Codex) instead of a dot: gray when not running, green when running.
+
 ## 1.0.0
 - Added the Claude Agent provider service, SDK consent flow, and a chat page with a recent-sessions sidebar, Markdown-rendered replies, and resumed-session history.
 - Added a selectable Agents tree with read-only subagent transcripts and live status dots.

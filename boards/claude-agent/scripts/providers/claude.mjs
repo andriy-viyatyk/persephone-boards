@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { watch } from "node:fs";
-import { mkdir, open as openFile, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { open as openFile, readdir, readFile, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
-  boundedString, composeInstructions, summarizeToolInput, validateOpen,
+  boundedString, summarizeToolInput,
 } from "../agent-session-protocol.mjs";
 import { resolveClaudeExecutable } from "../claude-executable.mjs";
 import { installSdk, loadSdk, sdkIsInstalled } from "../sdk-install.mjs";
@@ -152,7 +152,7 @@ const settingIds = ["claude-executable", "default-model", "default-effort", "cro
 let adapter;
 const providerFor = (id = "claude") => id === "claude" ? adapter : null;
 let host;
-let { AsyncQueue, activeSessions, closingSessions, watchers, send, echo, replyError, closeChannel, registerSession, registerProcess, killChildren, sendEntries, askApproval, approve: approveShared, policyDecision, approvalKind, selectPermissionMode, sessionLimits, issueEndpoint } = {};
+let { AsyncQueue, activeSessions, closingSessions, send, echo, replyError, closeChannel, registerSession, registerProcess, killChildren, sendEntries, askApproval, approve: approveShared, policyDecision, approvalKind, sessionLimits, prepareOpen, issueOpenEndpoint } = {};
 const closeSession = (session, reason, closeTransport = false) => host.closeSession(session, reason, false, closeTransport);
 
 async function refreshSettings() {
@@ -192,55 +192,9 @@ function listenSettings() {
   });
 }
 
-// Provider instructions (layer 2 of the contract's composition): the board's default until the user saves their own
-// text from the page's Instructions dialog. Stored beside the SDK in the board's data folder, not in board settings,
-// because a board page cannot write its settings.
-const DEFAULT_INSTRUCTIONS = [
-  "You are the user's assistant inside Persephone, a desktop workspace where they keep their work open in pages (tabs): files and notes, web pages in Persephone's browser (for example Teams, mail, tickets or documentation), screenshots and images they pasted, grids, diagrams and boards. Treat what is open in Persephone as the base context of every question.",
-  "",
-  "- When a question points at something without saying where it is (\"read the active chat\", \"check my screenshot\", \"what does this error mean\", \"summarize the discussion\"), assume it is open in Persephone and inspect Persephone before answering: list the open pages and read the one that matches.",
-  "- This chat runs in Persephone's Claude Agent board. The user often keeps it pinned to the right of the window header and opens it as a popover over the page they are working on; the popover never becomes the active page. So when `pages.popoverPage` is this chat, the page the user means is almost always the active page (`page` / `pages.activePage`): read it first. When this chat is itself the active page, check the page grouped beside it first. Then look at the other open pages by title and type. Persephone can have several windows; look in the others when nothing in this one matches.",
-  "- When a question is uncertain or could depend on what the user is looking at, check Persephone first. Ask the user only if the open pages do not settle it.",
-  "- Read the content yourself instead of asking the user to paste it: the text or a screenshot of a browser page, the image on an image page, the content of a file or grid page.",
-  "- Name the page you used (its title) so the user can correct you if it was the wrong one.",
-  "- Inspecting is always fine; click, type, navigate or change pages only when the user asks you to act in Persephone.",
-  "- Persephone's MCP tool is `mcp__persephone__call`; call it with no path for an overview of what it can reach. If Persephone MCP is not attached to this session, say so when a question needs it.",
-  "- Questions about code or files in the working directory still use your normal tools.",
-  "",
-  "Write replies in GitHub-flavored Markdown: the chat renders headings, lists, tables, links and fenced code blocks. Keep replies concise and lead with the answer.",
-].join("\n");
-const INSTRUCTIONS_LIMIT = 64 * 1024;
-function instructionsFile() {
-  const base = process.env.LOCALAPPDATA;
-  if (!base || !path.isAbsolute(base)) throw new Error("LOCALAPPDATA is not available; cannot store instructions.");
-  return path.resolve(base, "Persephone", "board-data", "claude-agent", "instructions.md");
-}
-async function readInstructions() {
-  try { return { text: await readFile(instructionsFile(), "utf8"), custom: true }; }
-  catch (error) { if (error.code === "ENOENT") return { text: DEFAULT_INSTRUCTIONS, custom: false }; throw error; }
-}
-
 async function makePreamble(open, mcpAttached) {
-  const { text } = await readInstructions().catch(() => ({ text: DEFAULT_INSTRUCTIONS }));
   const environment = `You are running inside Persephone's Claude Agent board. Working directory: ${open.cwd}. Persephone MCP is ${mcpAttached ? "attached for this session" : "not attached"}. Your output is shown in a chat UI.`;
-  return composeInstructions(environment, text.trim(), open.instructions);
-}
-
-// Local page only: read or replace the provider instructions. Saving the default text (or "reset") removes the file.
-async function manageInstructions(channel, request, info) {
-  if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Instructions are editable only from the local board page." });
-  try {
-    if (request.action === "set" || request.action === "reset") {
-      const text = request.action === "set" && typeof request.text === "string" ? request.text.replace(/\r\n/g, "\n") : DEFAULT_INSTRUCTIONS;
-      if (Buffer.byteLength(text) > INSTRUCTIONS_LIMIT) return replyError(channel, request, "protocol-error", "Instructions are limited to 64 KiB.", true);
-      const file = instructionsFile();
-      if (text.trim() === DEFAULT_INSTRUCTIONS) await rm(file, { force: true });
-      else { await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, text, "utf8"); }
-    } else if (request.action !== "get") return replyError(channel, request, "protocol-error", "action must be get, set, or reset.", true);
-    const { text, custom } = await readInstructions();
-    await send(channel, echo({ type: "instructions", text, custom, defaultText: DEFAULT_INSTRUCTIONS }, request));
-    await closeChannel(channel);
-  } catch (error) { await replyError(channel, request, "protocol-error", error.message || "Could not update the instructions.", true); }
+  return host.composeInstructions("claude", environment, open.instructions);
 }
 
 async function describe(channel, request, info) {
@@ -266,19 +220,17 @@ async function listSessions(channel, request) {
   try { sdk = await providerFor(request.provider || "claude").loadSdk(); }
   catch (error) { await replyError(channel, request, error.code || "provider-setup-required", error.message, true); return; }
   try {
-    const options = { limit: 200, ...(request.cwd ? { dir: request.cwd } : {}) };
-    const rows = await sdk.listSessions(options);
-    const normalizePath = (value) => process.platform === "win32" ? path.resolve(value).toLowerCase() : path.resolve(value);
-    const filtered = request.cwd ? rows.filter((row) => row.cwd && normalizePath(row.cwd) === normalizePath(request.cwd)) : rows;
-    const result = filtered.map((row) => ({
-      id: row.sessionId,
-      title: boundedString(row.customTitle || row.summary || row.firstPrompt || "Untitled session", 32 * 1024).value,
-      updatedAt: new Date(row.lastModified).toISOString(),
-      cwd: row.cwd || "", provider: request.provider || "claude",
-    }));
+    const result = await collectClaudeSessions(request, sdk);
     await send(channel, echo({ type: "sessions", sessions: result }, request));
     await closeChannel(channel);
   } catch (error) { await replyError(channel, request, "protocol-error", error.message || "Could not list sessions.", true); }
+}
+async function collectClaudeSessions(request = {}, sdk = null) {
+  sdk ||= await providerFor("claude").loadSdk();
+  const rows = await sdk.listSessions({ limit: 200, ...(request.cwd ? { dir: request.cwd } : {}) });
+  const normalizePath = (value) => process.platform === "win32" ? path.resolve(value).toLowerCase() : path.resolve(value);
+  const filtered = request.cwd ? rows.filter((row) => row.cwd && normalizePath(row.cwd) === normalizePath(request.cwd)) : rows;
+  return filtered.map((row) => ({ id: row.sessionId, title: boundedString(row.customTitle || row.summary || row.firstPrompt || "Untitled session", 32 * 1024).value, updatedAt: new Date(row.lastModified).toISOString(), cwd: row.cwd || "", provider: "claude" }));
 }
 
 // CLI-generated user turns (caveats, reminders) are not things the user typed. Slash commands are stored as
@@ -339,9 +291,7 @@ async function findTranscript(sessionId) {
   return null;
 }
 function watchFor(channel, stop) {
-  const entry = { stop };
-  watchers.add(entry);
-  channel.onClose(() => { watchers.delete(entry); stop(); });
+  host.watchFor(channel, stop);
 }
 
 // One raw transcript line: user/assistant turns, plus the compaction marker and local command output,
@@ -753,7 +703,8 @@ async function runQuery(session) {
 
 async function startSession(channel, openRequest, info) {
   await refreshSettings();
-  const open = validateOpen(openRequest);
+  const prepared = await prepareOpen(openRequest, info);
+  const { open, crossBoard, mode } = prepared;
   if (open.resume && !SESSION_ID.test(open.resume)) throw Object.assign(new Error("Claude resume id must be a session UUID."), { code: "protocol-error" });
   // A missing cwd makes the CLI spawn fail with a misleading "binary failed to launch" ENOENT.
   const cwdStat = await stat(open.cwd).catch(() => null);
@@ -770,13 +721,10 @@ async function startSession(channel, openRequest, info) {
     const modelInfo = cachedModels.find((model) => model.id === selectedModel);
     if (modelInfo && !modelInfo.efforts.includes(selectedEffort)) throw Object.assign(new Error("The selected effort is not supported by this model."), { code: "protocol-error" });
   }
-  const crossBoard = Boolean(info.interface && info.caller);
+  const endpoint = await issueOpenEndpoint(prepared);
   // The board's own chat page is unrestricted by contract and picks Claude Code's mode itself (PAGE_MODES).
   // Cross-board consumers use the contract's modes, clamped to the configured ceiling.
-  const mode = selectPermissionMode({ requested: open.permissionMode, ceiling: settings["cross-board-permission-ceiling"] || "read-only", crossBoard });
   const nativeMode = crossBoard ? MODE_NATIVE[mode] : PAGE_MODES.includes(open.mode) ? open.mode : "auto";
-  const wantsMcp = open.mcp?.persephone !== false && mode !== "read-only";
-  const endpoint = await issueEndpoint(wantsMcp);
   const id = open.resume || randomUUID();
   const session = {
     id, channel, open, providerId: open.provider, adapter: provider, defaults, sdk, executable, mode, nativeMode, crossBoard, endpoint, composed: await makePreamble(open, Boolean(endpoint)),
@@ -969,14 +917,15 @@ async function shutdown() {
 
 function createClaudeProvider(serviceHost) {
   host = serviceHost;
-  ({ AsyncQueue, activeSessions, closingSessions, watchers, send, echo, replyError, closeChannel, registerSession, registerProcess, killChildren, sendEntries, askApproval, approve: approveShared, policyDecision, approvalKind, selectPermissionMode, sessionLimits, issueEndpoint } = host);
+  ({ AsyncQueue, activeSessions, closingSessions, send, echo, replyError, closeChannel, registerSession, registerProcess, killChildren, sendEntries, askApproval, approve: approveShared, policyDecision, approvalKind, sessionLimits, prepareOpen, issueOpenEndpoint } = host);
   adapter = {
     id: "claude",
     capabilities: CAPABILITIES,
     async describe({ cwd }) {
+      await refreshSettings();
       const ready = await sdkIsInstalled();
       return {
-        provider: "claude", models: cachedModels || MODEL_ALIASES, defaults: { ...(await sessionDefaults(cwd)), mode: "auto" },
+        provider: "claude", providerLabelKey: "provider.claude", icon: "claude", iconColor: "#d97757", models: cachedModels || MODEL_ALIASES, defaults: { ...(await sessionDefaults(cwd)), mode: "auto" },
         capabilities: CAPABILITIES,
         setup: { required: true, ready },
         chatOptions: { permissionModes: [
@@ -986,6 +935,7 @@ function createClaudeProvider(serviceHost) {
         ] },
       };
     },
+    async collectSessions(request) { return collectClaudeSessions(request); },
     async setup({ action }) { return action === "install" ? installSdk() : { ready: await sdkIsInstalled() }; },
     async loadSdk() {
       try { return await loadSdk(); }
@@ -1004,7 +954,6 @@ function createClaudeProvider(serviceHost) {
     manageSession(channel, request, info) { return manageSession(channel, request, info); },
     watchSubagents(channel, request, info) { return watchSubagents(channel, request, info); },
     subagentHistory(channel, request, info) { return subagentHistory(channel, request, info); },
-    instructions(channel, request, info) { return manageInstructions(channel, request, info); },
     setupRequest(channel, request, info) {
       if (info.interface || info.caller) return closeChannel(channel, { code: "connection-refused", message: "Provider setup is available only from the local board page." });
       return installConsent(channel);

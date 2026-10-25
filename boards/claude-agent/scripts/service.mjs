@@ -32,16 +32,17 @@ const GROUP_ROOT = () => {
   if (!base || !path.isAbsolute(base)) throw new Error("LOCALAPPDATA is not available; cannot store group chats.");
   return path.resolve(base, "Persephone", "board-data", "claude-agent", "group-chat");
 };
-const GROUP_ROLES = Object.freeze([
-  { id: "reviewer", name: "Reviewer", instructions: "Review the requested work, inspect relevant code or evidence, and report concrete defects, risks, and fixes. Do not make changes.", summary: "Reviews work and identifies defects, risks, and fixes.", permissionMode: "read-only" },
-  { id: "critic", name: "Critic", instructions: "Challenge the proposal's assumptions, look for counterexamples and failure cases, and explain where reasoning or evidence is weak. Do not make changes.", summary: "Challenges assumptions and finds counterexamples.", permissionMode: "read-only" },
-  { id: "researcher", name: "Researcher", instructions: "Investigate the question using available sources, distinguish evidence from inference, and report concise findings with source references. Do not make changes.", summary: "Researches questions and reports evidence and sources.", permissionMode: "read-only" },
+const DEFAULT_PROFILES = Object.freeze([
+  { id: "nova-reviewer", name: "Nova", roleTitle: "Reviewer", instructions: "Review the requested work, inspect relevant code or evidence, and report concrete defects, risks, and fixes. Do not make changes.", summary: "Reviews work and identifies defects, risks, and fixes.", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only" },
+  { id: "rex-critic", name: "Rex", roleTitle: "Critic", instructions: "Challenge the proposal's assumptions, look for counterexamples and failure cases, and explain where reasoning or evidence is weak. Do not make changes.", summary: "Challenges assumptions and finds counterexamples.", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only" },
+  { id: "atlas-researcher", name: "Atlas", roleTitle: "Researcher", instructions: "Investigate the question using available sources, distinguish evidence from inference, and report concise findings with source references. Do not make changes.", summary: "Researches questions and reports evidence and sources.", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only" },
+  { id: "iris-planner", name: "Iris", roleTitle: "Planner", instructions: "Turn the request into a clear, ordered plan. Identify dependencies, risks, and decision points, and keep recommendations practical.", summary: "Creates practical plans and highlights dependencies, risks, and decisions.", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only" },
 ]);
 // Master's whole reply when it has nothing to add; the service drops it instead of sharing it.
 const GROUP_PASS = "[[pass]]";
 const GROUP_CORE = (name, position) => `You are in the Agent Chat board as ${name}, position ${position}. Other agents may join this chat. Message headers such as [[from: Nova | role: Reviewer]], [[from: user]], and [[from: Master | role: main]] identify authors; treat them as metadata. Every visible message reaches every participant, so most messages need no reply from you.
-Master: answer the user's messages unless the user names another agent; answer when any participant addresses you as Master; you may delegate by asking a joined agent by name, based on the role summaries. When a message is addressed to another agent, or you have nothing substantive to add (a correction, a missing fact, a next step), reply with exactly ${GROUP_PASS} and nothing else; the board hides it. Never send acknowledgements, thanks, welcomes, or remarks that you are staying out of it.
-Joined agents: follow your role instructions and share replies only through the post_message tool. Post when you are addressed by name or when your role clearly calls for it; otherwise end your turn without posting. Never post acknowledgements such as "Got it" or "Thanks".`;
+Master: answer the user's messages unless the user names another agent; answer when any participant addresses you as Master; you may delegate by asking a joined agent by name, based on the role summaries. When a message is addressed to another agent, or you have nothing substantive to add (a correction, a missing fact, a next step), reply with exactly ${GROUP_PASS} and nothing else; the board hides it. Never send acknowledgements, thanks, welcomes, or remarks that you are staying out of it. You moderate the discussion: when joined agents go back and forth without progress, repeat points already made, or keep prompting each other without the user asking for it, tell them by name to stop and summarize what is settled for the user.
+Joined agents: follow your role instructions and share replies only through the post_message tool. Post when you are addressed by name or when your role clearly calls for it; otherwise end your turn without posting. Never post acknowledgements such as "Got it" or "Thanks". Follow Master's instructions; they rank right after the user's. When Master tells you to stop, post nothing more on that topic until the user or Master addresses you again.`;
 const AUTHOR_HEADER = authorHeader;
 const isGroupMain = (session) => Boolean(session?.groupMain || session?.open?.groupChat?.position === "main");
 const isPersistentGroup = (session) => Boolean(groups.get(session?.id)?.enabled);
@@ -67,24 +68,57 @@ async function readJson(file, fallback, maxBytes = 512 * 1024) {
   }
   catch (error) { if (error.code === "ENOENT") return fallback; throw error; }
 }
-const rolesFile = () => groupFile("roles.json");
+const profilesFile = () => groupFile("profiles.json");
 const participantsFile = (id) => groupFile(`participants-${encodeURIComponent(id)}.json`);
-async function readRoles() {
-  const stored = await readJson(rolesFile(), null, 128 * 1024);
+async function readProfiles() {
+  const stored = await readJson(profilesFile(), null, 256 * 1024);
   if (stored !== null) {
-    if (!Array.isArray(stored) || stored.length > 64 || stored.some((role) => !role || typeof role.id !== "string" || typeof role.name !== "string" || typeof role.instructions !== "string" || typeof role.summary !== "string" || !["read-only", "ask", "auto-edit", "full-auto"].includes(role.permissionMode))) throw new Error("Saved role list is invalid.");
+    if (!Array.isArray(stored) || stored.length > 64) throw new Error("Saved profile list is invalid.");
+    for (const profile of stored) await validateProfile(profile, { catalog: false });
     return stored;
   }
-  await atomicJson(rolesFile(), GROUP_ROLES, 128 * 1024);
-  return GROUP_ROLES;
+  await atomicJson(profilesFile(), DEFAULT_PROFILES, 256 * 1024);
+  return DEFAULT_PROFILES;
+}
+const PROFILE_MODES = ["read-only", "ask", "auto-edit", "full-auto"];
+const PROFILE_FIELDS = ["id", "name", "roleTitle", "instructions", "summary", "provider", "model", "effort", "permissionMode"];
+function nextProfileName(name, profiles) {
+  for (let suffix = 2; suffix < 100000; suffix++) {
+    const tail = ` ${suffix}`, candidate = `${name.slice(0, 60 - tail.length)}${tail}`;
+    if (!profiles.some((profile) => profile.name.toLowerCase() === candidate.toLowerCase())) return candidate;
+  }
+  throw new Error("No available duplicate profile name could be generated.");
+}
+async function validateProfile(profile, { catalog = true } = {}) {
+  if (!profile || typeof profile !== "object" || Array.isArray(profile) || Object.keys(profile).some((key) => !PROFILE_FIELDS.includes(key)) || PROFILE_FIELDS.some((key) => !Object.hasOwn(profile, key))) throw new Error("Profile data is invalid.");
+  if (typeof profile.id !== "string" || !/^[a-z0-9-]{1,48}$/.test(profile.id)) throw new Error("Profile id is invalid.");
+  safeHeaderPart(profile.name, 60); safeHeaderPart(profile.roleTitle, 60);
+  if (typeof profile.instructions !== "string" || Buffer.byteLength(profile.instructions) > 16 * 1024 || typeof profile.summary !== "string" || Buffer.byteLength(profile.summary) > 2048) throw new Error("Profile instructions or summary exceed the size limit.");
+  if (!providers.has(profile.provider)) throw new Error("The selected provider is unavailable.");
+  if (typeof profile.model !== "string" || !profile.model || profile.model.length > 200 || typeof profile.effort !== "string" || profile.effort.length > 40) throw new Error("Profile model or effort is invalid.");
+  if (!PROFILE_MODES.includes(profile.permissionMode)) throw new Error("The permission preset is unsupported.");
+  const normalized = Object.fromEntries(PROFILE_FIELDS.map((key) => [key, key === "instructions" || key === "summary" ? profile[key] : String(profile[key]).trim()]));
+  if (!catalog) return normalized;
+  const description = await providers.get(profile.provider).describe({ cwd: "" });
+  if (description.available === false) throw new Error("The selected provider is unavailable.");
+  const aliases = profile.provider === "claude" ? ["opus", "sonnet", "haiku"] : [];
+  const model = description.models?.find((entry) => entry.id === profile.model);
+  if (!model && !aliases.includes(profile.model)) throw new Error("The selected model is unavailable.");
+  const efforts = model?.efforts || (aliases.includes(profile.model) ? ["low", "medium", "high", "xhigh", "max"] : []);
+  if (profile.effort && !efforts.includes(profile.effort)) throw new Error("The selected effort is unavailable.");
+  return normalized;
 }
 async function readParticipants(id) {
   const rows = await readJson(participantsFile(id), [], 512 * 1024);
   if (!Array.isArray(rows) || rows.length > 32) throw new Error("Saved participant list is invalid.");
   for (const row of rows) {
-    if (!row || typeof row !== "object" || Object.hasOwn(row, "token") || !/^[0-9a-f-]{36}$/i.test(row.id || "") || !/^[0-9a-f-]{36}$/i.test(row.mainSessionId || "") || row.mainSessionId !== id) throw new Error("Saved participant metadata is invalid.");
-    safeHeaderPart(row.name, 40); safeHeaderPart(row.role, 60);
-    if (typeof row.roleId !== "string" || !/^[a-z0-9-]{1,48}$/.test(row.roleId) || !["claude", "codex"].includes(row.engine) || !["read-only", "ask", "auto-edit", "full-auto"].includes(row.permissionMode)) throw new Error("Saved participant metadata is invalid.");
+    if (!row || typeof row !== "object") throw new Error("Saved participant metadata is invalid.");
+    row.profileId ||= row.roleId;
+    row.roleTitle ||= row.role;
+    row.provider ||= row.engine;
+    if (Object.hasOwn(row, "token") || !/^[0-9a-f-]{36}$/i.test(row.id || "") || !/^[0-9a-f-]{36}$/i.test(row.mainSessionId || "") || row.mainSessionId !== id) throw new Error("Saved participant metadata is invalid.");
+    safeHeaderPart(row.name, 60); safeHeaderPart(row.roleTitle, 60);
+    if (typeof row.profileId !== "string" || !/^[a-z0-9-]{1,48}$/.test(row.profileId) || !["claude", "codex"].includes(row.provider) || !["read-only", "ask", "auto-edit", "full-auto"].includes(row.permissionMode)) throw new Error("Saved participant metadata is invalid.");
     if (typeof row.instructions !== "string" || Buffer.byteLength(row.instructions) > 16 * 1024 || typeof row.summary !== "string" || Buffer.byteLength(row.summary) > 2048 || typeof row.model !== "string" || row.model.length > 200 || typeof row.effort !== "string" || row.effort.length > 40 || typeof row.cwd !== "string" || row.cwd.length > 32768 || !path.isAbsolute(row.cwd)) throw new Error("Saved participant metadata is invalid.");
     if (row.sessionId !== "" && (typeof row.sessionId !== "string" || !row.sessionId || row.sessionId.length > 512 || /[\u0000-\u001f\u007f]/.test(row.sessionId))) throw new Error("Saved participant session id is invalid.");
     if (row.sessionId) participantIds.add(row.sessionId);
@@ -156,10 +190,16 @@ const OPEN_CAPABILITIES = {
   "follow-session": "transcriptFollow", "watch-sessions": "transcriptFollow",
   "watch-subagents": "subagents", "subagent-history": "subagents", "provider-setup": "providerSetup",
 };
-const LOCAL_PAGE_ONLY = new Set(["session-history", "follow-session", "manage-session", "instructions", "watch-sessions", "watch-subagents", "subagent-history", "provider-setup"]);
+const LOCAL_PAGE_ONLY = new Set(["session-history", "follow-session", "manage-session", "instructions", "watch-sessions", "watch-subagents", "subagent-history", "provider-setup", "manage-profiles", "group-index", "participant-observer"]);
 async function send(channel, event, session) {
   if (session?.closed) return;
-  if (session?.groupParticipant) return;
+  if (session?.groupParticipant) {
+    const group = session.group;
+    if (group) for (const observer of group.observers || []) if (observer.participantId === session.groupParticipant.id && !observer.closed) {
+      try { if (!observer.channel.writable) await observer.channel.whenWritable(); observer.channel.send(serializeEvent(event)); } catch { /* observer closed */ }
+    }
+    return;
+  }
   if (isGroupMain(session) && event?.type === "turn-started") session.groupTurnShared = isPersistentGroup(session);
   if (isGroupMain(session) && session.groupTurnShared && event?.type === "text-delta") { session.groupTurnText = (session.groupTurnText || "") + (event.text || ""); return; }
   if (isGroupMain(session) && session.groupTurnShared && event?.type === "text") { session.groupTurnText = event.text || session.groupTurnText || ""; return; }
@@ -215,13 +255,20 @@ async function askApproval(session, scope, event, signal, timeoutMs) {
     session.approvals.set(requestId, { resolve, cleanup, scope });
     signal?.addEventListener("abort", abort, { once: true });
   });
-  await send(session.channel, { type: "approval-request", requestId, ...event }, session);
+  if (session.groupParticipant && session.groupParticipant.permissionMode !== "read-only") {
+    const group = session.group;
+    await send(group.mainSession.channel, { type: "approval-request", requestId, participantApproval: true, author: { name: session.groupParticipant.name, roleTitle: session.groupParticipant.roleTitle, provider: session.providerId }, ...event }, group.mainSession);
+  } else await send(session.channel, { type: "approval-request", requestId, ...event }, session);
   return answer;
 }
 function settleApproval(session, id, result) {
   const pending = session.approvals.get(id);
   if (!pending) return;
   session.approvals.delete(id); pending.cleanup(); pending.resolve(result);
+  if (session.groupParticipant && !session.suppressApprovalResolved) {
+    const group = session.group;
+    void send(group.mainSession.channel, { type: "approval-resolved", requestId: id, outcome: result.decision === "deny" ? (String(result.message || "").includes("timed out") ? "expired" : "denied") : "allowed" }, group.mainSession);
+  }
 }
 function approve(session, request) {
   if (!request || !["allow", "allow-session", "deny"].includes(request.decision) || typeof request.requestId !== "string") return replyError(session.channel, request, "protocol-error", "Invalid approval response.", false, session);
@@ -238,7 +285,7 @@ function approve(session, request) {
 const policyDecision = (session, toolName, input = {}) => {
   if (session?.groupParticipant && /^(?:mcp__)?agent_chat(?:__|\.)post_message$/.test(toolName)) return { permissionDecision: "allow", kind: "mcp" };
   const decision = hookDecision(session.policyMode || session.mode, toolName, input, session.open.cwd);
-  if (session?.groupParticipant && decision.permissionDecision === "ask") return { ...decision, permissionDecision: "deny", message: "This action is outside the joined agent's permission preset." };
+  if (session?.groupParticipant && session.groupParticipant.permissionMode === "read-only" && decision.permissionDecision === "ask") return { ...decision, permissionDecision: "deny", message: "This action is outside the joined agent's permission preset." };
   return decision;
 };
 function approvalKind(toolName) { const kind = hookDecision("ask", toolName).kind; return kind === "read" ? "other" : kind; }
@@ -255,7 +302,7 @@ async function prepareOpen(request, info) {
   const crossBoard = Boolean(info?.interface && info?.caller);
   if (crossBoard) delete open.groupChat;
   else if (open.groupChat?.internal === true && open.groupChat.position === "joined") {
-    open.groupChat.name = safeHeaderPart(open.groupChat.name, 40);
+    open.groupChat.name = safeHeaderPart(open.groupChat.name, 60);
     if (!/^[0-9a-f-]{36}$/i.test(open.groupChat.participantId || "") || !["read-only", "ask", "auto-edit", "full-auto"].includes(open.groupChat.permissionMode)) throw new Error("Group participant metadata is invalid.");
   } else if (open.groupChat?.position === "main") open.groupChat = { name: "Master", position: "main" };
   else delete open.groupChat;
@@ -327,9 +374,11 @@ async function startGroupHttpServer() {
       if (params.name !== "post_message") return reply({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Unknown tool." } });
       const input = params.arguments || {};
       if (Object.keys(input).some((key) => key !== "text") || typeof input.text !== "string" || !input.text.trim() || Buffer.byteLength(input.text) > 16 * 1024) return reply({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: "The message must be non-empty text of at most 16 KiB." }], isError: true } });
+      // Joined agents read the Master rules too and sometimes post the pass marker; it is never shared.
+      if (input.text.trim() === GROUP_PASS) return reply({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: "Nothing was posted. When you have nothing to add, end your turn without calling post_message." }], isError: false } });
       const author = record.participant;
-      const stamped = `${AUTHOR_HEADER(author.name, author.role)}\n${escapeBodyHeaders(input.text.trim())}`;
-      await publishGroupMessage(record.group, stamped, { name: author.name, role: author.role, roleId: author.roleId, engine: author.engine, kind: "participant" }, author.id);
+      const stamped = `${AUTHOR_HEADER(author.name, author.roleTitle)}\n${escapeBodyHeaders(input.text.trim())}`;
+      await publishGroupMessage(record.group, stamped, { name: author.name, roleTitle: author.roleTitle, profileId: author.profileId, provider: author.provider, kind: "participant" }, author.id);
       return reply({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: "Posted to group chat." }], isError: false } });
     }
     if (message.id === undefined) { res.writeHead(202).end(); return; }
@@ -354,7 +403,7 @@ async function publishGroupMessage(group, stamped, author, sourceParticipantId =
   const notice = author.kind === "notice";
   const event = {
     type: "group-visible-message",
-    text: notice ? `Agent ${author.name} (${author.role}) ${author.action}` : timelineText,
+    text: notice ? `Agent ${author.name} (${author.roleTitle}) ${author.action}` : timelineText,
     timelineText,
     author,
     ...(notice ? { noticeAction: author.action, summary: author.summary, reminder: author.reminder || "" } : {}),
@@ -386,34 +435,35 @@ async function flushGroupQueue(group, session) {
   finally { session.groupDispatch = false; }
 }
 async function addGroupParticipant(group, request) {
-  const roles = await readRoles();
-  const role = roles.find((item) => item.id === request.roleId);
-  if (!role) throw new Error("Choose an available role.");
-  if (Buffer.byteLength(role.instructions) > 16 * 1024 || Buffer.byteLength(role.summary) > 2048) throw new Error("The selected role exceeds the group chat limits.");
+  const profile = (await readProfiles()).find((item) => item.id === request.profileId);
+  if (!profile) throw new Error("Choose an available profile.");
+  await validateProfile(profile);
+  const providerDescription = await providers.get(profile.provider).describe({ cwd: group.mainSession.open.cwd });
+  if (providerDescription.available === false || profile.provider === "claude" && providerDescription.setup?.ready !== true) throw new Error("The selected provider is not ready.");
   if (group.participants.filter((row) => !row.removed).length >= 32) throw new Error("A group can have at most 32 participants.");
-  const name = safeHeaderPart(request.name, 40);
-  if (name.toLowerCase() === "master" || group.participants.some((row) => !row.removed && row.name.toLowerCase() === name.toLowerCase())) throw new Error("That name is already in use.");
-  const providerId = ["claude", "codex"].includes(request.provider) ? request.provider : "claude";
+  const name = safeHeaderPart(profile.name, 60);
+  if (name.toLowerCase() === "master" || group.participants.some((row) => !row.removed && (row.profileId === profile.id || row.name.toLowerCase() === name.toLowerCase()))) throw new Error("That profile or name is already in this chat.");
+  const providerId = profile.provider;
   const adapter = providers.get(providerId);
-  if (!adapter) throw new Error("The selected engine is unavailable.");
+  if (!adapter) throw new Error("The selected provider is unavailable.");
   const hadParticipantFile = await readFile(participantsFile(group.mainSessionId)).then(() => true).catch(() => false);
   const id = randomUUID();
-  const participant = { id, name, role: role.name, roleId: role.id, instructions: role.instructions, summary: role.summary, permissionMode: role.permissionMode, engine: providerId, model: boundedString(request.model || "", 200).value, effort: boundedString(request.effort || "", 40).value, sessionId: "", mainSessionId: group.mainSessionId, cwd: group.mainSession.open.cwd };
+  const participant = { id, profileId: profile.id, name, roleTitle: profile.roleTitle, instructions: profile.instructions, summary: profile.summary, provider: profile.provider, model: profile.model, effort: profile.effort, permissionMode: profile.permissionMode, sessionId: "", mainSessionId: group.mainSessionId, mainProvider: group.mainSession.providerId, cwd: group.mainSession.open.cwd };
   group.participants.push(participant);
   group.enabled = true;
   await saveParticipants(group);
   const channel = internalParticipantChannel(group, id);
-  const open = { type: "open", contractVersion: 1, id: randomUUID(), provider: providerId, model: participant.model, effort: participant.effort, cwd: participant.cwd, permissionMode: participant.permissionMode, instructions: role.instructions, groupChat: { internal: true, name, position: "joined", participantId: id, permissionMode: role.permissionMode } };
+  const open = { type: "open", contractVersion: 1, id: randomUUID(), provider: providerId, model: participant.model, effort: participant.effort, cwd: participant.cwd, permissionMode: participant.permissionMode, instructions: profile.instructions, groupChat: { internal: true, name, position: "joined", participantId: id, permissionMode: profile.permissionMode } };
   try {
     const live = await adapter.open(channel, open, {});
     live.group = group; live.groupParticipant = participant; group.live.set(id, live);
-    const roster = group.participants.filter((item) => !item.removed).map((item) => `${item.name} (${item.role})`).join(", ");
+    const roster = group.participants.filter((item) => !item.removed).map((item) => `${item.name} (${item.roleTitle})`).join(", ");
     const history = request.historyText || "";
-    const firstTurn = `You are ${name}, a joined agent with role ${role.name}. ${role.summary}\nCurrent participants: Master (main), ${roster}.\nVisible timeline so far:\n${boundedString(history, 64 * 1024).value || "No earlier visible messages."}`;
+    const firstTurn = `You are ${name}, a joined agent with role ${profile.roleTitle}. ${profile.summary}\nCurrent participants: Master (main), ${roster}.\nVisible timeline so far:\n${boundedString(history, 64 * 1024).value || "No earlier visible messages."}`;
     await adapter.dispatchSession(live, { type: "send", id: randomUUID(), text: firstTurn });
     const reminder = hadParticipantFile ? "" : GROUP_CORE("Master", "main");
-    const notice = `${AUTHOR_HEADER(name, role.name)}\nAgent ${name} (${role.name}) joined\n\n${escapeBodyHeaders(role.summary)}${reminder ? `\n\n${reminder}` : ""}`;
-    await publishGroupMessage(group, notice, { name, role: role.name, roleId: role.id, engine: providerId, summary: role.summary, reminder, action: "joined", kind: "notice" });
+    const notice = `${AUTHOR_HEADER(name, profile.roleTitle)}\nAgent ${name} (${profile.roleTitle}) joined\n\n${escapeBodyHeaders(profile.summary)}${reminder ? `\n\n${reminder}` : ""}`;
+    await publishGroupMessage(group, notice, { name, roleTitle: profile.roleTitle, profileId: profile.id, provider: providerId, summary: profile.summary, reminder, action: "joined", kind: "notice" });
     await saveParticipants(group);
     return participant;
   } catch (error) {
@@ -427,11 +477,13 @@ async function removeGroupParticipant(group, id) {
   const participant = group.participants.find((row) => row.id === id && !row.removed);
   if (!participant) return;
   const live = group.live.get(id);
+  if (live) await denyParticipantApprovals(group, live, "denied");
+  for (const observer of group.observers || []) if (observer.participantId === id) closeChannel(observer.channel, { code: "participant-removed", message: "The participant left the group." });
   if (live) { revokeGroupEndpoint(live); await closeSession(live, "participant-removed", true, true); group.live.delete(id); }
   groupTokens.forEach((record, token) => { if (record.participant.id === id) groupTokens.delete(token); });
   participant.removed = true;
   await saveParticipants(group);
-  await publishGroupMessage(group, `${AUTHOR_HEADER(participant.name, participant.role)}\nAgent ${participant.name} (${participant.role}) left`, { name: participant.name, role: participant.role, roleId: participant.roleId, engine: participant.engine, action: "left", kind: "notice" });
+  await publishGroupMessage(group, `${AUTHOR_HEADER(participant.name, participant.roleTitle)}\nAgent ${participant.name} (${participant.roleTitle}) left`, { name: participant.name, roleTitle: participant.roleTitle, profileId: participant.profileId, provider: participant.provider, action: "left", kind: "notice" });
 }
 async function resumeGroupParticipants(group) {
   for (const participant of group.participants) {
@@ -441,10 +493,10 @@ async function resumeGroupParticipants(group) {
       await send(group.mainSession.channel, { type: "group-participant-error", participantId: participant.id, message: "The saved participant session id is unavailable." }, group.mainSession);
       continue;
     }
-    const provider = providers.get(participant.engine);
+    const provider = providers.get(participant.provider);
     if (!provider) continue;
     try {
-      const open = { type: "open", contractVersion: 1, id: randomUUID(), provider: participant.engine, model: participant.model, effort: participant.effort, cwd: participant.cwd || group.mainSession.open.cwd, resume: participant.sessionId, permissionMode: participant.permissionMode, instructions: participant.instructions, groupChat: { internal: true, name: participant.name, position: "joined", participantId: participant.id, permissionMode: participant.permissionMode } };
+      const open = { type: "open", contractVersion: 1, id: randomUUID(), provider: participant.provider, model: participant.model, effort: participant.effort, cwd: participant.cwd || group.mainSession.open.cwd, resume: participant.sessionId, permissionMode: participant.permissionMode, instructions: participant.instructions, groupChat: { internal: true, name: participant.name, position: "joined", participantId: participant.id, permissionMode: participant.permissionMode } };
       const internal = internalParticipantChannel(group, participant.id);
       const live = await provider.open(internal, open, {});
       live.group = group; live.groupParticipant = participant; group.live.set(participant.id, live);
@@ -457,25 +509,43 @@ async function groupOperation(session, request) {
     group.participants = await readParticipants(session.id);
     group.enabled = await hasGroupParticipants(session.id);
     await resumeGroupParticipants(group);
-    return send(session.channel, { type: "group-data", groupMode: group.enabled, roles: await readRoles(), participants: group.participants.filter((row) => !row.removed) }, session);
+    return send(session.channel, { type: "group-data", groupMode: group.enabled, profiles: await readProfiles(), participants: group.participants.filter((row) => !row.removed) }, session);
   }
   if (request.action === "invite") {
     const participant = await addGroupParticipant(group, request);
     return send(session.channel, { type: "group-participant-added", participant }, session);
   }
   if (request.action === "remove") return removeGroupParticipant(group, request.participantId);
-  if (request.action === "save-role") {
-    if (request.role?.id && GROUP_ROLES.some((role) => role.id === request.role.id)) throw new Error("Built-in roles cannot be replaced.");
-    const role = request.role;
-    if (!role || typeof role !== "object" || typeof role.id !== "string" || !/^[a-z0-9-]{1,48}$/.test(role.id)) throw new Error("Role data is invalid.");
-    const rows = await readRoles(), next = { id: role.id, name: safeHeaderPart(role.name, 60), instructions: boundedString(role.instructions, 16 * 1024).value, summary: boundedString(role.summary, 2048).value, permissionMode: ["read-only", "ask", "auto-edit", "full-auto"].includes(role.permissionMode) ? role.permissionMode : "read-only" };
-    const index = rows.findIndex((item) => item.id === next.id); if (index < 0) rows.push(next); else rows[index] = next;
-    await atomicJson(rolesFile(), rows, 128 * 1024); return send(session.channel, { type: "group-data", roles: rows, participants: group.participants.filter((row) => !row.removed) }, session);
+  if (request.action === "approval-response") {
+    const owner = [...group.live.values()].find((participant) => participant.approvals?.has(request.requestId));
+    if (owner) await owner.adapter.approve(owner, { type: "approval-response", requestId: request.requestId, decision: request.decision });
+    return;
   }
-  if (request.action === "delete-role") {
-    if (GROUP_ROLES.some((role) => role.id === request.roleId)) throw new Error("Built-in roles cannot be deleted.");
-    const rows = (await readRoles()).filter((role) => role.id !== request.roleId); await atomicJson(rolesFile(), rows, 128 * 1024);
-    return send(session.channel, { type: "group-data", roles: rows, participants: group.participants.filter((row) => !row.removed) }, session);
+  if (request.action === "save-profile") {
+    const next = await validateProfile(request.profile);
+    const rows = await readProfiles(), index = rows.findIndex((item) => item.id === next.id);
+    if (index < 0 && rows.length >= 64) throw new Error("A maximum of 64 profiles is supported.");
+    if (index < 0) rows.push(next); else rows[index] = next;
+    await atomicJson(profilesFile(), rows, 256 * 1024);
+    return send(session.channel, { type: "profile-data", profiles: rows }, session);
+  }
+  if (request.action === "delete-profile") {
+    const rows = (await readProfiles()).filter((profile) => profile.id !== request.profileId);
+    await atomicJson(profilesFile(), rows, 256 * 1024);
+    return send(session.channel, { type: "profile-data", profiles: rows }, session);
+  }
+  if (request.action === "duplicate-profile") {
+    const rows = await readProfiles(), source = rows.find((profile) => profile.id === request.profileId);
+    if (!source) throw new Error("The selected profile is unavailable.");
+    if (rows.length >= 64) throw new Error("A maximum of 64 profiles is supported.");
+    const name = nextProfileName(source.name, rows);
+    const copy = { ...source, id: randomUUID(), name };
+    rows.push(copy); await atomicJson(profilesFile(), rows, 256 * 1024);
+    return send(session.channel, { type: "profile-data", profiles: rows, selectedId: copy.id }, session);
+  }
+  if (request.action === "reset-profiles") {
+    await atomicJson(profilesFile(), DEFAULT_PROFILES, 256 * 1024);
+    return send(session.channel, { type: "profile-data", profiles: DEFAULT_PROFILES }, session);
   }
   if (request.action === "user-message") {
     const text = boundedString(request.text, 16 * 1024).value.trim();
@@ -489,33 +559,44 @@ async function groupOperation(session, request) {
   }
   if (request.action === "stop-all") {
     group.queues.clear();
+    await Promise.all([...group.live.values()].map((live) => denyParticipantApprovals(group, live, "stopped")));
     await session.adapter.dispatchSession(session, { type: "interrupt" });
     await Promise.all([...group.live.values()].map((live) => live.adapter.dispatchSession(live, { type: "interrupt" }).catch(() => {})));
   }
-  if (!["list", "invite", "remove", "save-role", "delete-role", "user-message", "stop-all"].includes(request.action)) throw new Error("The group operation is unavailable.");
+  if (!["list", "invite", "remove", "approval-response", "save-profile", "delete-profile", "duplicate-profile", "reset-profiles", "user-message", "stop-all"].includes(request.action)) throw new Error("The group operation is unavailable.");
+}
+async function denyParticipantApprovals(group, participant, outcome) {
+  participant.suppressApprovalResolved = true;
+  for (const requestId of [...(participant.approvals?.keys() || [])]) {
+    try { await participant.adapter.approve(participant, { type: "approval-response", requestId, decision: "deny" }); } catch { /* participant is closing */ }
+    await send(group.mainSession.channel, { type: "approval-resolved", requestId, outcome }, group.mainSession);
+  }
+  participant.suppressApprovalResolved = false;
 }
 async function closeSession(session, reason, force = false, closeTransport = false) {
   if (!session) return;
   if (session.closeTask) return session.closeTask;
   const task = (async () => {
     if (session.status?.compacting) { session.status.compacting = false; await send(session.channel, session.adapter.sessionStatus(session), session); }
-    session.closed = true;
-    sessions.delete(session.channel);
     if (session.groupParticipant) {
       revokeGroupEndpoint(session);
       const group = session.groupParticipant.mainSessionId && groups.get(session.groupParticipant.mainSessionId);
-      if (group) group.live.delete(session.groupParticipant.id);
+      if (group) { await denyParticipantApprovals(group, session, "stopped"); group.live.delete(session.groupParticipant.id); }
     }
     if (isGroupMain(session)) {
       const group = groups.get(session.id);
       if (group) {
         group.channelClosed = true;
+        await Promise.all([...group.live.values()].map((participant) => denyParticipantApprovals(group, participant, "closed")));
+        for (const observer of group.observers || []) closeChannel(observer.channel, { code: "parent-closed", message: "The parent group session ended." });
         await Promise.all([...group.live.values()].map((participant) => closeSession(participant, "parent-closed", true, true)));
         group.live.clear();
         group.queues.clear();
         groups.delete(session.id);
       }
     }
+    session.closed = true;
+    sessions.delete(session.channel);
     for (const [id, approval] of session.approvals) { approval.cleanup?.(); approval.resolve({ decision: "deny", message: "Session closed." }); session.approvals.delete(id); }
     session.inputQueue?.close();
     await session.adapter.closeProviderSession(session, { reason, force });
@@ -564,6 +645,53 @@ const OPEN_OPERATIONS = {
   "provider-setup": "setupRequest", instructions: "instructions", open: "open",
 };
 
+async function manageProfiles(channel, request) {
+  try {
+    let profiles = await readProfiles(), selectedId;
+    if (request.action === "save") {
+      const next = await validateProfile(request.profile), index = profiles.findIndex((item) => item.id === next.id);
+      if (index < 0 && profiles.length >= 64) throw new Error("A maximum of 64 profiles is supported.");
+      if (index < 0) profiles.push(next); else profiles[index] = next;
+      await atomicJson(profilesFile(), profiles, 256 * 1024); selectedId = next.id;
+    } else if (request.action === "delete") {
+      profiles = profiles.filter((profile) => profile.id !== request.profileId);
+    } else if (request.action === "duplicate") {
+      const source = profiles.find((profile) => profile.id === request.profileId);
+      if (!source) throw new Error("The selected profile is unavailable.");
+      if (profiles.length >= 64) throw new Error("A maximum of 64 profiles is supported.");
+      const name = nextProfileName(source.name, profiles);
+      const copy = { ...source, id: randomUUID(), name }; profiles.push(copy); selectedId = copy.id;
+      await atomicJson(profilesFile(), profiles, 256 * 1024);
+    } else if (request.action === "reset") {
+      profiles = DEFAULT_PROFILES; await atomicJson(profilesFile(), profiles, 256 * 1024);
+    } else if (request.action !== "get") throw new Error("The profile operation is unavailable.");
+    await send(channel, { type: "profile-data", profiles, selectedId, descriptions: await Promise.all([...providers.values()].map((provider) => provider.describe({ cwd: "" }))) });
+    closeChannel(channel);
+  } catch (error) { await send(channel, { type: "profile-error", message: boundedString(error.message || "The profile operation failed.", 4096).value }); closeChannel(channel); }
+}
+
+async function sendGroupIndex(channel, request) {
+  const groupsIndex = [];
+  for (const file of await readdir(GROUP_ROOT()).catch(() => [])) {
+    const match = /^participants-(.+)\.json$/.exec(file);
+    if (!match) continue;
+    let participants;
+    try { participants = await readParticipants(decodeURIComponent(match[1])); } catch { continue; }
+    if (!participants.length) continue;
+    groupsIndex.push({ mainSessionId: participants[0].mainSessionId, provider: participants[0].mainProvider || "", participants: participants.map(({ profileId, name, roleTitle, provider, sessionId, removed }) => ({ profileId, name, roleTitle, provider, sessionId, removed: Boolean(removed) })) });
+  }
+  const start = Number.isSafeInteger(request.offset) && request.offset >= 0 ? request.offset : 0;
+  let page = [], bytes = 0, offset = start;
+  while (offset < groupsIndex.length) {
+    const row = groupsIndex[offset], size = Buffer.byteLength(JSON.stringify(row));
+    if (page.length && bytes + size > 480 * 1024) break;
+    if (size > 480 * 1024) throw new Error("A group index entry exceeds the response size limit.");
+    page.push(row); bytes += size; offset++;
+  }
+  await send(channel, { type: "group-index", groups: page, offset, done: offset >= groupsIndex.length, total: groupsIndex.length, ...(request.id === undefined ? {} : { id: request.id }) });
+  closeChannel(channel);
+}
+
 persephone.service.onChannel(async (channel, request, info) => {
   if (request?.type === "open") {
     try { validateOpen(request); }
@@ -584,11 +712,11 @@ persephone.service.onChannel(async (channel, request, info) => {
     if (!main) return sendProviderError(channel, request, "session-unavailable", "The group chat is not live.");
     const group = getGroup(main.id, main);
     const participant = group.participants.find((row) => row.id === request.participantId);
-    const provider = participant && providers.get(participant.engine);
+    const provider = participant && providers.get(participant.provider);
     if (!participant || !provider) return sendProviderError(channel, request, "session-unavailable", "The participant is unavailable.");
     const resume = { ...participant, provider, adapter: provider };
     try {
-      const open = { type: "open", contractVersion: 1, id: randomUUID(), provider: participant.engine, model: participant.model, effort: participant.effort, cwd: participant.cwd || main.open.cwd, resume: participant.sessionId, permissionMode: participant.permissionMode, instructions: participant.instructions, groupChat: { internal: true, name: participant.name, position: "joined", participantId: participant.id, permissionMode: participant.permissionMode } };
+      const open = { type: "open", contractVersion: 1, id: randomUUID(), provider: participant.provider, model: participant.model, effort: participant.effort, cwd: participant.cwd || main.open.cwd, resume: participant.sessionId, permissionMode: participant.permissionMode, instructions: participant.instructions, groupChat: { internal: true, name: participant.name, position: "joined", participantId: participant.id, permissionMode: participant.permissionMode } };
       const internal = internalParticipantChannel(group, participant.id);
       const live = await provider.open(internal, open, {});
       live.group = group; live.groupParticipant = participant; group.live.set(participant.id, live);
@@ -597,6 +725,27 @@ persephone.service.onChannel(async (channel, request, info) => {
     return;
   }
   if (request?.type === "instructions") { await manageInstructions(channel, request, info); return; }
+  if (request?.type === "manage-profiles") {
+    if (info?.interface || info?.caller) return closeChannel(channel, { code: "connection-refused", message: "Profiles are editable only from the local board page." });
+    await manageProfiles(channel, request); return;
+  }
+  if (request?.type === "group-index") {
+    if (info?.interface || info?.caller) return closeChannel(channel, { code: "connection-refused", message: "The group index is available only from the local board page." });
+    try { await sendGroupIndex(channel, request); } catch (error) { await sendProviderError(channel, request, "protocol-error", error.message); }
+    return;
+  }
+  if (request?.type === "participant-observer") {
+    if (info?.interface || info?.caller) return closeChannel(channel, { code: "connection-refused", message: "Participant observation is available only from the local board page." });
+    const main = [...sessions.values()].map((record) => record.providerSession).find((item) => item.id === request.mainSessionId && isGroupMain(item) && !item.closed);
+    const group = main && groups.get(main.id), participant = group?.participants.find((row) => row.sessionId === request.sessionId && !row.removed), live = participant && group.live.get(participant.id);
+    if (!group || !live || !participant) { await send(channel, { type: "observer-unavailable" }); closeChannel(channel); return; }
+    group.observers ||= new Set();
+    const observer = { channel, participantId: participant.id, closed: false };
+    group.observers.add(observer);
+    channel.onClose(() => { observer.closed = true; group.observers.delete(observer); });
+    await send(channel, { type: "observer-ready", participant: { profileId: participant.profileId, name: participant.name, roleTitle: participant.roleTitle, provider: participant.provider } });
+    return;
+  }
   if (request?.type === "describe" && !request.provider) {
     try {
       const catalog = [];
@@ -624,7 +773,7 @@ persephone.service.onChannel(async (channel, request, info) => {
     }
     await loadParticipantIds();
     for (const group of groups.values()) for (const participant of group.participants) if (participant.sessionId) participantIds.add(participant.sessionId);
-    await send(channel, echo({ type: "sessions", sessions: rows.filter((row) => !participantIds.has(row.id)).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))) }, request));
+    await send(channel, echo({ type: "sessions", sessions: rows.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))) }, request));
     closeChannel(channel); return;
   }
   const method = OPEN_OPERATIONS[request?.type];

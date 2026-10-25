@@ -734,7 +734,8 @@ async function startSession(channel, openRequest, info) {
   const defaults = await sessionDefaults(open.cwd);
   const selectedModel = open.model || settings["default-model"] || "";
   const selectedEffort = open.effort || settings["default-effort"] || "";
-  if (selectedModel && cachedModels && !cachedModels.some((model) => model.id === selectedModel)) throw Object.assign(new Error("The selected model is not in the current SDK model listing."), { code: "model-unavailable" });
+  const cliAlias = ["opus", "sonnet", "haiku"].includes(selectedModel);
+  if (selectedModel && cachedModels && !cliAlias && !cachedModels.some((model) => model.id === selectedModel)) throw Object.assign(new Error("The selected model is not in the current SDK model listing."), { code: "model-unavailable" });
   if (selectedEffort && cachedModels && selectedModel) {
     const modelInfo = cachedModels.find((model) => model.id === selectedModel);
     if (modelInfo && !modelInfo.efforts.includes(selectedEffort)) throw Object.assign(new Error("The selected effort is not supported by this model."), { code: "protocol-error" });
@@ -759,6 +760,7 @@ async function startSession(channel, openRequest, info) {
   host.bindSession(session);
   session.runTask = runQuery(session);
   session.runTask.catch((error) => console.error("Claude session pump failed:", error));
+  return session;
 }
 
 async function handleSessionMessage(session, request) {
@@ -945,7 +947,7 @@ function createClaudeProvider(serviceHost) {
       await refreshSettings();
       const ready = await sdkIsInstalled();
       return {
-        provider: "claude", providerLabelKey: "provider.claude", icon: "claude", iconColor: "#d97757", models: cachedModels || MODEL_ALIASES, defaults: { ...(await sessionDefaults(cwd)), mode: "auto" },
+        provider: "claude", providerLabelKey: "provider.claude", icon: "claude", iconColor: "#d97757", models: [...MODEL_ALIASES.filter((alias) => alias.id), ...(cachedModels || []).filter((model) => !["opus", "sonnet", "haiku"].includes(model.id))], defaults: { ...(await sessionDefaults(cwd)), mode: "auto" },
         capabilities: CAPABILITIES,
         setup: { required: true, ready },
         chatOptions: { permissionModes: [

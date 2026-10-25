@@ -75,6 +75,10 @@ details[open] > summary::before, .folder.expanded .caret { transform: rotate(90d
 @keyframes session-pulse { 50% { opacity: .3; } }
 .session-item.unread .title { color: var(--p-text); font-weight: 600; }
 .session-item .when { flex: none; font-size: 11px; color: var(--p-text-muted); }
+.participant-item { width: calc(100% - 34px); margin-left: 34px; border-style: dashed; }
+.participant-item .title { font-size: 12px; }
+.participant-item.removed { opacity: .65; }
+.participant-item.removed .title { text-decoration: line-through; }
 /* Engine icon in place of the dot, drawn through the icon's shape in the engine's color (--engine-color, from its
    description): muted toward the theme's gray when not running, full color when the board runs it, pulsing while it works.
    Without an engine color it falls back to the dot's gray / green. */
@@ -168,19 +172,6 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--p-text-mut
 .meta-chip.context { margin-left: auto; }
 .meta-chip.context[data-tone="accent"] { color: var(--p-accent); }
 .meta-chip.context[data-tone="error"] { color: var(--p-error); }
-.group-panel { position: absolute; z-index: 6; right: 6px; bottom: 60px; width: min(360px, calc(100vw - 32px)); max-height: min(55vh, 520px); overflow-y: auto; padding: 12px; background: var(--p-panel); border: 1px solid var(--p-border); border-radius: var(--p-radius-md, 6px); font-family: var(--chat-font); color: var(--p-text); }
-.group-panel-head, .group-roster-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.group-panel-head { margin-bottom: 8px; }
-.group-panel-head button, .group-roster-row button { color: var(--p-text-muted); }
-.group-roster { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
-.group-roster-row { padding: 5px 7px; border: 1px solid var(--p-border); border-radius: var(--p-radius-sm, 4px); font-size: 12px; }
-.group-roster-row .identity { min-width: 0; overflow-wrap: anywhere; }
-.group-roster-row .summary { color: var(--p-text-muted); }
-.group-roster-row button { flex: none; }
-.group-invite-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.group-invite-form label { display: flex; flex-direction: column; gap: 3px; min-width: 0; color: var(--p-text-muted); font-size: 11px; }
-.group-invite-form input, .group-invite-form select { width: 100%; min-width: 0; box-sizing: border-box; }
-.group-invite-form > button { grid-column: 1 / -1; }
 .author-badge { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; color: var(--p-text-muted); font-family: var(--chat-font); font-size: 11px; }
 .author-badge .engine-icon { width: 13px; height: 13px; }
 .group-notice { border-left: 2px solid var(--p-accent); padding-left: 10px; }
@@ -263,6 +254,21 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--p-text-mut
 .panel-body details { margin-top: 10px; }
 .panel-body details summary { cursor: pointer; font-weight: 600; }
 .dialog button.danger { background: var(--p-error); border-color: var(--p-error); color: var(--p-accent-text); }
+.profiles-dialog { width: min(980px, calc(100vw - 32px)); max-height: min(90vh, 900px); }
+.profiles-dialog form { min-height: 0; }
+.profiles-layout { display: grid; grid-template-columns: minmax(190px, 28%) minmax(0, 1fr); gap: 16px; min-height: 360px; max-height: 65vh; }
+.profile-list-pane, .profile-editor { min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.profiles-list { flex: 1; min-height: 100px; overflow: auto; display: flex; flex-direction: column; gap: 3px; }
+.profile-list-item { overflow: hidden; text-align: left; text-overflow: ellipsis; }
+.profile-list-item.active { background: var(--p-tree-selection, var(--p-hover)); border-color: var(--p-accent); }
+.profile-list-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.profile-list-actions button { white-space: normal; }
+.profile-editor { overflow: auto; }
+.profile-editor label { flex: none; }
+.profile-editor textarea { min-height: 70px; resize: vertical; }
+.profile-editor label:nth-child(3) textarea { min-height: 112px; }
+.profile-warning { padding: 8px 10px; border-left: 3px solid var(--p-warning, var(--p-accent)); background: var(--p-panel); }
+@media (max-width: 680px) { .profiles-layout { grid-template-columns: 1fr; max-height: 70vh; } .profile-list-pane { max-height: 170px; } }
 
 @media (max-width: 760px) {
   .msg, .activity { max-width: 100%; }

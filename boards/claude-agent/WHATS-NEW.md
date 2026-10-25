@@ -1,5 +1,8 @@
 ## 1.2.0
 - Added group chats with invited Claude and Codex agents, shared visible messages, resumable participants, and role-based permissions.
+- Added editable agent profiles, four shipped defaults, and one-click invitations from new, resumed, or live chats.
+- Nested participant histories in the sidebar with read-only views, a restored group index, and provider-colored group icons.
+- Added shared-folder permission warnings and participant approval cards for ask-capable profiles.
 
 ## 1.1.0
 - Renamed the board to Agent Chat, with a new icon; its board id remains `claude-agent`.

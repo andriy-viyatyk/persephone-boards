@@ -2,7 +2,7 @@
 applyI18n();
 
 const $ = (selector) => document.querySelector(selector);
-const state = { setup: null, capabilities: {}, descriptions: new Map(), catalog: [], defaultProvider: "", description: null, models: [{ id: "", label: "Default", efforts: [] }], defaults: {}, settingsOff: null, sessions: [], sessionsLoaded: false };
+const state = { setup: null, capabilities: {}, descriptions: new Map(), catalog: [], defaultProvider: "", description: null, models: [{ id: "", label: "Default", efforts: [] }], defaults: {}, settingsOff: null, sessions: [], allSessions: [], groupIndex: [], sessionsLoaded: false };
 const sessionsByKey = new Map();
 // Sessions deleted on this page, in flight or done (viewKey). A list refresh must never bring one back: a listing
 // read while a delete was still removing files can arrive after that delete finished. A failed delete leaves the set.
@@ -21,7 +21,7 @@ const setStatus = (text = "", busy = false) => { const node = $("#status"); node
 const views = new Set();
 const viewsByKey = new Map();
 const viewKey = (id, provider) => `${provider || ""}\u0000${id || ""}`;
-const participantSessionIds = () => new Set([...views].flatMap((view) => view.groupParticipants.map((participant) => participant.sessionId).filter(Boolean)));
+const participantSessionIds = () => new Set((state.groupIndex || []).flatMap((group) => group.participants.map((participant) => participant.sessionId).filter(Boolean)));
 let current = null;
 function createView(item = {}) {
   const provider = item.provider || current?.provider || state.defaultProvider || "";
@@ -31,7 +31,7 @@ function createView(item = {}) {
     stream: null, lastText: "", thinkingNode: null, tools: new Map(), commandTurn: false, historyToken: 0,
     footer: null, usage: null, sessionCost: 0, statusText: "", statusBusy: false, error: "",
     draft: "", unread: false, stick: true, scrollTop: 0,
-    agents: [], agentsChannel: null, selectedAgentId: "", agentViews: new Map(), groupMain: false, groupMode: false, groupLoading: false, groupRoles: [], groupParticipants: [], groupMessages: [],
+    agents: [], agentsChannel: null, selectedAgentId: "", agentViews: new Map(), groupMain: false, groupMode: false, groupLoading: false, groupProfiles: [], groupParticipants: [], groupMessages: [], readOnlyParticipant: item.participant || null,
     model: item.model || "", effort: item.effort || "", defaults: null,
   };
   $("#views").append(view.messages);
@@ -101,12 +101,12 @@ function addAuthorBadge(node, author, provider = "") {
   if (!author || author.kind === "user") return;
   const badge = element("div", "author-badge");
   badge.dataset.authorName = author.name;
-  badge.append(engineIcon(state.descriptions.get(provider), ""), element("span", "", [author.name, author.role].filter(Boolean).join(" · ")));
+  badge.append(engineIcon(state.descriptions.get(provider), ""), element("span", "", [author.name, author.roleTitle || author.role].filter(Boolean).join(" · ")));
   node.append(badge);
 }
 function addGroupMessage(view, text, author, options = {}) {
   const node = element("div", `msg ${author?.kind === "user" ? "user" : "agent markdown-body"}${options.notice ? " group-notice" : ""}`);
-  addAuthorBadge(node, author, author?.engine || "");
+  addAuthorBadge(node, author, author?.provider || author?.engine || "");
   if (author?.kind === "user") {
     const displayText = String(text || "").split("\n").map((line) => line.startsWith("\\[[from:") ? line.slice(1) : line).join("\n");
     const body = element("div", "group-message-body", displayText);
@@ -369,9 +369,10 @@ const channelSend = async (channel, message) => {
 };
 // A session's state marker: the engine icon its description names (icons/<icon>.svg, drawn as a mask so CSS colors it)
 // in the engine's iconColor, or the plain dot when the description has no icon.
-function engineIcon(description, stateClass) {
-  const icon = /^[a-z0-9-]{1,40}$/.test(description?.icon || "") ? description.icon : "";
+function engineIcon(description, stateClass, group = false) {
+  const icon = group ? "group" : /^[a-z0-9-]{1,40}$/.test(description?.icon || "") ? description.icon : "";
   const marker = element("span", `${icon ? "engine-icon" : "session-dot"} ${stateClass}`.trim());
+  if (group) { marker.setAttribute("role", "img"); marker.setAttribute("aria-label", t("group.iconLabel")); }
   if (icon) marker.style.setProperty("--engine-icon", `url("icons/${icon}.svg")`);
   if (icon && /^#[0-9a-f]{6}$/i.test(description.iconColor || "")) marker.style.setProperty("--engine-color", description.iconColor);
   return marker;
@@ -468,83 +469,64 @@ function renderChips() {
   chip.classList.toggle("hidden", !chip.textContent);
   chip.dataset.tone = percentTone(status.contextPercent || 0);
   chip.title = capabilities(view).contextUsage && status.contextWindow ? `${(status.contextTokens || 0).toLocaleString()} / ${status.contextWindow.toLocaleString()} ${t("tokens")}` : t("context");
-  const groupAvailable = Boolean(view.groupMain && view.channel && !view.groupLoading && !view.selectedAgentId);
-  $("#group-invite").classList.toggle("hidden", !groupAvailable);
-  $("#group-stop").classList.toggle("hidden", !groupAvailable || !view.groupParticipants.length);
+  const canInvite = Boolean(view && !view.selectedAgentId && !view.readOnlyParticipant);
+  $("#group-invite").classList.toggle("hidden", !canInvite);
+  $("#group-stop").classList.toggle("hidden", !view.groupMain || !view.channel || view.groupLoading || !view.groupParticipants.length);
 }
-function renderGroupPanel(view = current) {
-  $("#group-panel").setAttribute("aria-label", t("group.title"));
-  const roster = $("#group-roster");
-  roster.replaceChildren();
-  if (!view?.groupParticipants.length) roster.append(element("div", "empty", t("group.none")));
-  else for (const participant of view.groupParticipants) {
-    const row = element("div", "group-roster-row");
-    const identity = element("span", "identity");
-    identity.append(element("strong", "", `${participant.name} · ${t(`group.role.${participant.roleId}`) || participant.role}`));
-    row.append(identity);
-    const remove = element("button", "", t("group.remove")); remove.type = "button";
-    remove.addEventListener("click", () => void channelSend(view.channel, { type: "group", action: "remove", participantId: participant.id }));
-    row.append(remove); roster.append(row);
-  }
-  const roles = $("#group-role");
-  roles.replaceChildren(...view.groupRoles.map((role) => {
-    const option = element("option", "", t(`group.role.${role.id}`) || role.name); option.value = role.id; return option;
-  }));
-  for (const badge of view.messages.querySelectorAll(".author-badge[data-author-name]")) {
-    const participant = view.groupParticipants.find((item) => item.name === badge.dataset.authorName);
-    const provider = badge.dataset.authorName === "Master" ? view.provider : participant?.engine;
+function groupProfiles(view = current) { return view?.groupProfiles ?? state.profiles ?? []; }
+function profileAvailability(profile) {
+  const description = state.descriptions.get(profile.provider);
+  if (!description || description.available === false || (profile.provider === "claude" && !description.setup?.ready)) return { available: false, reason: t("profiles.providerUnavailable") };
+  const alias = profile.provider === "claude" && ["opus", "sonnet", "haiku"].includes(profile.model);
+  if (!alias && !(description.models || []).some((model) => model.id === profile.model)) return { available: false, reason: t("profiles.modelUnavailable") };
+  return { available: true, reason: "" };
+}
+function renderParticipantBadges(view = current) {
+  for (const badge of view?.messages.querySelectorAll(".author-badge[data-author-name]") || []) {
+    const participant = state.groupIndex.find((group) => group.mainSessionId === (view.readOnlyParticipant?.mainSessionId || view.id))?.participants.find((item) => item.name === badge.dataset.authorName);
+    const provider = badge.dataset.authorName === "Master" ? view.provider : participant?.provider;
     if (!provider) continue;
-    const author = { name: badge.dataset.authorName, role: badge.querySelector("span:last-child")?.textContent?.split(" · ").slice(1).join(" · ") || "" };
-    badge.replaceChildren(engineIcon(state.descriptions.get(provider), ""), element("span", "", [author.name, author.role].filter(Boolean).join(" · ")));
+    const label = badge.querySelector("span:last-child")?.textContent || badge.dataset.authorName;
+    badge.replaceChildren(engineIcon(state.descriptions.get(provider), ""), element("span", "", label));
   }
-  populateGroupEngines();
 }
-function populateGroupEngines() {
-  const engine = $("#group-engine"), model = $("#group-model"), effort = $("#group-effort");
-  const available = state.catalog.filter((item) => item.available !== false);
-  engine.replaceChildren(...available.map((item) => { const option = element("option", "", item.providerLabel || t(item.providerLabelKey)); option.value = item.provider; return option; }));
-  if (!engine.options.length) return;
-  if (current?.provider && available.some((item) => item.provider === current.provider)) engine.value = current.provider;
-  const fillModels = () => {
-    const description = state.descriptions.get(engine.value), models = description?.models || [];
-    model.replaceChildren(...models.map((item) => { const option = element("option", "", item.label || item.id || t("defaultModel")); option.value = item.id || ""; return option; }));
-    const selectedModel = models.find((item) => item.isDefault)?.id || models[0]?.id || "";
-    if (selectedModel) model.value = selectedModel;
-    const selected = models.find((item) => item.id === model.value), levels = selected?.efforts || [];
-    effort.replaceChildren(...["", ...levels].map((value) => { const option = element("option", "", value || t("defaultEffort")); option.value = value; return option; }));
-  };
-  engine.onchange = fillModels;
-  model.onchange = () => {
-    const entry = state.descriptions.get(engine.value)?.models?.find((item) => item.id === model.value);
-    const levels = entry?.efforts || [];
-    effort.replaceChildren(...["", ...levels].map((value) => { const option = element("option", "", value || t("defaultEffort")); option.value = value; return option; }));
-  };
-  fillModels();
+async function ensureGroupChannel(view) {
+  if (view.channel && view.groupMain && !view.groupLoading) return;
+  if (!view.cwd && !view.id) view.cwd = $("#cwd").value.trim();
+  if (!view.cwd && !view.id) { setViewError(view, t("cwdRequired")); return false; }
+  if (!view.channel) {
+    view.groupLoading = true;
+    const ready = new Promise((resolve) => view.liveWaiters.push(resolve));
+    if (!(await connect(view))) return false;
+    if (!(await ready)) return false;
+  }
+  if (view.groupLoading) await new Promise((resolve) => (view.groupDataWaiters ||= []).push(resolve));
+  return Boolean(view.channel && view.groupMain);
 }
-function toggleGroupPanel(open) {
-  const panel = $("#group-panel");
-  panel.classList.toggle("hidden", !open);
-  if (!open || !current) return;
-  renderGroupPanel(current);
-  const names = t("group.names").split(",").map((value) => value.trim());
-  const used = new Set(["master", ...current.groupParticipants.map((row) => row.name.toLowerCase())]);
-  $("#group-name").value = names.find((name) => !used.has(name.toLowerCase())) || "";
+async function inviteProfile(view, profile) {
+  if (!(await ensureGroupChannel(view))) return;
+  const historyText = view.groupMessages.map((item) => `${authorHeaderForUi(item.author)}\n${item.text}`).join("\n\n");
+  await channelSend(view.channel, { type: "group", action: "invite", profileId: profile.id, historyText });
 }
-$("#group-invite").addEventListener("click", () => toggleGroupPanel($("#group-panel").classList.contains("hidden")));
-$("#group-close").addEventListener("click", () => toggleGroupPanel(false));
+function authorHeaderForUi(author) { return author?.roleTitle || author?.role ? `[[from: ${author.name} | role: ${author.roleTitle || author.role}]]` : `[[from: ${author?.name || "user"}]]`; }
+async function openInviteMenu() {
+  if (!current) return;
+  await refreshProfileCatalog();
+  const view = current, profiles = groupProfiles(view);
+  // A history-only chat has no live roster yet; the sidebar index knows who already joined.
+  const participants = view.groupParticipants?.length ? view.groupParticipants : (state.groupIndex.find((group) => group.mainSessionId === view.id)?.participants || []).filter((item) => !item.removed);
+  const items = profiles.map((profile) => {
+    const duplicate = participants.some((item) => item.profileId === profile.id || item.name.toLowerCase() === profile.name.toLowerCase());
+    const availability = profileAvailability(profile);
+    const reason = duplicate ? t("profiles.alreadyJoined") : availability.reason;
+    return { label: `${profile.name} (${profile.roleTitle})`, desc: reason, disabled: Boolean(reason), reason, run: () => inviteProfile(view, profile) };
+  });
+  items.push({ label: t("profiles.editAgents"), run: () => openProfileEditor() });
+  openChoiceMenu($("#group-invite"), items);
+}
+$("#group-invite").addEventListener("click", () => void openInviteMenu().catch((error) => showError(error.message || t("profiles.error"))));
 $("#group-stop").addEventListener("click", () => current?.channel && void channelSend(current.channel, { type: "group", action: "stop-all" }));
-$("#group-add").addEventListener("click", async () => {
-  if (!current?.channel) return;
-  const name = $("#group-name").value.trim();
-  const roleId = $("#group-role").value;
-  if (!name || name.toLowerCase() === "master" || current.groupParticipants.some((item) => item.name.toLowerCase() === name.toLowerCase())) { setViewError(current, t("group.error.name")); return; }
-  const historyText = current.groupMessages.map((item) => `${AUTHOR_HEADER_FOR_UI(item.author)}\n${item.text}`).join("\n\n");
-  try {
-    await channelSend(current.channel, { type: "group", action: "invite", name, roleId, provider: $("#group-engine").value, model: $("#group-model").value, effort: $("#group-effort").value, historyText });
-    $("#group-add").disabled = true;
-  } catch (error) { setViewError(current, error.message || t("group.inviteFailed")); }
-});
-function AUTHOR_HEADER_FOR_UI(author) { return author?.role ? `[[from: ${author.name} | role: ${author.role}]]` : `[[from: ${author?.name || "user"}]]`; }
+$("#group-stop").addEventListener("click", () => void refreshSessions());
 const choiceMenu = $("#choice-menu");
 let choiceAnchor = null;
 function closeChoiceMenu() { choiceMenu.classList.add("hidden"); choiceAnchor?.classList.remove("open"); choiceAnchor = null; }
@@ -554,6 +536,7 @@ function openChoiceMenu(anchor, items, note = "") {
   choiceMenu.replaceChildren(...items.map((item) => {
     const button = element("button", item.current ? "current" : "");
     button.type = "button"; button.disabled = Boolean(item.disabled);
+    if (item.disabled && item.reason) button.title = item.reason;
     button.setAttribute("role", "menuitemradio"); button.setAttribute("aria-checked", String(Boolean(item.current)));
     button.append(element("span", "label", item.label));
     if (item.desc) button.append(element("span", "desc", item.desc));
@@ -793,10 +776,31 @@ function renderSessions() {
         const providerInfo = state.descriptions.get(item.provider || "");
         const engine = providerInfo ? providerInfo.providerLabel || t(providerInfo.providerLabelKey) : "";
         button.title = [item.title, engine, formatWhenExact(item.updatedAt), t(view?.channel ? (view.busy ? "sessionWorking" : "sessionLive") : "sessionIdle")].filter(Boolean).join("\n");
-        button.append(engineIcon(providerInfo, dotState), element("span", "title", item.title), element("span", "when", formatWhen(item.updatedAt)));
+        const group = state.groupIndex.find((entry) => entry.mainSessionId === item.id);
+        const hasParticipants = Boolean(group?.participants.some((participant) => !participant.removed));
+        button.append(engineIcon(providerInfo, dotState, hasParticipants), element("span", "title", item.title), element("span", "when", formatWhen(item.updatedAt)));
         button.addEventListener("click", () => void openStoredSession(item));
         button.addEventListener("contextmenu", (event) => { event.preventDefault(); openSessionMenu(item, event.clientX, event.clientY); });
         folder.append(button);
+        if (group) for (const participant of group.participants) {
+          const session = state.allSessions.find((candidate) => candidate.id === participant.sessionId);
+          const child = element("button", `session-item participant-item${participant.removed ? " removed" : ""}${current?.readOnlyParticipant?.sessionId === participant.sessionId ? " active" : ""}`);
+          child.type = "button"; child.title = participant.removed ? t("group.participantLeft") : t("group.participantHistory", { name: participant.name, role: participant.roleTitle });
+          const provider = state.descriptions.get(participant.provider || "");
+          child.append(engineIcon(provider, "", false), element("span", "title", `${participant.name} · ${participant.roleTitle}${participant.removed ? ` · ${t("group.leftState")}` : ""}`), element("span", "when", formatWhen(session?.updatedAt || "")));
+          child.addEventListener("click", () => void openParticipantSession(item, participant, session));
+          child.addEventListener("contextmenu", (event) => {
+            if (participant.removed) return;
+            event.preventDefault();
+            void (async () => {
+              const parentView = viewFor(item.id, item.provider);
+              if (!parentView?.channel) { showError(t("group.openMainToRemove")); return; }
+              const answer = await askDialog({ title: t("group.removeTitle"), message: t("group.removeConfirm", { name: participant.name }), confirmLabel: t("group.remove"), danger: true });
+              if (answer !== null) { await channelSend(parentView.channel, { type: "group", action: "remove", participantId: participant.id }); await refreshSessions(); }
+            })();
+          });
+          folder.append(child);
+        }
       }
     }
     list.append(folder);
@@ -886,6 +890,123 @@ function askDialog({ title, message = "", value = null, confirmLabel, danger = f
     dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm" ? input.value.trim() : null), { once: true });
   });
 }
+let profileEditor = { profiles: [], descriptions: [], selectedId: "", original: null, dirty: false, newIds: new Set() };
+async function profileRequest(action, fields = {}) {
+  const channel = await persephone.service.openChannel({ type: "manage-profiles", action, ...fields });
+  return new Promise((resolve, reject) => {
+    channel.onMessage((message) => {
+      if (message.type === "profile-data") resolve(message);
+      else if (message.type === "profile-error" || message.type === "error") reject(new Error(t("profiles.error")));
+    });
+    channel.onClose(() => {});
+  });
+}
+async function refreshProfileCatalog() {
+  const response = await profileRequest("get");
+  state.profiles = response.profiles || [];
+  for (const description of response.descriptions || []) { state.descriptions.set(description.provider, description); if (!state.catalog.some((item) => item.provider === description.provider)) state.catalog.push(description); }
+  if (current) current.groupProfiles = state.profiles;
+}
+function profileDraft() {
+  const currentProfile = profileEditor.profiles.find((profile) => profile.id === profileEditor.selectedId);
+  if (!currentProfile) return null;
+  return { id: currentProfile.id, name: $("#profile-name").value.trim(), roleTitle: $("#profile-role-title").value.trim(), instructions: $("#profile-instructions").value, summary: $("#profile-summary").value, provider: $("#profile-provider").value, model: $("#profile-model").value, effort: $("#profile-effort").value, permissionMode: $("#profile-permission").value };
+}
+function setProfileDirty() {
+  profileEditor.dirty = JSON.stringify(profileDraft()) !== JSON.stringify(profileEditor.original);
+  $("#profiles-warning").classList.toggle("hidden", !["ask", "auto-edit", "full-auto"].includes($("#profile-permission").value));
+}
+function profileProviderOptions() {
+  const select = $("#profile-provider");
+  select.replaceChildren(...state.catalog.map((description) => { const option = element("option", "", description.providerLabel || t(description.providerLabelKey)); option.value = description.provider; return option; }));
+}
+function refreshProfileModels(preferredModel = "", preferredEffort = "") {
+  const provider = $("#profile-provider").value, description = state.descriptions.get(provider);
+  let models = (description?.models || []).filter((model) => model.id);
+  if (provider === "claude") models = [{ id: "opus", label: t("model.alias.opus"), efforts: ["low", "medium", "high", "xhigh", "max"] }, { id: "sonnet", label: t("model.alias.sonnet"), efforts: ["low", "medium", "high", "xhigh", "max"] }, { id: "haiku", label: t("model.alias.haiku"), efforts: ["low", "medium", "high", "xhigh", "max"] }, ...models.filter((item) => !["opus", "sonnet", "haiku"].includes(item.id))];
+  const modelSelect = $("#profile-model");
+  modelSelect.replaceChildren(...models.map((model) => { const option = element("option", "", model.label || model.id); option.value = model.id; return option; }));
+  if (models.some((model) => model.id === preferredModel)) modelSelect.value = preferredModel;
+  refreshProfileEfforts(preferredEffort);
+}
+function refreshProfileEfforts(preferred = "") {
+  const info = state.descriptions.get($("#profile-provider").value)?.models?.find((item) => item.id === $("#profile-model").value);
+  const levels = info?.efforts || (["opus", "sonnet", "haiku"].includes($("#profile-model").value) ? ["low", "medium", "high", "xhigh", "max"] : []);
+  const select = $("#profile-effort");
+  select.replaceChildren(...levels.map((level) => { const option = element("option", "", level); option.value = level; return option; }));
+  if (levels.includes(preferred)) select.value = preferred;
+}
+function renderProfileEditor() {
+  const list = $("#profiles-list");
+  list.replaceChildren(...profileEditor.profiles.map((profile) => {
+    const item = element("button", `profile-list-item${profile.id === profileEditor.selectedId ? " active" : ""}`, `${profile.name} (${profile.roleTitle})`);
+    item.type = "button"; item.addEventListener("click", () => void selectProfile(profile.id)); return item;
+  }));
+  const profile = profileEditor.profiles.find((item) => item.id === profileEditor.selectedId);
+  const permission = $("#profile-permission");
+  permission.replaceChildren(...[["read-only", t("profiles.permission.readOnly")], ["ask", t("profiles.permission.ask")], ["auto-edit", t("profiles.permission.autoEdit")], ["full-auto", t("profiles.permission.fullAuto")]].map(([value, label]) => { const option = element("option", "", label); option.value = value; return option; }));
+  const disabled = !profile;
+  for (const id of ["profile-name", "profile-role-title", "profile-instructions", "profile-summary", "profile-provider", "profile-model", "profile-effort", "profile-permission", "profile-duplicate", "profile-delete", "profiles-save"]) $("#" + id).disabled = disabled;
+  if (!profile) return;
+  $("#profile-name").value = profile.name; $("#profile-role-title").value = profile.roleTitle;
+  $("#profile-instructions").value = profile.instructions; $("#profile-summary").value = profile.summary;
+  profileProviderOptions(); $("#profile-provider").value = profile.provider;
+  refreshProfileModels(profile.model, profile.effort); $("#profile-permission").value = profile.permissionMode;
+  profileEditor.original = structuredClone(profile); profileEditor.dirty = false; setProfileDirty();
+}
+async function saveSelectedProfile() {
+  const profile = profileDraft();
+  if (!profile || !profile.name || !profile.roleTitle || !profile.instructions.trim() || !profile.summary.trim()) { showError(t("profiles.validation")); return false; }
+  try {
+    const result = await profileRequest("save", { profile });
+    profileEditor.profiles = result.profiles || []; profileEditor.selectedId = result.selectedId || profile.id;
+    profileEditor.newIds.delete(profile.id);
+    state.profiles = profileEditor.profiles; if (current) current.groupProfiles = state.profiles;
+    renderProfileEditor(); return true;
+  } catch (error) { showError(error.message); return false; }
+}
+async function unsavedChoice() {
+  if (!profileEditor.dirty) return "discard";
+  return new Promise((resolve) => {
+    const dialog = $("#dialog"), confirm = $("#dialog-confirm"), form = dialog.querySelector("form");
+    const stay = element("button", "", t("profiles.stay")); stay.type = "button"; form.querySelector(".actions").prepend(stay);
+    stay.onclick = () => { stay.remove(); dialog.close("stay"); };
+    $("#dialog-title").textContent = t("profiles.unsavedTitle"); $("#dialog-message").textContent = t("profiles.unsavedMessage"); $("#dialog-message").classList.remove("hidden"); $("#dialog-input").classList.add("hidden");
+    const cancel = form.querySelector('button[value="cancel"]'); cancel.textContent = t("profiles.discard");
+    confirm.textContent = t("save"); confirm.classList.add("primary"); dialog.returnValue = ""; dialog.showModal();
+    dialog.addEventListener("close", () => { stay.remove(); cancel.textContent = t("cancel"); resolve(dialog.returnValue === "confirm" ? "save" : dialog.returnValue === "stay" ? "stay" : "discard"); }, { once: true });
+  });
+}
+async function selectProfile(id) {
+  const choice = await unsavedChoice(); if (choice === "stay") return;
+  if (choice === "save" && !(await saveSelectedProfile())) return;
+  if (choice === "discard" && profileEditor.newIds.has(profileEditor.selectedId)) {
+    profileEditor.profiles = profileEditor.profiles.filter((profile) => profile.id !== profileEditor.selectedId);
+    profileEditor.newIds.delete(profileEditor.selectedId);
+  }
+  profileEditor.selectedId = id; renderProfileEditor();
+}
+async function openProfileEditor() {
+  await refreshProfileCatalog();
+  profileEditor = { profiles: state.profiles, descriptions: state.catalog, selectedId: state.profiles[0]?.id || "", original: null, dirty: false, newIds: new Set() };
+  renderProfileEditor(); $("#profiles-dialog").showModal();
+}
+$("#profiles-dialog").addEventListener("cancel", async (event) => { if (profileEditor.dirty) { event.preventDefault(); const choice = await unsavedChoice(); if (choice === "save" && await saveSelectedProfile()) $("#profiles-dialog").close(); else if (choice === "discard") $("#profiles-dialog").close(); } });
+$("#profiles-cancel").addEventListener("click", async () => { const choice = await unsavedChoice(); if (choice === "save" && !(await saveSelectedProfile())) return; if (choice !== "stay") $("#profiles-dialog").close(); });
+$("#profiles-save").addEventListener("click", () => void saveSelectedProfile());
+$("#profile-new").addEventListener("click", () => {
+  void (async () => { const choice = await unsavedChoice(); if (choice === "stay" || choice === "save" && !(await saveSelectedProfile())) return;
+    const profile = { id: crypto.randomUUID(), name: "", roleTitle: "", instructions: "", summary: "", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only" };
+    profileEditor.profiles.push(profile); profileEditor.newIds.add(profile.id); profileEditor.selectedId = profile.id; renderProfileEditor(); $("#profile-name").focus();
+  })();
+});
+$("#profile-duplicate").addEventListener("click", async () => { const choice = await unsavedChoice(); if (choice === "stay") return; if (choice === "save" && !(await saveSelectedProfile())) return; const result = await profileRequest("duplicate", { profileId: profileEditor.selectedId }); profileEditor.profiles = result.profiles; profileEditor.selectedId = result.selectedId; state.profiles = result.profiles; renderProfileEditor(); });
+$("#profile-delete").addEventListener("click", async () => { const choice = await unsavedChoice(); if (choice === "stay") return; if (choice === "save" && !(await saveSelectedProfile())) return; if (await askDialog({ title: t("profiles.deleteTitle"), message: t("profiles.deleteConfirm"), confirmLabel: t("profiles.delete"), danger: true }) === null) return; const result = await profileRequest("delete", { profileId: profileEditor.selectedId }); profileEditor.profiles = result.profiles; state.profiles = result.profiles; profileEditor.selectedId = result.profiles[0]?.id || ""; renderProfileEditor(); });
+$("#profile-reset").addEventListener("click", async () => { const choice = await unsavedChoice(); if (choice === "stay") return; if (choice === "save" && !(await saveSelectedProfile())) return; if (await askDialog({ title: t("profiles.resetTitle"), message: t("profiles.resetConfirm"), confirmLabel: t("profiles.reset"), danger: true }) === null) return; const result = await profileRequest("reset"); profileEditor.profiles = result.profiles; state.profiles = result.profiles; profileEditor.selectedId = result.profiles[0]?.id || ""; renderProfileEditor(); });
+for (const id of ["profile-name", "profile-role-title", "profile-instructions", "profile-summary", "profile-permission"]) $("#" + id).addEventListener("input", setProfileDirty);
+$("#profile-permission").addEventListener("change", setProfileDirty);
+$("#profile-provider").addEventListener("change", () => { refreshProfileModels(); setProfileDirty(); });
+$("#profile-model").addEventListener("change", () => { refreshProfileEfforts(); setProfileDirty(); });
 // Enter would submit through the form's first button (Cancel); make it confirm instead.
 $("#dialog-input").addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.isComposing) { event.preventDefault(); $("#dialog").close("confirm"); }
@@ -962,18 +1083,34 @@ let sessionsRequest = 0;
 async function refreshSessions() {
   if (!capabilities().sessionStore) { state.sessionsLoaded = true; renderSessions(); return; }
   const request = ++sessionsRequest;
-  const { message } = await discovery({ type: "list-sessions", provider: null });
+  const [sessionsResult, indexResult] = await Promise.all([discovery({ type: "list-sessions", provider: null }), loadGroupIndex()]);
+  const message = sessionsResult.message;
   if (request !== sessionsRequest) return;
   state.sessionsLoaded = true;
   if (message?.type === "sessions") {
+    state.allSessions = message.sessions.filter((item) => !pendingDeletes.has(viewKey(item.id, item.provider)));
     const hiddenParticipants = participantSessionIds();
-    state.sessions = message.sessions.filter((item) => !hiddenParticipants.has(item.id) && !pendingDeletes.has(viewKey(item.id, item.provider)))
+    state.sessions = state.allSessions.filter((item) => !hiddenParticipants.has(item.id))
       .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
     sessionsByKey.clear();
     for (const item of state.sessions) sessionsByKey.set(viewKey(item.id, item.provider), item);
     for (const item of state.sessions) { const view = viewFor(item.id, item.provider); if (view) { view.title = item.title; if (!isLive(view)) { view.model = item.model || view.model; view.effort = item.effort || view.effort; } } }
   } else if (message?.type === "error") showError(`${message.code}: ${message.message}`);
+  if (indexResult) for (const group of state.groupIndex) if (!group.provider) group.provider = state.allSessions.find((item) => item.id === group.mainSessionId)?.provider || "";
+  for (const view of views) renderParticipantBadges(view);
   renderSessions();
+}
+async function loadGroupIndex() {
+  const groups = []; let offset = 0;
+  for (let pages = 0; pages < 1000; pages++) {
+    const { message } = await discovery({ type: "group-index", offset });
+    if (message?.type !== "group-index") return false;
+    groups.push(...message.groups || []);
+    if (message.done) { state.groupIndex = groups; return true; }
+    if (!Number.isSafeInteger(message.offset) || message.offset <= offset) return false;
+    offset = message.offset;
+  }
+  return false;
 }
 
 // ── Page toolbar: the session folder in the text slot, every button on the right ──
@@ -1002,9 +1139,11 @@ persephone.toolbar.onAction(({ id }) => {
 function updateControls() {
   $("#intro").classList.toggle("hidden", Boolean(current?.id || current?.channel));
   const slash = promptText().trim().startsWith("/");
-  $("#send").disabled = Boolean(current?.busy && (slash || !current.groupMode));
+  $("#send").disabled = Boolean(current?.readOnlyParticipant || current?.busy && (slash || !current.groupMode));
+  $("#readonly-hint").classList.toggle("hidden", !current?.readOnlyParticipant);
+  $("#prompt").classList.toggle("hidden", Boolean(current?.readOnlyParticipant));
+  $("#send").classList.toggle("hidden", Boolean(current?.readOnlyParticipant));
   updateToolbar(); renderChips();
-  if (!current?.channel) toggleGroupPanel(false);
 }
 
 // ── Instructions dialog: the provider instructions the service adds to every new or reopened session ──
@@ -1077,8 +1216,6 @@ function showView(view) {
   current = view;
   view.selectedAgentId = "";
   view.messages.classList.remove("hidden");
-  $("#readonly-hint").classList.add("hidden");
-  $("#prompt").classList.remove("hidden"); $("#send").classList.remove("hidden");
   view.unread = false;
   view.messages.classList.remove("hidden");
   prompt.textContent = view.draft; hideCommandMenu();
@@ -1097,10 +1234,11 @@ function appendEntries(view, entries) {
     const suffix = entry.truncated ? ` ${t("truncated")}` : "";
     if (entry.role === "user" || entry.role === "agent") {
       for (const segment of parseAuthorHeader(entry.text || "")) {
-        const participant = view.groupParticipants.find((item) => item.name === segment.author?.name);
+        const parentId = view.readOnlyParticipant?.mainSessionId || view.id;
+        const participant = state.groupIndex.find((group) => group.mainSessionId === parentId)?.participants.find((item) => item.name === segment.author?.name);
         if (segment.text.trim() === GROUP_PASS) continue;
         // Posts reach Master as user turns, so the header, not the transcript role, says who wrote it.
-        const author = segment.author ? { ...segment.author, engine: participant?.engine || (segment.author.name === "Master" ? view.provider : ""), kind: segment.author.name === "user" ? "user" : "agent" } : null;
+        const author = segment.author ? { ...segment.author, roleTitle: participant?.roleTitle || segment.author.role, provider: participant?.provider || (segment.author.name === "Master" ? view.provider : ""), kind: segment.author.name === "user" ? "user" : "agent" } : null;
         // A join/leave notice is stored as "Agent X (Role) joined" plus the role summary (and, on the first join, the rules reminder).
         const notice = author && /^Agent .+ \(.+\) (joined|left)$/.exec(segment.text.split("\n")[0]);
         if (notice) {
@@ -1216,7 +1354,13 @@ async function showAgentTranscript(view, agentId) {
   });
   channel.onClose(() => { if (child.follow === channel) child.follow = null; });
 }
-$("#back-to-main").addEventListener("click", () => showMainTranscript(current));
+$("#back-to-main").addEventListener("click", () => {
+  if (current?.readOnlyParticipant) {
+    const group = state.groupIndex.find((entry) => entry.mainSessionId === current.readOnlyParticipant.mainSessionId);
+    const parentItem = state.sessions.find((item) => item.id === group?.mainSessionId);
+    if (parentItem) void openStoredSession(parentItem);
+  } else showMainTranscript(current);
+});
 $("#transcript").addEventListener("click", (event) => {
   const tool = event.target.closest(".activity.tool[data-call-id]");
   if (!tool || !current || current.selectedAgentId) return;
@@ -1298,20 +1442,43 @@ async function openStoredSession(item) {
   if (!description?.capabilities?.sessionStore) return;
   const existing = viewFor(item.id, item.provider);
   if (existing) {
+    if (item.participant) existing.readOnlyParticipant = item.participant;
     if (existing === current) return;
     showView(existing);
-    startAgentWatch(existing);
-    if (!existing.channel) await startFollow(existing);
+    if (!existing.readOnlyParticipant) { startAgentWatch(existing); if (!existing.channel) await startFollow(existing); }
     return;
   }
   const view = createView(item);
   expandedFolders.add(folderKey(item.cwd));
   showView(view);
-  startAgentWatch(view);
+  if (!view.readOnlyParticipant) startAgentWatch(view);
   if (!(await loadHistory(view))) return;
-  await startFollow(view);
+  if (view.readOnlyParticipant) await startParticipantObserver(view, view.readOnlyParticipant);
+  else await startFollow(view);
+}
+async function openParticipantSession(parent, participant, session) {
+  if (!participant.sessionId || !session) { showError(t("group.participantHistoryUnavailable")); return; }
+  const item = { ...session, participant: { ...participant, mainSessionId: parent.id, mainProvider: parent.provider } };
+  if (!state.descriptions.has(item.provider)) { const { message } = await discovery({ type: "describe", provider: item.provider, cwd: item.cwd }); if (message?.type === "description") state.descriptions.set(item.provider, message); }
+  await openStoredSession(item);
+}
+async function startParticipantObserver(view, participant) {
+  const group = state.groupIndex.find((entry) => entry.mainSessionId === participant.mainSessionId);
+  const parent = group && viewFor(group.mainSessionId, group.provider);
+  if (!parent?.channel || !parent.groupMain) return;
+  const channel = await persephone.service.openChannel({ type: "participant-observer", mainSessionId: participant.mainSessionId, sessionId: participant.sessionId });
+  view.follow = channel;
+  channel.onMessage((event) => { if (view.follow === channel && !["observer-ready", "observer-unavailable"].includes(event.type)) handleEvent(view, event); });
+  channel.onClose(() => { if (view.follow === channel) view.follow = null; });
 }
 async function connect(view) {
+  if (view.connectTask) return view.connectTask;
+  const task = connectView(view);
+  view.connectTask = task;
+  try { return await task; }
+  finally { if (view.connectTask === task) view.connectTask = null; }
+}
+async function connectView(view) {
   setViewError(view, "");
   const resume = view.id || undefined;
   const cwd = resume ? view.cwd : $("#cwd").value.trim();
@@ -1434,42 +1601,47 @@ function handleEvent(view, event) {
     case "group-data":
       view.groupMain = true;
       view.groupLoading = false;
-      view.groupRoles = event.roles || [];
+      view.groupProfiles = event.profiles || [];
       view.groupMode = Boolean(event.groupMode);
       view.groupParticipants = event.participants || [];
-      renderGroupPanel(view); updateControls(); renderSessions();
+      renderParticipantBadges(view); updateControls(); renderSessions();
+      for (const resolve of (view.groupDataWaiters || []).splice(0)) resolve();
+      void refreshSessions();
       if (view.pendingPrompt) { const text = view.pendingPrompt; view.pendingPrompt = ""; void sendPrompt(view, text); }
       break;
     case "group-participant-added":
       view.groupMode = true;
       if (event.participant && !view.groupParticipants.some((item) => item.id === event.participant.id)) view.groupParticipants.push(event.participant);
-      $("#group-add").disabled = false;
-      renderGroupPanel(view); updateControls(); renderSessions();
+      renderParticipantBadges(view); updateControls(); renderSessions(); void refreshSessions();
       break;
     case "group-visible-message": {
-      const author = event.author || { name: "user", role: "", kind: "user" };
+      const author = event.author || { name: "user", roleTitle: "", kind: "user" };
       if (event.noticeAction === "left") {
         view.groupParticipants = view.groupParticipants.filter((item) => item.name !== author.name);
-        renderGroupPanel(view); updateControls(); renderSessions();
+        renderParticipantBadges(view); updateControls(); renderSessions();
       }
-      const displayText = event.noticeAction ? t(`group.${event.noticeAction}`, { name: author.name, role: t(`group.role.${author.roleId}`) || author.role }) : event.text || "";
+      const displayText = event.noticeAction ? t(`group.${event.noticeAction}`, { name: author.name, role: author.roleTitle || author.role }) : event.text || "";
       const item = { author, text: event.timelineText || event.text || "" };
       view.groupMessages.push(item);
       const notice = author.kind === "notice";
-      const summary = event.noticeAction === "joined" ? (author.roleId ? t(`group.summary.${author.roleId}`) : event.author?.summary) : "";
+      const summary = event.noticeAction === "joined" ? (event.author?.summary || "") : "";
       addGroupMessage(view, displayText, author, { notice, summary, reminder: event.reminder });
       break;
     }
     case "group-participant-error":
-      $("#group-add").disabled = false;
       setViewError(view, t("group.error.resume"));
       break;
     case "group-error":
       view.groupLoading = false;
-      $("#group-add").disabled = false;
-      setViewError(view, t("group.error.operation"));
+      // The service's reason is plain text (bounded, no secrets); it is what tells the user what to change.
+      setViewError(view, event.message ? `${t("group.error.operation")} ${event.message}` : t("group.error.operation"));
       if (view.pendingPrompt) { const text = view.pendingPrompt; view.pendingPrompt = ""; void sendPrompt(view, text); }
       break;
+    case "approval-resolved": {
+      const actions = view.approvals.get(event.requestId);
+      if (actions) { actions.replaceChildren(element("span", "approval-outcome", t(`approval.${event.outcome || "denied"}`))); view.approvals.delete(event.requestId); }
+      updateTyping(); break;
+    }
     case "error":
       setViewError(view, `${event.code}: ${event.message}`);
       if (event.fatal) setViewStatus(view, t("error"));
@@ -1484,6 +1656,7 @@ function handleEvent(view, event) {
 function addApproval(view, event) {
   const isPlan = event.kind === "plan" && Boolean(modeDescriptor(viewMode(view), view)?.planApproval);
   const node = element("div", `msg approval${isPlan ? " plan" : ""}`);
+  if (event.participantApproval && event.author) addAuthorBadge(node, { ...event.author, kind: "agent" }, event.author.provider);
   node.append(element("div", "approval-title", isPlan ? t("plan.title") : t("approval.title", { tool: event.tool || t("tool") })));
   if (isPlan) {
     const body = element("div", "markdown-body");
@@ -1494,7 +1667,10 @@ function addApproval(view, event) {
   const actions = element("div", "approval-actions");
   const answer = (decision, extra, outcome) => {
     actions.querySelectorAll("button").forEach((button) => { button.disabled = true; });
-    channelSend(view.channel, { type: "approval-response", requestId: event.requestId, decision, ...extra })
+    const response = event.participantApproval
+      ? channelSend(view.channel, { type: "group", action: "approval-response", requestId: event.requestId, decision })
+      : channelSend(view.channel, { type: "approval-response", requestId: event.requestId, decision, ...extra });
+    response
       .then(() => { view.approvals.delete(event.requestId); actions.replaceChildren(element("span", "approval-outcome", outcome)); updateTyping(); })
       .catch((error) => { actions.querySelectorAll("button").forEach((button) => { button.disabled = false; }); setViewError(view, error.message); });
   };

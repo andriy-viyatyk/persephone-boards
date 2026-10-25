@@ -54,18 +54,6 @@
         <button id="group-stop" type="button" class="meta-chip hidden" data-i18n="group.stopAll"></button>
         <button id="context-chip" type="button" class="meta-chip context hidden"></button>
       </div>
-      <section id="group-panel" class="group-panel hidden">
-        <div class="group-panel-head"><strong data-i18n="group.participants"></strong><button id="group-close" type="button" data-i18n="close"></button></div>
-        <div id="group-roster" class="group-roster"></div>
-        <div class="group-invite-form">
-          <label><span data-i18n="group.role"></span><select id="group-role"></select></label>
-          <label><span data-i18n="group.name"></span><input id="group-name" type="text" maxlength="40"></label>
-          <label><span data-i18n="group.engine"></span><select id="group-engine"></select></label>
-          <label><span data-i18n="group.model"></span><select id="group-model"></select></label>
-          <label><span data-i18n="group.effort"></span><select id="group-effort"></select></label>
-          <button id="group-add" class="primary" type="button" data-i18n="group.add"></button>
-        </div>
-      </section>
       </div>
     </section>
   </main>
@@ -94,6 +82,34 @@
       <div class="actions">
         <button value="close" class="primary" data-i18n="close"></button>
       </div>
+    </form>
+  </dialog>
+  <dialog id="profiles-dialog" class="dialog wide profiles-dialog">
+    <form method="dialog" id="profiles-form">
+      <h2 data-i18n="profiles.title"></h2>
+      <p id="profiles-warning" class="profile-warning hidden" data-i18n="profiles.sharedFolderWarning"></p>
+      <div class="profiles-layout">
+        <section class="profile-list-pane">
+          <nav id="profiles-list" class="profiles-list"></nav>
+          <div class="profile-list-actions">
+            <button type="button" id="profile-new" data-i18n="profiles.new"></button>
+            <button type="button" id="profile-duplicate" data-i18n="profiles.duplicate"></button>
+            <button type="button" id="profile-delete" data-i18n="profiles.delete"></button>
+            <button type="button" id="profile-reset" data-i18n="profiles.reset"></button>
+          </div>
+        </section>
+        <section class="profile-editor">
+          <label><span data-i18n="profiles.name"></span><input id="profile-name" maxlength="60"></label>
+          <label><span data-i18n="profiles.roleTitle"></span><input id="profile-role-title" maxlength="60"></label>
+          <label><span data-i18n="profiles.instructions"></span><textarea id="profile-instructions" maxlength="16384"></textarea></label>
+          <label><span data-i18n="profiles.summary"></span><textarea id="profile-summary" maxlength="2048"></textarea></label>
+          <label><span data-i18n="profiles.provider"></span><select id="profile-provider"></select></label>
+          <label><span data-i18n="profiles.model"></span><select id="profile-model"></select></label>
+          <label><span data-i18n="profiles.effort"></span><select id="profile-effort"></select></label>
+          <label><span data-i18n="profiles.permission"></span><select id="profile-permission"></select></label>
+        </section>
+      </div>
+      <div class="actions"><button type="button" id="profiles-cancel" data-i18n="cancel"></button><button type="button" id="profiles-save" class="primary" data-i18n="save"></button></div>
     </form>
   </dialog>
   <dialog id="dialog" class="dialog">

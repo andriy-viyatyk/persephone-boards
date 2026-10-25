@@ -88,7 +88,7 @@ class JsonRpcProcess {
     this.child.once("error", (error) => this.fail(error));
     this.child.once("close", (code) => this.fail(providerError(`Codex app-server exited (${code ?? "unknown"})${this.stderr ? `: ${this.stderr}` : ""}`, "provider-process-exited")));
     await Promise.race([
-      this.request("initialize", { clientInfo: { name: "persephone-claude-agent", title: "Persephone Claude Agent", version: "1.1.0" }, capabilities: null }, STARTUP_TIMEOUT_MS),
+      this.request("initialize", { clientInfo: { name: "persephone-claude-agent", title: "Persephone Agent Chat", version: "1.1.0" }, capabilities: null }, STARTUP_TIMEOUT_MS),
       new Promise((_, reject) => setTimeout(() => reject(providerError("Codex app-server initialization timed out.")), STARTUP_TIMEOUT_MS)),
     ]);
     this.notify("initialized");

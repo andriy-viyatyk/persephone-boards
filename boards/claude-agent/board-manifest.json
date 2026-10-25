@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "name": "Claude Agent",
-  "description": "A resumable agent session provider and chat board using your installed Claude or Codex CLI.",
+  "name": "Agent Chat",
+  "description": "A resumable agent session provider and chat board for the installed Claude and Codex CLIs.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
   "version": "1.1.0",
@@ -23,7 +23,7 @@
   },
   "service": "scripts/service.mjs",
   "serviceInterfaces": [
-    { "id": "agent.session", "version": 1, "title": "Claude Agent" }
+    { "id": "agent.session", "version": 1, "title": "Agent Chat" }
   ],
   "languages": { "folder": "lang", "default": "en" },
   "screenshot": "screenshot.png",

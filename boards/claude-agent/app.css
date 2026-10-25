@@ -32,6 +32,10 @@ body.resizing { cursor: col-resize; user-select: none; }
 .agent-toggle:hover:not(:disabled) { background: transparent; text-decoration: underline; }
 .agent-type { flex: none; max-width: 38%; overflow: hidden; color: var(--p-text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .session-list .empty { padding: 8px; color: var(--p-text-muted); }
+/* Shown until the first session listing arrives. */
+.session-list .loading { display: flex; align-items: center; gap: 8px; padding: 8px; color: var(--p-text-muted); }
+.spinner { flex: none; width: 14px; height: 14px; border: 2px solid color-mix(in srgb, var(--p-text-muted) 35%, transparent); border-top-color: var(--p-accent); border-radius: 50%; box-sizing: border-box; animation: spinner-turn .8s linear infinite; }
+@keyframes spinner-turn { to { transform: rotate(360deg); } }
 /* Two-level tree: folder rows, then their sessions indented under them. */
 /* Expand/collapse chevrons, as in Persephone's Explorer tree: its chevron-right icon, turned to point down
    when open. A mask paints it in the text colour. It marks the sidebar folders and every collapsible line. */
@@ -48,6 +52,7 @@ details[open] > summary::before, .folder.expanded .caret { transform: rotate(90d
 .folder-toggle:hover:not(:disabled) { background: transparent; }
 .folder-toggle .caret { color: var(--p-text-muted); }
 .folder-toggle .folder-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-toggle .folder-name.no-folder { font-style: italic; font-weight: normal; color: var(--p-text-muted); }
 .folder-head .count { flex: none; min-width: 16px; padding-right: 8px; text-align: right; font-size: 11px; color: var(--p-text-muted); }
 /* Whole-pixel plus: an odd-sized box and 1px bars on integer offsets, so both strokes render equally crisp. */
 .folder-new { flex: none; position: relative; visibility: hidden; width: 21px; height: 21px; padding: 0; margin-right: 2px; border: 0; background: transparent; color: var(--p-text-muted); }

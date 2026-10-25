@@ -1,6 +1,8 @@
 ## 1.1.0
+- Renamed the board to Agent Chat, with a new icon; its board id remains `claude-agent`.
 - Added Codex as a second selectable engine using the installed Codex app-server, with provider-specific models, efforts, permissions, instructions and saved sessions.
-- Each session in the sidebar shows its engine icon (Claude or Codex) instead of a dot: gray when not running, green when running.
+- Each session in the sidebar shows its engine icon (Claude or Codex) in its own color instead of a dot: muted when not running, bright when running.
+- The session sidebar shows a spinner while the sessions load.
 
 ## 1.0.0
 - Added the Claude Agent provider service, SDK consent flow, and a chat page with a recent-sessions sidebar, Markdown-rendered replies, and resumed-session history.

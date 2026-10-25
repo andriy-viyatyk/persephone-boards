@@ -1,4 +1,6 @@
-# Claude Agent board notes
+# Agent Chat board notes
+
+The board id and folder remain `claude-agent`.
 
 Standalone provider board; it is not a custom editor and has no file association. The resident service implements the vendor-neutral `agent.session` v1 protocol and the local chat page uses the same service channel and protocol.
 

@@ -2,8 +2,11 @@
 applyI18n();
 
 const $ = (selector) => document.querySelector(selector);
-const state = { setup: null, capabilities: {}, descriptions: new Map(), catalog: [], defaultProvider: "", description: null, models: [{ id: "", label: "Default", efforts: [] }], defaults: {}, settingsOff: null, sessions: [] };
+const state = { setup: null, capabilities: {}, descriptions: new Map(), catalog: [], defaultProvider: "", description: null, models: [{ id: "", label: "Default", efforts: [] }], defaults: {}, settingsOff: null, sessions: [], sessionsLoaded: false };
 const sessionsByKey = new Map();
+// Sessions deleted on this page, in flight or done (viewKey). A list refresh must never bring one back: a listing
+// read while a delete was still removing files can arrive after that delete finished. A failed delete leaves the set.
+const pendingDeletes = new Set();
 const sessionFor = (id, provider = "") => provider ? sessionsByKey.get(viewKey(id, provider)) : state.sessions.find((item) => item.id === id);
 const showError = (message) => { const node = $("#error"); node.textContent = message; node.classList.toggle("hidden", !message); };
 // Transient state line above the prompt; empty (hidden) while the session is ready.
@@ -369,6 +372,8 @@ async function refreshDescription() {
   const caps = capabilities();
   $("#consent").classList.toggle("hidden", !caps.providerSetup || state.setup?.ready !== false);
   if (caps.sessionStore && !state.sessions.length) await refreshSessions();
+  // No session store, or no description at all: nothing more will load, so drop the spinner.
+  else if (!state.sessionsLoaded && (!caps.sessionStore || message?.type !== "description")) { state.sessionsLoaded = true; renderSessions(); }
 }
 // Defaults depend on the folder (its project and local Claude settings), so a view not yet running asks for its own.
 async function refreshDefaults(view) {
@@ -617,6 +622,13 @@ function renderSessions() {
   const list = $("#session-list");
   const rows = state.sessions;
   list.replaceChildren();
+  // Until the first listing arrives (the service starts and every engine answers), show a spinner, not an empty panel.
+  if (!state.sessionsLoaded) {
+    const loading = element("div", "loading");
+    loading.append(element("span", "spinner"), element("span", "", t("loadingSessions")));
+    list.append(loading);
+    return;
+  }
   if (!capabilities().sessionStore) { renderAgents(); return; }
   if (!rows.length) {
     if (state.setup) list.append(element("div", "empty", t(state.setup.ready ? "noSessions" : "consentRequired")));
@@ -629,11 +641,12 @@ function renderSessions() {
     const expanded = expandedFolders.has(group.key);
     const folder = element("div", `folder${expanded ? " expanded" : ""}`);
     const head = element("div", "folder-head");
-    head.title = group.cwd;
+    // A transcript with no messages (only metadata lines) records no working directory; its folder says so.
+    head.title = group.cwd || t("noFolderHint");
     const toggle = element("button", "folder-toggle");
     toggle.type = "button";
     toggle.setAttribute("aria-expanded", String(expanded));
-    toggle.append(element("span", "caret"), element("span", "folder-name", folderName(group.cwd)));
+    toggle.append(element("span", "caret"), element("span", `folder-name${group.cwd ? "" : " no-folder"}`, group.cwd ? folderName(group.cwd) : t("noFolder")));
     // A collapsed folder still shows that one of its sessions is running.
     const running = group.sessions.map((item) => viewFor(item.id, item.provider)).filter((view) => view?.channel);
     if (running.length && !expanded) toggle.append(element("span", `session-dot live${running.some((view) => view.busy) ? " busy" : ""}`));
@@ -778,9 +791,17 @@ async function deleteSession(item) {
   if (answer === null) return;
   const view = viewFor(item.id, item.provider);
   if (view) { if (view === current) showNewSession(); dropView(view); }
-  if (!(await manageSession(item, "delete"))) return;
-  state.sessions = state.sessions.filter((row) => row !== item);
-  sessionsByKey.delete(viewKey(item.id, item.provider));
+  // The row goes at once: the service may first have to end a running session (up to ~2 s) or start
+  // an engine's discovery server. If the delete fails, the row comes back and the error shows.
+  const key = viewKey(item.id, item.provider);
+  pendingDeletes.add(key);
+  state.sessions = state.sessions.filter((row) => viewKey(row.id, row.provider) !== key);
+  sessionsByKey.delete(key);
+  renderSessions();
+  if (await manageSession(item, "delete")) return;
+  pendingDeletes.delete(key);
+  state.sessions = [...state.sessions.filter((row) => viewKey(row.id, row.provider) !== key), item].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  sessionsByKey.set(key, item);
   renderSessions();
 }
 
@@ -815,11 +836,18 @@ $("#splitter").addEventListener("pointerdown", (event) => {
   window.addEventListener("pointercancel", end);
 });
 $("#splitter").addEventListener("dblclick", () => prefs.write("sidebar-width", applySidebarWidth(280)));
+// Refreshes can overlap (watcher, Refresh, a description change); only the newest listing is applied, so an
+// older answer that arrives late never replaces a newer one.
+let sessionsRequest = 0;
 async function refreshSessions() {
-  if (!capabilities().sessionStore) { renderSessions(); return; }
+  if (!capabilities().sessionStore) { state.sessionsLoaded = true; renderSessions(); return; }
+  const request = ++sessionsRequest;
   const { message } = await discovery({ type: "list-sessions", provider: null });
+  if (request !== sessionsRequest) return;
+  state.sessionsLoaded = true;
   if (message?.type === "sessions") {
-    state.sessions = [...message.sessions].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    state.sessions = message.sessions.filter((item) => !pendingDeletes.has(viewKey(item.id, item.provider)))
+      .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
     sessionsByKey.clear();
     for (const item of state.sessions) sessionsByKey.set(viewKey(item.id, item.provider), item);
     for (const item of state.sessions) { const view = viewFor(item.id, item.provider); if (view) { view.title = item.title; if (!isLive(view)) { view.model = item.model || view.model; view.effort = item.effort || view.effort; } } }
@@ -1645,6 +1673,7 @@ $("#accept").addEventListener("click", () => void consentSdk(true));
 $("#decline").addEventListener("click", () => void consentSdk(false));
 persephone.state.init({ session: null }, { restorableKeys: ["session"] });
 showNewSession();
+renderSessions();
 void (async () => {
   const saved = (await persephone.state.get())?.session;
   await refreshDescription();

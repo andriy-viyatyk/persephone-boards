@@ -3,6 +3,16 @@
   "id": "claude-agent",
   "versions": [
     {
+      "version": "1.2.1",
+      "date": "2026-10-25",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/claude-agent-v1.2.1/claude-agent.zip",
+        "size": 150055,
+        "sha256": "b4832ae340147c3a54d94c4b60d2299f63f0a5c3db22f0e3045f72acea52b9c0"
+      },
+      "minAppVersion": "5.0.13"
+    },
+    {
       "version": "1.2.0",
       "date": "2026-10-25",
       "archive": {

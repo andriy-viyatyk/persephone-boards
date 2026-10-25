@@ -385,16 +385,16 @@
     },
     {
       "id": "claude-agent",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "name": "Agent Chat",
       "description": "A resumable agent session provider and chat board for the installed Claude and Codex CLIs.",
       "standalone": true,
       "minAppVersion": "5.0.13",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/claude-agent-v1.2.0/claude-agent.zip",
-        "size": 148277,
-        "sha256": "289e8d0e26126bdd48e49df88ad3962fb96b822ae34e20df660fa13b8dfbab06"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/claude-agent-v1.2.1/claude-agent.zip",
+        "size": 150055,
+        "sha256": "b4832ae340147c3a54d94c4b60d2299f63f0a5c3db22f0e3045f72acea52b9c0"
       }
     },
     {

@@ -12,7 +12,7 @@ The Instructions editor uses separate files for each provider: `%LOCALAPPDATA%\P
 
 Choose **+ Invite agent** from any chat, including a new or history-only chat, then choose a profile to invite it in one click. **Edit agents…** opens the service-backed profile editor, where profiles can be created, duplicated, renamed, edited, deleted, or reset to the four shipped defaults: Nova (Reviewer), Rex (Critic), Atlas (Researcher), and Kai (Developer, allowed to edit files; commands need approval). Provider, model, effort, and permission preset are stored with each profile. Claude's Opus, Sonnet, and Haiku aliases remain available; Codex profiles require an exact model offered by the current Codex app-server. Write-capable permission presets show a shared-working-folder warning.
 
-Each invited agent keeps a separate native session and receives the visible group timeline; tool activity and unposted replies stay in that agent's own transcript. User messages, the main agent's final replies, and explicit `post_message` posts are shared with author badges. Profile details are copied into participant records when invited, so later profile changes do not change existing participants. Ask-capable profiles can request approval in the main chat under their author badge; read-only profiles continue to have uncertain actions denied.
+Each invited agent keeps a separate native session and receives the visible group timeline; tool activity stays in that agent's own transcript. User messages, the main agent's final replies, and explicit `post_message` posts are shared with author badges. A joined agent that ends a turn without posting has its final reply posted for it (except the `[[pass]]` marker), and an exact repeat of its last post is not shared again. Profile details are copied into participant records when invited, so later profile changes do not change existing participants. Ask-capable profiles can request approval in the main chat under their author badge; read-only profiles continue to have uncertain actions denied.
 
 The sidebar uses a service-owned group index to nest participant sessions beneath their parent chat, including after a restart before any group chat is opened. Participant history opens read-only and follows live events only when both the parent and participant sessions are already live. Right-click an active nested participant while its parent chat is live to remove it; removed participants remain available as history entries. The parent uses a group glyph colored for its main provider. Use **Stop all** to interrupt the main and invited sessions without deleting their saved transcripts. Profile and participant data is stored under `%LOCALAPPDATA%\Persephone\board-data\claude-agent\group-chat\`; no bearer token is persisted. Closing or reloading the board stops active processes while saved group membership remains available for the next resume.
 
@@ -20,8 +20,18 @@ The sidebar uses a service-owned group index to nest participant sessions beneat
 
 - Install the `claude` command line application and sign in through its normal login flow.
 - Open the board, review the SDK download notice, and choose **Accept and download**. It downloads `@anthropic-ai/claude-agent-sdk` 0.3.302 from `registry.npmjs.org`, verifies the pinned SHA-512 digest before extraction, and stores the SDK under `%LOCALAPPDATA%\Persephone\board-data\claude-agent\sdk\0.3.302`. The SDK is not included in this board's files.
-- Use of the SDK and CLI is subject to Anthropic's legal agreements.
+- Use of the SDK and CLI is subject to Anthropic's legal agreements (see [Accounts and provider terms](#accounts-and-provider-terms)).
 - Choose a working directory (type it, or pick it with the folder button), then type your first message to start a session.
+
+## Accounts and provider terms
+
+Agent Chat runs the Claude Code and Codex command line applications installed on your computer. Each engine signs in through its own login (`/login` in Claude Code), and usage is billed to your own subscription or API account. The board never reads, stores, or handles your credentials or session tokens, and it does not offer a sign-in of its own.
+
+- Use only accounts you are authorized to use, and follow each provider's terms. For Claude, see Anthropic's [legal and compliance page](https://code.claude.com/docs/en/legal-and-compliance).
+- Do not share your login with other people, and do not offer Agent Chat to others as a service that runs on your account.
+- Several agents working at once use up plan limits faster. Subscription limits assume ordinary, individual use; for heavy or shared automation, use API billing.
+
+To use API billing with Claude, configure it in Claude Code itself: sign in with `/login` and choose an Anthropic Console account, set `apiKeyHelper` in your Claude Code settings, or configure a supported cloud provider. The board removes the `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` environment variables before it launches Claude, so a key left in your environment does not silently replace your subscription login.
 
 ## Chat page
 

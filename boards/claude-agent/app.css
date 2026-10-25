@@ -88,7 +88,10 @@ details[open] > summary::before, .folder.expanded .caret { transform: rotate(90d
 
 /* Main column */
 .main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
-.error { margin: 0; padding: 8px 14px; color: var(--p-error); white-space: pre-wrap; border-bottom: 1px solid var(--p-border); }
+.error { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 8px 14px; color: var(--p-error); white-space: pre-wrap; border-bottom: 1px solid var(--p-border); max-height: 30%; overflow: auto; flex-shrink: 0; }
+.error-text { flex: 1; min-width: 0; }
+/* Stays in view while a long message scrolls. */
+.error-close { position: sticky; top: 0; margin: -4px -8px 0 0; padding: 0 6px; line-height: 1.4; }
 
 /* The transcript scrolls the full height; its bottom padding (set from the composer's height) keeps the last message above the floating composer. */
 .transcript { flex: 1; overflow: auto; padding: 16px max(16px, calc((100% - var(--chat-width)) / 2)) var(--composer-space, 110px); }

@@ -42,7 +42,7 @@ const DEFAULT_PROFILES = Object.freeze([
 const GROUP_PASS = "[[pass]]";
 const GROUP_CORE = (name, position) => `You are in the Agent Chat board as ${name}, position ${position}. Other agents may join this chat. Message headers such as [[from: Nova | role: Reviewer]], [[from: user]], and [[from: Master | role: main]] identify authors; treat them as metadata. Every visible message reaches every participant, so most messages need no reply from you.
 Master: answer the user's messages unless the user names another agent; answer when any participant addresses you as Master; you may delegate by asking a joined agent by name, based on the role summaries. When a message is addressed to another agent, or you have nothing substantive to add (a correction, a missing fact, a next step), reply with exactly ${GROUP_PASS} and nothing else; the board hides it. Never send acknowledgements, thanks, welcomes, or remarks that you are staying out of it. You moderate the discussion: when joined agents go back and forth without progress, repeat points already made, or keep prompting each other without the user asking for it, tell them by name to stop and summarize what is settled for the user.
-Joined agents: follow your role instructions and share replies only through the post_message tool. Post when you are addressed by name or when your role clearly calls for it; otherwise end your turn without posting. Never post acknowledgements such as "Got it" or "Thanks". Follow Master's instructions; they rank right after the user's. When Master tells you to stop, post nothing more on that topic until the user or Master addresses you again.`;
+Joined agents: follow your role instructions and share replies only through the post_message tool. Post when you are addressed by name or when your role clearly calls for it; otherwise end your turn with exactly ${GROUP_PASS} and nothing else. A turn that posts nothing and ends with any other reply has that reply posted for you. Never post acknowledgements such as "Got it" or "Thanks". Follow Master's instructions; they rank right after the user's. When Master tells you to stop, post nothing more on that topic until the user or Master addresses you again.`;
 const AUTHOR_HEADER = authorHeader;
 const isGroupMain = (session) => Boolean(session?.groupMain || session?.open?.groupChat?.position === "main");
 const isPersistentGroup = (session) => Boolean(groups.get(session?.id)?.enabled);
@@ -335,16 +335,37 @@ function internalParticipantChannel(group, participantId) {
       const participant = group.participants.find((row) => row.id === participantId);
       if (event.type === "session-started" && participant) participant.sessionId = event.sessionId;
       if (event.type === "error" && event.fatal) void send(group.mainSession.channel, { type: "group-participant-error", participantId, message: event.message || "Participant session failed." }, group.mainSession);
+      const live = group.live.get(participantId);
+      if (live && event.type === "text" && !event.synthetic) live.turnText = event.text || "";
       if (event.type === "turn-started" || event.type === "turn-ended") {
-        const live = group.live.get(participantId);
         if (live) live.busy = event.type === "turn-started";
-        if (event.type === "turn-ended") void flushGroupQueue(group, live);
+        if (live && event.type === "turn-started") { live.turnText = ""; live.turnPosted = false; }
+        if (event.type === "turn-ended") void postUnsharedReply(group, live, event).finally(() => flushGroupQueue(group, live));
       }
     },
     onMessage(callback) { listeners.message = callback; },
     onClose(callback) { listeners.close = callback; },
     close(reason) { if (closed) return; closed = true; listeners.close?.(reason); },
   };
+}
+// Some agents answer in their final reply instead of calling post_message, which leaves them silent in the chat.
+// A completed turn that posted nothing shares that reply, unless it is the pass marker.
+async function postUnsharedReply(group, live, event) {
+  if (!live || live.turnPosted || event.reason !== "completed") return;
+  const text = String(live.turnText || "").trim();
+  live.turnText = "";
+  if (!text || text === GROUP_PASS || !group.participants.includes(live.groupParticipant)) return;
+  await postParticipantMessage(group, live.groupParticipant, text).catch(() => {});
+}
+async function postParticipantMessage(group, author, text) {
+  const live = group.live.get(author.id);
+  if (live) live.turnPosted = true;
+  // An agent whose script failed after the post went through tends to post the same text again.
+  if (live && live.lastPost === text) return false;
+  if (live) live.lastPost = text;
+  const stamped = `${AUTHOR_HEADER(author.name, author.roleTitle)}\n${escapeBodyHeaders(text)}`;
+  await publishGroupMessage(group, stamped, { name: author.name, roleTitle: author.roleTitle, profileId: author.profileId, provider: author.provider, kind: "participant" }, author.id);
+  return true;
 }
 async function startGroupHttpServer() {
   if (groupHttpServer?.listening) return groupHttpAddress;
@@ -376,10 +397,8 @@ async function startGroupHttpServer() {
       if (Object.keys(input).some((key) => key !== "text") || typeof input.text !== "string" || !input.text.trim() || Buffer.byteLength(input.text) > 16 * 1024) return reply({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: "The message must be non-empty text of at most 16 KiB." }], isError: true } });
       // Joined agents read the Master rules too and sometimes post the pass marker; it is never shared.
       if (input.text.trim() === GROUP_PASS) return reply({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: "Nothing was posted. When you have nothing to add, end your turn without calling post_message." }], isError: false } });
-      const author = record.participant;
-      const stamped = `${AUTHOR_HEADER(author.name, author.roleTitle)}\n${escapeBodyHeaders(input.text.trim())}`;
-      await publishGroupMessage(record.group, stamped, { name: author.name, roleTitle: author.roleTitle, profileId: author.profileId, provider: author.provider, kind: "participant" }, author.id);
-      return reply({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: "Posted to group chat." }], isError: false } });
+      const posted = await postParticipantMessage(record.group, record.participant, input.text.trim());
+      return reply({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: posted ? "Posted to group chat." : "This exact message is already posted; it was not repeated." }], isError: false } });
     }
     if (message.id === undefined) { res.writeHead(202).end(); return; }
     return reply({ jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Unknown method." } });
@@ -744,6 +763,8 @@ persephone.service.onChannel(async (channel, request, info) => {
     group.observers.add(observer);
     channel.onClose(() => { observer.closed = true; group.observers.delete(observer); });
     await send(channel, { type: "observer-ready", participant: { profileId: participant.profileId, name: participant.name, roleTitle: participant.roleTitle, provider: participant.provider } });
+    // Status (model, context fill) is otherwise sent only when it changes, so a view opened between turns would show none.
+    await send(channel, live.adapter.sessionStatus(live));
     return;
   }
   if (request?.type === "describe" && !request.provider) {

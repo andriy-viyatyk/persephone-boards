@@ -194,6 +194,10 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--p-text-mut
 .readonly-hint { display: flex; font-family: var(--chat-font); flex: 0 0 100%; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 8px; color: var(--p-text-muted); font-size: 12px; }
 .readonly-hint button { flex: none; color: var(--p-accent); }
 .composer button { height: 36px; border-radius: 10px; }
+.composer .voice-button { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 6px; min-width: 36px; padding: 0 9px; }
+.voice-icon { flex: none; width: 18px; height: 18px; background: currentColor; -webkit-mask: url("icons/mic.svg") center / contain no-repeat; mask: url("icons/mic.svg") center / contain no-repeat; }
+.composer .voice-provider { flex: none; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.voice-button.recording { color: var(--p-error); }
 /* Slash-command menu: opens above the prompt while it holds a lone "/command" token. */
 .command-menu { position: absolute; bottom: calc(100% + 6px); left: 0; right: 0; z-index: 5; max-height: min(320px, 45vh); overflow-y: auto; padding: 4px; background: var(--p-panel); border: 1px solid var(--p-border); border-radius: var(--p-radius-md, 6px); box-shadow: 0 4px 16px color-mix(in srgb, black 35%, transparent); font-family: var(--chat-font); }
 .command-item { display: flex; align-items: baseline; gap: 10px; padding: 5px 8px; border-radius: var(--p-radius-sm, 4px); cursor: pointer; }

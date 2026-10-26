@@ -2,6 +2,12 @@
 
 Agent Chat provides the `agent.session` v1 service and a local chat page backed by your installed Claude CLI or Codex app-server. Its board id and folder remain `claude-agent`. The service routes v1 sessions through provider adapters: `open.provider` is optional and defaults to `claude`, while descriptions advertise provider identity and capability-gated features alongside the permanent v1 feature set. The page consumes those capabilities and typed session status events without relying on vendor identifiers. Provider selection, session identity, and capability/status additions remain additive fields in contract v1.
 
+## Voice input
+
+When a trusted Speech to Text provider is available, use the microphone button beside the message box to record, then stop to transcribe. The recognized text is inserted into the message box at the caret and is never sent automatically. If several transcription providers are installed, choose one with the provider button. Open the Speech to Text board and finish its setup if Agent Chat reports that the provider is not ready.
+
+Agent Chat needs microphone permission for voice input. After updating an installed trusted board, Persephone shows a **Board permissions changed** prompt listing the new microphone grant. Accept the prompt to use voice input; closing it unregisters the board.
+
 ## Codex engine
 
 Use the **Engine** chip on a new-session view to select Claude or Codex. Model choices are grouped by engine, and the selected provider is saved with the restorable page session. Saved sessions retain their owning provider for listing, history, rename, delete, and resume. Codex requires Codex CLI 0.163.0 and runs one `codex app-server --stdio` process per live session. It uses Codex's stored threads for history and resume and exposes model, effort, permission, token, and context controls. Transcript following, cost, rate limits, slash commands, MCP management, and subagent panels remain capability-gated and unavailable for Codex.

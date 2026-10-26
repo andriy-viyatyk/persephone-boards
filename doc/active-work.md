@@ -8,15 +8,13 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-Board work for Persephone's **EPIC-133** (*Speech to text*); the epic document lives in the Persephone repo (`doc/epics/EPIC-133.md`). US-1723 has reserved `speech.transcribe`; BT-055 is now in progress.
-
-- [ ] [BT-055: Whisper runtime build workflow and release](tasks/BT-055-whisper-runtime/README.md)
+*(none)*
 
 ## Planned
 
-- [ ] BT-056: Speech to Text board — `speech.transcribe` provider
-- [ ] BT-057: Agent Chat voice input
-
+Board work for Persephone's **EPIC-133** (*Speech to text*) is finished: BT-055 – BT-057 built the
+Whisper runtime, the `speech-to-text` v1.0.0 provider board and Agent Chat 1.3.0 voice input. Both
+boards stay unpublished on `develop` until Persephone 5.0.15 ships. See [`tasks/completed.md`](tasks/completed.md).
 
 Board work for Persephone's **EPIC-128** (*Audio Player board*) is finished: BT-038 – BT-045 shipped as
 `audio-player` v1.0.0, published 2026-10-18. See [`tasks/completed.md`](tasks/completed.md).

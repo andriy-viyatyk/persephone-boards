@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="board.title">Speech to Text</title>
+  <link rel="stylesheet" href="./board-base.css">
+  <link rel="stylesheet" href="./app.css">
+</head>
+<body>
+  <main id="app">
+    <header class="page-header">
+      <div><h1 data-i18n="board.title">Speech to Text</h1><p data-i18n="board.subtitle"></p></div>
+      <span id="engine-state" class="state-pill" data-i18n="engine.notReady"></span>
+    </header>
+    <p id="error" role="alert" hidden></p>
+    <section class="panel">
+      <h2 data-i18n="models.title"></h2>
+      <div id="runtime-row" class="asset-row"></div>
+      <div id="model-list"></div>
+      <p id="active-model" class="muted"></p>
+    </section>
+    <section class="panel recorder">
+      <h2 data-i18n="recorder.title"></h2>
+      <label><span data-i18n="recorder.microphone"></span><select id="microphones"></select></label>
+      <div class="level-track" aria-label="Microphone level"><div id="level"></div></div>
+      <div class="actions"><button id="record" class="primary" data-i18n="recorder.record"></button><button id="stop" disabled data-i18n="recorder.stop"></button><button id="cancel" disabled data-i18n="common.cancel"></button></div>
+      <p id="recording-status" class="muted" data-i18n="recorder.idle"></p>
+      <pre id="transcript" aria-live="polite"></pre>
+      <p id="result-meta" class="muted"></p>
+    </section>
+    <section class="panel privacy">
+      <h2 data-i18n="licenses.title"></h2>
+      <p data-i18n="privacy.local"></p>
+      <p><span data-i18n="licenses.model"></span> <a href="https://github.com/openai/whisper/blob/main/LICENSE" target="_blank" rel="noreferrer">MIT</a>.</p>
+      <p><span data-i18n="licenses.runtime"></span></p>
+      <div id="runtime-licenses" class="license-list"></div>
+    </section>
+  </main>
+  <script src="./i18n.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

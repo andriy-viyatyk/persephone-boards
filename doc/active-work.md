@@ -12,6 +12,8 @@ Overview of active and planned board work in this repo.
 
 ## Planned
 
+- [ ] [BT-060: Streaming VAD helper in the whisper runtime](tasks/BT-060-whisper-vad-helper/README.md) — Persephone **EPIC-134**, phase 2, task 1 of 6.
+
 Board work for Persephone's **EPIC-133** (*Speech to text*) is finished: BT-055 – BT-057 built the
 Whisper runtime, the `speech-to-text` v1.0.0 provider board and Agent Chat 1.3.0 voice input. Both
 boards stay unpublished on `develop` until Persephone 5.0.15 ships. See [`tasks/completed.md`](tasks/completed.md).

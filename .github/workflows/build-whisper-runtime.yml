@@ -11,7 +11,7 @@ on:
       runtime_revision:
         description: "Runtime package revision for this upstream tag"
         required: true
-        default: "1"
+        default: "2"
         type: string
 
 permissions:
@@ -44,6 +44,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Upstream clone failed' }
           $commit = (git -C C:\w\src rev-parse HEAD).Trim()
           if ($LASTEXITCODE -ne 0) { throw 'Could not resolve upstream commit' }
+          Copy-Item "$env:GITHUB_WORKSPACE\runtime\vad-helper" 'C:\w\src\examples\vad-helper' -Recurse
+          Add-Content 'C:\w\src\examples\CMakeLists.txt' "`nadd_subdirectory(vad-helper)"
           "UPSTREAM_COMMIT=$commit" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "RUNTIME_TAG=whisper-runtime-$($env:UPSTREAM_TAG.Substring(1))-r$($env:RUNTIME_REVISION)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "ASSET_STEM=whisper-runtime-windows-x64-$($env:UPSTREAM_TAG)-r$($env:RUNTIME_REVISION)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
@@ -70,7 +72,7 @@ jobs:
           if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja --yes --no-progress; if ($LASTEXITCODE -ne 0) { throw 'Ninja install failed' } }
           ninja --version
 
-      - name: Configure and build whisper-server
+      - name: Configure and build whisper-server and VAD helper
         shell: cmd
         run: |
           set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -105,8 +107,9 @@ jobs:
             -DGGML_CPU_ALL_VARIANTS=ON ^
             -DGGML_VULKAN=ON
           if errorlevel 1 exit /b 1
-          cmake --build C:\w\b --config Release --target whisper-server --parallel
+          cmake --build C:\w\b --config Release --target whisper-server whisper-vad-helper --parallel
           if errorlevel 1 exit /b 1
+          if not exist C:\w\b\bin\whisper-vad-helper.exe exit /b 1
 
       - name: Default fallback and CPU-only server smoke tests
         shell: pwsh
@@ -160,6 +163,67 @@ jobs:
           Invoke-WhisperSmoke -RunName 'default-fallback'
           Invoke-WhisperSmoke -RunName 'forced-cpu' -ForceCpu
 
+      - name: CPU streaming VAD smoke test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $model = 'C:\w\ggml-silero-v6.2.0.bin'
+          Invoke-WebRequest 'https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin' -OutFile $model
+          $expectedModelHash = '2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987'
+          $actualModelHash = (Get-FileHash $model -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ((Get-Item $model).Length -ne 885098 -or $actualModelHash -ne $expectedModelHash) { throw 'Silero VAD model size or SHA-256 mismatch' }
+          $pcm = 'C:\w\vad-smoke.pcm'
+          $python = @'
+          import wave
+          with wave.open(r'C:\w\src\samples\jfk.wav', 'rb') as source:
+              if source.getframerate() != 16000 or source.getnchannels() != 1 or source.getsampwidth() != 2 or source.getcomptype() != 'NONE':
+                  raise SystemExit('samples/jfk.wav must be 16 kHz mono PCM s16le')
+              speech = source.readframes(source.getnframes())
+          with open(r'C:\w\vad-smoke.pcm', 'wb') as output:
+              output.write(bytes(16000 * 2))
+              output.write(speech)
+              output.write(bytes(16000 * 2))
+          '@
+          $pythonScript = 'C:\w\make-vad-smoke.py'
+          [IO.File]::WriteAllText($pythonScript, $python, [Text.Encoding]::ASCII)
+          python $pythonScript
+          if ($LASTEXITCODE -ne 0) { throw 'Could not prepare padded JFK PCM input' }
+          $pcmBytes = [IO.File]::ReadAllBytes($pcm)
+          $frameCount = [int][Math]::Ceiling($pcmBytes.Length / 1024.0)
+          $startInfo = [Diagnostics.ProcessStartInfo]::new()
+          $startInfo.FileName = 'C:\w\b\bin\whisper-vad-helper.exe'
+          $startInfo.Arguments = '--model "C:\w\ggml-silero-v6.2.0.bin" --threads 1'
+          $startInfo.UseShellExecute = $false
+          $startInfo.CreateNoWindow = $true
+          $startInfo.RedirectStandardInput = $true
+          $startInfo.RedirectStandardOutput = $true
+          $startInfo.RedirectStandardError = $true
+          $process = [Diagnostics.Process]::new()
+          $process.StartInfo = $startInfo
+          if (-not $process.Start()) { throw 'Could not start whisper-vad-helper' }
+          $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+          $stderrTask = $process.StandardError.ReadToEndAsync()
+          $process.StandardInput.BaseStream.Write($pcmBytes, 0, $pcmBytes.Length)
+          $process.StandardInput.Close()
+          $process.WaitForExit()
+          $stdout = $stdoutTask.GetAwaiter().GetResult()
+          $stderr = $stderrTask.GetAwaiter().GetResult()
+          if ($process.ExitCode -ne 0) { throw "VAD helper failed ($($process.ExitCode)): $stderr" }
+          if ($stdout.Contains("`r")) { throw 'VAD JSONL contains CR bytes instead of literal LF line endings' }
+          $lines = @($stdout -split "`n" | Where-Object { $_ -ne '' })
+          if ($lines.Count -ne $frameCount) { throw "VAD emitted $($lines.Count) frames; expected $frameCount" }
+          $records = @($lines | ForEach-Object { $_ | ConvertFrom-Json })
+          for ($i = 0; $i -lt $records.Count; $i++) {
+            if ($records[$i].frame -ne $i -or [double]::IsNaN([double]$records[$i].speechProbability) -or $records[$i].speechProbability -lt 0 -or $records[$i].speechProbability -gt 1) { throw "Invalid VAD record at frame $i" }
+          }
+          $edgeFrames = [int][Math]::Floor(0.8 * 16000 / 512)
+          $firstMax = ($records | Select-Object -First $edgeFrames | Measure-Object speechProbability -Maximum).Maximum
+          $lastMax = ($records | Select-Object -Last $edgeFrames | Measure-Object speechProbability -Maximum).Maximum
+          $speech = @($records | Select-Object -Skip $edgeFrames | Select-Object -SkipLast $edgeFrames)
+          $speechMax = ($speech | Measure-Object speechProbability -Maximum).Maximum
+          if ($firstMax -ge 0.5 -or $lastMax -ge 0.5 -or $speechMax -le 0.8) { throw "VAD threshold failure: first=$firstMax speech=$speechMax last=$lastMax" }
+          Write-Host "VAD smoke passed: $($records.Count) indexed frames; silence maxima $firstMax/$lastMax; speech maximum $speechMax."
+
       - name: Package runtime and checksums
         shell: pwsh
         env:
@@ -167,8 +231,33 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $out = 'C:\w\package'
-          New-Item -ItemType Directory -Force "$out\licenses" | Out-Null
+          New-Item -ItemType Directory -Force "$out\licenses", "$out\models" | Out-Null
           Copy-Item 'C:\w\b\bin\whisper-server.exe' $out
+          Copy-Item 'C:\w\b\bin\whisper-vad-helper.exe' $out
+          Copy-Item 'C:\w\ggml-silero-v6.2.0.bin' "$out\models\ggml-silero-v6.2.0.bin"
+          @'
+          Silero VAD model (ggml-silero-v6.2.0.bin)
+          Copyright (c) Silero Team
+          MIT License
+
+          Permission is hereby granted, free of charge, to any person obtaining a copy
+          of this software and associated documentation files (the "Software"), to deal
+          in the Software without restriction, including without limitation the rights
+          to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+          copies of the Software, and to permit persons to whom the Software is
+          furnished to do so, subject to the following conditions:
+
+          The above copyright notice and this permission notice shall be included in all
+          copies or substantial portions of the Software.
+
+          THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+          IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+          FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+          AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+          LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+          OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+          SOFTWARE.
+          '@ | Set-Content "$out\licenses\silero-vad-MIT.txt" -Encoding utf8
           Get-ChildItem 'C:\w\b\bin' -Filter '*.dll' | Copy-Item -Destination $out
           if (-not (Get-ChildItem $out -Filter '*.dll')) { throw 'No runtime DLLs were emitted' }
           $licenseRoot = 'C:\w\src'
@@ -288,6 +377,8 @@ jobs:
           Vulkan SDK: LunarG 1.4.363.0 (build time only)
           Run: whisper-server.exe --model <model-path> --host 127.0.0.1 --port 8080
           Use --no-gpu to force CPU execution. Vulkan acceleration requires a compatible installed GPU driver.
+          Run VAD: whisper-vad-helper.exe --model models\ggml-silero-v6.2.0.bin [--threads 1]
+          VAD input: raw 16 kHz mono PCM s16le on stdin; output: frame-indexed JSONL on stdout.
           See licenses/ for the notices of components linked into this runtime.
           "@ | Set-Content "$out\README.txt" -Encoding utf8
           $files = Get-ChildItem $out -File -Recurse | Sort-Object { $_.FullName.Substring($out.Length + 1).Replace('\', '/') }
@@ -300,7 +391,11 @@ jobs:
           $zip = "$env:GITHUB_WORKSPACE\$env:ASSET_STEM.zip"
           Compress-Archive -Path "$out\*" -DestinationPath $zip -CompressionLevel Optimal
           $zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$zipHash  $([IO.Path]::GetFileName($zip))" | Set-Content "$zip.sha256" -Encoding ascii
+          $checksumText = "$zipHash  $([IO.Path]::GetFileName($zip))"
+          [IO.File]::WriteAllText("$zip.sha256", $checksumText, [Text.Encoding]::ASCII)
+          $checksumBytes = [IO.File]::ReadAllBytes("$zip.sha256")
+          if ($checksumBytes.Length -ne $checksumText.Length -or $checksumBytes[-1] -in @(10, 13)) { throw 'Detached checksum must not end in CR or LF' }
+          if ($checksumText -notmatch '^([0-9a-f]{64})  ([^\r\n]+)$' -or $Matches[1] -ne $zipHash) { throw 'Detached checksum text does not parse or match the ZIP SHA-256' }
 
       - name: Upload release payload
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

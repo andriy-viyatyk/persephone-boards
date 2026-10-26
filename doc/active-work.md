@@ -9,6 +9,7 @@ Overview of active and planned board work in this repo.
 ## Active
 
 - [ ] [BT-060: Streaming VAD helper in the whisper runtime](tasks/BT-060-whisper-vad-helper/README.md) — Persephone **EPIC-134**, phase 2, task 1 of 6.
+- [ ] [BT-061: Live segmentation in the Speech to Text service](tasks/BT-061-live-segmentation/README.md) — Persephone **EPIC-134**, phase 2, task 2 of 6.
 
 ## Planned
 

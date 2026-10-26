@@ -1,5 +1,6 @@
 ## 1.1.0
 - Added whisper-runtime r2 with the streaming VAD helper.
+- Added opt-in live segmentation with draft previews and committed utterances.
 
 ## 1.0.1
 - The **Languages** setting now applies to every caller, including Persephone voice typing and Agent Chat. Short phrases detected as another language are transcribed again in one of the listed languages.

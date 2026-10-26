@@ -385,16 +385,16 @@
     },
     {
       "id": "claude-agent",
-      "version": "1.2.1",
+      "version": "1.3.0",
       "name": "Agent Chat",
       "description": "A resumable agent session provider and chat board for the installed Claude and Codex CLIs.",
       "standalone": true,
-      "minAppVersion": "5.0.13",
+      "minAppVersion": "5.0.15",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/claude-agent-v1.2.1/claude-agent.zip",
-        "size": 150055,
-        "sha256": "b4832ae340147c3a54d94c4b60d2299f63f0a5c3db22f0e3045f72acea52b9c0"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/claude-agent-v1.3.0/claude-agent.zip",
+        "size": 155277,
+        "sha256": "dd59eed5d9307ed49bfbcb5f9b45cb835ee01caee7b12ab71cf44eb8b3ce2b4b"
       }
     },
     {
@@ -934,6 +934,20 @@
           "name": "PowerPoint 查看器",
           "description": "只读 PowerPoint 演示文稿查看器（.pptx）。"
         }
+      }
+    },
+    {
+      "id": "speech-to-text",
+      "version": "1.0.0",
+      "name": "Speech to Text",
+      "description": "Local speech transcription powered by whisper.cpp.",
+      "standalone": true,
+      "minAppVersion": "5.0.15",
+      "screenshot": "screenshot.png",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/speech-to-text-v1.0.0/speech-to-text.zip",
+        "size": 23542,
+        "sha256": "d1bb31327fca81820991bc9ef0d065c1a4c2140d39bed8734112c2d079d0c3d8"
       }
     },
     {

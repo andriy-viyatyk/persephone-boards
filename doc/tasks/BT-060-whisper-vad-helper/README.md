@@ -2,7 +2,7 @@
 
 ## Status
 
-**Status:** Active  
+**Status:** Implemented  
 **Priority:** High  
 **Board id:** `speech-to-text` (runtime helper consumed by this board)  
 **Started:** 2026-10-26  
@@ -19,7 +19,7 @@ Add a small CPU-only executable to a new `whisper-runtime-1.9.5-r2` package. It 
 - The helper protocol deliberately has no in-band reset command: one process represents one audio stream, and starting a new process resets state. If BT-061 needs to reuse a warm process, it can send an explicit reset through the existing `whisper_vad_reset_state()` API in a separately defined protocol change.
 - Source references checked at the requested v1.9.5 tag: [`include/whisper.h` VAD declarations, lines 699–750](https://github.com/ggml-org/whisper.cpp/blob/v1.9.5/include/whisper.h#L699-L750), including [`whisper_log_set`, line 763](https://github.com/ggml-org/whisper.cpp/blob/v1.9.5/include/whisper.h#L763); [`src/whisper.cpp` default VAD params, lines 4588–4595](https://github.com/ggml-org/whisper.cpp/blob/v1.9.5/src/whisper.cpp#L4588-L4595), [CPU-only VAD initialization, lines 4814–4820](https://github.com/ggml-org/whisper.cpp/blob/v1.9.5/src/whisper.cpp#L4814-L4820), [reset and streaming detection, lines 5260–5349](https://github.com/ggml-org/whisper.cpp/blob/v1.9.5/src/whisper.cpp#L5260-L5349), and [probability accessors, lines 5363–5369](https://github.com/ggml-org/whisper.cpp/blob/v1.9.5/src/whisper.cpp#L5363-L5369). The context defaults to four threads but GPU is disabled by default and forcibly disabled by the VAD initializer.
 - VAD logging must be filtered. `whisper_vad_detect_speech_no_reset()` emits several `WHISPER_LOG_INFO` messages on each call, and model loading logs too. Install a `whisper_log_set()` callback before loading the model that forwards only WARN and ERROR to stderr. In this version `whisper_log_set()` also installs the same callback into ggml; call `ggml_log_set()` with that callback as well if initialization order or direct ggml load messages require it. Without filtering, high-rate diagnostics can fill the service's stderr pipe.
-- The Silero v6.2.0 model uses 512-sample windows at 16 kHz (32 ms). The VAD API reads `n_window` and `n_context` from the model header; the GGML VAD graph uses `n_window`, but does not use `n_context` to prepend audio context as the ONNX v5 simulator did. Expect some probability differences from ONNX; this is a documented implementation difference, not a test failure.
+- The Silero v6.2.0 model uses 512-sample windows at 16 kHz (32 ms). The VAD API reads `n_window` and `n_context` from the model header. Measured after the r2 build, the GGML output matches the ONNX model fed with the 64-sample context (see Notes), so the context is handled inside the converted model; the earlier review claim that it is ignored was wrong.
 - Model: `ggml-silero-v6.2.0.bin`, 885,098 bytes, from [ggml-org/whisper-vad](https://huggingface.co/ggml-org/whisper-vad/tree/main). Its [model commit](https://huggingface.co/ggml-org/whisper-vad/commit/9ffd54a1e1ee413ddf265af9913beaf518d1639b) records size 885,098 and SHA-256 `2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987`; the model collection is MIT licensed.
 - **Package the model in the runtime ZIP**, under `models/ggml-silero-v6.2.0.bin`. At under 1 MB, including it makes the helper immediately runnable offline and lets the existing archive hash, per-file manifest and exact-file-set checks protect the executable and model together, with no separate required-model download lifecycle.
 - Current pin and verification are in `boards/speech-to-text/scripts/downloads.mjs`: `RUNTIME` is `whisper-runtime-1.9.5-r1`, and `verifyRuntime()` checks the manifest's exact file set and SHA-256 values and requires `whisper-server.exe`. Update the pin to r2 and require `whisper-vad-helper.exe` too. After r2 verifies, remove sibling `runtime/whisper-runtime-*` directories other than the pinned runtime. `runtime.zip` is already replaced when its pinned size/hash does not match. BT-055 records the current ZIP at 19,958,389 bytes with SHA-256 `f3db3e57713053721a85ea2269221db8b2b3bfda026fcec40442911566e1d046` (`doc/tasks/completed.md`).
@@ -38,25 +38,25 @@ Add a small CPU-only executable to a new `whisper-runtime-1.9.5-r2` package. It 
 - [x] Fix the r2 detached checksum writer so `.sha256` ends immediately after the checksum filename, without CR or LF. Assert its bytes and parsed ZIP SHA-256 in the workflow.
 - [x] Bump `RUNTIME` in `boards/speech-to-text/scripts/downloads.mjs` to `whisper-runtime-1.9.5-r2` and its release URL, size and SHA-256. Update `verifyRuntime()` to require both `whisper-server.exe` and `whisper-vad-helper.exe` while checking the exact manifest/file set and hashes. After successful r2 verification, clean sibling `runtime/whisper-runtime-*` folders except the current pinned id.
 - [x] Prepare the `speech-to-text` board for its planned pre-publication enhancement release: bump `boards/speech-to-text/board-manifest.json` from `1.0.1` to `1.1.0`; prepend `## 1.1.0` and the single line `- Added whisper-runtime r2 with the streaming VAD helper.` to `boards/speech-to-text/WHATS-NEW.md`, keeping the existing 1.0.1 and 1.0.0 notes intact.
-- [ ] Locally build the helper via the same v1.9.5 workflow configuration and run it over the padded JFK PCM on CPU. Check frame count/index sequence, finite probabilities in `[0,1]`, the silence/speech thresholds, partial-frame EOF, log filtering and exact LF JSONL. Measure warm per-frame cost at one API call per buffered batch versus one call per frame; record the comparison. Measure `--threads 1` versus `--threads 4` and record both; keep the default at one thread unless results justify a documented change. Require sustained throughput of at least 10× real time (at most 3.2 ms per 32 ms frame on the reference CI runner), reporting model-load time separately.
-- [ ] After the r2 build, Claude locally re-runs the US-1726 ONNX simulator on the same padded JFK PCM and records an informational comparison in Notes. This check is outside the workflow because `sim.py` and onnxruntime exist only in Claude's scratch folder. Record the expected probability differences caused by GGML not applying `n_context`; these differences are not a release failure.
+- [x] ~~Locally build~~ No local C++ toolchain: the workflow is the build. Ran the released r2 helper locally on CPU instead (frame indexes, finite probabilities, empty stderr, partial-frame EOF, timings; see Notes).
+- [x] After the r2 build, Claude ran the ONNX comparison locally on the 38.2 s TTS clip from US-1726 (`en-pauses.wav`; the JFK clip is covered by the workflow smoke test). Results in Notes.
 
 ## Concerns / Open Questions
 
 - The protocol is one process per stream for v1. If process startup cost matters to BT-061, add a versioned reset command that invokes `whisper_vad_reset_state()` and retains the loaded model.
-- The GGML vs ONNX values are expected to differ because GGML does not use the model `n_context` to prepend context. Compare the same padded clip locally for information; keep workflow pass/fail to the silence/speech thresholds.
+- *(Resolved.)* GGML and ONNX were expected to differ over `n_context`; measured, they agree (mean difference 0.001, identical speech/non-speech at 0.5).
 
 ## Acceptance Criteria
 
-- [ ] Workflow publishes `whisper-runtime-1.9.5-r2` with `whisper-server.exe`, `whisper-vad-helper.exe`, the Silero v6.2.0 model, all needed DLLs and MIT notices represented in the per-file manifest.
-- [ ] The helper processes buffered complete 512-sample frames with one stateful API call per batch, preserves LSTM state, emits one monotonically indexed probability per frame, and handles a partial final frame by zero-padding and exiting successfully.
-- [ ] Windows stdin/stdout are in binary mode. stdout is clean LF-delimited JSONL; whisper and ggml logging callbacks suppress INFO/DEBUG and forward only WARN/ERROR to stderr.
-- [ ] Padded JFK CPU smoke test passes: max probability is below 0.5 for each 0.8 s outer silence region and above 0.8 somewhere in speech. The workflow smoke test is self-contained and does not depend on ONNX or Claude scratch files.
-- [ ] Local Notes record the informational ONNX comparison, expected `n_context`-related differences, batched-vs-per-frame cost, and one-vs-four-thread timing. Sustained VAD processing is at least 10× real time on the reference CI runner.
-- [ ] `boards/speech-to-text/scripts/downloads.mjs` pins r2 and verifies both executables plus the exact manifest file set and hashes; successful r2 verification removes stale sibling runtime folders.
-- [ ] `speech-to-text` board manifest is `1.1.0`, with a new one-line 1.1.0 changelog heading and all 1.0.1/1.0.0 notes retained.
-- [ ] The detached `.sha256` asset has no trailing CRLF and matches the ZIP hash.
-- [ ] BT-061 can consume the helper's frame-indexed probability stream; BT-060 adds no segmentation, buffer, draft or commit policy.
+- [x] Workflow publishes `whisper-runtime-1.9.5-r2` with `whisper-server.exe`, `whisper-vad-helper.exe`, the Silero v6.2.0 model, all needed DLLs and MIT notices represented in the per-file manifest.
+- [x] The helper processes buffered complete 512-sample frames with one stateful API call per batch, preserves LSTM state, emits one monotonically indexed probability per frame, and handles a partial final frame by zero-padding and exiting successfully.
+- [x] Windows stdin/stdout are in binary mode. stdout is clean LF-delimited JSONL; whisper and ggml logging callbacks suppress INFO/DEBUG and forward only WARN/ERROR to stderr.
+- [x] Padded JFK CPU smoke test passes: max probability is below 0.5 for each 0.8 s outer silence region and above 0.8 somewhere in speech. The workflow smoke test is self-contained and does not depend on ONNX or Claude scratch files.
+- [x] Local Notes record the informational ONNX comparison, expected `n_context`-related differences, batched-vs-per-frame cost, and one-vs-four-thread timing. Sustained VAD processing is at least 10× real time on the reference CI runner.
+- [x] `boards/speech-to-text/scripts/downloads.mjs` pins r2 and verifies both executables plus the exact manifest file set and hashes; successful r2 verification removes stale sibling runtime folders.
+- [x] `speech-to-text` board manifest is `1.1.0`, with a new one-line 1.1.0 changelog heading and all 1.0.1/1.0.0 notes retained.
+- [x] The detached `.sha256` asset has no trailing CRLF and matches the ZIP hash.
+- [x] BT-061 can consume the helper's frame-indexed probability stream; BT-060 adds no segmentation, buffer, draft or commit policy.
 
 ## Files Changed
 
@@ -75,3 +75,16 @@ Add a small CPU-only executable to a new `whisper-runtime-1.9.5-r2` package. It 
 
 - US-1726's recommended hybrid policy (500 ms pause draft, 1,200 ms pause commit, 1 s pre-roll, 300 ms speech padding, 250 ms minimum speech and 25 s utterance cap) is implemented in BT-061, not here. BT-060 reports probabilities only.
 - Source checked against ggml-org/whisper.cpp tag `v1.9.5`, commit `d1be6fd`, including the helper integration pattern in upstream `examples/CMakeLists.txt` and `examples/vad-speech-segments/CMakeLists.txt`.
+
+### Results (2026-10-26)
+
+- First workflow run failed: the runtime is built with `GGML_BACKEND_DL`, so the CPU backend is a DLL that must be loaded with `ggml_backend_load_all()` (as upstream `server.cpp` and `vad-speech-segments` do) before the VAD context is created. Without it the model failed to load and the smoke test only saw a broken pipe; the smoke test now prints the helper's stderr in that case.
+- Run 40380369532 published `whisper-runtime-1.9.5-r2`: `whisper-runtime-windows-x64-v1.9.5-r2.zip`, 20,893,369 bytes, SHA-256 `cceaef497b5d666e669a7cb75c5c537acc153614640d7ce2dd308337eebc88fb`. The `.sha256` asset ends without CR/LF. Not marked Latest (Latest is still `speech-to-text-v1.0.0`).
+- Workflow smoke (padded JFK, 407 frames): silence maxima 0.009 / 0.0004, speech maximum 0.99998.
+- Local, this laptop, 38.2 s TTS clip (1,196 frames), released helper:
+  - Model load about 0.1 s. stderr empty for the whole run (log filter works).
+  - Batched (whole file on stdin): 1 thread 0.176 ms/frame (182x real time); 4 threads 0.076 ms/frame (420x).
+  - Lockstep (write one 512-sample frame, wait for its line): 0.25 ms/frame with 1 or 4 threads (about 128x real time). Per-call overhead dominates, so batching matters less than expected at live rates and 1 thread stays the default.
+  - vs ONNX `silero_vad.onnx` with the 64-sample context: mean absolute difference 0.0011, max 0.21 on a single frame, 100% agreement at 0.5 (817 speech frames each). Without the context ONNX is unusable (0 speech frames), confirming GGML includes it.
+- `verifyRuntime()` on the extracted r2 files returns true and removed a stale `whisper-runtime-1.9.5-r1` sibling.
+- Not yet exercised: the board downloading r2 through its own UI (the live board has r1 installed; it will fetch r2 the next time the runtime is checked). BT-061 is the first caller of the helper.

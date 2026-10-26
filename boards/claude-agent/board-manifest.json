@@ -4,8 +4,8 @@
   "description": "A resumable agent session provider and chat board for the installed Claude and Codex CLIs.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.2.1",
-  "minAppVersion": "5.0.13",
+  "version": "1.3.0",
+  "minAppVersion": "5.0.15",
   "minBridgeVersion": "1.42.0",
   "permissions": {
     "execute": false,
@@ -16,7 +16,7 @@
     "network": false,
     "clipboardRead": false,
     "camera": false,
-    "microphone": false,
+    "microphone": true,
     "geolocation": false,
     "notifications": false,
     "themes": false
@@ -24,6 +24,9 @@
   "service": "scripts/service.mjs",
   "serviceInterfaces": [
     { "id": "agent.session", "version": 1, "title": "Agent Chat" }
+  ],
+  "uses": [
+    { "id": "speech.transcribe", "version": 1 }
   ],
   "languages": { "folder": "lang", "default": "en" },
   "screenshot": "screenshot.png",

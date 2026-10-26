@@ -1,3 +1,6 @@
+## 1.3.0
+- Added voice input through a trusted Speech to Text provider; installed users must accept the new microphone grant in the **Board permissions changed** prompt.
+
 ## 1.2.1
 - Inviting an agent into a chat that is already running works again; before, only the first invite of a new chat went through.
 - A Claude reply that mentions "login" is no longer shown as a `not-logged-in` error.

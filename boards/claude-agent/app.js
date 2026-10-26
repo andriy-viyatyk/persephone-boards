@@ -782,7 +782,11 @@ function renderSessions() {
         button.title = [item.title, engine, formatWhenExact(item.updatedAt), t(view?.channel ? (view.busy ? "sessionWorking" : "sessionLive") : "sessionIdle")].filter(Boolean).join("\n");
         const group = state.groupIndex.find((entry) => entry.mainSessionId === item.id);
         const hasParticipants = Boolean(group?.participants.some((participant) => !participant.removed));
-        button.append(engineIcon(providerInfo, dotState, hasParticipants), element("span", "title", item.title), element("span", "when", formatWhen(item.updatedAt)));
+        // A connected session also gets a green dot laid over the icon's left edge, so the row keeps its spacing.
+        const marker = element("span", "session-marker");
+        marker.append(engineIcon(providerInfo, dotState, hasParticipants));
+        if (view?.channel) marker.append(element("span", "connected-dot"));
+        button.append(marker, element("span", "title", item.title), element("span", "when", formatWhen(item.updatedAt)));
         button.addEventListener("click", () => void openStoredSession(item));
         button.addEventListener("contextmenu", (event) => { event.preventDefault(); openSessionMenu(item, event.clientX, event.clientY); });
         folder.append(button);
@@ -854,7 +858,9 @@ const sessionMenu = $("#session-menu");
 let menuItem = null;
 function openSessionMenu(item, x, y) {
   menuItem = item;
-  sessionMenu.querySelector("[data-action=disconnect]").classList.toggle("hidden", !viewFor(item.id, item.provider)?.channel);
+  const live = Boolean(viewFor(item.id, item.provider)?.channel);
+  sessionMenu.querySelector("[data-action=disconnect]").classList.toggle("hidden", !live);
+  sessionMenu.querySelector("[data-action=connect]").classList.toggle("hidden", live || Boolean(item.participant) || !capabilities(viewFor(item.id, item.provider)).sessionStore);
   sessionMenu.querySelectorAll("[data-action=rename], [data-action=delete]").forEach((button) => button.classList.toggle("hidden", !capabilities(viewFor(item.id, item.provider)).sessionStore));
   sessionMenu.classList.remove("hidden");
   const { width, height } = sessionMenu.getBoundingClientRect();
@@ -874,6 +880,7 @@ sessionMenu.addEventListener("click", (event) => {
   if (item && action === "rename") void renameSession(item);
   if (item && action === "delete") void deleteSession(item);
   if (item && action === "disconnect") { const view = viewFor(item.id, item.provider); if (view) disconnect(view); }
+  if (item && action === "connect") void connectStoredSession(item);
 });
 
 // Modal dialog; resolves with the input text (or "" without one) on confirm, null on cancel.
@@ -1139,6 +1146,8 @@ persephone.toolbar.onAction(({ id }) => {
 function updateControls() {
   $("#intro").classList.toggle("hidden", Boolean(current?.id || current?.channel));
   const slash = promptText().trim().startsWith("/");
+  const connectOnly = canConnect(current) && !promptText().trim();
+  $("#send").textContent = t(connectOnly ? "connect" : "send");
   $("#send").disabled = Boolean(current?.readOnlyParticipant || current?.busy && (slash || !current.groupMode));
   $("#readonly-hint").classList.toggle("hidden", !current?.readOnlyParticipant);
   $("#prompt").classList.toggle("hidden", Boolean(current?.readOnlyParticipant));
@@ -1502,6 +1511,20 @@ async function startParticipantObserver(view, participant) {
   view.follow = channel;
   channel.onMessage((event) => { if (view.follow === channel && !["observer-ready", "observer-unavailable"].includes(event.type)) handleEvent(view, event); });
   channel.onClose(() => { if (view.follow === channel) view.follow = null; });
+}
+// A shown stored session that is not running can be resumed without sending anything.
+function canConnect(view) { return Boolean(view?.id && !view.channel && !view.readOnlyParticipant && capabilities(view).sessionStore); }
+// Resumes the session and asks for its context fill, so the chips show the session's actual agent and context.
+async function connectSession(view) {
+  try {
+    if (!(await ensureLive(view))) { setViewStatus(view); return; }
+    if (capabilities(view).contextUsage) await control(view, "context").catch(() => {});
+  } finally { if (view === current) updateControls(); }
+}
+async function connectStoredSession(item) {
+  let view = viewFor(item.id, item.provider);
+  if (view !== current) { await openStoredSession(item); view = viewFor(item.id, item.provider); }
+  if (view && view === current && canConnect(view)) await connectSession(view);
 }
 async function connect(view) {
   if (view.connectTask) return view.connectTask;
@@ -2022,6 +2045,7 @@ $("#composer").addEventListener("submit", async (event) => {
   hideCommandMenu();
   const boardCommand = text && boardCommandFor(text);
   if (boardCommand) { clearPrompt(); await boardCommand(); return; }
+  if (!text && canConnect(view) && !view.connectTask) { await connectSession(view); return; }
   if (!text || (view.busy && (!view.groupMode || text.startsWith("/"))) || view.pendingPrompt) return;
   clearPrompt();
   if (view.channel) { await sendPrompt(view, text); return; }

@@ -1,3 +1,4 @@
+#include "ggml-backend.h"
 #include "whisper.h"
 
 #include <cerrno>
@@ -105,6 +106,8 @@ int main(int argc, char ** argv) {
 
     whisper_log_set(log_callback, nullptr);
     ggml_log_set(log_callback, nullptr);
+    // The runtime is built with GGML_BACKEND_DL, so the CPU backend is a DLL that must be loaded first.
+    ggml_backend_load_all();
     whisper_vad_context_params params = whisper_vad_default_context_params();
     params.n_threads = threads;
     params.use_gpu = false;

@@ -203,8 +203,13 @@ jobs:
           if (-not $process.Start()) { throw 'Could not start whisper-vad-helper' }
           $stdoutTask = $process.StandardOutput.ReadToEndAsync()
           $stderrTask = $process.StandardError.ReadToEndAsync()
-          $process.StandardInput.BaseStream.Write($pcmBytes, 0, $pcmBytes.Length)
-          $process.StandardInput.Close()
+          # A helper that exits early breaks the pipe; report its stderr instead of the write error.
+          try {
+            $process.StandardInput.BaseStream.Write($pcmBytes, 0, $pcmBytes.Length)
+            $process.StandardInput.Close()
+          } catch {
+            Write-Host "stdin write failed: $($_.Exception.Message)"
+          }
           $process.WaitForExit()
           $stdout = $stdoutTask.GetAwaiter().GetResult()
           $stderr = $stderrTask.GetAwaiter().GetResult()

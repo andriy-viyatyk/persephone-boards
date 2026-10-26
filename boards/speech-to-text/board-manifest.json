@@ -4,7 +4,7 @@
   "description": "Local speech transcription powered by whisper.cpp.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "5.0.15",
   "minBridgeVersion": "1.42.0",
   "permissions": {
@@ -28,7 +28,7 @@
   "languages": { "folder": "lang", "default": "en" },
   "screenshot": "screenshot.png",
   "settings": [
-    { "id": "language-hints", "type": "string", "default": "uk,en", "label": "Test recorder languages", "description": "Comma-separated language hints for this board's microphone test. Empty means automatic detection." },
+    { "id": "language-hints", "type": "string", "default": "uk,en", "label": "Languages", "description": "Comma-separated language codes transcripts may use, such as uk,en, for every caller that does not name its own. One code forces that language; empty allows any language." },
     { "id": "vocabulary-prompt", "type": "string", "default": "", "format": "multiline", "label": "Vocabulary prompt", "description": "Names and specialist words to help whisper.cpp recognize." },
     { "id": "use-gpu", "type": "boolean", "default": true, "label": "Use GPU", "description": "Use the installed Vulkan backend when available." },
     { "id": "idle-unload-minutes", "type": "number", "default": 10, "label": "Unload after idle (minutes)", "description": "Stop whisper-server after this many idle minutes." },

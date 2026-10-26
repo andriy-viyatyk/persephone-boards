@@ -7,6 +7,8 @@ import { assetSnapshot, dataRoot, downloadVerified, installRuntime, MODELS, RUNT
 import { languageCodeForName, languageNameForCode } from "./whisper-languages.mjs";
 
 const MAX_AUDIO_MS = 300000;
+const MAX_RETRY_LANGUAGES = 3;
+const SETTING_IDS = ["language-hints", "vocabulary-prompt", "use-gpu", "idle-unload-minutes", "caller-approval-policy"];
 const ACTIVE_MODEL_KEY = "speech-to-text.active-model";
 const DEFAULT_MODEL = MODELS[0].file;
 const root = dataRoot();
@@ -15,7 +17,7 @@ const requests = new Set(), queue = [], management = new Set(), downloads = new 
 const verifiedModels = new Map();
 let engine = null, engineGeneration = 0, activeRequest = null;
 let idleTimer = null, stopping = false, queuePump = null, lastUseAt = 0;
-let settings = { gpu: true, idleMinutes: 10, approval: "accept-granted", vocabulary: "" };
+let settings = { gpu: true, idleMinutes: 10, approval: "accept-granted", vocabulary: "", languages: ["uk", "en"] };
 
 const send = async (channel, message) => {
   if (channel.closed) return false;
@@ -134,26 +136,63 @@ function makeWav(chunks, totalBytes) {
   header.writeUInt16LE(2, 32); header.writeUInt16LE(16, 34); header.write("data", 36); header.writeUInt32LE(totalBytes, 40);
   return new Blob([header, ...chunks]);
 }
-function languageChoice(languages) {
-  const hints = Array.isArray(languages) ? languages.filter((item) => typeof item === "string" && languageNameForCode(item.toLowerCase())) : [];
-  return hints.length === 1 ? { language: hints[0].toLowerCase(), result: hints[0] } : { language: "auto", result: null };
+function parseLanguages(value) {
+  const list = Array.isArray(value) ? value : String(value || "").split(",");
+  return [...new Set(list.filter((item) => typeof item === "string").map((item) => item.trim().toLowerCase()).filter((code) => languageNameForCode(code)))];
 }
-async function infer(request, server) {
-  const wav = makeWav(request.chunks, request.bytes);
+// A caller's own languages win; otherwise the board's "Languages" setting applies to every caller.
+function allowedLanguages(requested) {
+  const own = parseLanguages(requested);
+  return own.length ? own : settings.languages;
+}
+async function inferOnce(request, server, wav, language) {
   const form = new FormData();
   form.append("file", wav, "speech.wav");
   form.append("response_format", "verbose_json");
   form.append("temperature", "0.0");
   form.append("no_timestamps", "true");
   form.append("no_language_probabilities", "true");
-  const language = languageChoice(request.languages);
-  form.append("language", language.language);
+  form.append("language", language);
   form.append("prompt", request.prompt || settings.vocabulary || "");
   const response = await fetch(`http://127.0.0.1:${server.port}/inference`, { method: "POST", body: form, signal: request.controller.signal });
   if (!response.ok) throw new Error(`whisper-server returned HTTP ${response.status}.`);
   const result = await response.json();
   if (typeof result.text !== "string") throw new Error("whisper-server returned an invalid response.");
-  return { text: result.text, language: language.result || languageCodeForName(result.language), audioMs: Math.round(request.bytes / 32000 * 1000), elapsedMs: Math.max(0, Date.now() - request.endedAt) };
+  return result;
+}
+// Token-weighted average log probability of the decoded text; higher means whisper was more certain.
+function confidence(result) {
+  let total = 0, tokens = 0;
+  for (const segment of Array.isArray(result.segments) ? result.segments : []) {
+    const count = Array.isArray(segment.tokens) ? segment.tokens.length : 0;
+    if (count && Number.isFinite(segment.avg_logprob)) { total += segment.avg_logprob * count; tokens += count; }
+  }
+  return tokens ? total / tokens : -Infinity;
+}
+async function infer(request, server) {
+  const wav = makeWav(request.chunks, request.bytes);
+  const allowed = allowedLanguages(request.languages);
+  let language, result;
+  if (allowed.length === 1) {
+    language = allowed[0];
+    result = await inferOnce(request, server, wav, language);
+  } else {
+    result = await inferOnce(request, server, wav, "auto");
+    language = languageCodeForName(result.language);
+    if (allowed.length && !allowed.includes(language)) {
+      // Short phrases are often detected as a neighbouring language. Forcing each allowed language and keeping
+      // the most confident text costs one pass per language, but only on a miss; language probabilities would
+      // cost an extra encoder pass on every request.
+      let best = null;
+      for (const code of allowed.slice(0, MAX_RETRY_LANGUAGES)) {
+        const candidate = await inferOnce(request, server, wav, code);
+        if (!best || confidence(candidate) > confidence(best.result)) best = { code, result: candidate };
+      }
+      language = best.code;
+      result = best.result;
+    }
+  }
+  return { text: result.text, language, audioMs: Math.round(request.bytes / 32000 * 1000), elapsedMs: Math.max(0, Date.now() - request.endedAt) };
 }
 async function pumpQueue() {
   if (queuePump) return queuePump;
@@ -294,7 +333,7 @@ async function managementCommand(channel, message) {
   } catch (error) { await send(channel, { type: "error", message: error?.message || "The operation failed." }); }
 }
 
-persephone.settings.onChange(({ id, value }) => {
+function applySetting(id, value) {
   if (id === "use-gpu") {
     const next = value !== false;
     if (settings.gpu !== next) { settings.gpu = next; if (!activeRequest) void stopEngine().then(() => publishManagement()); }
@@ -303,13 +342,18 @@ persephone.settings.onChange(({ id, value }) => {
     if (engine && !activeRequest && !queue.length) scheduleIdleStop();
   } else if (id === "caller-approval-policy") settings.approval = value === "same-board-only" ? value : "accept-granted";
   else if (id === "vocabulary-prompt") settings.vocabulary = String(value || "").slice(0, 4000);
-});
+  else if (id === "language-hints") settings.languages = parseLanguages(value);
+}
+persephone.settings.onChange(({ id, value }) => applySetting(id, value));
+// onChange reports only later edits, so read the stored values once at startup.
+const settingsReady = Promise.all(SETTING_IDS.map(async (id) => applySetting(id, await persephone.settings.get(id)))).catch(() => {});
 
 persephone.service.onChannel(async (channel, open, info) => {
   // The host drops messages that arrive before a handler exists, and consumers may stream right after
   // connect, so collect from the first line and replay once the request is accepted.
   const early = [];
   const stopEarly = channel.onMessage((message) => early.push(message));
+  await settingsReady;
   const crossBoard = Boolean(info?.interface);
   if (!checkCaller(info)) return refuse(channel);
   if (open?.type === "downloads") {

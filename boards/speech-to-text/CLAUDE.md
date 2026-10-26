@@ -18,7 +18,8 @@ Open the board in Persephone. Install the runtime and a model from the model pan
 
 - Cross-board opens are authorized from `info.interface`, never `info.page.boardId`. The exact `speech.transcribe` v1 interface and caller policy are checked before request details are read.
 - The board page uses only local scripts and styles. Downloads happen in the Node service; `network: false` stays declared.
-- Whisper returns a full language name. Language probabilities stay disabled to avoid a second encoder pass.
+- Whisper returns a full language name. Language probabilities stay disabled to avoid a second encoder pass; a detection outside the allowed languages is corrected by forced re-runs ranked by token-weighted `avg_logprob` (see `infer` in `scripts/service.mjs`).
+- The service reads every setting once at startup (`settingsReady`); `onChange` reports only later edits.
 - Models and runtime are downloaded only after an explicit click. The active model is stored only in `persephone.storage`.
 
 For the bridge API, see the canonical `persephone://guides/boards` reference and `assets/guides/agents/speech-transcribe.md` for the provider contract.

@@ -16,4 +16,4 @@ Audio stays on this computer and is sent only to the local whisper.cpp server. N
 
 ## Settings
 
-Use **Settings → Boards → Speech to Text** to choose the recorder's language hints, vocabulary prompt, GPU use, idle unload time, and cross-board caller policy. Contract callers with no language hint use automatic language detection.
+Use **Settings → Boards → Speech to Text** to choose the languages, vocabulary prompt, GPU use, idle unload time, and cross-board caller policy. **Languages** (default `uk,en`) applies to every caller that does not send its own list: one code forces that language, several codes keep the transcript in one of them, and an empty value allows any language. When automatic detection picks a language outside the list, as it often does for a short phrase, the board transcribes again with each listed language forced (the first three) and keeps the most confident result.

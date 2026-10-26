@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "name": "Speech to Text",
+  "description": "Local speech transcription powered by whisper.cpp.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "5.0.15",
+  "minBridgeVersion": "1.42.0",
+  "permissions": {
+    "execute": false,
+    "service": true,
+    "fileSystem": false,
+    "openExternal": false,
+    "appScripting": false,
+    "network": false,
+    "clipboardRead": false,
+    "camera": false,
+    "microphone": true,
+    "geolocation": false,
+    "notifications": false,
+    "themes": false
+  },
+  "service": "scripts/service.mjs",
+  "serviceInterfaces": [
+    { "id": "speech.transcribe", "version": 1, "title": "Speech to Text" }
+  ],
+  "languages": { "folder": "lang", "default": "en" },
+  "screenshot": "screenshot.png",
+  "settings": [
+    { "id": "language-hints", "type": "string", "default": "uk,en", "label": "Test recorder languages", "description": "Comma-separated language hints for this board's microphone test. Empty means automatic detection." },
+    { "id": "vocabulary-prompt", "type": "string", "default": "", "format": "multiline", "label": "Vocabulary prompt", "description": "Names and specialist words to help whisper.cpp recognize." },
+    { "id": "use-gpu", "type": "boolean", "default": true, "label": "Use GPU", "description": "Use the installed Vulkan backend when available." },
+    { "id": "idle-unload-minutes", "type": "number", "default": 10, "label": "Unload after idle (minutes)", "description": "Stop whisper-server after this many idle minutes." },
+    { "id": "caller-approval-policy", "type": "enum", "options": ["accept-granted", "same-board-only"], "default": "accept-granted", "label": "Caller approval policy", "description": "Accept exact speech.transcribe v1 grants, or only this board's own page." }
+  ]
+}

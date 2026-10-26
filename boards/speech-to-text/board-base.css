@@ -1,0 +1,8 @@
+/* Shared Persephone board defaults. Keep this linked before app.css. */
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--p-bg, #1e1e1e); color: var(--p-text, #e0e0e0); font-family: system-ui, "Segoe UI", sans-serif; font-size: var(--p-font-base, 13px); line-height: 1.5; }
+a { color: var(--p-link, #3b82f6); }
+:focus-visible { outline: 2px solid var(--p-accent, #0078d4); outline-offset: 1px; }
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: var(--p-scrollbar, transparent); }
+::-webkit-scrollbar-thumb { background: var(--p-scrollbar-thumb, #666); border-radius: var(--p-radius-sm, 3px); }

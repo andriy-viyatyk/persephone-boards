@@ -1,0 +1,32 @@
+:root { color-scheme: light dark; }
+html, body { min-height: 100%; }
+body { overflow: auto; }
+#app { width: min(980px, 100%); margin: 0 auto; padding: 24px; }
+.page-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
+h1, h2, p { margin-top: 0; }
+h1 { margin-bottom: 2px; font-size: 22px; }
+h2 { margin-bottom: 12px; font-size: 15px; }
+.muted { color: var(--p-text-muted); }
+.state-pill { padding: 4px 9px; border: 1px solid var(--p-border); border-radius: 20px; color: var(--p-text-muted); white-space: nowrap; }
+.panel { margin: 14px 0; padding: 16px; border: 1px solid var(--p-border); border-radius: var(--p-radius-md, 6px); background: var(--p-panel); }
+.asset-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--p-border); }
+.asset-name { flex: 1; min-width: 180px; font-weight: 600; }
+.asset-meta { color: var(--p-text-muted); font-variant-numeric: tabular-nums; }
+.asset-meta progress { width: min(240px, 32vw); height: 7px; accent-color: var(--p-accent); }
+.asset-actions, .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+button, select { min-height: 28px; padding: 3px 9px; color: var(--p-text); background: var(--p-bg); border: 1px solid var(--p-border); border-radius: var(--p-radius-sm, 4px); font: inherit; }
+button { cursor: pointer; }
+button:hover:not(:disabled) { background: var(--p-hover); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { color: var(--p-accent-text); background: var(--p-accent); border-color: var(--p-accent); }
+label { display: flex; align-items: center; gap: 10px; color: var(--p-text-muted); }
+.recorder label select { flex: 1; max-width: 520px; }
+.level-track { height: 5px; margin: 15px 0; overflow: hidden; border-radius: 3px; background: var(--p-bg-dark, var(--p-bg)); }
+.level-track > div { width: 0; height: 100%; background: var(--p-success); transition: width .08s linear; }
+.recorder .actions { margin: 10px 0; }
+#transcript { min-height: 24px; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.license-list { display: flex; flex-direction: column; gap: 4px; }
+.license-list summary { font-size: 12px; cursor: pointer; }
+.license-text { max-height: 240px; overflow: auto; font-size: 11px; white-space: pre-wrap; }
+#error { padding: 10px; color: var(--p-error); border: 1px solid var(--p-error); border-radius: 4px; white-space: pre-wrap; }
+@media (max-width: 640px) { #app { padding: 14px; } .page-header { align-items: flex-start; flex-direction: column; } .asset-name { flex-basis: 100%; } }

@@ -2,6 +2,8 @@
 - Redesigned the main screen with collapsible setup and license panels and a central live or record-then-type test control.
 - Default language hints now follow Persephone's UI language, with English as a fallback.
 - Languages can now be selected with a checkbox multi-select while retaining the `app,en` default.
+- Live transcription runs for an hour or more: no five-minute limit, flat memory, and previews dropped first when the engine falls behind.
+- Live language detection is fixed: Ukrainian heard as Russian no longer falls back to the first listed language, and every sentence re-checks the language.
 
 ## 1.2.0
 - Live dictation now types words every second or so while you keep speaking, not only at pauses.

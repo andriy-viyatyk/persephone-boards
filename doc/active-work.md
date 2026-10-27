@@ -17,6 +17,10 @@ Overview of active and planned board work in this repo.
 
 ## Planned
 
+- [ ] [BT-067: Speech to Text - hour-long live sessions](tasks/BT-067-long-live-sessions/README.md) — Persephone **EPIC-134**, phase 4; service-side duration and memory bounds for concurrent live channels.
+
+- [ ] [BT-066: Agent Chat: live insertion of committed phrases](tasks/BT-066-agent-chat-live-insertion/README.md) — Persephone **EPIC-134**, phase 2, task 6 of 6; consume advertised live transcription with incremental insertion of committed phrases.
+
 Board work for Persephone's **EPIC-133** (*Speech to text*) is finished: BT-055 – BT-057 built the
 Whisper runtime, the `speech-to-text` v1.0.0 provider board and Agent Chat 1.3.0 voice input. Both
 boards stay unpublished on `develop` until Persephone 5.0.15 ships. See [`tasks/completed.md`](tasks/completed.md).

@@ -12,7 +12,8 @@ export const LIVE_TUNING = {
   maxAudioWindowMs: 25000, // Bound retained audio and preserve the existing utterance cap.
   maxPassMs: 3000, // A forced-language pass above this duration counts as slow.
   slowPassesBeforeFallback: 3, // Disable partial inference after this many consecutive slow forced-language passes.
-  languageLatchSpeechMs: 1000, // Speech in a partial pass before its detected language is fixed for the stream.
+  languageLatchSpeechMs: 3000, // Speech in a partial pass before its detected language is fixed until the utterance commits.
+  languageLatchMinProbability: 0.7, // Whisper's probability for that language required to fix it.
   speechOnProbability: 0.5, // Enter speech at or above this VAD probability.
   speechOffProbability: 0.35, // Remain in speech at or above this VAD probability.
   frameMs: 32, // VAD frame length at 16 kHz.

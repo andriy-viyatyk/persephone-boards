@@ -4,7 +4,7 @@
   "description": "Local speech transcription powered by whisper.cpp.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "minAppVersion": "5.0.15",
   "minBridgeVersion": "1.42.0",
   "permissions": {
@@ -28,7 +28,7 @@
   "languages": { "folder": "lang", "default": "en" },
   "screenshot": "screenshot.png",
   "settings": [
-    { "id": "language-hints", "type": "string", "default": "uk,en", "label": "Languages", "description": "Comma-separated language codes transcripts may use, such as uk,en, for every caller that does not name its own. One code forces that language; empty allows any language." },
+    { "id": "language-hints", "type": "string", "default": "app,en", "label": "Languages", "description": "Comma-separated allowed languages for callers without their own list. app follows Persephone's UI language when it maps to a supported Whisper language; combine it with explicit codes such as en. Empty allows any language." },
     { "id": "vocabulary-prompt", "type": "string", "default": "", "format": "multiline", "label": "Vocabulary prompt", "description": "Names and specialist words to help whisper.cpp recognize." },
     { "id": "use-gpu", "type": "boolean", "default": true, "label": "Use GPU", "description": "Use the installed Vulkan backend when available." },
     { "id": "idle-unload-minutes", "type": "number", "default": 10, "label": "Unload after idle (minutes)", "description": "Stop whisper-server after this many idle minutes." },

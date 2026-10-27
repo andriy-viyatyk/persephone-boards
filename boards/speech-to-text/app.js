@@ -9,10 +9,24 @@ const MODEL_ROWS = [
 ];
 const RUNTIME_BYTES = 19958389;
 const $ = (selector) => document.querySelector(selector);
-const state = { channel: null, snapshot: null, active: null, capture: null, recorderChannel: null, chunksQueued: Promise.resolve(), settings: {} };
+const state = { channel: null, snapshot: null, capture: null, chunksQueued: Promise.resolve(), settings: {}, phase: "idle", setupInitialized: false, committed: [], drafts: new Map() };
 const formatBytes = (bytes) => `${Number(bytes).toLocaleString()} bytes (${(bytes / 1_000_000).toFixed(1)} MB)`;
 const formatTime = (ms) => `${(ms / 1000).toFixed(1)} s`;
+const isReady = (snapshot) => Boolean(snapshot?.assets?.runtime && snapshot.assets.models?.[snapshot.activeModel] === true);
+const selectedMode = () => document.querySelector('input[name="test-mode"]:checked')?.value || "record";
 const showError = (message) => { $("#error").textContent = message; $("#error").hidden = !message; };
+function setPhase(phase) {
+  state.phase = phase;
+  const busy = phase === "preparing" || phase === "finishing";
+  const recording = phase === "recording";
+  const ready = isReady(state.snapshot);
+  $("#test-button").disabled = busy || (!recording && !ready);
+  $("#test-button").classList.toggle("is-recording", recording);
+  $("#test-button-label").textContent = t(busy ? "recorder.transcribing" : recording ? "test.stop" : "test.start");
+  $("#mode-switch").disabled = busy || recording;
+  $("#microphones").disabled = busy || recording;
+  $("#not-ready-hint").hidden = ready || busy || recording;
+}
 function button(label, action, disabled = false, primary = false) {
   const node = document.createElement("button");
   node.textContent = t(label);
@@ -53,9 +67,18 @@ function render(snapshot) {
     list.append(renderAssetRow(model.file, `${t(model.label)} · ${model.file}`, model.bytes, installed, progresses.get(model.file), snapshot.activeModel === model.file));
   }
   $("#active-model").textContent = t("models.active", { model: snapshot.activeModel || t("common.unknown") });
-  const ready = assets.runtime && assets.models?.[snapshot.activeModel] === true;
+  const ready = isReady(snapshot);
+  const selectedModel = MODEL_ROWS.find((model) => model.file === snapshot.activeModel);
+  $("#setup-summary").textContent = ready
+    ? t("models.panelReady", { version: snapshot.runtimeVersion || "", model: selectedModel ? t(selectedModel.label) : t("common.unknown") })
+    : t("models.panelNeedsSetup");
+  if (!state.setupInitialized) {
+    $("#setup-panel").open = !ready;
+    state.setupInitialized = true;
+  }
   $("#engine-state").textContent = snapshot.engine === "running" ? t("engine.running") : ready ? t("engine.ready") : t("engine.notReady");
   renderLicenses(assets.licenses || []);
+  setPhase(state.phase);
   if (snapshot.lastDownload?.phase === "failed") showError(t("models.downloadError", { message: snapshot.lastDownload.error || t("error.generic") }));
 }
 function renderLicenses(files) {
@@ -124,9 +147,6 @@ function stopCaptureTracks(capture) {
   capture?.stream?.getTracks().forEach((track) => track.stop());
   capture?.context?.close().catch(() => {});
   $("#level").style.width = "0%";
-  $("#record").disabled = false;
-  $("#stop").disabled = true;
-  $("#cancel").disabled = true;
 }
 function pcmBuffer(samples) {
   const buffer = new ArrayBuffer(samples.length * 2), view = new DataView(buffer);
@@ -144,17 +164,30 @@ function queuePcm(samples, channel) {
     channel.send({ type: "audio", data });
   });
 }
+function renderTranscript() {
+  $("#committed-text").textContent = state.committed.join(" ");
+  $("#draft-text").textContent = [...state.drafts.values()].filter(Boolean).join(" ");
+}
+function clearTranscript() {
+  state.committed = [];
+  state.drafts.clear();
+  renderTranscript();
+  $("#result-meta").textContent = "";
+}
 async function startRecording() {
   showError("");
   const snapshot = state.snapshot;
   if (!snapshot?.assets?.runtime || !snapshot.assets.models?.[snapshot.activeModel]) {
     showError(t("engine.notReady")); return;
   }
+  setPhase("preparing");
+  clearTranscript();
+  setRecorderStatus(t("recorder.preparing"));
   let stream;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: { ...( $("#microphones").value ? { deviceId: { exact: $("#microphones").value } } : {}), channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { ...($("#microphones").value ? { deviceId: { exact: $("#microphones").value } } : {}), channelCount: 1, echoCancellation: true, noiseSuppression: true } });
     await refreshMicrophones();
-  } catch (error) { showError(`${t("recorder.permission")} ${error.message || ""}`); return; }
+  } catch (error) { showError(`${t("recorder.permission")} ${error.message || ""}`); setRecorderStatus(t("recorder.idle")); setPhase("idle"); return; }
   let context, source, node, channel;
   try {
     context = await createAudioContext();
@@ -163,7 +196,7 @@ async function startRecording() {
   } catch (error) {
     stream.getTracks().forEach((track) => track.stop());
     context?.close().catch(() => {});
-    showError(error.message || t("error.generic"));
+    showError(error.message || t("error.generic")); setRecorderStatus(t("recorder.idle")); setPhase("idle");
     return;
   }
   const mute = context.createGain(); mute.gain.value = 0;
@@ -171,19 +204,18 @@ async function startRecording() {
   const open = {
     type: "transcribe",
     format: { encoding: "pcm-s16le", sampleRate: 16000, channels: 1 },
-    languages: String(state.settings["language-hints"] || "").split(",").map((item) => item.trim()).filter(Boolean),
     prompt: state.settings["vocabulary-prompt"] || "",
+    ...(selectedMode() === "live" ? { live: true } : {}),
   };
   try { channel = await persephone.service.openChannel(open); }
   catch (error) {
     node.port.close(); source.disconnect(); node.disconnect(); stream.getTracks().forEach((track) => track.stop()); context.close().catch(() => {});
-    showError(error.message || t("error.generic"));
+    showError(error.message || t("error.generic")); setRecorderStatus(t("recorder.idle")); setPhase("idle");
     return;
   }
   const capture = { stream, context, source, node, channel, sentSamples: 0, sourceBase: 0, sourceSamples: new Float32Array(0), nextSource: 0, pending: [], ended: false };
-  state.capture = capture; state.recorderChannel = channel; state.chunksQueued = Promise.resolve();
-  $("#record").disabled = true; $("#stop").disabled = false; $("#cancel").disabled = false;
-  $("#transcript").textContent = ""; $("#result-meta").textContent = "";
+  state.capture = capture; state.chunksQueued = Promise.resolve();
+  setPhase("recording");
   setRecorderStatus(t("recorder.listening"));
   node.port.onmessage = ({ data }) => {
     if (data.type === "level") $("#level").style.width = `${Math.min(100, data.value * 260)}%`;
@@ -193,8 +225,15 @@ async function startRecording() {
     if (message.type === "status") {
       const text = message.state === "listening" ? t("recorder.listening") : message.state === "preparing" ? t("recorder.preparing") : t("recorder.transcribing");
       setRecorderStatus(text);
+      if (message.state === "transcribing" && state.phase === "recording") setPhase("finishing");
+    } else if (message.type === "draft") {
+      state.drafts.set(message.utterance, message.text || ""); renderTranscript();
+    } else if (message.type === "segment") {
+      if (message.text?.trim()) state.committed.push(message.text.trim());
+      state.drafts.delete(message.utterance); renderTranscript();
     } else if (message.type === "result") {
-      $("#transcript").textContent = message.text;
+      if (selectedMode() !== "live") { state.committed = message.text ? [message.text] : []; renderTranscript(); }
+      state.drafts.clear(); renderTranscript();
       $("#result-meta").textContent = t("recorder.result", { language: message.language || t("common.unknown"), audio: formatTime(message.audioMs), elapsed: formatTime(message.elapsedMs) });
       setRecorderStatus(t("recorder.done"));
       finishCapture(capture);
@@ -204,7 +243,11 @@ async function startRecording() {
       finishCapture(capture);
     }
   });
-  channel.onClose(() => { if (!capture.ended) finishCapture(capture); });
+  channel.onClose(() => {
+    if (state.capture !== capture) return;
+    setRecorderStatus(t("recorder.idle"));
+    finishCapture(capture);
+  });
 }
 async function createAudioContext() {
   let preferred;
@@ -250,7 +293,8 @@ function consumeSamples(capture, samples) {
 }
 async function stopRecording() {
   const capture = state.capture;
-  if (!capture) return;
+  if (!capture || state.phase !== "recording") return;
+  setPhase("finishing");
   capture.ended = true;
   // Flush an output sample whose next interpolation point fell beyond the last input frame.
   if (capture.nextSource < capture.sourceBase + capture.sourceSamples.length) {
@@ -261,7 +305,7 @@ async function stopRecording() {
   capture.node.port.close();
   capture.stream.getTracks().forEach((track) => track.stop());
   capture.context.close().catch(() => {});
-  $("#stop").disabled = true; $("#cancel").disabled = true;
+  $("#level").style.width = "0%";
   setRecorderStatus(t("recorder.transcribing"));
   try { await state.chunksQueued; capture.channel.send({ type: "end" }); }
   catch (error) { showError(error.message || t("error.generic")); finishCapture(capture); }
@@ -269,21 +313,23 @@ async function stopRecording() {
 async function cancelRecording() {
   const capture = state.capture;
   if (!capture) return;
+  setPhase("finishing");
   capture.ended = true;
   try { capture.channel.send({ type: "cancel" }); } catch { /* Channel may already have closed. */ }
   finishCapture(capture);
 }
 function finishCapture(capture) {
-  if (capture.ended && state.capture !== capture) return;
+  if (state.capture !== capture) return;
   capture.ended = true;
   stopCaptureTracks(capture);
-  if (state.capture === capture) state.capture = null;
-  if (state.recorderChannel === capture.channel) state.recorderChannel = null;
+  state.capture = null;
+  if (state.phase !== "idle") setPhase("idle");
 }
 
-$("#record").addEventListener("click", () => { void startRecording().catch((error) => showError(error.message)); });
-$("#stop").addEventListener("click", () => { void stopRecording(); });
-$("#cancel").addEventListener("click", () => { void cancelRecording(); });
+$("#test-button").addEventListener("click", () => {
+  if (state.phase === "idle") void startRecording().catch((error) => { showError(error.message || t("error.generic")); setPhase("idle"); });
+  else if (state.phase === "recording") void stopRecording();
+});
 navigator.mediaDevices?.addEventListener?.("devicechange", () => { void refreshMicrophones(); });
 
 (async () => {

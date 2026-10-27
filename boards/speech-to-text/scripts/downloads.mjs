@@ -9,6 +9,7 @@ import { pipeline } from "node:stream/promises";
 
 export const RUNTIME = Object.freeze({
   id: "whisper-runtime-1.9.5-r2",
+  displayVersion: "1.9.5",
   url: "https://github.com/andriy-viyatyk/persephone-boards/releases/download/whisper-runtime-1.9.5-r2/whisper-runtime-windows-x64-v1.9.5-r2.zip",
   bytes: 20893369,
   sha256: "cceaef497b5d666e669a7cb75c5c537acc153614640d7ce2dd308337eebc88fb",

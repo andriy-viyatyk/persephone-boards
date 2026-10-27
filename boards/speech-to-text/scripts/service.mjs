@@ -18,7 +18,7 @@ const requests = new Set(), liveRequests = new Set(), queue = [], management = n
 const verifiedModels = new Map();
 let engine = null, engineGeneration = 0, activeRequest = null, engineTask = null;
 let idleTimer = null, stopping = false, queuePump = null, lastUseAt = 0;
-let settings = { gpu: true, idleMinutes: 10, approval: "accept-granted", vocabulary: "", languages: ["uk", "en"] };
+let settings = { gpu: true, idleMinutes: 10, approval: "accept-granted", vocabulary: "", languages: ["app", "en"] };
 
 const send = async (channel, message) => {
   if (channel.closed) return false;
@@ -49,7 +49,7 @@ const terminal = async (request, message) => {
 const publishManagement = async (extra = {}) => {
   const installed = await assetSnapshot(root).catch(() => ({ runtime: false, models: {}, licenses: [] }));
   const activeModel = await getActiveModel();
-  const snapshot = { type: "snapshot", assets: installed, activeModel, engine: engine ? "running" : "stopped", progress: [...downloads.values()].map(({ asset, phase, loaded, total, error }) => ({ asset, phase, loaded, total, ...(error ? { error } : {}) })), ...extra };
+  const snapshot = { type: "snapshot", assets: installed, activeModel, runtimeVersion: RUNTIME.displayVersion, engine: engine ? "running" : "stopped", progress: [...downloads.values()].map(({ asset, phase, loaded, total, error }) => ({ asset, phase, loaded, total, ...(error ? { error } : {}) })), ...extra };
   await Promise.all([...management].map((channel) => send(channel, snapshot)));
 };
 async function getActiveModel() {
@@ -157,10 +157,29 @@ function parseLanguages(value) {
   const list = Array.isArray(value) ? value : String(value || "").split(",");
   return [...new Set(list.filter((item) => typeof item === "string").map((item) => item.trim().toLowerCase()).filter((code) => languageNameForCode(code)))];
 }
+function parseLanguageHints(value) {
+  const list = Array.isArray(value) ? value : String(value || "").split(",");
+  return [...new Set(list.filter((item) => typeof item === "string").map((item) => item.trim()).flatMap((item) => {
+    if (item === "app") return [item];
+    const code = item.toLowerCase();
+    return languageNameForCode(code) ? [code] : [];
+  }))];
+}
+function appLocaleLanguage() {
+  const locale = process.env.PERSEPHONE_LOCALE;
+  if (typeof locale !== "string" || !locale.trim()) return null;
+  const code = locale.trim().split(/[-_]/, 1)[0].toLowerCase();
+  return languageNameForCode(code) ? code : null;
+}
 // A caller's own languages win; otherwise the board's "Languages" setting applies to every caller.
 function allowedLanguages(requested) {
   const own = parseLanguages(requested);
-  return own.length ? own : settings.languages;
+  if (own.length) return own;
+  return [...new Set(settings.languages.flatMap((code) => {
+    if (code !== "app") return [code];
+    const locale = appLocaleLanguage();
+    return locale ? [locale] : [];
+  }))];
 }
 async function inferOnce(request, server, wav, language, prompt = request.prompt || settings.vocabulary || "", timestamps = false) {
   const form = new FormData();
@@ -637,7 +656,7 @@ function applySetting(id, value) {
     if (engine && !activeRequest && !queue.length && !liveRequests.size) scheduleIdleStop();
   } else if (id === "caller-approval-policy") settings.approval = value === "same-board-only" ? value : "accept-granted";
   else if (id === "vocabulary-prompt") settings.vocabulary = String(value || "").slice(0, 4000);
-  else if (id === "language-hints") settings.languages = parseLanguages(value);
+  else if (id === "language-hints") settings.languages = parseLanguageHints(value);
 }
 persephone.settings.onChange(({ id, value }) => applySetting(id, value));
 // onChange reports only later edits, so read the stored values once at startup.

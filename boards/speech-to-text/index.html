@@ -15,28 +15,40 @@
       <span id="engine-state" class="state-pill" data-i18n="engine.notReady"></span>
     </header>
     <p id="error" role="alert" hidden></p>
-    <section class="panel">
-      <h2 data-i18n="models.title"></h2>
-      <div id="runtime-row" class="asset-row"></div>
-      <div id="model-list"></div>
-      <p id="active-model" class="muted"></p>
-    </section>
-    <section class="panel recorder">
-      <h2 data-i18n="recorder.title"></h2>
-      <label><span data-i18n="recorder.microphone"></span><select id="microphones"></select></label>
+    <details id="setup-panel" class="panel disclosure">
+      <summary><span data-i18n="models.title"></span><span id="setup-summary" class="muted"></span></summary>
+      <div class="disclosure-body">
+        <div id="runtime-row" class="asset-row"></div>
+        <div id="model-list"></div>
+        <p id="active-model" class="muted"></p>
+      </div>
+    </details>
+    <section class="test-block" aria-label="Microphone test">
+      <label class="microphone"><span data-i18n="recorder.microphone"></span><select id="microphones"></select></label>
+      <fieldset id="mode-switch" class="mode-switch">
+        <legend data-i18n="test.modeLabel"></legend>
+        <label><input type="radio" name="test-mode" value="record" checked><span data-i18n="test.recordThenType"></span></label>
+        <label><input type="radio" name="test-mode" value="live"><span data-i18n="test.liveTyping"></span></label>
+      </fieldset>
       <div class="level-track" aria-label="Microphone level"><div id="level"></div></div>
-      <div class="actions"><button id="record" class="primary" data-i18n="recorder.record"></button><button id="stop" disabled data-i18n="recorder.stop"></button><button id="cancel" disabled data-i18n="common.cancel"></button></div>
+      <button id="test-button" class="primary test-button" disabled>
+        <span class="mic-icon" aria-hidden="true"></span>
+        <span id="test-button-label" data-i18n="test.start"></span>
+      </button>
       <p id="recording-status" class="muted" data-i18n="recorder.idle"></p>
-      <pre id="transcript" aria-live="polite"></pre>
+      <p id="not-ready-hint" class="muted" data-i18n="engine.notReady" hidden></p>
+      <div id="transcript" aria-live="polite"><span id="committed-text"></span><span id="draft-text" class="draft-text"></span></div>
       <p id="result-meta" class="muted"></p>
+      <p class="privacy-note" data-i18n="privacy.local"></p>
     </section>
-    <section class="panel privacy">
-      <h2 data-i18n="licenses.title"></h2>
-      <p data-i18n="privacy.local"></p>
-      <p><span data-i18n="licenses.model"></span> <a href="https://github.com/openai/whisper/blob/main/LICENSE" target="_blank" rel="noreferrer">MIT</a>.</p>
-      <p><span data-i18n="licenses.runtime"></span></p>
-      <div id="runtime-licenses" class="license-list"></div>
-    </section>
+    <details id="license-panel" class="panel disclosure">
+      <summary><span data-i18n="licenses.title"></span></summary>
+      <div class="disclosure-body license-body">
+        <p><span data-i18n="licenses.model"></span> <a href="https://github.com/openai/whisper/blob/main/LICENSE" target="_blank" rel="noreferrer">MIT</a>.</p>
+        <p data-i18n="licenses.runtime"></p>
+        <div id="runtime-licenses" class="license-list"></div>
+      </div>
+    </details>
   </main>
   <script src="./i18n.js"></script>
   <script src="./app.js"></script>

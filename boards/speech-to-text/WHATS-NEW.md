@@ -1,4 +1,5 @@
 ## 1.3.0
+- Interface languages: Belarusian, Chinese (Simplified), Estonian, French, German, Hungarian, Italian, Japanese, Korean, Latvian, Lithuanian, Polish, Portuguese (Brazil), Romanian, Slovak, Spanish and Ukrainian.
 - Redesigned the main screen with collapsible setup and license panels and a central live or record-then-type test control.
 - Default language hints now follow Persephone's UI language, with English as a fallback.
 - Languages can now be selected with a checkbox multi-select while retaining the `app,en` default.

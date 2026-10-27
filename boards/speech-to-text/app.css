@@ -8,25 +8,53 @@ h1 { margin-bottom: 2px; font-size: 22px; }
 h2 { margin-bottom: 12px; font-size: 15px; }
 .muted { color: var(--p-text-muted); }
 .state-pill { padding: 4px 9px; border: 1px solid var(--p-border); border-radius: 20px; color: var(--p-text-muted); white-space: nowrap; }
-.panel { margin: 14px 0; padding: 16px; border: 1px solid var(--p-border); border-radius: var(--p-radius-md, 6px); background: var(--p-panel); }
+.panel { margin: 14px 0; padding: 0 16px; border: 1px solid var(--p-border); border-radius: var(--p-radius-md, 6px); background: var(--p-panel); }
+.disclosure > summary { position: relative; display: flex; align-items: center; gap: 12px; min-height: 48px; padding-right: 28px; cursor: pointer; font-weight: 600; list-style: none; }
+.disclosure > summary::-webkit-details-marker { display: none; }
+.disclosure > summary::after { content: ""; position: absolute; top: 50%; right: 4px; width: 7px; height: 7px; margin-top: -5px; border-right: 2px solid var(--p-text-muted); border-bottom: 2px solid var(--p-text-muted); transform: rotate(-45deg); transition: transform .15s ease; }
+.disclosure[open] > summary::after { margin-top: -6px; transform: rotate(45deg); }
+.disclosure > summary span:first-child { flex: 0 0 auto; }
+#setup-summary { font-size: 13px; font-weight: 400; }
+.disclosure-body { padding: 0 0 12px; }
 .asset-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--p-border); }
 .asset-name { flex: 1; min-width: 180px; font-weight: 600; }
 .asset-meta { color: var(--p-text-muted); font-variant-numeric: tabular-nums; }
 .asset-meta progress { width: min(240px, 32vw); height: 7px; accent-color: var(--p-accent); }
-.asset-actions, .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
-button, select { min-height: 28px; padding: 3px 9px; color: var(--p-text); background: var(--p-bg); border: 1px solid var(--p-border); border-radius: var(--p-radius-sm, 4px); font: inherit; }
+.asset-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+button, select { min-height: 30px; padding: 4px 9px; color: var(--p-text); background: var(--p-bg); border: 1px solid var(--p-border); border-radius: var(--p-radius-sm, 4px); font: inherit; }
 button { cursor: pointer; }
 button:hover:not(:disabled) { background: var(--p-hover); }
 button:disabled { opacity: .5; cursor: default; }
 button.primary { color: var(--p-accent-text); background: var(--p-accent); border-color: var(--p-accent); }
-label { display: flex; align-items: center; gap: 10px; color: var(--p-text-muted); }
-.recorder label select { flex: 1; max-width: 520px; }
-.level-track { height: 5px; margin: 15px 0; overflow: hidden; border-radius: 3px; background: var(--p-bg-dark, var(--p-bg)); }
+.test-block { display: flex; flex-direction: column; align-items: center; margin: 30px auto; text-align: center; }
+.microphone { display: flex; align-items: center; gap: 10px; width: min(440px, 100%); color: var(--p-text-muted); text-align: left; }
+.microphone select { flex: 1; min-width: 0; }
+.mode-switch { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 20px; margin: 20px 0 5px; padding: 0; border: 0; }
+.mode-switch legend { width: 100%; margin-bottom: 7px; color: var(--p-text-muted); font-size: 12px; }
+.mode-switch label { display: inline-flex; align-items: center; gap: 6px; color: var(--p-text); cursor: pointer; }
+.mode-switch input { accent-color: var(--p-accent); }
+.level-track { width: min(360px, 90%); height: 6px; margin: 12px 0 18px; overflow: hidden; border-radius: 3px; background: var(--p-bg-dark, var(--p-bg)); }
 .level-track > div { width: 0; height: 100%; background: var(--p-success); transition: width .08s linear; }
-.recorder .actions { margin: 10px 0; }
-#transcript { min-height: 24px; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.test-button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 112px; height: 112px; padding: 12px; border-radius: 50%; font-size: 16px; font-weight: 600; }
+/* Raised look: darker rim, a solid "base" shadow under the face, a soft drop shadow, and a top highlight. */
+button.test-button { border: 3px solid color-mix(in srgb, var(--p-accent) 70%, black); box-shadow: inset 0 2px 0 color-mix(in srgb, white 30%, transparent), 0 5px 0 color-mix(in srgb, var(--p-accent) 55%, black), 0 9px 18px color-mix(in srgb, black 35%, transparent); transition: transform .08s ease, box-shadow .08s ease; }
+button.test-button:hover:not(:disabled) { background: color-mix(in srgb, var(--p-accent) 88%, white); }
+button.test-button:active:not(:disabled), button.test-button.is-recording { transform: translateY(4px); box-shadow: inset 0 2px 0 color-mix(in srgb, white 20%, transparent), 0 1px 0 color-mix(in srgb, var(--p-accent) 55%, black), 0 3px 8px color-mix(in srgb, black 30%, transparent); }
+.mic-icon { width: 34px; height: 34px; background: currentColor; -webkit-mask: url("icons/mic.svg") center / contain no-repeat; mask: url("icons/mic.svg") center / contain no-repeat; }
+#recording-status { min-height: 20px; margin: 14px 0 8px; }
+#transcript { width: min(700px, 100%); min-height: 24px; margin: 7px 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.draft-text:not(:empty) { margin-left: .3em; color: var(--p-text-muted); }
+#result-meta { min-height: 20px; }
+.privacy-note { margin: 12px 0 0; color: var(--p-text-muted); font-size: 12px; }
+.license-body > p { margin: 10px 0; }
 .license-list { display: flex; flex-direction: column; gap: 4px; }
 .license-list summary { font-size: 12px; cursor: pointer; }
 .license-text { max-height: 240px; overflow: auto; font-size: 11px; white-space: pre-wrap; }
 #error { padding: 10px; color: var(--p-error); border: 1px solid var(--p-error); border-radius: 4px; white-space: pre-wrap; }
-@media (max-width: 640px) { #app { padding: 14px; } .page-header { align-items: flex-start; flex-direction: column; } .asset-name { flex-basis: 100%; } }
+@media (max-width: 640px) {
+  #app { padding: 14px; }
+  .page-header { align-items: flex-start; flex-direction: column; }
+  .asset-name { flex-basis: 100%; }
+  .disclosure > summary { align-items: flex-start; flex-direction: column; justify-content: center; gap: 2px; padding: 8px 0; }
+  .mode-switch { gap: 8px 12px; }
+}

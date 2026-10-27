@@ -8,10 +8,11 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
 export const RUNTIME = Object.freeze({
-  id: "whisper-runtime-1.9.5-r1",
-  url: "https://github.com/andriy-viyatyk/persephone-boards/releases/download/whisper-runtime-1.9.5-r1/whisper-runtime-windows-x64-v1.9.5-r1.zip",
-  bytes: 19958389,
-  sha256: "f3db3e57713053721a85ea2269221db8b2b3bfda026fcec40442911566e1d046",
+  id: "whisper-runtime-1.9.5-r2",
+  displayVersion: "1.9.5",
+  url: "https://github.com/andriy-viyatyk/persephone-boards/releases/download/whisper-runtime-1.9.5-r2/whisper-runtime-windows-x64-v1.9.5-r2.zip",
+  bytes: 20893369,
+  sha256: "cceaef497b5d666e669a7cb75c5c537acc153614640d7ce2dd308337eebc88fb",
 });
 
 export const MODELS = Object.freeze([
@@ -183,6 +184,7 @@ export async function installRuntime({ root, signal, onPhase = () => {}, onProgr
     await rm(staging, { recursive: true, force: true });
     throw error;
   }
+  if (!await verifyRuntime(root, signal)) throw new Error("Installed Whisper runtime failed verification.");
 }
 
 export async function assetSnapshot(root) {
@@ -214,6 +216,7 @@ export async function verifyRuntime(root, signal) {
     if (typeof item?.path !== "string" || !/^[0-9a-f]{64}$/i.test(item.sha256)) return false;
     const relative = item.path.replace(/\\/g, "/");
     if (relative.startsWith("/") || /^[a-z]:/i.test(relative) || relative.split("/").some((part) => !part || part === "..")) return false;
+    if (expected.has(relative)) return false;
     expected.add(relative);
     const file = path.resolve(directory, relative);
     if (!file.startsWith(path.resolve(directory) + path.sep) || await sha256File(file, signal) !== item.sha256.toLowerCase()) return false;
@@ -227,5 +230,15 @@ export async function verifyRuntime(root, signal) {
     }
   }
   await walk(directory);
-  return expected.has("whisper-server.exe") && actual.size === expected.size && [...actual].every((file) => expected.has(file));
+  const valid = expected.has("whisper-server.exe") && expected.has("whisper-vad-helper.exe") &&
+    actual.size === expected.size && [...actual].every((file) => expected.has(file));
+  if (valid) {
+    for (const entry of await readdir(path.join(root, "runtime"), { withFileTypes: true })) {
+      if (entry.isDirectory() && entry.name.startsWith("whisper-runtime-") && entry.name !== RUNTIME.id) {
+        // Best effort: a running server from an older revision locks its folder; retry on the next check.
+        await rm(path.join(root, "runtime", entry.name), { recursive: true, force: true }).catch(() => {});
+      }
+    }
+  }
+  return valid;
 }

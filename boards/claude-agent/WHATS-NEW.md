@@ -1,3 +1,11 @@
+## 1.3.1
+- Interface languages: Belarusian, Chinese (Simplified), Estonian, French, German, Hungarian, Italian, Japanese, Korean, Latvian, Lithuanian, Polish, Portuguese (Brazil), Romanian, Slovak, Spanish and Ukrainian.
+- Live dictation can stop automatically after the configured quiet interval once speech is committed.
+- Voice input inserts committed live transcription segments as they arrive when the selected provider supports live transcription.
+- Added **Connect**: resume a stored session without sending a message, from its right-click menu or from the **Send** button, which reads **Connect** while the message box is empty. The chips then show the session's model and context fill.
+- A connected session shows a green dot just left of its icon in the sidebar.
+- The microphone button's icon is centered when no recording time is shown.
+
 ## 1.3.0
 - Added voice input through a trusted Speech to Text provider; installed users must accept the new microphone grant in the **Board permissions changed** prompt.
 

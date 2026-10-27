@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="board.title">Translate</title>
+  <link rel="stylesheet" href="./board-base.css">
+  <link rel="stylesheet" href="./app.css">
+</head>
+<body>
+  <main id="app">
+    <header><div><h1 data-i18n="board.title">Translate</h1><p data-i18n="board.subtitle"></p></div><button id="refresh" data-i18n="models.refresh"></button></header>
+    <p id="error" role="alert" hidden></p>
+    <section class="panel">
+      <div class="panel-heading"><div><h2 data-i18n="models.title"></h2><p data-i18n="models.pivotNote"></p></div><input id="filter" type="search" data-i18n-placeholder="models.filter" aria-label="Filter languages"></div>
+      <div id="languages" class="language-list" aria-live="polite"></div>
+    </section>
+    <section class="panel test-panel">
+      <h2 data-i18n="test.title"></h2>
+      <label for="source" data-i18n="test.source"></label>
+      <textarea id="source" rows="7" data-i18n-placeholder="test.placeholder"></textarea>
+      <div class="controls"><button id="detect" data-i18n="test.detect"></button><label><span data-i18n="test.sourceLanguage"></span><select id="source-language"></select></label><label><span data-i18n="test.targetLanguage"></span><select id="target-language"></select></label><label class="page-hint"><input id="html-lang" type="text" placeholder="htmlLang (optional)"></label><button id="translate" class="primary" data-i18n="test.translate"></button></div>
+      <p id="detection" class="muted" aria-live="polite"></p><p id="route" class="muted"></p>
+      <label for="result" data-i18n="test.result"></label><textarea id="result" rows="7" readonly></textarea>
+    </section>
+    <p class="privacy" data-i18n="privacy.note"></p>
+  </main>
+  <dialog id="confirm-dialog" data-name="confirm-dialog" aria-labelledby="confirm-title">
+    <h2 id="confirm-title"></h2>
+    <p id="confirm-message"></p>
+    <footer><button id="confirm-cancel" type="button" data-i18n="confirm.cancel"></button><button id="confirm-ok" class="primary" type="button" data-name="confirm-ok"></button></footer>
+  </dialog>
+  <script src="./i18n.js"></script><script src="./app.js"></script>
+</body>
+</html>

@@ -8,9 +8,17 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-*(none)*
+Board work for Persephone's **EPIC-135** (*Translation service*):
+
+- [ ] [BT-069: Bergamot runtime](tasks/BT-069-bergamot-runtime/README.md): Firefox's translation engine (WASM), model downloads and caching, pivot through English
+- [ ] [BT-070: Translate board v1.0.0](tasks/BT-070-translate-board/README.md): the `text.translate@1` provider, CLD2 language detection, language manager and test panel
 
 ## Planned
+
+Board work for Persephone's **EPIC-134** (*Live transcription and meeting transcripts*) is finished:
+BT-060 – BT-068 added live segmentation, hour-long live sessions and the language picker to
+`speech-to-text` v1.3.0, and live dictation with auto-stop to Agent Chat 1.3.1. Both stay unpublished
+on `develop` until Persephone 5.0.15 ships. See [`tasks/completed.md`](tasks/completed.md).
 
 Board work for Persephone's **EPIC-133** (*Speech to text*) is finished: BT-055 – BT-057 built the
 Whisper runtime, the `speech-to-text` v1.0.0 provider board and Agent Chat 1.3.0 voice input. Both

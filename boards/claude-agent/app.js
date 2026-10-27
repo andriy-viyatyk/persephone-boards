@@ -4,7 +4,15 @@ applyI18n();
 const $ = (selector) => document.querySelector(selector);
 const state = { setup: null, capabilities: {}, descriptions: new Map(), catalog: [], defaultProvider: "", description: null, models: [{ id: "", label: "Default", efforts: [] }], defaults: {}, settingsOff: null, sessions: [], allSessions: [], groupIndex: [], sessionsLoaded: false };
 let voiceProviders = [];
-const voiceCapture = { request: null, descriptions: new Map(), selected: "" };
+const voiceCapture = { request: null, descriptions: new Map(), describing: new Map(), selected: "" };
+let voiceAutoStopSilenceMs = 0;
+let voiceTypingOff = null;
+// Live dictation tuning: RMS windows and checks are capture-relative; threshold matches Persephone's pooled baseline.
+const VOICE_RMS_WINDOW_SAMPLES = 1600;
+const VOICE_LEVEL_CHECK_MS = 150;
+const VOICE_THRESHOLD_FACTOR = 0.2;
+const VOICE_THRESHOLD_FLOOR = 0.005;
+const VOICE_LEVEL_RETENTION_MS = 60000;
 const sessionsByKey = new Map();
 // Sessions deleted on this page, in flight or done (viewKey). A list refresh must never bring one back: a listing
 // read while a delete was still removing files can arrive after that delete finished. A failed delete leaves the set.
@@ -782,7 +790,11 @@ function renderSessions() {
         button.title = [item.title, engine, formatWhenExact(item.updatedAt), t(view?.channel ? (view.busy ? "sessionWorking" : "sessionLive") : "sessionIdle")].filter(Boolean).join("\n");
         const group = state.groupIndex.find((entry) => entry.mainSessionId === item.id);
         const hasParticipants = Boolean(group?.participants.some((participant) => !participant.removed));
-        button.append(engineIcon(providerInfo, dotState, hasParticipants), element("span", "title", item.title), element("span", "when", formatWhen(item.updatedAt)));
+        // A connected session also gets a green dot laid over the icon's left edge, so the row keeps its spacing.
+        const marker = element("span", "session-marker");
+        marker.append(engineIcon(providerInfo, dotState, hasParticipants));
+        if (view?.channel) marker.append(element("span", "connected-dot"));
+        button.append(marker, element("span", "title", item.title), element("span", "when", formatWhen(item.updatedAt)));
         button.addEventListener("click", () => void openStoredSession(item));
         button.addEventListener("contextmenu", (event) => { event.preventDefault(); openSessionMenu(item, event.clientX, event.clientY); });
         folder.append(button);
@@ -854,7 +866,9 @@ const sessionMenu = $("#session-menu");
 let menuItem = null;
 function openSessionMenu(item, x, y) {
   menuItem = item;
-  sessionMenu.querySelector("[data-action=disconnect]").classList.toggle("hidden", !viewFor(item.id, item.provider)?.channel);
+  const live = Boolean(viewFor(item.id, item.provider)?.channel);
+  sessionMenu.querySelector("[data-action=disconnect]").classList.toggle("hidden", !live);
+  sessionMenu.querySelector("[data-action=connect]").classList.toggle("hidden", live || Boolean(item.participant) || !capabilities(viewFor(item.id, item.provider)).sessionStore);
   sessionMenu.querySelectorAll("[data-action=rename], [data-action=delete]").forEach((button) => button.classList.toggle("hidden", !capabilities(viewFor(item.id, item.provider)).sessionStore));
   sessionMenu.classList.remove("hidden");
   const { width, height } = sessionMenu.getBoundingClientRect();
@@ -874,6 +888,7 @@ sessionMenu.addEventListener("click", (event) => {
   if (item && action === "rename") void renameSession(item);
   if (item && action === "delete") void deleteSession(item);
   if (item && action === "disconnect") { const view = viewFor(item.id, item.provider); if (view) disconnect(view); }
+  if (item && action === "connect") void connectStoredSession(item);
 });
 
 // Modal dialog; resolves with the input text (or "" without one) on confirm, null on cancel.
@@ -1139,6 +1154,8 @@ persephone.toolbar.onAction(({ id }) => {
 function updateControls() {
   $("#intro").classList.toggle("hidden", Boolean(current?.id || current?.channel));
   const slash = promptText().trim().startsWith("/");
+  const connectOnly = canConnect(current) && !promptText().trim();
+  $("#send").textContent = t(connectOnly ? "connect" : "send");
   $("#send").disabled = Boolean(current?.readOnlyParticipant || current?.busy && (slash || !current.groupMode));
   $("#readonly-hint").classList.toggle("hidden", !current?.readOnlyParticipant);
   $("#prompt").classList.toggle("hidden", Boolean(current?.readOnlyParticipant));
@@ -1503,6 +1520,20 @@ async function startParticipantObserver(view, participant) {
   channel.onMessage((event) => { if (view.follow === channel && !["observer-ready", "observer-unavailable"].includes(event.type)) handleEvent(view, event); });
   channel.onClose(() => { if (view.follow === channel) view.follow = null; });
 }
+// A shown stored session that is not running can be resumed without sending anything.
+function canConnect(view) { return Boolean(view?.id && !view.channel && !view.readOnlyParticipant && capabilities(view).sessionStore); }
+// Resumes the session and asks for its context fill, so the chips show the session's actual agent and context.
+async function connectSession(view) {
+  try {
+    if (!(await ensureLive(view))) { setViewStatus(view); return; }
+    if (capabilities(view).contextUsage) await control(view, "context").catch(() => {});
+  } finally { if (view === current) updateControls(); }
+}
+async function connectStoredSession(item) {
+  let view = viewFor(item.id, item.provider);
+  if (view !== current) { await openStoredSession(item); view = viewFor(item.id, item.provider); }
+  if (view && view === current && canConnect(view)) await connectSession(view);
+}
 async function connect(view) {
   if (view.connectTask) return view.connectTask;
   const task = connectView(view);
@@ -1776,13 +1807,17 @@ function insertVoiceText(request, text) {
     return;
   }
   const value = promptText();
-  const offset = value === request.promptSnapshot ? Math.min(request.caret, value.length) : document.activeElement === prompt ? promptOffset() : value.length;
+  const offset = document.activeElement === prompt
+    ? promptOffset()
+    : value === request.lastPromptValue ? Math.min(request.caret, value.length) : value.length;
   const before = value.slice(0, offset), after = value.slice(offset);
   const left = before && !/\s$/.test(before) && !/^\s/.test(text) ? " " : "";
   const right = after && !/\s$/.test(text) && !/^\s/.test(after) ? " " : "";
   const next = `${before}${left}${text}${right}${after}`;
   prompt.textContent = next; request.view.draft = next;
-  setPromptCaret(before.length + left.length + text.length + right.length);
+  request.lastPromptValue = next;
+  request.caret = before.length + left.length + text.length + right.length;
+  setPromptCaret(request.caret);
   prompt.dispatchEvent(new Event("input", { bubbles: true }));
 }
 function voiceTime(ms) { const seconds = Math.floor(ms / 1000); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`; }
@@ -1797,21 +1832,36 @@ function renderVoice() {
   $("#voice-provider").classList.toggle("hidden", voiceProviders.length < 2 || $("#prompt").classList.contains("hidden"));
 }
 async function describeVoiceProvider(provider) {
-  try {
-    const channel = await persephone.services.connect("speech.transcribe", { provider: provider.provider, version: 1 }, { type: "describe" });
-    channel.onMessage((message) => {
-      if (message.type === "description" && Number.isFinite(message.maxAudioMs) && message.maxAudioMs > 0) {
-        voiceCapture.descriptions.set(provider.provider, message.maxAudioMs);
-        const request = voiceCapture.request;
-        if (request?.provider.provider === provider.provider) {
-          request.sampleLimit = Math.max(1, Math.floor((message.maxAudioMs - 1000) * 16));
-          if (request.sampleCount >= request.sampleLimit && request.phase === "recording") { setViewError(request.view, t("voice.limit")); void stopVoiceRecording(); }
-        }
-      }
-      try { channel.close(); } catch { /* already closed */ }
-    });
-    channel.onClose(() => {});
-  } catch { /* Keep the five-minute fallback when description is unavailable. */ }
+  const cached = voiceCapture.descriptions.get(provider.provider);
+  if (cached) return cached;
+  if (voiceCapture.describing.has(provider.provider)) return voiceCapture.describing.get(provider.provider);
+  const pending = new Promise((resolve) => {
+    let channel = null, settled = false;
+    const fallback = { maxAudioMs: 300000, features: [], live: false };
+    const finish = (description = fallback) => {
+      if (settled) return;
+      settled = true; clearTimeout(timer);
+      voiceCapture.descriptions.set(provider.provider, description);
+      try { channel?.close(); } catch { /* already closed */ }
+      resolve(description);
+    };
+    const timer = setTimeout(() => finish(), 5000);
+    void persephone.services.connect("speech.transcribe", { provider: provider.provider, version: 1 }, { type: "describe" })
+      .then((opened) => {
+        if (settled) { try { opened.close(); } catch { /* already closed */ } return; }
+        channel = opened;
+        channel.onMessage((message) => {
+          if (message?.type !== "description") return;
+          const validLimit = Number.isFinite(message.maxAudioMs) && message.maxAudioMs > 0;
+          const features = Array.isArray(message.features) && message.features.every((feature) => typeof feature === "string") ? message.features : [];
+          finish({ maxAudioMs: validLimit ? message.maxAudioMs : fallback.maxAudioMs, features, live: validLimit && Array.isArray(message.features) && message.features.includes("live") });
+        });
+        channel.onClose(() => finish());
+      })
+      .catch(() => finish());
+  }).finally(() => voiceCapture.describing.delete(provider.provider));
+  voiceCapture.describing.set(provider.provider, pending);
+  return pending;
 }
 async function refreshVoiceProviders() {
   try {
@@ -1864,11 +1914,45 @@ function consumeVoiceSamples(request, samples) {
   const discard = Math.max(0, Math.floor(request.nextSource) - request.sourceBase);
   if (discard) { request.sourceSamples = merged.slice(discard); request.sourceBase += discard; }
   const accepted = output.slice(0, Math.max(0, request.sampleLimit - request.sampleCount));
+  if (request.live) recordVoiceLevels(request, accepted);
   request.sampleCount += accepted.length; request.pending.push(...accepted);
   while (request.pending.length >= 1600) queueVoiceSamples(request, request.pending.splice(0, 1600));
-  if (accepted.length < output.length || request.sampleCount >= request.sampleLimit) {
+  if (!request.live && (accepted.length < output.length || request.sampleCount >= request.sampleLimit)) {
     setViewError(request.view, t("voice.limit")); void stopVoiceRecording();
   }
+}
+function recordVoiceLevels(request, samples) {
+  for (const sample of samples) {
+    request.rmsSumSquares += sample * sample;
+    request.rmsCount++;
+    if (request.rmsCount < VOICE_RMS_WINDOW_SAMPLES) continue;
+    const endSample = request.rmsWindowStart + request.rmsCount;
+    request.levels.push({ startMs: request.rmsWindowStart / 16, endMs: endSample / 16, value: Math.sqrt(request.rmsSumSquares / request.rmsCount) });
+    request.currentRms = request.levels[request.levels.length - 1].value;
+    request.rmsWindowStart = endSample; request.rmsCount = 0; request.rmsSumSquares = 0;
+    const cutoff = endSample / 16 - VOICE_LEVEL_RETENTION_MS;
+    while (request.levels.length && request.levels[0].endMs < cutoff) request.levels.shift();
+  }
+}
+function updateVoiceSpeechBaseline(request, startMs, endMs) {
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs < 0 || endMs < startMs) return;
+  const overlapping = request.levels.filter((level) => level.startMs < endMs && level.endMs > startMs);
+  if (!overlapping.length) return;
+  request.speechLevels.push(...overlapping.map((level) => level.value));
+  const sorted = request.speechLevels.slice().sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+  request.threshold = Math.max(VOICE_THRESHOLD_FLOOR, VOICE_THRESHOLD_FACTOR * median);
+}
+function checkVoiceAutoStop(request) {
+  if (voiceCapture.request !== request || request.phase !== "recording") return;
+  if (!request.live || voiceAutoStopSilenceMs <= 0 || !request.segmentCount || request.draftUtterances.size ||
+      !Number.isFinite(request.threshold) || !Number.isFinite(request.currentRms) || request.currentRms >= request.threshold) {
+    request.quietSince = 0;
+    return;
+  }
+  if (!request.quietSince) request.quietSince = Date.now();
+  else if (Date.now() - request.quietSince >= voiceAutoStopSilenceMs) void stopVoiceRecording();
 }
 async function createVoiceContext() {
   let context;
@@ -1900,8 +1984,25 @@ function failVoice(request, error) {
 }
 function watchVoiceChannel(request) {
   request.channel.onMessage((message) => {
+    if (request.cancelled || request.finished) return;
     if (message.type === "status") { if (message.state === "transcribing") { request.phase = "stopping"; renderVoice(); } }
-    else if (message.type === "result") { request.closed = true; if (views.has(request.view)) insertVoiceText(request, message.text || ""); finishVoice(request); }
+    else if (message.type === "segment") {
+      if (Number.isSafeInteger(message.utterance) && message.utterance >= 0) request.draftUtterances.delete(message.utterance);
+      if (request.live) {
+        request.segmentCount++;
+        updateVoiceSpeechBaseline(request, message.startMs, message.endMs);
+      }
+      if (typeof message.text !== "string" || !message.text.trim()) return;
+      request.insertedSegments = true;
+      if (views.has(request.view)) insertVoiceText(request, message.text);
+    }
+    else if (message.type === "draft") {
+      if (request.live && Number.isSafeInteger(message.utterance) && message.utterance >= 0) {
+        request.draftUtterances.add(message.utterance);
+        request.quietSince = 0;
+      }
+    }
+    else if (message.type === "result") { request.closed = true; if (!request.insertedSegments && views.has(request.view)) insertVoiceText(request, message.text || ""); finishVoice(request); }
     else if (message.type === "error") {
       request.closed = true;
       if (message.code === "not-ready") setViewError(request.view, t("voice.notReady", { message: message.message || "" }));
@@ -1919,9 +2020,9 @@ function startVoiceRecording() {
   const view = current;
   if (!voiceProviders.length || !view || view.readOnlyParticipant) return;
   const provider = voiceProviders.find((item) => item.provider === voiceCapture.selected) || voiceProviders[0], value = promptText();
-  const request = { view, provider, phase: "starting", promptSnapshot: value, caret: promptOffset(), channel: null, stream: null, context: null, node: null, source: null, ended: false, finished: false, cancelled: false, closed: false, queued: Promise.resolve(), pending: [], sourceSamples: new Float32Array(0), sourceBase: 0, nextSource: 0, sampleCount: 0, sampleLimit: Math.max(1, Math.floor(((voiceCapture.descriptions.get(provider.provider) || 300000) - 1000) * 16)), startedAt: Date.now() };
+  const request = { view, provider, phase: "starting", promptSnapshot: value, lastPromptValue: value, caret: promptOffset(), channel: null, stream: null, context: null, node: null, source: null, ended: false, finished: false, cancelled: false, closed: false, insertedSegments: false, queued: Promise.resolve(), pending: [], sourceSamples: new Float32Array(0), sourceBase: 0, nextSource: 0, sampleCount: 0, sampleLimit: Math.max(1, Math.floor(((voiceCapture.descriptions.get(provider.provider)?.maxAudioMs || 300000) - 1000) * 16)), rmsWindowStart: 0, rmsCount: 0, rmsSumSquares: 0, levels: [], speechLevels: [], currentRms: NaN, threshold: NaN, segmentCount: 0, draftUtterances: new Set(), quietSince: 0, startedAt: Date.now() };
   voiceCapture.request = request; renderVoice(); updateControls();
-  let microphone, providerList, channelOpen;
+  let microphone, providerList, descriptionOutcome;
   try {
     microphone = navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } }).then((stream) => {
       request.stream = stream;
@@ -1929,18 +2030,23 @@ function startVoiceRecording() {
       return stream;
     });
     providerList = persephone.services.list("speech.transcribe");
-    channelOpen = persephone.services.connect("speech.transcribe", { provider: provider.provider, version: 1 }, {
-      type: "transcribe", format: { encoding: "pcm-s16le", sampleRate: 16000, channels: 1 }, prompt: "Claude, Codex, Persephone",
-    }).then((channel) => { request.channel = channel; watchVoiceChannel(request); return channel; });
+    descriptionOutcome = describeVoiceProvider(provider);
   } catch (error) {
     setViewError(view, t("voice.captureError", { message: error.message || t("error") })); finishVoice(request); return;
   }
   void (async () => {
     try {
-      const [stream, providers] = await Promise.all([microphone, providerList, channelOpen]);
+      const [stream, providers, description] = await Promise.all([microphone, providerList, descriptionOutcome]);
       request.stream = stream;
-      if (request.finished || request.cancelled) { stream.getTracks().forEach((track) => track.stop()); try { request.channel.send({ type: "cancel" }); } catch { /* closed */ } return; }
+      if (request.finished || request.cancelled) { stream.getTracks().forEach((track) => track.stop()); try { request.channel?.send({ type: "cancel" }); } catch { /* closed */ } return; }
       if (!providers.some((item) => item.provider === provider.provider && item.version === 1)) throw new Error(t("voice.noProvider"));
+      if (request.finished || request.cancelled) { try { request.channel?.send({ type: "cancel" }); } catch { /* closed */ } finishVoice(request); return; }
+      request.live = Boolean(description?.live);
+      request.sampleLimit = request.live ? Infinity : Math.max(1, Math.floor(((description?.maxAudioMs || 300000) - 1000) * 16));
+      request.channel = await persephone.services.connect("speech.transcribe", { provider: provider.provider, version: 1 }, {
+        type: "transcribe", format: { encoding: "pcm-s16le", sampleRate: 16000, channels: 1 }, prompt: "Claude, Codex, Persephone", ...(description?.live ? { live: true } : {}),
+      });
+      watchVoiceChannel(request);
       if (request.finished || request.cancelled) { try { request.channel.send({ type: "cancel" }); } catch { /* closed */ } finishVoice(request); return; }
       request.context = await createVoiceContext();
       if (request.finished || request.cancelled) { releaseVoice(request); return; }
@@ -1950,7 +2056,12 @@ function startVoiceRecording() {
       request.source.connect(request.node); request.node.connect(mute); mute.connect(request.context.destination);
       request.node.port.onmessage = ({ data }) => { if (data.type === "samples") consumeVoiceSamples(request, data.data); };
       request.phase = "recording"; request.startedAt = Date.now(); renderVoice();
-      request.timer = setInterval(() => { if (voiceCapture.request === request && request.phase === "recording") renderVoice(); }, 250);
+      request.timer = setInterval(() => {
+        if (voiceCapture.request === request && request.phase === "recording") {
+          checkVoiceAutoStop(request);
+          if (request.phase === "recording") renderVoice();
+        }
+      }, VOICE_LEVEL_CHECK_MS);
       if (request.stopRequested) void stopVoiceRecording();
     } catch (error) {
       request.stream?.getTracks().forEach((track) => track.stop());
@@ -1993,11 +2104,20 @@ $("#voice-provider").addEventListener("mousedown", (event) => event.preventDefau
 $("#voice-provider").addEventListener("click", openVoiceProviderMenu);
 window.addEventListener("focus", () => { void refreshVoiceProviders(); });
 document.addEventListener("visibilitychange", () => { if (document.hidden) void stopVoiceRecording(); else void refreshVoiceProviders(); });
-window.addEventListener("pagehide", () => cancelVoiceRecording(true));
-window.addEventListener("beforeunload", () => cancelVoiceRecording(true));
+const teardownVoiceTyping = () => { try { voiceTypingOff?.(); } catch { /* already disconnected */ } voiceTypingOff = null; };
+window.addEventListener("pagehide", () => { teardownVoiceTyping(); cancelVoiceRecording(true); });
+window.addEventListener("beforeunload", () => { teardownVoiceTyping(); cancelVoiceRecording(true); });
 persephone.page.onVisibilityChange((visible) => { if (!visible) void stopVoiceRecording(); else void refreshVoiceProviders(); });
 window.addEventListener("keydown", (event) => { if (event.key === "Escape" && cancelVoiceRecording()) { event.preventDefault(); event.stopPropagation(); } });
 void refreshVoiceProviders();
+if (typeof persephone.voiceTyping?.onAutoStopSilenceChange === "function") {
+  try {
+    voiceTypingOff = persephone.voiceTyping.onAutoStopSilenceChange((value) => {
+      voiceAutoStopSilenceMs = Number.isFinite(value) && Number.isInteger(value) && value >= 0 ? value : 0;
+      if (voiceCapture.request) voiceCapture.request.quietSince = 0;
+    });
+  } catch { voiceAutoStopSilenceMs = 0; }
+}
 prompt.addEventListener("input", () => { if (!promptText()) clearPrompt(); updateCommandMenu(); updateControls(); });
 prompt.addEventListener("keydown", (event) => {
   if (commandMenuKey(event)) return;
@@ -2022,6 +2142,7 @@ $("#composer").addEventListener("submit", async (event) => {
   hideCommandMenu();
   const boardCommand = text && boardCommandFor(text);
   if (boardCommand) { clearPrompt(); await boardCommand(); return; }
+  if (!text && canConnect(view) && !view.connectTask) { await connectSession(view); return; }
   if (!text || (view.busy && (!view.groupMode || text.startsWith("/"))) || view.pendingPrompt) return;
   clearPrompt();
   if (view.channel) { await sendPrompt(view, text); return; }

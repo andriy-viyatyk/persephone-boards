@@ -892,6 +892,8 @@ const CONTROL_ACTIONS = {
     if (Number.isFinite(usage.totalTokens)) {
       session.status.contextTokens = usage.totalTokens;
       if (usage.maxTokens) session.status.contextWindow = usage.maxTokens;
+      // Before the first turn this is the only report of the model a resumed session runs.
+      if (usage.model && !session.actualModel) session.actualModel = usage.model;
       await send(session.channel, sessionStatus(session), session);
     }
     const tokens = (value) => Number.isFinite(value) ? value : 0;

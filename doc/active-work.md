@@ -8,7 +8,10 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-*(none)*
+Board work for Persephone's **EPIC-135** (*Translation service*):
+
+- [ ] [BT-069: Bergamot runtime](tasks/BT-069-bergamot-runtime/README.md): Firefox's translation engine (WASM), model downloads and caching, pivot through English
+- [ ] [BT-070: Translate board v1.0.0](tasks/BT-070-translate-board/README.md): the `text.translate@1` provider, CLD2 language detection, language manager and test panel
 
 ## Planned
 

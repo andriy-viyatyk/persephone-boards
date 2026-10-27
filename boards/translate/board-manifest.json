@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "id": "translate",
+  "name": "Translate",
+  "description": "Local text and HTML translation with explicit model downloads.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "5.0.15",
+  "minBridgeVersion": "1.42.0",
+  "permissions": {
+    "execute": false,
+    "service": true,
+    "fileSystem": false,
+    "openExternal": false,
+    "appScripting": false,
+    "network": false,
+    "clipboardRead": false,
+    "camera": false,
+    "microphone": false,
+    "geolocation": false,
+    "notifications": false,
+    "themes": false
+  },
+  "service": "scripts/service.mjs",
+  "serviceInterfaces": [
+    { "id": "text.translate", "version": 1, "title": "Text Translation" }
+  ],
+  "languages": { "folder": "lang", "default": "en" },
+  "screenshot": "screenshot.png",
+  "settings": [
+    {
+      "id": "idle-unload-minutes",
+      "type": "number",
+      "default": 3,
+      "label": "Unload engine after idle (minutes)",
+      "description": "Unload Bergamot and its WASM memory after 1 to 120 idle minutes."
+    },
+    {
+      "id": "caller-approval-policy",
+      "type": "enum",
+      "options": ["accept-granted", "same-board-only"],
+      "default": "accept-granted",
+      "label": "Caller approval policy",
+      "description": "Accept granted text.translate v1 callers, or only this board's own page."
+    }
+  ]
+}

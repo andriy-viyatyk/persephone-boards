@@ -1,0 +1,26 @@
+:root { color-scheme: light dark; }
+html, body { min-height: 100%; }
+#app { width: min(1100px, 100%); margin: 0 auto; padding: 22px; }
+header, .panel-heading, .controls, .direction { display: flex; align-items: center; gap: 12px; }
+header, .panel-heading { justify-content: space-between; }
+h1 { font-size: 22px; margin: 0 0 3px; } h2 { font-size: 16px; margin: 0 0 4px; } p { margin: 0 0 10px; }
+.muted, .privacy { color: var(--p-text-muted, #999); }
+.panel { margin: 16px 0; padding: 16px; border: 1px solid var(--p-border, #555); border-radius: var(--p-radius-md, 6px); background: var(--p-panel, transparent); }
+.panel-heading { margin-bottom: 12px; } #filter { min-width: min(260px, 45%); padding: 7px; }
+.language-list { max-height: 52vh; overflow: auto; border-top: 1px solid var(--p-border, #555); }
+.language-row { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(260px, 2fr); gap: 10px 18px; align-items: center; padding: 10px 4px; border-bottom: 1px solid var(--p-border, #555); }
+.language-name { font-weight: 600; } .language-code { color: var(--p-text-muted, #999); font: 12px ui-monospace, monospace; }
+.directions { display: grid; gap: 7px; } .direction { flex-wrap: wrap; } .direction-label { min-width: 135px; }
+.direction-meta { color: var(--p-text-muted, #999); font-size: 12px; min-width: 90px; }
+.test-panel { display: grid; gap: 8px; } .test-panel h2 { margin-bottom: 0; }
+textarea { width: 100%; resize: vertical; padding: 9px; line-height: 1.45; }
+.controls { flex-wrap: wrap; margin: 4px 0; } .controls label { display: flex; align-items: center; gap: 6px; }
+.controls select { min-width: 150px; padding: 5px; } .page-hint input { width: 130px; padding: 5px; }
+button.primary { color: var(--p-accent-text, white); background: var(--p-accent, #0078d4); }
+.privacy { font-size: 12px; text-align: center; }
+#error { padding: 9px; color: var(--p-error, #d44); border: 1px solid currentColor; }
+#confirm-dialog { width: min(420px, calc(100vw - 36px)); padding: 18px; color: var(--p-text, #ddd); background: var(--p-panel, var(--p-bg, #2b2b2b)); border: 1px solid var(--p-border, #444); border-radius: 8px; box-shadow: var(--p-shadow, 0 6px 24px #0008); }
+#confirm-dialog::backdrop { background: #0008; }
+#confirm-dialog h2 { margin: 0 0 8px; } #confirm-dialog p { margin: 0 0 16px; overflow-wrap: anywhere; }
+#confirm-dialog footer { display: flex; justify-content: flex-end; gap: 8px; }
+@media (max-width: 720px) { #app { padding: 12px; } header { align-items: flex-start; } .language-row { grid-template-columns: 1fr; gap: 6px; } .controls { align-items: flex-start; } }

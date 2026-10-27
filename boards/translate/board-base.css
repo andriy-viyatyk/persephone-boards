@@ -1,0 +1,7 @@
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--p-bg, #1e1e1e); color: var(--p-text, #e0e0e0); font: var(--p-font-base, 13px) system-ui, "Segoe UI", sans-serif; line-height: 1.5; }
+button, input, select, textarea { font: inherit; }
+button, select, input, textarea { color: var(--p-text, #e0e0e0); background: var(--p-bg, #1e1e1e); border: 1px solid var(--p-border, #555); border-radius: var(--p-radius-sm, 4px); }
+button { padding: 5px 9px; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+:focus-visible { outline: 2px solid var(--p-accent, #0078d4); outline-offset: 2px; }

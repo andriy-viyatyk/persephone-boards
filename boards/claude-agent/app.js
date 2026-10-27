@@ -5,6 +5,14 @@ const $ = (selector) => document.querySelector(selector);
 const state = { setup: null, capabilities: {}, descriptions: new Map(), catalog: [], defaultProvider: "", description: null, models: [{ id: "", label: "Default", efforts: [] }], defaults: {}, settingsOff: null, sessions: [], allSessions: [], groupIndex: [], sessionsLoaded: false };
 let voiceProviders = [];
 const voiceCapture = { request: null, descriptions: new Map(), describing: new Map(), selected: "" };
+let voiceAutoStopSilenceMs = 0;
+let voiceTypingOff = null;
+// Live dictation tuning: RMS windows and checks are capture-relative; threshold matches Persephone's pooled baseline.
+const VOICE_RMS_WINDOW_SAMPLES = 1600;
+const VOICE_LEVEL_CHECK_MS = 150;
+const VOICE_THRESHOLD_FACTOR = 0.2;
+const VOICE_THRESHOLD_FLOOR = 0.005;
+const VOICE_LEVEL_RETENTION_MS = 60000;
 const sessionsByKey = new Map();
 // Sessions deleted on this page, in flight or done (viewKey). A list refresh must never bring one back: a listing
 // read while a delete was still removing files can arrive after that delete finished. A failed delete leaves the set.
@@ -1906,11 +1914,45 @@ function consumeVoiceSamples(request, samples) {
   const discard = Math.max(0, Math.floor(request.nextSource) - request.sourceBase);
   if (discard) { request.sourceSamples = merged.slice(discard); request.sourceBase += discard; }
   const accepted = output.slice(0, Math.max(0, request.sampleLimit - request.sampleCount));
+  if (request.live) recordVoiceLevels(request, accepted);
   request.sampleCount += accepted.length; request.pending.push(...accepted);
   while (request.pending.length >= 1600) queueVoiceSamples(request, request.pending.splice(0, 1600));
-  if (accepted.length < output.length || request.sampleCount >= request.sampleLimit) {
+  if (!request.live && (accepted.length < output.length || request.sampleCount >= request.sampleLimit)) {
     setViewError(request.view, t("voice.limit")); void stopVoiceRecording();
   }
+}
+function recordVoiceLevels(request, samples) {
+  for (const sample of samples) {
+    request.rmsSumSquares += sample * sample;
+    request.rmsCount++;
+    if (request.rmsCount < VOICE_RMS_WINDOW_SAMPLES) continue;
+    const endSample = request.rmsWindowStart + request.rmsCount;
+    request.levels.push({ startMs: request.rmsWindowStart / 16, endMs: endSample / 16, value: Math.sqrt(request.rmsSumSquares / request.rmsCount) });
+    request.currentRms = request.levels[request.levels.length - 1].value;
+    request.rmsWindowStart = endSample; request.rmsCount = 0; request.rmsSumSquares = 0;
+    const cutoff = endSample / 16 - VOICE_LEVEL_RETENTION_MS;
+    while (request.levels.length && request.levels[0].endMs < cutoff) request.levels.shift();
+  }
+}
+function updateVoiceSpeechBaseline(request, startMs, endMs) {
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs < 0 || endMs < startMs) return;
+  const overlapping = request.levels.filter((level) => level.startMs < endMs && level.endMs > startMs);
+  if (!overlapping.length) return;
+  request.speechLevels.push(...overlapping.map((level) => level.value));
+  const sorted = request.speechLevels.slice().sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+  request.threshold = Math.max(VOICE_THRESHOLD_FLOOR, VOICE_THRESHOLD_FACTOR * median);
+}
+function checkVoiceAutoStop(request) {
+  if (voiceCapture.request !== request || request.phase !== "recording") return;
+  if (!request.live || voiceAutoStopSilenceMs <= 0 || !request.segmentCount || request.draftUtterances.size ||
+      !Number.isFinite(request.threshold) || !Number.isFinite(request.currentRms) || request.currentRms >= request.threshold) {
+    request.quietSince = 0;
+    return;
+  }
+  if (!request.quietSince) request.quietSince = Date.now();
+  else if (Date.now() - request.quietSince >= voiceAutoStopSilenceMs) void stopVoiceRecording();
 }
 async function createVoiceContext() {
   let context;
@@ -1945,9 +1987,20 @@ function watchVoiceChannel(request) {
     if (request.cancelled || request.finished) return;
     if (message.type === "status") { if (message.state === "transcribing") { request.phase = "stopping"; renderVoice(); } }
     else if (message.type === "segment") {
+      if (Number.isSafeInteger(message.utterance) && message.utterance >= 0) request.draftUtterances.delete(message.utterance);
+      if (request.live) {
+        request.segmentCount++;
+        updateVoiceSpeechBaseline(request, message.startMs, message.endMs);
+      }
       if (typeof message.text !== "string" || !message.text.trim()) return;
       request.insertedSegments = true;
       if (views.has(request.view)) insertVoiceText(request, message.text);
+    }
+    else if (message.type === "draft") {
+      if (request.live && Number.isSafeInteger(message.utterance) && message.utterance >= 0) {
+        request.draftUtterances.add(message.utterance);
+        request.quietSince = 0;
+      }
     }
     else if (message.type === "result") { request.closed = true; if (!request.insertedSegments && views.has(request.view)) insertVoiceText(request, message.text || ""); finishVoice(request); }
     else if (message.type === "error") {
@@ -1967,7 +2020,7 @@ function startVoiceRecording() {
   const view = current;
   if (!voiceProviders.length || !view || view.readOnlyParticipant) return;
   const provider = voiceProviders.find((item) => item.provider === voiceCapture.selected) || voiceProviders[0], value = promptText();
-  const request = { view, provider, phase: "starting", promptSnapshot: value, lastPromptValue: value, caret: promptOffset(), channel: null, stream: null, context: null, node: null, source: null, ended: false, finished: false, cancelled: false, closed: false, insertedSegments: false, queued: Promise.resolve(), pending: [], sourceSamples: new Float32Array(0), sourceBase: 0, nextSource: 0, sampleCount: 0, sampleLimit: Math.max(1, Math.floor(((voiceCapture.descriptions.get(provider.provider)?.maxAudioMs || 300000) - 1000) * 16)), startedAt: Date.now() };
+  const request = { view, provider, phase: "starting", promptSnapshot: value, lastPromptValue: value, caret: promptOffset(), channel: null, stream: null, context: null, node: null, source: null, ended: false, finished: false, cancelled: false, closed: false, insertedSegments: false, queued: Promise.resolve(), pending: [], sourceSamples: new Float32Array(0), sourceBase: 0, nextSource: 0, sampleCount: 0, sampleLimit: Math.max(1, Math.floor(((voiceCapture.descriptions.get(provider.provider)?.maxAudioMs || 300000) - 1000) * 16)), rmsWindowStart: 0, rmsCount: 0, rmsSumSquares: 0, levels: [], speechLevels: [], currentRms: NaN, threshold: NaN, segmentCount: 0, draftUtterances: new Set(), quietSince: 0, startedAt: Date.now() };
   voiceCapture.request = request; renderVoice(); updateControls();
   let microphone, providerList, descriptionOutcome;
   try {
@@ -1988,7 +2041,8 @@ function startVoiceRecording() {
       if (request.finished || request.cancelled) { stream.getTracks().forEach((track) => track.stop()); try { request.channel?.send({ type: "cancel" }); } catch { /* closed */ } return; }
       if (!providers.some((item) => item.provider === provider.provider && item.version === 1)) throw new Error(t("voice.noProvider"));
       if (request.finished || request.cancelled) { try { request.channel?.send({ type: "cancel" }); } catch { /* closed */ } finishVoice(request); return; }
-      request.sampleLimit = Math.max(1, Math.floor(((description?.maxAudioMs || 300000) - 1000) * 16));
+      request.live = Boolean(description?.live);
+      request.sampleLimit = request.live ? Infinity : Math.max(1, Math.floor(((description?.maxAudioMs || 300000) - 1000) * 16));
       request.channel = await persephone.services.connect("speech.transcribe", { provider: provider.provider, version: 1 }, {
         type: "transcribe", format: { encoding: "pcm-s16le", sampleRate: 16000, channels: 1 }, prompt: "Claude, Codex, Persephone", ...(description?.live ? { live: true } : {}),
       });
@@ -2002,7 +2056,12 @@ function startVoiceRecording() {
       request.source.connect(request.node); request.node.connect(mute); mute.connect(request.context.destination);
       request.node.port.onmessage = ({ data }) => { if (data.type === "samples") consumeVoiceSamples(request, data.data); };
       request.phase = "recording"; request.startedAt = Date.now(); renderVoice();
-      request.timer = setInterval(() => { if (voiceCapture.request === request && request.phase === "recording") renderVoice(); }, 250);
+      request.timer = setInterval(() => {
+        if (voiceCapture.request === request && request.phase === "recording") {
+          checkVoiceAutoStop(request);
+          if (request.phase === "recording") renderVoice();
+        }
+      }, VOICE_LEVEL_CHECK_MS);
       if (request.stopRequested) void stopVoiceRecording();
     } catch (error) {
       request.stream?.getTracks().forEach((track) => track.stop());
@@ -2045,11 +2104,20 @@ $("#voice-provider").addEventListener("mousedown", (event) => event.preventDefau
 $("#voice-provider").addEventListener("click", openVoiceProviderMenu);
 window.addEventListener("focus", () => { void refreshVoiceProviders(); });
 document.addEventListener("visibilitychange", () => { if (document.hidden) void stopVoiceRecording(); else void refreshVoiceProviders(); });
-window.addEventListener("pagehide", () => cancelVoiceRecording(true));
-window.addEventListener("beforeunload", () => cancelVoiceRecording(true));
+const teardownVoiceTyping = () => { try { voiceTypingOff?.(); } catch { /* already disconnected */ } voiceTypingOff = null; };
+window.addEventListener("pagehide", () => { teardownVoiceTyping(); cancelVoiceRecording(true); });
+window.addEventListener("beforeunload", () => { teardownVoiceTyping(); cancelVoiceRecording(true); });
 persephone.page.onVisibilityChange((visible) => { if (!visible) void stopVoiceRecording(); else void refreshVoiceProviders(); });
 window.addEventListener("keydown", (event) => { if (event.key === "Escape" && cancelVoiceRecording()) { event.preventDefault(); event.stopPropagation(); } });
 void refreshVoiceProviders();
+if (typeof persephone.voiceTyping?.onAutoStopSilenceChange === "function") {
+  try {
+    voiceTypingOff = persephone.voiceTyping.onAutoStopSilenceChange((value) => {
+      voiceAutoStopSilenceMs = Number.isFinite(value) && Number.isInteger(value) && value >= 0 ? value : 0;
+      if (voiceCapture.request) voiceCapture.request.quietSince = 0;
+    });
+  } catch { voiceAutoStopSilenceMs = 0; }
+}
 prompt.addEventListener("input", () => { if (!promptText()) clearPrompt(); updateCommandMenu(); updateControls(); });
 prompt.addEventListener("keydown", (event) => {
   if (commandMenuKey(event)) return;

@@ -5,7 +5,7 @@ import { mkdir, readFile, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { assetSnapshot, dataRoot, downloadVerified, installRuntime, MODELS, RUNTIME, sha256File, stopProcessTree, verifyRuntime } from "./downloads.mjs";
 import { languageCodeForName, languageNameForCode } from "./whisper-languages.mjs";
-import { LiveStream } from "./live.mjs";
+import { LiveStream, LIVE_TUNING } from "./live.mjs";
 
 const MAX_AUDIO_MS = 300000;
 const MAX_RETRY_LANGUAGES = 3;
@@ -162,13 +162,15 @@ function allowedLanguages(requested) {
   const own = parseLanguages(requested);
   return own.length ? own : settings.languages;
 }
-async function inferOnce(request, server, wav, language, prompt = request.prompt || settings.vocabulary || "") {
+async function inferOnce(request, server, wav, language, prompt = request.prompt || settings.vocabulary || "", timestamps = false) {
   const form = new FormData();
   form.append("file", wav, "speech.wav");
   form.append("response_format", "verbose_json");
   form.append("temperature", "0.0");
-  form.append("no_timestamps", "true");
+  form.append("no_timestamps", timestamps ? "false" : "true");
   form.append("no_language_probabilities", "true");
+  // whisper-server splits segments at 60 characters; without this the split can fall inside a word ("т" + "екст").
+  form.append("split_on_word", "true");
   form.append("language", language);
   form.append("prompt", prompt);
   const response = await fetch(`http://127.0.0.1:${server.port}/inference`, { method: "POST", body: form, signal: request.controller.signal });
@@ -195,32 +197,87 @@ function jobWav(request, range) {
   const bytes = chunks.reduce((total, chunk) => total + chunk.length, 0);
   return { wav: makeWav(chunks, bytes), bytes };
 }
+// Whitespace tokens keep their punctuation and case for emitted text; comparison uses the normalized form.
+const splitWords = (text) => String(text || "").split(/\s+/).filter(Boolean);
+const normalizeWord = (word) => word.normalize("NFKC").toLocaleLowerCase().replace(/[\p{P}\p{S}]/gu, "");
+const normalizedWords = (text) => splitWords(text).map((word) => ({ original: word, normalized: normalizeWord(word) })).filter((word) => word.normalized);
+// Whisper rewrites committed words between passes ("14" -> "14-й", "фраз" -> "фраза"); treat those as the same word.
+function sameWord(left, right) {
+  if (left === right) return true;
+  const [short, long] = left.length <= right.length ? [left, right] : [right, left];
+  return short.length >= 2 && long.startsWith(short) && long.length - short.length <= 2;
+}
+function alignCommitted(words, committed) {
+  const norms = words.map((word) => word.normalized), prefix = committed.map((word) => word.normalized);
+  if (!prefix.length) return { offset: 0, matched: 0 };
+  let at = 0;
+  while (at < prefix.length && at < norms.length && sameWord(norms[at], prefix[at])) at++;
+  if (at === prefix.length) return { offset: at, matched: at };
+  // Whisper may reword or drop committed words; they sit at the start of the window, so look near it.
+  const reach = Math.min(norms.length, prefix.length + 3);
+  for (let length = Math.min(prefix.length, reach); length > 0; length--) {
+    const suffix = prefix.slice(-length);
+    const found = norms.findIndex((_, index) => index + length <= reach && suffix.every((word, offset) => index + offset < norms.length && sameWord(norms[index + offset], word)));
+    if (found >= 0) return { offset: found + length, matched: length };
+  }
+  // No anchor: committed words are still in this window (trims stop at fully committed segments), so skip that many.
+  return { offset: Math.min(prefix.length, norms.length), matched: 0 };
+}
+function longestCommonPrefix(sequences) {
+  if (!sequences.length) return [];
+  let length = Math.min(...sequences.map((sequence) => sequence.length));
+  for (let index = 0; index < length; index++) {
+    if (sequences.some((sequence) => sequence[index].normalized !== sequences[0][index].normalized)) { length = index; break; }
+  }
+  return sequences[0].slice(0, length);
+}
 async function infer(request, server, job) {
   const { wav, bytes } = jobWav(request, job.range);
   const allowed = allowedLanguages(request.languages);
-  const committedText = request.live ? request.committed.map((item) => item.text).join(" ").slice(-200) : "";
+  const committedText = request.live ? request.trimmedCommitted.map((item) => item.text).join(" ").slice(-200) : "";
   const basePrompt = request.live ? (request.prompt || settings.vocabulary || "").slice(0, 400) : request.prompt || settings.vocabulary || "";
   const prompt = committedText ? `${basePrompt}${basePrompt ? " " : ""}${committedText}` : basePrompt;
   const latched = request.live && request.latchedLanguage;
-  let language, result;
+  const timestamps = Boolean(request.live && request.partialMode && (job.kind === "partial" || job.kind === "commit"));
+  let language, result, forcedLanguage = false;
+  const startedAt = Date.now();
+  if (job.kind === "partial") {
+    const forced = latched || (allowed.length === 1 ? allowed[0] : null);
+    language = forced || "auto";
+    forcedLanguage = Boolean(forced);
+    result = await inferOnce(request, server, wav, language, prompt, timestamps);
+    if (!forced) {
+      language = languageCodeForName(result.language);
+      if (allowed.length && !allowed.includes(language)) {
+        // Whisper often hears Ukrainian as Russian; rather than drop the pass, use the likeliest allowed language.
+        const probabilities = result.language_probabilities && typeof result.language_probabilities === "object" ? result.language_probabilities : {};
+        language = allowed.reduce((best, code) => (probabilities[code] ?? 0) > (probabilities[best] ?? 0) ? code : best, allowed[0]);
+        result = await inferOnce(request, server, wav, language, prompt, timestamps);
+      }
+      // Detecting the language makes every pass slower, so the first confident pass fixes it for the stream.
+      if (job.speechSamples >= LIVE_TUNING.languageLatchSpeechMs * 16) request.latchedLanguage = language;
+    }
+    return { text: result.text.trim(), language, segments: result.segments, forcedLanguage, elapsedPassMs: Date.now() - startedAt, speechSamples: job.speechSamples, range: job.range };
+  }
   if (latched || allowed.length === 1) {
     language = latched || allowed[0];
-    result = await inferOnce(request, server, wav, language, prompt);
+    forcedLanguage = true;
+    result = await inferOnce(request, server, wav, language, prompt, timestamps);
   } else if (job.kind === "draft") {
-    result = await inferOnce(request, server, wav, "auto", prompt);
+    result = await inferOnce(request, server, wav, "auto", prompt, timestamps);
     language = languageCodeForName(result.language);
     if (allowed.length && !allowed.includes(language)) return null;
   } else {
     if (allowed.length === 1) {
       language = allowed[0];
-      result = await inferOnce(request, server, wav, language, prompt);
+      result = await inferOnce(request, server, wav, language, prompt, timestamps);
     } else {
-      result = await inferOnce(request, server, wav, "auto", prompt);
+      result = await inferOnce(request, server, wav, "auto", prompt, timestamps);
       language = languageCodeForName(result.language);
       if (allowed.length && !allowed.includes(language)) {
         let best = null;
         for (const code of allowed.slice(0, MAX_RETRY_LANGUAGES)) {
-          const candidate = await inferOnce(request, server, wav, code, prompt);
+          const candidate = await inferOnce(request, server, wav, code, prompt, timestamps);
           if (!best || confidence(candidate) > confidence(best.result)) best = { code, result: candidate };
         }
         language = best.code;
@@ -229,13 +286,103 @@ async function infer(request, server, job) {
     }
     if (request.live && job.speechSamples >= 32000 && language) request.latchedLanguage = language;
   }
-  return { text: request.live ? result.text.trim() : result.text, language, audioMs: Math.round((request.live ? request.bytes : bytes) / 32000 * 1000), elapsedMs: Math.max(0, Date.now() - (request.live ? request.startedAt : request.endedAt)) };
+  const text = request.live ? result.text.trim() : result.text;
+  if (!request.live) return { text, language, audioMs: Math.round(bytes / 32000 * 1000), elapsedMs: Math.max(0, Date.now() - request.endedAt) };
+  return { text, language, segments: result.segments, forcedLanguage, elapsedPassMs: Date.now() - startedAt, speechSamples: job.speechSamples, range: job.range, audioMs: Math.round(request.bytes / 32000 * 1000), elapsedMs: Math.max(0, Date.now() - request.startedAt) };
 }
 function draftIsStale(job) {
   const request = job.request;
-  if (job.kind !== "draft") return false;
-  return request.terminal || request.draftsInvalid || request.committedIds.has(job.range.utterance) ||
+  if (job.kind !== "draft" && job.kind !== "partial") return false;
+  return request.terminal || request.draftsInvalid || request.finishedIds.has(job.range.utterance) ||
     queue.some((item) => item.request === request && item.range.utterance === job.range.utterance && (item.kind === "commit" || item.kind === "draft" && item.version > job.version));
+}
+async function emitSegment(request, utterance, words, language, range, final = false) {
+  const deliver = async (message) => {
+    if (!request.channel.writable) await request.channel.whenWritable();
+    if (!final && (request.finishedIds.has(utterance) || request.draftsInvalid)) return false;
+    return send(request.channel, message);
+  };
+  if (!words.length) {
+    if (final) await deliver({ type: "segment", utterance, text: "", language, startMs: Math.round(range.start / 16), endMs: Math.round(range.end / 16) });
+    return true;
+  }
+  const text = words.map((word) => word.original).join(" ");
+  if (!await deliver({ type: "segment", utterance, text, language, startMs: Math.round(range.start / 16), endMs: Math.round(range.end / 16) })) return false;
+  request.committed.push({ text, language });
+  request.committedInWindow.push(...words);
+  return true;
+}
+async function sendLiveDraft(request, utterance, text, range) {
+  if (!request.channel.writable) await request.channel.whenWritable();
+  if (request.finishedIds.has(utterance) || request.terminal || request.draftsInvalid) return;
+  await send(request.channel, { type: "draft", utterance, text, startMs: Math.round(range.start / 16), endMs: Math.round(range.end / 16) });
+}
+async function commitStablePartial(request, job, result) {
+  if (!result || request.terminal || request.draftsInvalid || request.finishedIds.has(job.range.utterance)) return;
+  const latestWords = normalizedWords(result.text);
+  request.hypotheses.push({ words: latestWords, language: result.language, segments: result.segments, range: job.range });
+  request.hypotheses = request.hypotheses.slice(-LIVE_TUNING.agreementCount);
+  const aligned = request.hypotheses.map((hypothesis) => ({ hypothesis, words: hypothesis.words.slice(alignCommitted(hypothesis.words, request.committedInWindow).offset) }));
+  const sameLanguage = aligned.length === LIVE_TUNING.agreementCount && aligned.every(({ hypothesis }) => hypothesis.language && hypothesis.language === aligned[0].hypothesis.language);
+  const agreed = sameLanguage ? longestCommonPrefix(aligned.map(({ words }) => words).reverse()) : [];
+  // The latest pass may end mid-word ("т" of "текст"), so its last word waits for the next pass.
+  const stable = agreed.slice(0, Math.max(0, Math.min(agreed.length, aligned.at(-1).words.length - 1)));
+  if (stable.length >= LIVE_TUNING.minNewWords) {
+    if (!await emitSegment(request, job.range.utterance, stable, result.language, job.range)) return;
+    if (!request.latchedLanguage && result.speechSamples >= 32000 && sameLanguage) request.latchedLanguage = result.language;
+  }
+  const tail = latestWords.slice(alignCommitted(latestWords, request.committedInWindow).offset);
+  if (tail.length && !request.finishedIds.has(job.range.utterance)) {
+    await sendLiveDraft(request, job.range.utterance, tail.map((word) => word.original).join(" "), job.range);
+  }
+  if (sameLanguage) trimCommittedWindow(request, job, result);
+}
+function trimCommittedWindow(request, job, result) {
+  if (!request.partialMode || job.range.end - job.range.start <= LIVE_TUNING.trimAfterMs * 16) return;
+  if (!Array.isArray(result?.segments) || !result.segments.length) return;
+  let committedCount = 0, safeEnd = null;
+  const committed = request.committedInWindow;
+  const keep = job.range.end - 16000;
+  for (const [index, segment] of result.segments.entries()) {
+    const words = normalizedWords(segment?.text).map((word) => word.normalized);
+    // Whisper returns zero-length punctuation-only segments; they hold no words to match.
+    if (!words.length) continue;
+    if (!Number.isFinite(segment.start) || !Number.isFinite(segment.end) || segment.start < 0 || segment.end <= segment.start) break;
+    const next = committed.slice(committedCount, committedCount + words.length).map((word) => word.normalized);
+    if (words.length !== next.length || words.some((word, position) => word !== next[position])) break;
+    // Whisper squashes the last segment and stretches the one before it over its audio, so a segment
+    // end is trusted only when a normally timed segment follows it.
+    const following = result.segments.slice(index + 1).find((item) => normalizedWords(item?.text).length);
+    const end = job.range.start + Math.floor(segment.end * 16000);
+    const plausible = following && following.end - following.start >= Math.max(0.3, 0.2 * normalizedWords(following.text).length);
+    if (!plausible || following.start < segment.end - 0.05 || end > keep) break;
+    committedCount += words.length;
+    safeEnd = end;
+  }
+  if (!committedCount || !Number.isSafeInteger(safeEnd) || safeEnd <= request.stream.baseSample) return;
+  const moved = committed.splice(0, committedCount);
+  request.trimmedWords.push(...moved);
+  request.trimmedCommitted.push({ text: moved.map((word) => word.original).join(" ") });
+  request.stream.trimBefore(safeEnd);
+  // Keep earlier passes for agreement: drop the words whose audio was just trimmed.
+  request.hypotheses = request.hypotheses.map((hypothesis) => ({ ...hypothesis, words: hypothesis.words.slice(alignCommitted(hypothesis.words, moved).offset) }));
+}
+async function finishPartialRequest(request, job, result) {
+  if (!result || request.terminal) return;
+  const words = normalizedWords(result.text);
+  // Trimmed words are no longer in this audio, so only words still in the window can repeat.
+  const alreadyCommitted = request.committedInWindow;
+  const alignment = alignCommitted(words, alreadyCommitted);
+  if (alreadyCommitted.length && !alignment.matched) console.error("[speech-to-text] final hypothesis did not align with committed live text; skipping the committed word count.");
+  const tail = words.slice(alignment.offset);
+  await emitSegment(request, job.range.utterance, tail, result.language, job.range, true);
+  if (!request.latchedLanguage && job.speechSamples >= 32000 && result.language) request.latchedLanguage = result.language;
+  request.committedSampleEnd = Math.max(request.committedSampleEnd, job.range.end);
+  if (request.committedInWindow.length) request.trimmedCommitted.push({ text: request.committedInWindow.map((word) => word.original).join(" ") });
+  request.stream.trimBefore(job.range.end);
+  request.trimmedWords = [];
+  request.committedInWindow = [];
+  request.hypotheses = [];
 }
 function enqueueJob(request, kind, range) {
   const job = { request, kind, range, speechSamples: range.speechSamples || 0, version: 0 };
@@ -243,7 +390,7 @@ function enqueueJob(request, kind, range) {
     job.version = (request.draftVersions.get(range.utterance) || 0) + 1;
     request.draftVersions.set(range.utterance, job.version);
   }
-  if (kind === "commit") request.committedIds.add(range.utterance);
+  if (kind === "partial") request.partialPending = true;
   request.pending++;
   queue.push(job);
   void pumpQueue();
@@ -257,7 +404,11 @@ async function pumpQueue() {
   queuePump = (async () => {
     while (!stopping && queue.length) {
       const job = queue.shift(), request = job.request;
-      if (request.terminal || request.channel.closed || draftIsStale(job)) { request.pending--; liveDone(request); continue; }
+      if (request.terminal || request.channel.closed || draftIsStale(job)) {
+        request.pending--;
+        if (job.kind === "partial") { request.partialPending = false; request.stream?.segmenter.partialComplete(request.stream.samples, job.range.utterance); }
+        liveDone(request); continue;
+      }
       activeRequest = job;
       try {
         const model = await getActiveModel();
@@ -273,20 +424,31 @@ async function pumpQueue() {
         request.controller = new AbortController();
         if (!request.live) await send(request.channel, { type: "status", state: "transcribing" });
         const result = await infer(request, server, job);
-        if (request.live && job.kind === "draft") {
-          if (result && !request.terminal && !request.draftsInvalid && !request.finishedIds.has(job.range.utterance)) await send(request.channel, { type: "draft", utterance: job.range.utterance, text: result.text, startMs: Math.round(job.range.start / 16), endMs: Math.round(job.range.end / 16) });
-        } else if (request.live) {
-          request.committedSampleEnd = Math.max(request.committedSampleEnd, job.range.end);
-          // A draft still in flight stays useful until its utterance's commit is done, so only this blocks it.
-          request.finishedIds.add(job.range.utterance);
-          if (result?.text) {
-            request.committed.push({ text: result.text, language: result.language });
-            await send(request.channel, { type: "segment", utterance: job.range.utterance, text: result.text, language: result.language, startMs: Math.round(job.range.start / 16), endMs: Math.round(job.range.end / 16) });
+        if (request.live && job.kind === "partial") {
+          if (result?.forcedLanguage) {
+            if (result.elapsedPassMs > LIVE_TUNING.maxPassMs) request.slowPasses++;
+            else request.slowPasses = 0;
+            if (request.slowPasses >= LIVE_TUNING.slowPassesBeforeFallback) {
+              request.partialMode = false;
+              request.stream.segmenter.disablePartials();
+              request.hypotheses = [];
+              console.warn("[speech-to-text] partial inference disabled after consecutive slow forced-language passes.");
+            }
           }
+          if (!request.terminal && !request.finishedIds.has(job.range.utterance)) await commitStablePartial(request, job, result);
+        } else if (request.live && job.kind === "draft") {
+          if (result) await sendLiveDraft(request, job.range.utterance, result.text, job.range);
+        } else if (request.live) {
+          request.finishedIds.add(job.range.utterance);
+          await finishPartialRequest(request, job, result);
         } else await terminal(request, { type: "result", ...result });
       } catch (error) {
         if (!request.terminal) await terminal(request, { type: "error", code: "engine-failed", message: error?.message || "Transcription failed." });
       } finally {
+        if (job.kind === "partial") {
+          request.partialPending = false;
+          request.stream?.segmenter.partialComplete(request.stream.samples, job.range.utterance);
+        }
         request.pending = Math.max(0, request.pending - 1);
         liveDone(request);
         if (activeRequest === job) activeRequest = null;
@@ -300,7 +462,7 @@ async function pumpQueue() {
 function startTranscription(channel, open, early = []) {
   clearTimeout(idleTimer);
   const live = open.live === true;
-  const request = { channel, live, chunks: [], bytes: 0, totalSamples: 0, languages: Array.isArray(open.languages) ? open.languages.slice(0, 32) : [], prompt: typeof open.prompt === "string" ? open.prompt.slice(0, 4000) : "", terminal: false, controller: null, endedAt: 0, startedAt: Date.now(), ended: false, pending: 0, waiters: [], committed: [], committedIds: new Set(), finishedIds: new Set(), committedSampleEnd: 0, scheduledCommitEnd: 0, lastUtterance: 0, warmup: null, draftVersions: new Map(), draftsInvalid: false, latchedLanguage: null, preparingSent: false, stream: null };
+  const request = { channel, live, chunks: [], bytes: 0, totalSamples: 0, languages: Array.isArray(open.languages) ? open.languages.slice(0, 32) : [], prompt: typeof open.prompt === "string" ? open.prompt.slice(0, 4000) : "", terminal: false, controller: null, endedAt: 0, startedAt: Date.now(), ended: false, pending: 0, waiters: [], committed: [], committedInWindow: [], trimmedCommitted: [], trimmedWords: [], hypotheses: [], slowPasses: 0, partialMode: true, partialPending: false, finishedIds: new Set(), committedSampleEnd: 0, scheduledCommitEnd: 0, lastUtterance: 0, warmup: null, draftVersions: new Map(), draftsInvalid: false, latchedLanguage: null, preparingSent: false, stream: null };
   requests.add(request);
   const stopRequest = () => {
     if (request.terminal) return;
@@ -321,15 +483,25 @@ function startTranscription(channel, open, early = []) {
       const runtime = path.join(root, "runtime", RUNTIME.id);
       request.stream = new LiveStream({ runtime,
         onEvent: (event) => {
-          // After a helper failure only drafts stop; commits already detected still count.
           if (request.terminal || (event.type === "draft" && request.draftsInvalid)) return;
           request.lastUtterance = Math.max(request.lastUtterance, event.utterance);
-          if (event.type === "commit") request.scheduledCommitEnd = Math.max(request.scheduledCommitEnd, event.end);
+          if (event.type === "commit") {
+            request.scheduledCommitEnd = Math.max(request.scheduledCommitEnd, event.end);
+            request.finishedIds.add(event.utterance);
+          }
+          if (event.type === "partial") {
+            if (!request.partialMode || request.partialPending || request.finishedIds.has(event.utterance) || queue.some((job) => job.request === request && job.kind === "commit") || activeRequest?.request === request && activeRequest.kind === "commit") {
+              request.stream?.segmenter.partialComplete(request.stream.samples, event.utterance);
+              return;
+            }
+          }
+          if (event.type === "partial-cancel") return;
           enqueueJob(request, event.type, event);
         },
         onFailure: () => {
           request.draftsInvalid = true;
-          for (let i = queue.length - 1; i >= 0; i--) if (queue[i].request === request && queue[i].kind === "draft") { queue.splice(i, 1); request.pending--; }
+          request.partialMode = false;
+          for (let i = queue.length - 1; i >= 0; i--) if (queue[i].request === request && ["draft", "partial"].includes(queue[i].kind)) { if (queue[i].kind === "partial") request.partialPending = false; queue.splice(i, 1); request.pending--; }
           liveDone(request);
         },
       });
@@ -364,7 +536,7 @@ function startTranscription(channel, open, early = []) {
           if (unsegmented) console.error("[speech-to-text] live stream ended with speech but no utterances; transcribing it whole.");
           if (request.stream.failed || unsegmented) {
             request.draftsInvalid = true;
-            const start = request.scheduledCommitEnd;
+            const start = Math.max(request.scheduledCommitEnd, request.stream.baseSample);
             if (request.totalSamples > start) enqueueJob(request, "commit", { utterance: ++request.lastUtterance, start, end: request.totalSamples, speechSamples: 0 });
           }
           await waitJobs(request);

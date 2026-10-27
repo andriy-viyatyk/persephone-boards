@@ -1,3 +1,6 @@
+## 1.2.0
+- Live dictation now types words every second or so while you keep speaking, not only at pauses.
+
 ## 1.1.0
 - Added whisper-runtime r2 with the streaming VAD helper.
 - Added opt-in live segmentation with draft previews and committed utterances.

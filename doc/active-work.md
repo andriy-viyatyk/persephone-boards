@@ -13,6 +13,7 @@ Overview of active and planned board work in this repo.
 - [ ] [BT-062: Streaming partial commits (local agreement) in Speech to Text live mode](tasks/BT-062-streaming-partial-commits/README.md) — Persephone **EPIC-134**, phase 2, task 3 of 6; supersedes the proposed audio left-context task.
 - [ ] [BT-063: Speech to Text board redesigned main screen](tasks/BT-063-speech-to-text-main-screen/README.md) — Collapsible setup and license panels with a central live or record-then-type test control.
 - [ ] [BT-064: Speech to Text default language hints follow the Persephone UI language](tasks/BT-064-app-language-default/README.md) — Service-resolved `app` locale hint with English fallback for every caller.
+- [ ] [BT-065: Speech to Text language picker setting](tasks/BT-065-language-multiselect/README.md) — `language-hints` becomes a checkbox multi-select with endonym labels; needs Persephone US-1730 (bridge 1.43.0).
 
 ## Planned
 

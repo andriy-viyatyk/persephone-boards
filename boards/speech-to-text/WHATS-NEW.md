@@ -1,6 +1,7 @@
 ## 1.3.0
 - Redesigned the main screen with collapsible setup and license panels and a central live or record-then-type test control.
 - Default language hints now follow Persephone's UI language, with English as a fallback.
+- Languages can now be selected with a checkbox multi-select while retaining the `app,en` default.
 
 ## 1.2.0
 - Live dictation now types words every second or so while you keep speaking, not only at pauses.

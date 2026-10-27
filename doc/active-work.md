@@ -8,17 +8,14 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-- [ ] [BT-060: Streaming VAD helper in the whisper runtime](tasks/BT-060-whisper-vad-helper/README.md) — Persephone **EPIC-134**, phase 2, task 1 of 6.
-- [ ] [BT-061: Live segmentation in the Speech to Text service](tasks/BT-061-live-segmentation/README.md) — Persephone **EPIC-134**, phase 2, task 2 of 6.
-- [ ] [BT-062: Streaming partial commits (local agreement) in Speech to Text live mode](tasks/BT-062-streaming-partial-commits/README.md) — Persephone **EPIC-134**, phase 2, task 3 of 6; supersedes the proposed audio left-context task.
-- [ ] [BT-066: Agent Chat: live insertion of committed phrases](tasks/BT-066-agent-chat-live-insertion/README.md) — Persephone **EPIC-134**, phase 2, task 6 of 6; consume advertised live transcription with incremental insertion of committed phrases.
-- [ ] [BT-067: Speech to Text - hour-long live sessions](tasks/BT-067-long-live-sessions/README.md) — Persephone **EPIC-134**, phase 4; service-side duration and memory bounds for concurrent live channels.
-- [ ] [BT-068: Agent Chat microphone - live dictation with auto-stop after silence](tasks/BT-068-agent-chat-auto-stop/README.md) — Persephone **EPIC-134**; configured silence stop for live dictation, with uncapped live duration.
-- [ ] [BT-063: Speech to Text board redesigned main screen](tasks/BT-063-speech-to-text-main-screen/README.md) — Collapsible setup and license panels with a central live or record-then-type test control.
-- [ ] [BT-064: Speech to Text default language hints follow the Persephone UI language](tasks/BT-064-app-language-default/README.md) — Service-resolved `app` locale hint with English fallback for every caller.
-- [ ] [BT-065: Speech to Text language picker setting](tasks/BT-065-language-multiselect/README.md) — `language-hints` becomes a checkbox multi-select with endonym labels; needs Persephone US-1730 (bridge 1.43.0).
+*(none)*
 
 ## Planned
+
+Board work for Persephone's **EPIC-134** (*Live transcription and meeting transcripts*) is finished:
+BT-060 – BT-068 added live segmentation, hour-long live sessions and the language picker to
+`speech-to-text` v1.3.0, and live dictation with auto-stop to Agent Chat 1.3.1. Both stay unpublished
+on `develop` until Persephone 5.0.15 ships. See [`tasks/completed.md`](tasks/completed.md).
 
 Board work for Persephone's **EPIC-133** (*Speech to text*) is finished: BT-055 – BT-057 built the
 Whisper runtime, the `speech-to-text` v1.0.0 provider board and Agent Chat 1.3.0 voice input. Both

@@ -20,6 +20,7 @@
     "models.small": "Kisebb teljesítményű gépekhez",
     "models.base": "Minimális memóriahasználat",
     "models.medium": "Középkategóriás alternatíva",
+    "models.largeV3": "Legjobb fordítás, lassabb",
     "engine.notReady": "Telepítsd a futtatókörnyezetet és egy modellt",
     "engine.ready": "Kész",
     "engine.running": "A motor fut",

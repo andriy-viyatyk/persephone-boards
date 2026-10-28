@@ -20,6 +20,7 @@
     "models.small": "For smaller machines",
     "models.base": "Lowest memory use",
     "models.medium": "Mid-tier alternative",
+    "models.largeV3": "Best translation, slower",
     "engine.notReady": "Install the runtime and a model",
     "engine.ready": "Ready",
     "engine.running": "Engine running",

@@ -20,6 +20,7 @@ export const MODELS = Object.freeze([
   { file: "ggml-small-q5_1.bin", supportsWhisperTranslateTask: true, bytes: 190085487, sha256: "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb", url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin" },
   { file: "ggml-base-q5_1.bin", supportsWhisperTranslateTask: true, bytes: 59707625, sha256: "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898", url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin" },
   { file: "ggml-medium-q5_0.bin", supportsWhisperTranslateTask: true, bytes: 539212467, sha256: "19fea4b380c3a618ec4723c3eef2eb785ffba0d0538cf43f8f235e7b3b34220f", url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium-q5_0.bin" },
+  { file: "ggml-large-v3-q5_0.bin", supportsWhisperTranslateTask: true, bytes: 1081140203, sha256: "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1", url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin" },
 ]);
 
 export function dataRoot(env = process.env) {

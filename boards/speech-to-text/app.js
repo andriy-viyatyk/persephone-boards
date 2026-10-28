@@ -6,6 +6,7 @@ const MODEL_ROWS = [
   { file: "ggml-small-q5_1.bin", bytes: 190085487, label: "models.small" },
   { file: "ggml-base-q5_1.bin", bytes: 59707625, label: "models.base" },
   { file: "ggml-medium-q5_0.bin", bytes: 539212467, label: "models.medium" },
+  { file: "ggml-large-v3-q5_0.bin", bytes: 1081140203, label: "models.largeV3" },
 ];
 const RUNTIME_BYTES = 19958389;
 const $ = (selector) => document.querySelector(selector);

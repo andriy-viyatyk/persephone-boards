@@ -20,6 +20,7 @@
     "models.small": "Mazāk jaudīgiem datoriem",
     "models.base": "Mazākais atmiņas patēriņš",
     "models.medium": "Vidējas klases alternatīva",
+    "models.largeV3": "Labākais tulkojums, lēnāks",
     "engine.notReady": "Instalējiet izpildvidi un modeli",
     "engine.ready": "Gatavs",
     "engine.running": "Dzinis darbojas",

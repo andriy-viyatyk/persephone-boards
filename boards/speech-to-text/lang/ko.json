@@ -20,6 +20,7 @@
     "models.small": "저사양 컴퓨터용",
     "models.base": "최소 메모리 사용",
     "models.medium": "중간급 대안",
+    "models.largeV3": "최고의 번역, 더 느림",
     "engine.notReady": "런타임과 모델을 설치하세요",
     "engine.ready": "준비됨",
     "engine.running": "엔진 실행 중",

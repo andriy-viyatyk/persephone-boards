@@ -20,6 +20,7 @@
     "models.small": "Para computadores mais simples",
     "models.base": "Menor uso de memória",
     "models.medium": "Alternativa intermediária",
+    "models.largeV3": "Melhor tradução, mais lento",
     "engine.notReady": "Instale o ambiente de execução e um modelo",
     "engine.ready": "Pronto",
     "engine.running": "Mecanismo em execução",

@@ -20,6 +20,7 @@
     "models.small": "Mažesnio našumo kompiuteriams",
     "models.base": "Mažiausias atminties naudojimas",
     "models.medium": "Vidutinės klasės alternatyva",
+    "models.largeV3": "Geriausias vertimas, lėtesnis",
     "engine.notReady": "Įdiekite vykdymo aplinką ir modelį",
     "engine.ready": "Paruošta",
     "engine.running": "Variklis veikia",

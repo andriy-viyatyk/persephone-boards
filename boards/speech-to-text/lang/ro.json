@@ -20,6 +20,7 @@
     "models.small": "Pentru computere mai puțin performante",
     "models.base": "Consum minim de memorie",
     "models.medium": "Alternativă de nivel mediu",
+    "models.largeV3": "Cea mai bună traducere, mai lent",
     "engine.notReady": "Instalarea mediului de execuție și a unui model",
     "engine.ready": "Gata",
     "engine.running": "Motor în execuție",

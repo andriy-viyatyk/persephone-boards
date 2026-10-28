@@ -20,6 +20,7 @@
     "models.small": "Do słabszych komputerów",
     "models.base": "Najmniejsze zużycie pamięci",
     "models.medium": "Alternatywa ze średniej półki",
+    "models.largeV3": "Najlepsze tłumaczenie, wolniejszy",
     "engine.notReady": "Zainstaluj środowisko i model",
     "engine.ready": "Gotowe",
     "engine.running": "Silnik działa",

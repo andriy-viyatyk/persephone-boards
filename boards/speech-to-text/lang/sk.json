@@ -20,6 +20,7 @@
     "models.small": "Pre menej výkonné počítače",
     "models.base": "Najnižšia spotreba pamäte",
     "models.medium": "Alternatíva strednej triedy",
+    "models.largeV3": "Najlepší preklad, pomalší",
     "engine.notReady": "Nainštalujte behové prostredie a model",
     "engine.ready": "Pripravené",
     "engine.running": "Nástroj je spustený",

@@ -20,6 +20,7 @@
     "models.small": "Für kleinere Geräte",
     "models.base": "Geringster Speicherbedarf",
     "models.medium": "Alternative der mittleren Klasse",
+    "models.largeV3": "Beste Übersetzung, langsamer",
     "engine.notReady": "Laufzeit und Modell installieren",
     "engine.ready": "Bereit",
     "engine.running": "Engine läuft",

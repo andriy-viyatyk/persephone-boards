@@ -20,6 +20,7 @@
     "models.small": "Per computer meno potenti",
     "models.base": "Consumo minimo di memoria",
     "models.medium": "Alternativa di fascia media",
+    "models.largeV3": "Traduzione migliore, più lento",
     "engine.notReady": "Installa l’ambiente e un modello",
     "engine.ready": "Pronto",
     "engine.running": "Motore in esecuzione",

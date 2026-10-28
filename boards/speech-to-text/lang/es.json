@@ -20,6 +20,7 @@
     "models.small": "Para equipos modestos",
     "models.base": "Menor uso de memoria",
     "models.medium": "Alternativa intermedia",
+    "models.largeV3": "Mejor traducción, más lento",
     "engine.notReady": "Instala el entorno y un modelo",
     "engine.ready": "Listo",
     "engine.running": "Motor en ejecución",

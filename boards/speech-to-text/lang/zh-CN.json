@@ -20,6 +20,7 @@
     "models.small": "适用于配置较低的电脑",
     "models.base": "占用内存最少",
     "models.medium": "中档替代方案",
+    "models.largeV3": "翻译效果最佳，速度较慢",
     "engine.notReady": "安装运行时和模型",
     "engine.ready": "就绪",
     "engine.running": "引擎正在运行",

@@ -20,6 +20,7 @@
     "models.small": "Väiksematele arvutitele",
     "models.base": "Väikseim mälukasutus",
     "models.medium": "Keskmise suurusega alternatiiv",
+    "models.largeV3": "Parim tõlge, aeglasem",
     "engine.notReady": "Installi käituskeskkond ja mudel",
     "engine.ready": "Valmis",
     "engine.running": "Mootor töötab",

@@ -1,5 +1,6 @@
 ## 1.4.0
 - Added English translation requests to the `speech.transcribe` v1 service while preserving source-language detection and ordinary transcription.
+- Added the optional Large v3 model (about 1.1 GB): the best translation to English, slower than the default Large v3 Turbo.
 
 ## 1.3.0
 - Interface languages: Belarusian, Chinese (Simplified), Estonian, French, German, Hungarian, Italian, Japanese, Korean, Latvian, Lithuanian, Polish, Portuguese (Brazil), Romanian, Slovak, Spanish and Ukrainian.

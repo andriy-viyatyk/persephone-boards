@@ -20,6 +20,7 @@
     "models.small": "低スペックの PC 向け",
     "models.base": "メモリ使用量が最小",
     "models.medium": "中程度の代替モデル",
+    "models.largeV3": "翻訳に最適、低速",
     "engine.notReady": "ランタイムとモデルをインストール",
     "engine.ready": "準備完了",
     "engine.running": "エンジン実行中",

@@ -14,6 +14,8 @@ const LIVE_QUEUE_TUNING = {
   queuedCommitHardCapMs: 300000, // Stop live intake and drain accepted commits at five minutes queued.
 };
 const MAX_RETRY_LANGUAGES = 3;
+// Claude sets this after the whisper-server comparison in step 5.
+const USE_TRANSLATE_TASK_FOR_SUPPORTED_MODELS = false;
 const SETTING_IDS = ["language-hints", "vocabulary-prompt", "use-gpu", "idle-unload-minutes", "caller-approval-policy"];
 const ACTIVE_MODEL_KEY = "speech-to-text.active-model";
 const DEFAULT_MODEL = MODELS[0].file;
@@ -214,6 +216,8 @@ async function inferOnce(request, server, wav, language, prompt = request.prompt
   form.append("split_on_word", "true");
   form.append("language", language);
   form.append("prompt", prompt);
+  const model = modelByName.get(server.fingerprint.split(":")[0]);
+  if (request.translate && language === "en" && USE_TRANSLATE_TASK_FOR_SUPPORTED_MODELS && model?.supportsWhisperTranslateTask) form.append("translate", "true");
   const response = await fetch(`http://127.0.0.1:${server.port}/inference`, { method: "POST", body: form, signal: request.controller.signal });
   if (!response.ok) throw new Error(`whisper-server returned HTTP ${response.status}.`);
   const result = await response.json();
@@ -297,6 +301,38 @@ async function infer(request, server, job) {
   const timestamps = Boolean(request.live && request.partialMode && (job.kind === "partial" || job.kind === "commit"));
   let language, result, forcedLanguage = false;
   const startedAt = Date.now();
+  if (request.translate) {
+    // Keep source-language detection and allowed-language settlement intact, then make the
+    // English text pass. Once live input has a source-language latch, segments go straight to English.
+    if (request.live && request.latchedLanguage) {
+      language = request.latchedLanguage;
+      forcedLanguage = true;
+      result = await inferOnce(request, server, wav, "en", prompt, timestamps);
+    } else {
+      const detectedResult = await inferOnce(request, server, wav, "auto", prompt, timestamps, request.live);
+      const detectedLanguage = languageCodeForName(detectedResult.language);
+      let source = { language: detectedLanguage, result: detectedResult };
+      if (request.live) {
+        source = await settleDetectedLanguage(request, server, wav, prompt, timestamps, allowed, detectedResult);
+        forcedLanguage = source.language !== detectedLanguage;
+      } else if (allowed.length && !allowed.includes(detectedLanguage)) {
+        let best = null;
+        for (const code of allowed.slice(0, MAX_RETRY_LANGUAGES)) {
+          const candidate = await inferOnce(request, server, wav, code, prompt, timestamps);
+          if (!best || confidence(candidate) > confidence(best.result)) best = { code, result: candidate };
+        }
+        source = { language: best.code, result: best.result };
+        forcedLanguage = true;
+      }
+      language = source.language;
+      result = language === "en" ? source.result : await inferOnce(request, server, wav, "en", prompt, timestamps);
+      if (request.live && job.kind === "partial" && job.speechSamples >= LIVE_TUNING.languageLatchSpeechMs * 16 && languageProbability(source.result, language) >= LIVE_TUNING.languageLatchMinProbability) request.latchedLanguage = language;
+      if (request.live && job.kind !== "partial" && job.kind !== "draft" && job.speechSamples >= 32000 && language) request.latchedLanguage = language;
+    }
+    const text = request.live ? result.text.trim() : result.text;
+    if (!request.live) return { text, language, audioMs: Math.round(bytes / 32000 * 1000), elapsedMs: Math.max(0, Date.now() - request.endedAt) };
+    return { text, language, segments: result.segments, forcedLanguage, elapsedPassMs: Date.now() - startedAt, speechSamples: job.speechSamples, range: job.range, audioMs: Math.round(request.bytes / 32000 * 1000), elapsedMs: Math.max(0, Date.now() - request.startedAt) };
+  }
   if (job.kind === "partial") {
     const forced = latched || (allowed.length === 1 ? allowed[0] : null);
     language = forced || "auto";
@@ -525,7 +561,7 @@ async function pumpQueue() {
 function startTranscription(channel, open, early = []) {
   clearTimeout(idleTimer);
   const live = open.live === true;
-  const request = { channel, live, chunks: [], bytes: 0, totalSamples: 0, languages: Array.isArray(open.languages) ? open.languages.slice(0, 32) : [], prompt: typeof open.prompt === "string" ? open.prompt.slice(0, 4000) : "", terminal: false, controller: null, endedAt: 0, startedAt: Date.now(), ended: false, pending: 0, waiters: [], committedText: "", promptTail: "", lastCommittedLanguage: "", committedInWindow: [], hypotheses: [], slowPasses: 0, partialMode: true, partialPending: false, finishedIds: new Set(), committedSampleEnd: 0, scheduledCommitEnd: 0, lastUtterance: 0, warmup: null, draftVersions: new Map(), draftsInvalid: false, latchedLanguage: null, preparingSent: false, stream: null, backlogError: null };
+  const request = { channel, live, translate: open.translate === true, chunks: [], bytes: 0, totalSamples: 0, languages: Array.isArray(open.languages) ? open.languages.slice(0, 32) : [], prompt: typeof open.prompt === "string" ? open.prompt.slice(0, 4000) : "", terminal: false, controller: null, endedAt: 0, startedAt: Date.now(), ended: false, pending: 0, waiters: [], committedText: "", promptTail: "", lastCommittedLanguage: "", committedInWindow: [], hypotheses: [], slowPasses: 0, partialMode: true, partialPending: false, finishedIds: new Set(), committedSampleEnd: 0, scheduledCommitEnd: 0, lastUtterance: 0, warmup: null, draftVersions: new Map(), draftsInvalid: false, latchedLanguage: null, preparingSent: false, stream: null, backlogError: null };
   requests.add(request);
   const stopRequest = () => {
     if (request.terminal) return;
@@ -736,7 +772,7 @@ persephone.service.onChannel(async (channel, open, info) => {
     return;
   }
   if (open?.type === "describe") {
-    await send(channel, { type: "description", engine: "whisper.cpp", model: await getActiveModel(), languages: "auto", local: true, maxAudioMs: MAX_AUDIO_MS, features: ["live"] });
+    await send(channel, { type: "description", engine: "whisper.cpp", model: await getActiveModel(), languages: "auto", local: true, maxAudioMs: MAX_AUDIO_MS, features: ["live", "translate"] });
     close(channel);
     return;
   }

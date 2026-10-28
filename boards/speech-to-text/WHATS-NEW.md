@@ -1,3 +1,6 @@
+## 1.4.0
+- Added English translation requests to the `speech.transcribe` v1 service while preserving source-language detection and ordinary transcription.
+
 ## 1.3.0
 - Interface languages: Belarusian, Chinese (Simplified), Estonian, French, German, Hungarian, Italian, Japanese, Korean, Latvian, Lithuanian, Polish, Portuguese (Brazil), Romanian, Slovak, Spanish and Ukrainian.
 - Redesigned the main screen with collapsible setup and license panels and a central live or record-then-type test control.

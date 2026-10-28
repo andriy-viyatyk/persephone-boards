@@ -2175,11 +2175,13 @@ $("#voice").addEventListener("click", () => { if (voiceCapture.request?.phase ==
 $("#voice-provider").addEventListener("mousedown", (event) => event.preventDefault());
 $("#voice-provider").addEventListener("click", openVoiceProviderMenu);
 window.addEventListener("focus", () => { void refreshVoiceProviders(); });
-document.addEventListener("visibilitychange", () => { if (document.hidden) void stopVoiceRecording(); else void refreshVoiceProviders(); });
+// Hiding the board (a closed right-pinned popover, another tab) keeps recording: the user may look
+// at another page while still speaking. Only the stop button, Escape or the silence timeout end it.
+document.addEventListener("visibilitychange", () => { if (!document.hidden) void refreshVoiceProviders(); });
 const teardownVoiceTyping = () => { try { voiceTypingOff?.(); } catch { /* already disconnected */ } voiceTypingOff = null; };
 window.addEventListener("pagehide", () => { teardownVoiceTyping(); cancelVoiceRecording(true); });
 window.addEventListener("beforeunload", () => { teardownVoiceTyping(); cancelVoiceRecording(true); });
-persephone.page.onVisibilityChange((visible) => { if (!visible) void stopVoiceRecording(); else void refreshVoiceProviders(); });
+persephone.page.onVisibilityChange((visible) => { if (visible) void refreshVoiceProviders(); });
 window.addEventListener("keydown", (event) => { if (event.key === "Escape" && cancelVoiceRecording()) { event.preventDefault(); event.stopPropagation(); } });
 void refreshVoiceProviders();
 if (typeof persephone.voiceTyping?.onAutoStopSilenceChange === "function") {

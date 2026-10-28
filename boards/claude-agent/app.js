@@ -732,7 +732,17 @@ function sessionGroups(rows) {
   for (const group of groups.values()) group.sessions.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
   return [...groups.values()].sort((a, b) => String(newest(b)).localeCompare(String(newest(a))) || folderName(a.cwd).localeCompare(folderName(b.cwd)));
 }
+// Tells Persephone whether the selected session's agent is working, so the page tab animates even while this
+// page is hidden (Persephone 5.0.16+, bridge 1.45; older versions have no setWorking and show nothing).
+let reportedWorking = false;
+function reportWorking() {
+  const working = Boolean(current?.channel && current.busy);
+  if (working === reportedWorking || typeof persephone.setWorking !== "function") return;
+  reportedWorking = working;
+  persephone.setWorking(working);
+}
 function renderSessions() {
+  reportWorking();
   const list = $("#session-list");
   const hiddenParticipants = participantSessionIds();
   const rows = state.sessions.filter((item) => !hiddenParticipants.has(item.id));
@@ -783,17 +793,17 @@ function renderSessions() {
         const view = viewFor(item.id, item.provider);
         const button = element("button", `session-item${item.id && item.id === current?.id ? " active" : ""}${view?.unread ? " unread" : ""}`);
         button.type = "button";
-        // The engine's icon, gray when not running, green when the board runs it (pulsing while the agent works).
+        // The engine's icon, muted when not running, full color when the board runs it.
         const dotState = view?.channel ? (view.busy ? "live busy" : "live") : "";
         const providerInfo = state.descriptions.get(item.provider || "");
         const engine = providerInfo ? providerInfo.providerLabel || t(providerInfo.providerLabelKey) : "";
         button.title = [item.title, engine, formatWhenExact(item.updatedAt), t(view?.channel ? (view.busy ? "sessionWorking" : "sessionLive") : "sessionIdle")].filter(Boolean).join("\n");
         const group = state.groupIndex.find((entry) => entry.mainSessionId === item.id);
         const hasParticipants = Boolean(group?.participants.some((participant) => !participant.removed));
-        // A connected session also gets a green dot laid over the icon's left edge, so the row keeps its spacing.
-        const marker = element("span", "session-marker");
+        // A connected session also gets a thin ring around the icon, with a light orbiting it while the agent works;
+        // both are drawn outside the row's layout, so the row keeps its spacing.
+        const marker = element("span", `session-marker ${dotState}`.trim());
         marker.append(engineIcon(providerInfo, dotState, hasParticipants));
-        if (view?.channel) marker.append(element("span", "connected-dot"));
         button.append(marker, element("span", "title", item.title), element("span", "when", formatWhen(item.updatedAt)));
         button.addEventListener("click", () => void openStoredSession(item));
         button.addEventListener("contextmenu", (event) => { event.preventDefault(); openSessionMenu(item, event.clientX, event.clientY); });

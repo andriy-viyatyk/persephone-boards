@@ -75,6 +75,9 @@ details[open] > summary::before, .folder.expanded .caret { transform: rotate(90d
 @keyframes session-pulse { 50% { opacity: .3; } }
 .session-item.unread .title { color: var(--p-text); font-weight: 600; }
 .session-item .when { flex: none; font-size: 11px; color: var(--p-text-muted); }
+/* The selected row sits on the theme's selection color, so its text (and the session ring, below) use the selection text color. */
+.session-item.active .title, .session-item.active:hover .title { color: var(--p-selection-text, var(--p-text)); }
+.session-item.active .when { color: color-mix(in srgb, var(--p-selection-text, var(--p-text)) 80%, transparent); }
 .participant-item { width: calc(100% - 34px); margin-left: 34px; border-style: dashed; }
 .participant-item .title { font-size: 12px; }
 .participant-item.removed { opacity: .65; }
@@ -85,10 +88,15 @@ details[open] > summary::before, .folder.expanded .caret { transform: rotate(90d
 .engine-icon { flex: none; align-self: center; width: 13px; height: 13px; background: color-mix(in srgb, var(--engine-color, var(--p-text-muted)) 40%, var(--p-text-muted)); -webkit-mask: var(--engine-icon) center / contain no-repeat; mask: var(--engine-icon) center / contain no-repeat; }
 .engine-icon.live { background: var(--engine-color, var(--p-success)); }
 .engine-icon.busy { animation: session-pulse 1.2s ease-in-out infinite; }
-.session-marker { position: relative; flex: none; align-self: center; display: flex; }
-.connected-dot { position: absolute; left: -7px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--p-success); box-shadow: 0 0 0 1.5px var(--p-bg); pointer-events: none; }
-.session-item.active .connected-dot { box-shadow: 0 0 0 1.5px var(--p-tree-selection, var(--p-hover)); }
-.session-item:hover:not(.active) .connected-dot { box-shadow: 0 0 0 1.5px var(--p-panel); }
+/* In the session list a connected session gets a 1px ring around its icon; while the agent works a glowing arc
+   (a fifth of the ring, fading into a tail) orbits it, behind the icon (which stays still instead of pulsing). Ring and light use the accent for every engine. */
+.session-marker { position: relative; flex: none; align-self: center; display: flex; --ring-size: 19px; --ring-color: var(--p-accent); }
+.session-item.active .session-marker { --ring-color: var(--p-selection-text, var(--p-accent)); }
+.session-marker > .engine-icon, .session-marker > .session-dot { position: relative; z-index: 1; animation: none; }
+.session-marker.live::before, .session-marker.busy::after { content: ""; position: absolute; left: 50%; top: 50%; border-radius: 50%; pointer-events: none; }
+.session-marker.live::before { width: var(--ring-size); height: var(--ring-size); margin: calc(var(--ring-size) / -2) 0 0 calc(var(--ring-size) / -2); box-sizing: border-box; border: 1px solid color-mix(in srgb, var(--ring-color) 60%, transparent); }
+.session-marker.busy::after { width: calc(var(--ring-size) + 4px); height: calc(var(--ring-size) + 4px); margin: calc(var(--ring-size) / -2 - 2px) 0 0 calc(var(--ring-size) / -2 - 2px); background: conic-gradient(transparent 0deg, color-mix(in srgb, var(--ring-color) 55%, transparent) 25deg, var(--ring-color) 50deg, color-mix(in srgb, var(--ring-color) 50%, white) 64deg, white 72deg, transparent 74deg); -webkit-mask: radial-gradient(closest-side, transparent 62%, #000 70%, #000 94%, transparent 100%); mask: radial-gradient(closest-side, transparent 62%, #000 70%, #000 94%, transparent 100%); filter: drop-shadow(0 0 2px var(--ring-color)) drop-shadow(0 0 3px var(--ring-color)); animation: session-orbit 1.6s linear infinite; }
+@keyframes session-orbit { to { transform: rotate(360deg); } }
 
 /* Main column */
 .main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }

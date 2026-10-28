@@ -134,6 +134,17 @@ label { display: flex; flex-direction: column; gap: 4px; color: var(--p-text-mut
 .msg.approval .markdown-body { max-height: 50vh; overflow: auto; margin-bottom: 10px; padding: 0 2px; }
 .approval-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .approval-outcome { color: var(--p-text-muted); font-size: 12px; }
+/* Question cards (AskUserQuestion): options toggle; a pressed option takes the accent border. */
+.msg.approval.question.answered { border-color: var(--p-border); }
+.question-item { margin-bottom: 12px; }
+.question-header { display: inline-block; margin-bottom: 4px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--p-border); color: var(--p-text-muted); font-size: 11px; }
+.question-text { margin-bottom: 6px; white-space: pre-wrap; }
+.question-options { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+.question-option { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; white-space: normal; }
+.question-option[aria-pressed="true"] { border-color: var(--p-accent); box-shadow: inset 3px 0 0 var(--p-accent); }
+.question-label { font-weight: 600; }
+.question-description { color: var(--p-text-muted); font-size: 12px; }
+.question-other { width: 100%; box-sizing: border-box; }
 /* Typing dots: three dots lit one after another in a loop. */
 .msg.typing { display: flex; gap: 5px; align-items: center; width: fit-content; margin-top: 10px; padding: 12px 14px; }
 .msg.typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--p-text-muted); opacity: .3; animation: typing-dot 1.2s infinite; }

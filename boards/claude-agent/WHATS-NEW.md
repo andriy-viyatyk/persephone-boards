@@ -1,3 +1,6 @@
+## 1.3.2
+- When Claude asks you questions, the chat shows them with their options. Pick answers or type your own, then **Submit answers** or **Skip**.
+
 ## 1.3.1
 - Interface languages: Belarusian, Chinese (Simplified), Estonian, French, German, Hungarian, Italian, Japanese, Korean, Latvian, Lithuanian, Polish, Portuguese (Brazil), Romanian, Slovak, Spanish and Ukrainian.
 - Live dictation can stop automatically after the configured quiet interval once speech is committed.

@@ -1717,7 +1717,8 @@ function handleEvent(view, event) {
 // ── Approvals: auto mode asks about what its classifier cannot decide, and plan mode ends with the plan to approve.
 // The card stays in the chat with the answer given; one left unanswered when the turn ends no longer applies.
 function addApproval(view, event) {
-  const isPlan = event.kind === "plan" && Boolean(modeDescriptor(viewMode(view), view)?.planApproval);
+  if (event.kind === "question" && Array.isArray(event.questions)) { addQuestions(view, event); return; }
+  const isPlan =event.kind === "plan" && Boolean(modeDescriptor(viewMode(view), view)?.planApproval);
   const node = element("div", `msg approval${isPlan ? " plan" : ""}`);
   if (event.participantApproval && event.author) addAuthorBadge(node, { ...event.author, kind: "agent" }, event.author.provider);
   node.append(element("div", "approval-title", isPlan ? t("plan.title") : t("approval.title", { tool: event.tool || t("tool") })));
@@ -1758,8 +1759,69 @@ function addApproval(view, event) {
   updateTyping();
   if (view !== current) { view.unread = true; renderSessions(); }
 }
+// AskUserQuestion: each question offers its options as toggle buttons plus a free-text "Other" answer.
+// Submit sends the chosen labels keyed by question text; Skip declines, and Claude continues without answers.
+function addQuestions(view, event) {
+  const node = element("div", "msg approval question");
+  node.append(element("div", "approval-title", t("question.title")));
+  const answers = event.questions.map((item) => {
+    const block = element("div", "question-item");
+    if (item.header) block.append(element("span", "question-header", item.header));
+    block.append(element("div", "question-text", item.question));
+    const chosen = new Set();
+    const options = element("div", "question-options");
+    const other = element("input", "question-other");
+    other.type = "text";
+    other.placeholder = t("question.other");
+    for (const option of item.options || []) {
+      const choice = element("button", "question-option");
+      choice.type = "button";
+      choice.append(element("span", "question-label", option.label));
+      if (option.description) { choice.append(element("span", "question-description", option.description)); choice.title = option.description; }
+      choice.setAttribute("aria-pressed", "false");
+      choice.addEventListener("click", () => {
+        if (!item.multiSelect) { chosen.clear(); options.querySelectorAll(".question-option").forEach((button) => button.setAttribute("aria-pressed", "false")); other.value = ""; }
+        if (chosen.has(option.label)) chosen.delete(option.label); else chosen.add(option.label);
+        choice.setAttribute("aria-pressed", String(chosen.has(option.label)));
+        refresh();
+      });
+      options.append(choice);
+    }
+    other.addEventListener("input", () => {
+      if (!item.multiSelect && other.value.trim()) { chosen.clear(); options.querySelectorAll(".question-option").forEach((button) => button.setAttribute("aria-pressed", "false")); }
+      refresh();
+    });
+    block.append(options, other);
+    node.append(block);
+    return { item, value: () => [...chosen, ...(other.value.trim() ? [other.value.trim()] : [])].join(", ") };
+  });
+  const actions = element("div", "approval-actions");
+  const submit = element("button", "primary", t("question.submit"));
+  const skip = element("button", "", t("question.skip"));
+  submit.type = skip.type = "button";
+  function refresh() { submit.disabled = answers.some((answer) => !answer.value()); }
+  const finish = (decision, extra, outcome) => {
+    node.querySelectorAll("button, input").forEach((control) => { control.disabled = true; });
+    channelSend(view.channel, { type: "approval-response", requestId: event.requestId, decision, ...extra })
+      .then(() => { view.approvals.delete(event.requestId); node.classList.add("answered"); actions.replaceChildren(element("span", "approval-outcome", outcome)); updateTyping(); })
+      .catch((error) => { node.querySelectorAll("button, input").forEach((control) => { control.disabled = false; }); refresh(); setViewError(view, error.message); });
+  };
+  submit.addEventListener("click", () => finish("allow", { answers: Object.fromEntries(answers.map((answer) => [answer.item.question, answer.value()])) }, t("question.answered")));
+  skip.addEventListener("click", () => finish("deny", {}, t("question.skipped")));
+  actions.append(submit, skip);
+  node.append(actions);
+  refresh();
+  view.approvals.set(event.requestId, actions);
+  appendMessage(view, node, true);
+  updateTyping();
+  if (view !== current) { view.unread = true; renderSessions(); }
+}
 function expireApprovals(view) {
-  for (const actions of view.approvals.values()) actions.replaceChildren(element("span", "approval-outcome", t("approval.expired")));
+  for (const actions of view.approvals.values()) {
+    actions.parentElement?.classList.add("answered");
+    actions.parentElement?.querySelectorAll("button, input").forEach((control) => { control.disabled = true; });
+    actions.replaceChildren(element("span", "approval-outcome", t("approval.expired")));
+  }
   view.approvals.clear();
   updateTyping();
 }

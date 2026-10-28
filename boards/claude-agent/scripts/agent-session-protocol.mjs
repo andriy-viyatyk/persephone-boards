@@ -114,6 +114,11 @@ export function summarizeToolInput(name, input) {
     ? ["command", "description", "timeout"]
     : ["file_path", "path", "notebook_path", "pattern", "glob", "query", "url", "description", "command"];
   const summary = {};
+  // AskUserQuestion carries only a questions array; list one "header — question" line per question.
+  if (name === "AskUserQuestion" && Array.isArray(input?.questions)) {
+    const lines = input.questions.map((item) => [item?.header, item?.question].filter((part) => typeof part === "string" && part).join(" — ")).filter(Boolean);
+    if (lines.length) summary.questions = boundedString(lines.join("\n"), 4096).value;
+  }
   for (const key of allowed) {
     const value = input?.[key];
     if (typeof value === "string") summary[key] = boundedString(value, 4096).value;

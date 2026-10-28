@@ -567,6 +567,7 @@ function sessionOptions(session) {
 }
 
 async function requestApproval(session, toolName, input, { signal } = {}) {
+  if (toolName === "AskUserQuestion") return askUserQuestion(session, input, signal);
   if (session.groupParticipant) {
     const decision = policyDecision(session, toolName, input);
     if (decision.permissionDecision === "allow") return { behavior: "allow", updatedInput: input };
@@ -607,6 +608,24 @@ async function pageApproval(session, toolName, input, signal) {
   if (result.decision === "allow-session") session.allowedScopes.add(scope);
   if (result.decision === "allow" || result.decision === "allow-session") return { behavior: "allow", updatedInput: input };
   return { behavior: "deny", message: result.message || "Denied by the user." };
+}
+
+// AskUserQuestion needs answers, not permission: the chat page shows the questions and returns the chosen
+// labels keyed by question text. Joined agents and cross-board callers have no one to answer, in any mode.
+async function askUserQuestion(session, input, signal) {
+  if (session.groupParticipant || session.crossBoard) return { behavior: "deny", message: "No one can answer questions here. Put the question in your reply instead." };
+  if (session.closed) return { behavior: "deny", message: "Session is no longer available." };
+  const text = (value, bytes) => typeof value === "string" ? boundedString(value, bytes).value : "";
+  const questions = (Array.isArray(input?.questions) ? input.questions : []).slice(0, 8).map((item) => ({
+    question: text(item?.question, 4096),
+    header: text(item?.header, 256),
+    multiSelect: item?.multiSelect === true,
+    options: (Array.isArray(item?.options) ? item.options : []).slice(0, 16).map((option) => ({ label: text(option?.label, 512), description: text(option?.description, 2048) })).filter((option) => option.label),
+  })).filter((item) => item.question);
+  if (!questions.length) return { behavior: "deny", message: "The question list was empty." };
+  const result = await askApproval(session, "question:AskUserQuestion", { kind: "question", tool: "AskUserQuestion", summary: summarizeToolInput("AskUserQuestion", input).summary, questions }, signal, 0);
+  if (result.decision === "allow" && result.answers) return { behavior: "allow", updatedInput: { ...input, answers: result.answers } };
+  return { behavior: "deny", message: result.message || "The user skipped these questions. Continue with your best judgment, or ask in your reply." };
 }
 
 function userMessage(text) {

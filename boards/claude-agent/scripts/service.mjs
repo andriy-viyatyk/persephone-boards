@@ -280,7 +280,12 @@ function approve(session, request) {
     return settleApproval(session, request.requestId, { decision: "deny", message: "Action exceeds the effective permission mode." });
   }
   if (request.mode !== undefined && !session.adapter.acceptsMode(request.mode)) return replyError(session.channel, request, "protocol-error", "Approval continuation mode is invalid.", false, session);
-  settleApproval(session, request.requestId, { decision: request.decision, message: request.message ? boundedString(request.message, 32 * 1024).value : undefined, ...(request.mode ? { mode: request.mode } : {}) });
+  // Answers to AskUserQuestion: question text → chosen label(s) or free text.
+  const answers = request.answers;
+  if (answers !== undefined && (pending.scope !== "question:AskUserQuestion" || !answers || typeof answers !== "object" || Array.isArray(answers)
+    || Object.keys(answers).length > 8 || Object.values(answers).some((value) => typeof value !== "string"))) return replyError(session.channel, request, "protocol-error", "Approval answers are invalid.", false, session);
+  const boundedAnswers = answers && Object.fromEntries(Object.entries(answers).map(([question, value]) => [question, boundedString(value, 8 * 1024).value]));
+  settleApproval(session, request.requestId, { decision: request.decision, message: request.message ? boundedString(request.message, 32 * 1024).value : undefined, ...(request.mode ? { mode: request.mode } : {}), ...(boundedAnswers ? { answers: boundedAnswers } : {}) });
 }
 const policyDecision = (session, toolName, input = {}) => {
   if (session?.groupParticipant && /^(?:mcp__)?agent_chat(?:__|\.)post_message$/.test(toolName)) return { permissionDecision: "allow", kind: "mcp" };

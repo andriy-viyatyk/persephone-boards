@@ -228,6 +228,8 @@
     "profiles.roleTitle": "Titlul rolului",
     "profiles.instructions": "Instrucțiuni",
     "profiles.summary": "Rezumat",
+    "profiles.instructionsHint": "Instrucțiunile acestui agent",
+    "profiles.summaryHint": "Vizibil celorlalți agenți când acest agent se alătură",
     "profiles.provider": "Furnizor",
     "profiles.model": "Model",
     "profiles.effort": "Nivel de efort",

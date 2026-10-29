@@ -228,6 +228,8 @@
     "profiles.roleTitle": "Nazwa roli",
     "profiles.instructions": "Instrukcje",
     "profiles.summary": "Podsumowanie",
+    "profiles.instructionsHint": "Instrukcje dla tego agenta",
+    "profiles.summaryHint": "Widoczne dla innych agentów, gdy ten agent dołącza",
     "profiles.provider": "Dostawca",
     "profiles.model": "Model",
     "profiles.effort": "Poziom rozumowania",

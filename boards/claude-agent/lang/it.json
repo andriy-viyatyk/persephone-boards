@@ -228,6 +228,8 @@
     "profiles.roleTitle": "Titolo del ruolo",
     "profiles.instructions": "Istruzioni",
     "profiles.summary": "Riepilogo",
+    "profiles.instructionsHint": "Istruzioni di questo agente",
+    "profiles.summaryHint": "Visibile agli altri agenti quando questo agente si unisce",
     "profiles.provider": "Provider",
     "profiles.model": "Modello",
     "profiles.effort": "Impegno",

@@ -228,6 +228,8 @@
     "profiles.roleTitle": "Rolli nimetus",
     "profiles.instructions": "Juhised",
     "profiles.summary": "Kokkuvõte",
+    "profiles.instructionsHint": "Selle agendi juhised",
+    "profiles.summaryHint": "Nähtav teistele agentidele, kui see agent liitub",
     "profiles.provider": "Teenusepakkuja",
     "profiles.model": "Mudel",
     "profiles.effort": "Jõupingutus",

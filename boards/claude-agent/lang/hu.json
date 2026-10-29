@@ -228,6 +228,8 @@
     "profiles.roleTitle": "Szerepkör megnevezése",
     "profiles.instructions": "Utasítások",
     "profiles.summary": "Összefoglaló",
+    "profiles.instructionsHint": "Ennek az ügynöknek az utasításai",
+    "profiles.summaryHint": "A többi ügynök látja, amikor ez az ügynök csatlakozik",
     "profiles.provider": "Szolgáltató",
     "profiles.model": "Modell",
     "profiles.effort": "Erőfeszítés",

@@ -228,6 +228,8 @@
     "profiles.roleTitle": "役割名",
     "profiles.instructions": "指示",
     "profiles.summary": "概要",
+    "profiles.instructionsHint": "このエージェントへの指示",
+    "profiles.summaryHint": "このエージェントが参加すると他のエージェントに表示されます",
     "profiles.provider": "プロバイダー",
     "profiles.model": "モデル",
     "profiles.effort": "推論の強さ",

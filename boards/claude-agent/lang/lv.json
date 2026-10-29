@@ -228,6 +228,8 @@
     "profiles.roleTitle": "Lomas nosaukums",
     "profiles.instructions": "Norādījumi",
     "profiles.summary": "Kopsavilkums",
+    "profiles.instructionsHint": "Šī aģenta norādījumi",
+    "profiles.summaryHint": "Redzams citiem aģentiem, kad šis aģents pievienojas",
     "profiles.provider": "Pakalpojumu sniedzējs",
     "profiles.model": "Modelis",
     "profiles.effort": "Domāšanas intensitāte",

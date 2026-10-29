@@ -228,6 +228,8 @@
     "profiles.roleTitle": "Título da função",
     "profiles.instructions": "Instruções",
     "profiles.summary": "Resumo",
+    "profiles.instructionsHint": "Instruções deste agente",
+    "profiles.summaryHint": "Visível para os outros agentes quando este agente entra",
     "profiles.provider": "Provedor",
     "profiles.model": "Modelo",
     "profiles.effort": "Nível de esforço",

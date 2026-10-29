@@ -228,6 +228,8 @@
     "profiles.roleTitle": "Role title",
     "profiles.instructions": "Instructions",
     "profiles.summary": "Summary",
+    "profiles.instructionsHint": "This agent's instructions",
+    "profiles.summaryHint": "Visible to other agents when this agent joins",
     "profiles.provider": "Provider",
     "profiles.model": "Model",
     "profiles.effort": "Effort",

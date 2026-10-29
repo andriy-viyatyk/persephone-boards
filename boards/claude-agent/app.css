@@ -351,6 +351,8 @@ html[data-mode="light"] .msg[data-agent-profile]:not([data-agent-color="none"]) 
 .profile-fields { padding: 12px; border-top: 1px solid var(--p-border); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
 .profile-fields[hidden] { display: none; }
 .profile-fields label { min-width: 0; }
+.profile-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.profile-label-hint { color: var(--p-text-muted); opacity: .8; font-size: .9em; font-style: italic; text-align: right; }
 .profile-fields .profile-wide { grid-column: 1 / -1; }
 .profile-fields textarea { min-height: 80px; resize: vertical; }
 .profile-fields label[data-field="instructions"] textarea { min-height: 124px; }

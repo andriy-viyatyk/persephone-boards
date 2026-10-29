@@ -228,6 +228,8 @@
     "profiles.roleTitle": "Názov roly",
     "profiles.instructions": "Pokyny",
     "profiles.summary": "Súhrn",
+    "profiles.instructionsHint": "Pokyny pre tohto agenta",
+    "profiles.summaryHint": "Viditeľné pre ostatných agentov, keď sa tento agent pripojí",
     "profiles.provider": "Poskytovateľ",
     "profiles.model": "Model",
     "profiles.effort": "Úsilie",

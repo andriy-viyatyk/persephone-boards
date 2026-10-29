@@ -1128,9 +1128,12 @@ function updateProfileHeader(record) {
   card.querySelector(".profile-unsaved").textContent = record.dirty ? t("profiles.unsavedMarker") : "";
   card.querySelector(".profile-unsaved").classList.toggle("hidden", !record.dirty);
 }
-function profileLabel(field, key, control, wide = false) {
+function profileLabel(field, key, control, wide = false, hintKey = "") {
   const label = element("label", wide ? "profile-wide" : ""); label.dataset.field = field;
-  const title = element("span", "", t(key)); label.append(title, control); return label;
+  const title = element("span", "", t(key));
+  if (!hintKey) { label.append(title, control); return label; }
+  const row = element("span", "profile-label-row"); row.append(title, element("span", "profile-label-hint", t(hintKey)));
+  label.append(row, control); return label;
 }
 function profileSelect(field, choices, selected) {
   const select = element("select"); select.dataset.field = field;
@@ -1189,7 +1192,7 @@ function renderProfileCard(record) {
   const permissionSelect = profileSelect("permissionMode", [["read-only",t("profiles.permission.readOnly")],["ask",t("profiles.permission.ask")],["auto-edit",t("profiles.permission.autoEdit")],["full-auto",t("profiles.permission.fullAuto")]], p.permissionMode);
   const instructions = element("textarea"); instructions.maxLength = 16384; instructions.value = p.instructions; instructions.dataset.field = "instructions";
   const summary = element("textarea"); summary.maxLength = 2048; summary.value = p.summary; summary.dataset.field = "summary";
-  panel.append(profileLabel("name", "profiles.name", nameInput), profileLabel("roleTitle", "profiles.roleTitle", roleInput), profileLabel("provider", "profiles.provider", provider), profileLabel("permissionMode", "profiles.permission", permissionSelect), profileLabel("model", "profiles.model", modelSelect), profileLabel("effort", "profiles.effort", effortSelect), profileLabel("color", "profiles.color", colorControl), profileLabel("instructions", "profiles.instructions", instructions, true), profileLabel("summary", "profiles.summary", summary, true));
+  panel.append(profileLabel("name", "profiles.name", nameInput), profileLabel("roleTitle", "profiles.roleTitle", roleInput), profileLabel("provider", "profiles.provider", provider), profileLabel("permissionMode", "profiles.permission", permissionSelect), profileLabel("model", "profiles.model", modelSelect), profileLabel("effort", "profiles.effort", effortSelect), profileLabel("color", "profiles.color", colorControl), profileLabel("instructions", "profiles.instructions", instructions, true, "profiles.instructionsHint"), profileLabel("summary", "profiles.summary", summary, true, "profiles.summaryHint"));
   if (record.error) panel.append(element("div", "profile-panel-error", record.error));
   const actions = element("div", "profile-actions");
   const duplicate = element("button", "", t("profiles.duplicate")); duplicate.type = "button"; duplicate.dataset.action = "duplicate";

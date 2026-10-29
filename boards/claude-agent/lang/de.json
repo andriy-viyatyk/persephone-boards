@@ -228,6 +228,8 @@
     "profiles.roleTitle": "Rollenbezeichnung",
     "profiles.instructions": "Anweisungen",
     "profiles.summary": "Zusammenfassung",
+    "profiles.instructionsHint": "Anweisungen für diesen Agenten",
+    "profiles.summaryHint": "Für andere Agenten sichtbar, wenn dieser Agent beitritt",
     "profiles.provider": "Anbieter",
     "profiles.model": "Modell",
     "profiles.effort": "Denkaufwand",

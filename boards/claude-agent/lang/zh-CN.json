@@ -228,6 +228,8 @@
     "profiles.roleTitle": "角色名称",
     "profiles.instructions": "指令",
     "profiles.summary": "摘要",
+    "profiles.instructionsHint": "此代理的指令",
+    "profiles.summaryHint": "此代理加入时其他代理可见",
     "profiles.provider": "提供程序",
     "profiles.model": "模型",
     "profiles.effort": "推理强度",

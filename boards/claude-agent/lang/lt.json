@@ -228,6 +228,8 @@
     "profiles.roleTitle": "Vaidmens pavadinimas",
     "profiles.instructions": "Instrukcijos",
     "profiles.summary": "Santrauka",
+    "profiles.instructionsHint": "Šio agento instrukcijos",
+    "profiles.summaryHint": "Matoma kitiems agentams, kai šis agentas prisijungia",
     "profiles.provider": "Teikėjas",
     "profiles.model": "Modelis",
     "profiles.effort": "Mąstymo lygis",

@@ -228,6 +228,8 @@
     "profiles.roleTitle": "역할 이름",
     "profiles.instructions": "지침",
     "profiles.summary": "요약",
+    "profiles.instructionsHint": "이 에이전트의 지침",
+    "profiles.summaryHint": "이 에이전트가 참여하면 다른 에이전트에게 표시됩니다",
     "profiles.provider": "공급자",
     "profiles.model": "모델",
     "profiles.effort": "추론 수준",

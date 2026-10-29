@@ -228,6 +228,8 @@
     "profiles.roleTitle": "Intitulé du rôle",
     "profiles.instructions": "Instructions",
     "profiles.summary": "Résumé",
+    "profiles.instructionsHint": "Instructions de cet agent",
+    "profiles.summaryHint": "Visible par les autres agents quand cet agent rejoint la discussion",
     "profiles.provider": "Fournisseur",
     "profiles.model": "Modèle",
     "profiles.effort": "Effort",

@@ -228,6 +228,8 @@
     "profiles.roleTitle": "Назва ролі",
     "profiles.instructions": "Інструкції",
     "profiles.summary": "Опис",
+    "profiles.instructionsHint": "Інструкції для цього агента",
+    "profiles.summaryHint": "Видно іншим агентам, коли цей агент приєднується",
     "profiles.provider": "Постачальник",
     "profiles.model": "Модель",
     "profiles.effort": "Рівень міркувань",

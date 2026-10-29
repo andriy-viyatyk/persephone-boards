@@ -1,3 +1,15 @@
+## 1.3.3
+- Reworked Agent profiles into independently editable, collapsible panels with per-profile drafts and save handling.
+- Added AI Vision access to read, create, update, duplicate, and delete saved Agent Chat profiles, with provider choices and permission effects described.
+- Added per-agent message colors, including existing group chat history, with color choices in the profile editor.
+- The Configure profile editor and AI Vision now share required-field and case-insensitive unique-name validation; profile deletion persists correctly.
+- A joined agent that answers without calling `post_message` now has its reply shared in the group chat, as intended; before, the reply stayed in its own session.
+- A joined agent's notice shows its model and effort.
+- A joined agent no longer receives its own posts and join notice back, which cost it an extra turn each time.
+- Click a joined agent's name in the main chat and choose **Remove from chat**. Removing an agent from the sidebar's right-click menu works again.
+- Session status now reports the working state to Persephone.
+- Voice recording continues while the board is hidden.
+
 ## 1.3.2
 - When Claude asks you questions, the chat shows them with their options. Pick answers or type your own, then **Submit answers** or **Skip**.
 

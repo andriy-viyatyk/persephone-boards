@@ -8,6 +8,8 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
+- [ ] [BT-072: Agent Chat profile management through AI Vision](tasks/BT-072-agent-chat-ai-vision/README.md): expose profile CRUD and provider/model/effort catalogs through `pages[id].editor.app`, backed by the existing service path
+
 Board work for Persephone's **EPIC-135** (*Translation service*):
 
 - [ ] [BT-069: Bergamot runtime](tasks/BT-069-bergamot-runtime/README.md): Firefox's translation engine (WASM), model downloads and caching, pivot through English

@@ -74,37 +74,18 @@
           <button type="button" role="tab" data-tab="instructions" data-i18n="instructions"></button>
           <button type="button" role="tab" data-tab="profiles" data-i18n="profiles.title"></button>
         </div>
+        <button type="button" id="profile-new" class="profile-new" data-i18n="profiles.newAgent"></button>
       </div>
       <section id="config-instructions" class="config-panel" role="tabpanel">
         <p data-i18n="instructionsNote"></p>
         <textarea id="instructions-text" spellcheck="false"></textarea>
       </section>
       <section id="config-profiles" class="config-panel" role="tabpanel">
-        <p id="profiles-warning" class="profile-warning hidden" data-i18n="profiles.sharedFolderWarning"></p>
-        <div class="profiles-layout">
-          <section class="profile-list-pane">
-            <nav id="profiles-list" class="profiles-list"></nav>
-            <div class="profile-list-actions">
-              <button type="button" id="profile-new" data-i18n="profiles.new"></button>
-              <button type="button" id="profile-duplicate" data-i18n="profiles.duplicate"></button>
-              <button type="button" id="profile-delete" data-i18n="profiles.delete"></button>
-              <button type="button" id="profile-reset" data-i18n="profiles.reset"></button>
-            </div>
-          </section>
-          <section class="profile-editor">
-            <label><span data-i18n="profiles.name"></span><input id="profile-name" maxlength="60"></label>
-            <label><span data-i18n="profiles.roleTitle"></span><input id="profile-role-title" maxlength="60"></label>
-            <label><span data-i18n="profiles.instructions"></span><textarea id="profile-instructions" maxlength="16384"></textarea></label>
-            <label><span data-i18n="profiles.summary"></span><textarea id="profile-summary" maxlength="2048"></textarea></label>
-            <label><span data-i18n="profiles.provider"></span><select id="profile-provider"></select></label>
-            <label><span data-i18n="profiles.model"></span><select id="profile-model"></select></label>
-            <label><span data-i18n="profiles.effort"></span><select id="profile-effort"></select></label>
-            <label><span data-i18n="profiles.permission"></span><select id="profile-permission"></select></label>
-          </section>
-        </div>
+        <div id="profiles-list" class="profiles-list" aria-live="polite"></div>
       </section>
       <div class="actions">
         <button type="button" id="instructions-reset" class="start" data-i18n="resetToDefault"></button>
+        <button type="button" id="profile-reset" class="start hidden" data-i18n="profiles.reset"></button>
         <button type="button" id="config-cancel" data-i18n="close"></button>
         <button type="button" id="config-save" class="primary" data-i18n="save"></button>
       </div>

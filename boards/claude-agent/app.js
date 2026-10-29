@@ -1,8 +1,14 @@
 "use strict";
 applyI18n();
 
+function applyThemeMode(theme = window.persephone?.getTheme?.()) {
+  if (typeof theme?.isDark === "boolean") document.documentElement.dataset.mode = theme.isDark ? "dark" : "light";
+}
+applyThemeMode();
+window.persephone?.onThemeChange?.(applyThemeMode);
+
 const $ = (selector) => document.querySelector(selector);
-const state = { setup: null, capabilities: {}, descriptions: new Map(), catalog: [], defaultProvider: "", description: null, models: [{ id: "", label: "Default", efforts: [] }], defaults: {}, settingsOff: null, sessions: [], allSessions: [], groupIndex: [], sessionsLoaded: false };
+const state = { setup: null, capabilities: {}, descriptions: new Map(), catalog: [], profiles: [], defaultProvider: "", description: null, models: [{ id: "", label: "Default", efforts: [] }], defaults: {}, settingsOff: null, sessions: [], allSessions: [], groupIndex: [], sessionsLoaded: false };
 let voiceProviders = [];
 const voiceCapture = { request: null, descriptions: new Map(), describing: new Map(), selected: "" };
 let voiceAutoStopSilenceMs = 0;
@@ -116,9 +122,31 @@ function addAuthorBadge(node, author, provider = "") {
   badge.append(engineIcon(state.descriptions.get(provider), ""), element("span", "", [author.name, author.roleTitle || author.role].filter(Boolean).join(" · ")));
   node.append(badge);
 }
+// A join notice names the agent's model and effort, e.g. "gpt-6-luna · high".
+const noticeDetail = (agent) => [agent?.model, agent?.effort].filter(Boolean).join(" · ");
+async function removeParticipant(view, participant) {
+  const answer = await askDialog({ title: t("group.removeTitle"), message: t("group.removeConfirm", { name: participant.name }), confirmLabel: t("group.remove"), danger: true });
+  if (answer !== null) { await channelSend(view.channel, { type: "group", action: "remove", participantId: participant.id }); await refreshSessions(); }
+}
+// In the main chat a joined agent's name opens a menu to remove it; the participant is looked up on click, so
+// history rendered before the chat connected still works once it is live.
+function addParticipantMenu(view, node, author) {
+  const badge = node.querySelector(".author-badge");
+  if (!badge || view.readOnlyParticipant || !author?.name || author.name === "Master" || author.kind === "user") return;
+  badge.classList.add("participant-menu");
+  badge.addEventListener("click", () => {
+    const participant = view.groupParticipants.find((item) => item.name === author.name);
+    openChoiceMenu(badge, [{ label: t("group.removeFromChat"), disabled: !participant || !view.channel, reason: participant ? t("group.openMainToRemove") : t("group.participantLeft"), run: () => removeParticipant(view, participant) }]);
+  });
+}
 function addGroupMessage(view, text, author, options = {}) {
   const node = element("div", `msg ${author?.kind === "user" ? "user" : "agent markdown-body"}${options.notice ? " group-notice" : ""}`);
+  if (author?.profileId) {
+    node.dataset.agentProfile = author.profileId;
+    node.dataset.agentColor = state.profiles.find((profile) => profile.id === author.profileId)?.color || "none";
+  }
   addAuthorBadge(node, author, author?.provider || author?.engine || "");
+  addParticipantMenu(view, node, author);
   if (author?.kind === "user") {
     const displayText = String(text || "").split("\n").map((line) => line.startsWith("\\[[from:") ? line.slice(1) : line).join("\n");
     const body = element("div", "group-message-body", displayText);
@@ -130,6 +158,7 @@ function addGroupMessage(view, text, author, options = {}) {
     node.append(body);
     messageSources.set(node, text);
   }
+  if (options.detail) node.append(element("div", "group-notice-detail", options.detail));
   if (options.summary) {
     const details = element("details", "");
     details.append(element("summary", "", t("group.summaryDisclosure")), element("div", "summary", `${options.summary}${options.reminder ? `\n\n${options.reminder}` : ""}`));
@@ -818,12 +847,9 @@ function renderSessions() {
           child.addEventListener("contextmenu", (event) => {
             if (participant.removed) return;
             event.preventDefault();
-            void (async () => {
-              const parentView = viewFor(item.id, item.provider);
-              if (!parentView?.channel) { showError(t("group.openMainToRemove")); return; }
-              const answer = await askDialog({ title: t("group.removeTitle"), message: t("group.removeConfirm", { name: participant.name }), confirmLabel: t("group.remove"), danger: true });
-              if (answer !== null) { await channelSend(parentView.channel, { type: "group", action: "remove", participantId: participant.id }); await refreshSessions(); }
-            })();
+            const parentView = viewFor(item.id, item.provider);
+            if (!parentView?.channel) { showError(t("group.openMainToRemove")); return; }
+            void removeParticipant(parentView, participant).catch((error) => showError(error.message));
           });
           folder.append(child);
         }
@@ -919,83 +945,302 @@ function askDialog({ title, message = "", value = null, confirmLabel, danger = f
     dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm" ? input.value.trim() : null), { once: true });
   });
 }
-let profileEditor = { profiles: [], descriptions: [], selectedId: "", original: null, dirty: false, newIds: new Set() };
+let profileEditor = { records: [], expanded: new Set() };
 async function profileRequest(action, fields = {}) {
   const channel = await persephone.service.openChannel({ type: "manage-profiles", action, ...fields });
   return new Promise((resolve, reject) => {
+    let settled = false;
     channel.onMessage((message) => {
-      if (message.type === "profile-data") resolve(message);
-      else if (message.type === "profile-error" || message.type === "error") reject(new Error(t("profiles.error")));
+      if (settled) return;
+      if (message.type === "profile-data") { settled = true; resolve(message); }
+      else if (message.type === "profile-error" || message.type === "error") { settled = true; const error = new Error(t("profiles.error")); error.detail = message.message || error.message; reject(error); }
     });
-    channel.onClose(() => {});
+    channel.onClose(() => { if (!settled) { settled = true; const error = new Error(t("profiles.error")); error.detail = "The profile service closed before replying."; reject(error); } });
   });
+}
+async function profileAgentRequest(action, fields = {}) {
+  try { return await profileRequest(action, fields); }
+  catch (error) { const detail = new Error(error.detail || error.message); detail.cause = error; throw detail; }
+}
+function applyProfileResponse(response, { render = false } = {}) {
+  state.profiles = response.profiles || [];
+  for (const description of response.descriptions || []) {
+    state.descriptions.set(description.provider, description);
+    const index = state.catalog.findIndex((item) => item.provider === description.provider);
+    if (index < 0) state.catalog.push(description); else state.catalog[index] = description;
+  }
+  if (current) current.groupProfiles = state.profiles;
+  for (const view of views) for (const node of view.messages.querySelectorAll(".msg[data-agent-profile]")) {
+    node.dataset.agentColor = state.profiles.find((profile) => profile.id === node.dataset.agentProfile)?.color || "none";
+  }
+  if ($("#config-dialog").open || profileEditor.records.length) {
+    const existing = new Map(profileEditor.records.map((record) => [record.draft.id, record]));
+    const next = state.profiles.map((profile) => {
+      const record = existing.get(profile.id);
+      return record?.dirty ? record : makeProfileRecord(profile);
+    });
+    for (const record of profileEditor.records) {
+      if (record.dirty && !state.profiles.some((profile) => profile.id === record.draft.id)) next.push(record);
+    }
+    profileEditor.records = next;
+    if (render && $("#config-dialog").open) renderProfileEditor();
+  }
+  refreshProfileShape();
+  return state.profiles;
 }
 async function refreshProfileCatalog() {
   const response = await profileRequest("get");
-  state.profiles = response.profiles || [];
-  for (const description of response.descriptions || []) { state.descriptions.set(description.provider, description); if (!state.catalog.some((item) => item.provider === description.provider)) state.catalog.push(description); }
-  if (current) current.groupProfiles = state.profiles;
+  applyProfileResponse(response);
 }
-function profileDraft() {
-  const currentProfile = profileEditor.profiles.find((profile) => profile.id === profileEditor.selectedId);
-  if (!currentProfile) return null;
-  return { id: currentProfile.id, name: $("#profile-name").value.trim(), roleTitle: $("#profile-role-title").value.trim(), instructions: $("#profile-instructions").value, summary: $("#profile-summary").value, provider: $("#profile-provider").value, model: $("#profile-model").value, effort: $("#profile-effort").value, permissionMode: $("#profile-permission").value };
+const PROFILE_KEYS = ["name", "roleTitle", "instructions", "summary", "provider", "model", "effort", "permissionMode", "color"];
+const PROFILE_COLORS = ["red", "orange", "yellow", "green", "teal", "blue", "purple", "pink"];
+const PROFILE_MODES = [
+  { id: "read-only", summary: "Permits read-classified tools and denies other actions." },
+  { id: "ask", summary: "Requests approval for non-read actions." },
+  { id: "auto-edit", summary: "Allows file writes inside the working directory and requests approval for other non-read actions." },
+  { id: "full-auto", summary: "Allows all classified actions." },
+];
+const profileItem = (profile) => profile && Object.fromEntries(["id", ...PROFILE_KEYS].map((key) => [key, profile[key]]));
+const profileItemDescriptor = {
+  kind: "AgentProfile",
+  summary: "A saved Agent Chat profile. id is its stable service key; permissionMode controls the invited agent's classified actions.",
+  members: [
+    ...["id", ...PROFILE_KEYS].map((name) => ({ name, kind: "property", summary: name === "permissionMode" ? "Permission preset: read-only permits read-classified tools; ask requests approval for non-read actions; auto-edit allows working-directory file writes and requests approval for other non-read actions; full-auto allows all classified actions." : name === "color" ? "Joined-agent main-chat message background color: red, orange, yellow, green, teal, blue, purple, pink, or empty for none." : `Saved profile ${name}.` })),
+  ],
+  summarize: () => ({}),
+};
+const profileNode = (profile) => {
+  const get = () => state.profiles.find((item) => item.id === profile.id);
+  const node = { aiVision: { ...profileItemDescriptor, summarize: () => profileItem(get()) } };
+  for (const key of ["id", ...PROFILE_KEYS]) Object.defineProperty(node, key, { enumerable: true, get: () => get()?.[key] });
+  return node;
+};
+const profilesNode = {
+  aiVision: {
+    kind: "AgentProfiles",
+    summary: "Saved Agent Chat profiles, indexed by zero-based position or stable profile id.",
+    members: [{ name: "count", kind: "property", summary: "Number of saved profiles." }],
+    index: (key) => {
+      const profile = typeof key === "number" ? state.profiles[key] : state.profiles.find((item) => item.id === String(key));
+      return profile ? profileNode(profile) : undefined;
+    },
+    summarize: () => ({ count: state.profiles.length, profiles: state.profiles.map(({ id, name, roleTitle }) => ({ id, name, roleTitle })) }),
+  },
+  get count() { return state.profiles.length; },
+};
+let profileModelRemote = null, profileModelShape = null;
+function refreshProfileShape() {
+  const next = String(state.profiles.length > 0);
+  if (profileModelShape === null) { profileModelShape = next; return; }
+  if (next !== profileModelShape) { profileModelShape = next; profileModelRemote?.refresh(); }
 }
-function setProfileDirty() {
-  profileEditor.dirty = JSON.stringify(profileDraft()) !== JSON.stringify(profileEditor.original);
-  $("#profiles-warning").classList.toggle("hidden", !["ask", "auto-edit", "full-auto"].includes($("#profile-permission").value));
+async function currentProfileData() {
+  const response = await profileAgentRequest("get");
+  applyProfileResponse(response, { render: true });
+  return response;
 }
-function profileProviderOptions() {
-  const select = $("#profile-provider");
-  select.replaceChildren(...state.catalog.map((description) => { const option = element("option", "", description.providerLabel || t(description.providerLabelKey)); option.value = description.provider; return option; }));
+function requireProfileFields(value, label, allowId = false) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} must be an object.`);
+  const unknown = Object.keys(value).filter((key) => !PROFILE_KEYS.includes(key) && !(allowId && key === "id"));
+  if (unknown.length) throw new Error(`Unknown profile field${unknown.length > 1 ? "s" : ""}: ${unknown.join(", ")}.`);
 }
-function refreshProfileModels(preferredModel = "", preferredEffort = "") {
-  const provider = $("#profile-provider").value, description = state.descriptions.get(provider);
-  let models = (description?.models || []).filter((model) => model.id);
+function savedProfile(response, id) {
+  const profile = response.profiles?.find((item) => item.id === (response.selectedId || id));
+  if (!profile) throw new Error("The profile service did not return the saved profile.");
+  return profileItem(profile);
+}
+async function createProfile(fields) {
+  requireProfileFields(fields, "fields");
+  const profile = { id: crypto.randomUUID(), name: "", roleTitle: "", instructions: "", summary: "", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only", color: "", ...fields };
+  if (![profile.name, profile.roleTitle, profile.instructions, profile.summary].every((value) => typeof value === "string" && value.trim())) throw new Error("name, roleTitle, instructions, and summary are required.");
+  const response = await profileAgentRequest("save", { profile });
+  applyProfileResponse(response, { selectedId: response.selectedId, render: true });
+  return savedProfile(response, profile.id);
+}
+async function updateProfile(id, patch) {
+  if (typeof id !== "string" || !id) throw new Error("id must be a non-empty profile id.");
+  requireProfileFields(patch, "patch", true);
+  if (Object.hasOwn(patch, "id")) throw new Error("Profile id cannot be changed.");
+  const latest = await currentProfileData(), original = latest.profiles?.find((profile) => profile.id === id);
+  if (!original) throw new Error(`Profile '${id}' is unavailable.`);
+  const response = await profileAgentRequest("save", { profile: { ...original, ...patch, id } });
+  applyProfileResponse(response, { selectedId: id, render: true });
+  return savedProfile(response, id);
+}
+async function duplicateProfile(id) {
+  if (typeof id !== "string" || !id) throw new Error("id must be a non-empty profile id.");
+  const response = await profileAgentRequest("duplicate", { profileId: id });
+  applyProfileResponse(response, { selectedId: response.selectedId, render: true });
+  return savedProfile(response, response.selectedId);
+}
+async function deleteProfile(id) {
+  if (typeof id !== "string" || !id) throw new Error("id must be a non-empty profile id.");
+  const latest = await currentProfileData();
+  if (!latest.profiles?.some((profile) => profile.id === id)) throw new Error(`Profile '${id}' is unavailable.`);
+  const response = await profileAgentRequest("delete", { profileId: id });
+  applyProfileResponse(response, { selectedId: profileEditor.selectedId, render: true });
+  return id;
+}
+const permissionModes = PROFILE_MODES.map((mode) => ({ ...mode }));
+const profileApp = {
+  aiVision: {
+    kind: "AgentChatProfiles",
+    summary: "Manage saved Agent Chat profiles, their message colors, and inspect current provider choices.",
+    overview: "Read profiles, provider catalogs, and valid message color ids, then create, update, duplicate, or immediately delete a profile.",
+    help: "Profile writes use Agent Chat's existing local manage-profiles service and its profiles.json store. create requires name, roleTitle, instructions, and summary; provider, model, effort, permissionMode, and color default to claude, opus, medium, read-only, and no color. color accepts red, orange, yellow, green, teal, blue, purple, pink, or an empty string for none. Joined agents' main-chat messages and join/leave notices use the current profile color, including history. update merges a partial patch into the latest saved profile. Permission presets: read-only permits read-classified tools and denies other actions; ask requests approval for non-read actions; auto-edit allows file writes inside the working directory and requests approval for other non-read actions; full-auto allows all classified actions. Existing participants keep their invite-time profile snapshot.",
+    members: [
+      { name: "profiles", kind: "property", node: true, indexable: true, summary: "Read-only saved profiles, indexed by zero-based position or stable id." },
+      { name: "providers", kind: "property", summary: "Current provider ids, availability, model ids, and each model's supported effort choices." },
+      { name: "colors", kind: "property", summary: "Valid color ids: red, orange, yellow, green, teal, blue, purple, pink. The empty string means no color." },
+      { name: "permissionModes", kind: "property", summary: "Valid permission presets: read-only permits read-classified tools and denies other actions; ask requests approval for non-read actions; auto-edit allows working-directory file writes and requests approval for other non-read actions; full-auto allows all classified actions." },
+      { name: "create", kind: "method", signature: "create(fields: object)", summary: "Create a profile. Requires name, roleTitle, instructions, and summary; defaults provider/model/effort/permissionMode/color to claude/opus/medium/read-only/empty." },
+      { name: "update", kind: "method", signature: "update(id: string, patch: object)", summary: "Merge a partial patch into the latest saved profile. id is stable and cannot be changed." },
+      { name: "duplicate", kind: "method", signature: "duplicate(id: string)", summary: "Duplicate a saved profile with the service-generated unique name and id." },
+      { name: "delete", kind: "method", signature: "delete(id: string)", summary: "Delete a saved profile and return its id.", caution: "Deletes immediately without a confirmation dialog or undo." },
+    ],
+    summarize: () => ({ profiles: state.profiles.length, providers: state.catalog.length }),
+  },
+  get profiles() { return profilesNode; },
+  get providers() { return state.catalog.map((provider) => ({ id: provider.provider, available: provider.available !== false, models: (provider.models || []).filter((model) => model.id).map((model) => ({ id: model.id, efforts: [...(model.efforts || [])] })) })); },
+  get colors() { return [...PROFILE_COLORS]; },
+  get permissionModes() { return permissionModes.map((mode) => ({ ...mode })); },
+  create: createProfile,
+  update: updateProfile,
+  duplicate: duplicateProfile,
+  delete: deleteProfile,
+};
+const pageAiVision = window.persephone?.aiVision;
+if (pageAiVision) profileModelRemote = pageAiVision.expose(profileApp);
+profileModelShape = String(state.profiles.length > 0);
+function makeProfileRecord(profile, isNew = false) { return { base: isNew ? null : structuredClone(profile), draft: structuredClone(profile), dirty: isNew, isNew, error: "" }; }
+function profileRecord(id) { return profileEditor.records.find((record) => record.draft.id === id); }
+function setProfileDirty(record) { record.dirty = record.isNew || JSON.stringify(record.draft) !== JSON.stringify(record.base); record.error = ""; updateProfileHeader(record); updateConfigSave(); }
+function updateProfileHeader(record) {
+  const card = $(`[data-profile-id="${CSS.escape(record.draft.id)}"]`); if (!card) return;
+  const p = record.draft;
+  card.querySelector(".profile-color-dot").dataset.agentColor = p.color || "none";
+  card.querySelector(".profile-header").dataset.agentColor = p.color || "none";
+  card.querySelector(".profile-header-name").textContent = p.name || t("profiles.unnamed");
+  card.querySelector(".profile-role").textContent = p.roleTitle || "—";
+  card.querySelector(".profile-model-label").textContent = p.model || "—";
+  card.querySelector(".profile-effort-label").textContent = p.effort || "—";
+  card.querySelector(".profile-permission-label").textContent = t(`profiles.permission.${({ "read-only":"readOnly", ask:"ask", "auto-edit":"autoEdit", "full-auto":"fullAuto" })[p.permissionMode] || "readOnly"}`);
+  card.querySelector(".profile-unsaved").textContent = record.dirty ? t("profiles.unsavedMarker") : "";
+  card.querySelector(".profile-unsaved").classList.toggle("hidden", !record.dirty);
+}
+function profileLabel(field, key, control, wide = false) {
+  const label = element("label", wide ? "profile-wide" : ""); label.dataset.field = field;
+  const title = element("span", "", t(key)); label.append(title, control); return label;
+}
+function profileSelect(field, choices, selected) {
+  const select = element("select"); select.dataset.field = field;
+  select.replaceChildren(...choices.map(([value, label]) => { const option = element("option", "", label); option.value = value; return option; })); select.value = selected; return select;
+}
+function profileProviderChoices() { return state.catalog.map((description) => [description.provider, description.providerLabel || t(description.providerLabelKey)]); }
+function profileModelChoices(provider) {
+  const description = state.descriptions.get(provider); let models = (description?.models || []).filter((model) => model.id);
   if (provider === "claude") models = [{ id: "opus", label: t("model.alias.opus"), efforts: ["low", "medium", "high", "xhigh", "max"] }, { id: "sonnet", label: t("model.alias.sonnet"), efforts: ["low", "medium", "high", "xhigh", "max"] }, { id: "haiku", label: t("model.alias.haiku"), efforts: ["low", "medium", "high", "xhigh", "max"] }, ...models.filter((item) => !["opus", "sonnet", "haiku"].includes(item.id))];
-  const modelSelect = $("#profile-model");
-  modelSelect.replaceChildren(...models.map((model) => { const option = element("option", "", model.label || model.id); option.value = model.id; return option; }));
-  if (models.some((model) => model.id === preferredModel)) modelSelect.value = preferredModel;
-  refreshProfileEfforts(preferredEffort);
+  return models;
 }
-function refreshProfileEfforts(preferred = "") {
-  const info = state.descriptions.get($("#profile-provider").value)?.models?.find((item) => item.id === $("#profile-model").value);
-  const levels = info?.efforts || (["opus", "sonnet", "haiku"].includes($("#profile-model").value) ? ["low", "medium", "high", "xhigh", "max"] : []);
-  const select = $("#profile-effort");
-  select.replaceChildren(...levels.map((level) => { const option = element("option", "", level); option.value = level; return option; }));
-  if (levels.includes(preferred)) select.value = preferred;
+function profileEffortChoices(provider, model) {
+  const info = state.descriptions.get(provider)?.models?.find((item) => item.id === model);
+  return info?.efforts || (["opus", "sonnet", "haiku"].includes(model) ? ["low", "medium", "high", "xhigh", "max"] : []);
+}
+// The shared-folder warning sits in each panel whose preset can change files, not above the whole list.
+function updateProfileWarning() { for (const { draft } of profileEditor.records) $(`[data-profile-id="${CSS.escape(draft.id)}"] .profile-warning`)?.classList.toggle("hidden", draft.permissionMode === "read-only"); }
+function renderProfileCard(record) {
+  const p = record.draft, card = element("article", "profile-card"); card.dataset.profileId = p.id;
+  const header = element("button", "profile-header"); header.type = "button"; header.setAttribute("aria-expanded", String(profileEditor.expanded.has(p.id))); header.setAttribute("aria-controls", `profile-panel-${p.id}`); header.dataset.agentColor = p.color || "none";
+  const name = element("span", "profile-header-name", p.name || t("profiles.unnamed"));
+  const dot = element("span", "profile-color-dot"); dot.dataset.agentColor = p.color || "none"; dot.setAttribute("aria-hidden", "true");
+  const role = element("span", "profile-header-meta profile-role", p.roleTitle || "—");
+  const model = element("span", "profile-header-meta profile-model-label", p.model || "—");
+  const effort = element("span", "profile-header-meta profile-effort-label", p.effort || "—");
+  const permission = element("span", "profile-header-meta profile-permission-label", t(`profiles.permission.${({ "read-only":"readOnly", ask:"ask", "auto-edit":"autoEdit", "full-auto":"fullAuto" })[p.permissionMode] || "readOnly"}`));
+  const unsaved = element("span", "profile-unsaved", record.dirty ? t("profiles.unsavedMarker") : ""); unsaved.classList.toggle("hidden", !record.dirty);
+  const title = element("span", "profile-header-title"); title.append(dot, name, unsaved);
+  const caret = element("span", "caret profile-caret"); caret.setAttribute("aria-hidden", "true");
+  header.append(title, role, model, effort, permission, caret); header.addEventListener("click", () => {
+    const open = !profileEditor.expanded.has(p.id); if (open) profileEditor.expanded.add(p.id); else profileEditor.expanded.delete(p.id);
+    const panel = card.querySelector(".profile-fields"); panel.hidden = !open; header.setAttribute("aria-expanded", String(open));
+  });
+  const panel = element("section", "profile-fields"); panel.id = `profile-panel-${p.id}`; panel.hidden = !profileEditor.expanded.has(p.id);
+  const warning = element("p", "profile-warning profile-wide", t("profiles.sharedFolderWarning")); warning.classList.toggle("hidden", p.permissionMode === "read-only"); panel.append(warning);
+  const nameInput = element("input"); nameInput.maxLength = 60; nameInput.value = p.name; nameInput.dataset.field = "name";
+  const roleInput = element("input"); roleInput.maxLength = 60; roleInput.value = p.roleTitle; roleInput.dataset.field = "roleTitle";
+  const provider = profileSelect("provider", profileProviderChoices(), p.provider);
+  const models = profileModelChoices(p.provider); const modelSelect = profileSelect("model", models.map((item) => [item.id, item.label || item.id]), p.model);
+  const efforts = profileEffortChoices(p.provider, p.model); const effortSelect = profileSelect("effort", efforts.map((item) => [item, item]), p.effort);
+  const colorControl = element("div", "profile-color-options"); colorControl.dataset.field = "color"; colorControl.setAttribute("role", "radiogroup"); colorControl.setAttribute("aria-label", t("profiles.color"));
+  for (const color of ["", ...PROFILE_COLORS]) {
+    const id = color || "none", button = element("button", "profile-color-swatch"); button.type = "button"; button.dataset.color = id; button.dataset.agentColor = id;
+    button.title = t(`color.${id}`); button.setAttribute("role", "radio"); button.setAttribute("aria-label", button.title); button.setAttribute("aria-checked", String((p.color || "") === color)); button.tabIndex = (p.color || "") === color ? 0 : -1;
+    button.addEventListener("click", () => {
+      colorControl.querySelectorAll("[role=radio]").forEach((item) => { const selected = item === button; item.setAttribute("aria-checked", String(selected)); item.tabIndex = selected ? 0 : -1; });
+      updateProfileField(record, { dataset: { field: "color" }, value: color });
+    });
+    button.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+      event.preventDefault(); const items = [...colorControl.querySelectorAll("[role=radio]")], index = items.indexOf(button);
+      const next = items[(index + (event.key === "ArrowLeft" || event.key === "ArrowUp" ? items.length - 1 : 1)) % items.length]; next.focus(); next.click();
+    });
+    colorControl.append(button);
+  }
+  const permissionSelect = profileSelect("permissionMode", [["read-only",t("profiles.permission.readOnly")],["ask",t("profiles.permission.ask")],["auto-edit",t("profiles.permission.autoEdit")],["full-auto",t("profiles.permission.fullAuto")]], p.permissionMode);
+  const instructions = element("textarea"); instructions.maxLength = 16384; instructions.value = p.instructions; instructions.dataset.field = "instructions";
+  const summary = element("textarea"); summary.maxLength = 2048; summary.value = p.summary; summary.dataset.field = "summary";
+  panel.append(profileLabel("name", "profiles.name", nameInput), profileLabel("roleTitle", "profiles.roleTitle", roleInput), profileLabel("provider", "profiles.provider", provider), profileLabel("permissionMode", "profiles.permission", permissionSelect), profileLabel("model", "profiles.model", modelSelect), profileLabel("effort", "profiles.effort", effortSelect), profileLabel("color", "profiles.color", colorControl), profileLabel("instructions", "profiles.instructions", instructions, true), profileLabel("summary", "profiles.summary", summary, true));
+  if (record.error) panel.append(element("div", "profile-panel-error", record.error));
+  const actions = element("div", "profile-actions");
+  const duplicate = element("button", "", t("profiles.duplicate")); duplicate.type = "button"; duplicate.dataset.action = "duplicate";
+  const del = element("button", "danger", t("profiles.delete")); del.type = "button"; del.dataset.action = "delete"; actions.append(duplicate, del); panel.append(actions);
+  panel.addEventListener("input", (event) => updateProfileField(record, event.target));
+  panel.addEventListener("change", (event) => updateProfileField(record, event.target));
+  actions.addEventListener("click", (event) => { const action = event.target.closest("[data-action]")?.dataset.action; if (action) void profilePanelAction(p.id, action); });
+  card.append(header, panel); return card;
+}
+function updateProfileField(record, control) {
+  let field = control.dataset.field; if (!field) return;
+  record.draft[field] = control.value;
+  if (field === "provider") {
+    const models = profileModelChoices(control.value); const model = control.closest(".profile-fields").querySelector('select[data-field="model"]');
+    model.replaceChildren(...models.map((item) => { const option = element("option", "", item.label || item.id); option.value = item.id; return option; }));
+    record.draft.model = models.some((item) => item.id === record.draft.model) ? record.draft.model : (models[0]?.id || ""); model.value = record.draft.model;
+    field = "model";
+  }
+  if (field === "model" || field === "provider") {
+    const select = control.closest(".profile-fields").querySelector('select[data-field="effort"]'); const levels = profileEffortChoices(record.draft.provider, record.draft.model);
+    select.replaceChildren(...levels.map((level) => { const option = element("option", "", level); option.value = level; return option; }));
+    record.draft.effort = levels.includes(record.draft.effort) ? record.draft.effort : (levels[0] || ""); select.value = record.draft.effort;
+  }
+  setProfileDirty(record); updateProfileWarning();
 }
 function renderProfileEditor() {
-  const list = $("#profiles-list");
-  list.replaceChildren(...profileEditor.profiles.map((profile) => {
-    const item = element("button", `profile-list-item${profile.id === profileEditor.selectedId ? " active" : ""}`, `${profile.name} (${profile.roleTitle})`);
-    item.type = "button"; item.addEventListener("click", () => void selectProfile(profile.id)); return item;
-  }));
-  const profile = profileEditor.profiles.find((item) => item.id === profileEditor.selectedId);
-  const permission = $("#profile-permission");
-  permission.replaceChildren(...[["read-only", t("profiles.permission.readOnly")], ["ask", t("profiles.permission.ask")], ["auto-edit", t("profiles.permission.autoEdit")], ["full-auto", t("profiles.permission.fullAuto")]].map(([value, label]) => { const option = element("option", "", label); option.value = value; return option; }));
-  const disabled = !profile;
-  for (const id of ["profile-name", "profile-role-title", "profile-instructions", "profile-summary", "profile-provider", "profile-model", "profile-effort", "profile-permission", "profile-duplicate", "profile-delete"]) $("#" + id).disabled = disabled;
-  updateConfigSave();
-  if (!profile) return;
-  $("#profile-name").value = profile.name; $("#profile-role-title").value = profile.roleTitle;
-  $("#profile-instructions").value = profile.instructions; $("#profile-summary").value = profile.summary;
-  profileProviderOptions(); $("#profile-provider").value = profile.provider;
-  refreshProfileModels(profile.model, profile.effort); $("#profile-permission").value = profile.permissionMode;
-  profileEditor.original = structuredClone(profile); profileEditor.dirty = false; setProfileDirty();
+  const list = $("#profiles-list"); list.replaceChildren(...profileEditor.records.map(renderProfileCard));
+  updateProfileWarning(); updateConfigSave();
 }
-async function saveSelectedProfile() {
-  const profile = profileDraft();
-  if (!profile || !profile.name || !profile.roleTitle || !profile.instructions.trim() || !profile.summary.trim()) { showError(t("profiles.validation")); return false; }
+function validateProfileRecord(record) {
+  const p = record.draft;
+  if (![p.name, p.roleTitle, p.instructions, p.summary].every((value) => typeof value === "string" && value.trim())) return t("profiles.validation");
+  const duplicate = profileEditor.records.some((other) => other !== record && other.draft.name.trim().toLocaleLowerCase() === p.name.trim().toLocaleLowerCase());
+  return duplicate ? t("profiles.duplicateName") : "";
+}
+async function saveProfileRecord(record) {
+  const validation = validateProfileRecord(record); if (validation) { record.error = validation; renderProfileEditor(); return false; }
   try {
-    const result = await profileRequest("save", { profile });
-    profileEditor.profiles = result.profiles || []; profileEditor.selectedId = result.selectedId || profile.id;
-    profileEditor.newIds.delete(profile.id);
-    state.profiles = profileEditor.profiles; if (current) current.groupProfiles = state.profiles;
-    renderProfileEditor(); return true;
-  } catch (error) { showError(error.message); return false; }
+    record.draft.name = record.draft.name.trim(); record.draft.roleTitle = record.draft.roleTitle.trim();
+    const result = await profileRequest("save", { profile: record.draft });
+    record.base = structuredClone(record.draft); record.dirty = false; record.isNew = false; record.error = "";
+    applyProfileResponse(result, { render: false });
+    return true;
+  } catch (error) { record.error = error.detail || error.message || t("profiles.error"); return false; }
 }
-async function unsavedChoice(dirty = profileEditor.dirty, titleKey = "profiles.unsavedTitle") {
+async function saveAllProfiles() {
+  const dirty = profileEditor.records.filter((record) => record.dirty); let success = true;
+  for (const record of dirty) if (!(await saveProfileRecord(record))) success = false;
+  renderProfileEditor(); return success;
+}
+async function unsavedChoice(dirty = false, titleKey = "profiles.unsavedTitle") {
   if (!dirty) return "discard";
   return new Promise((resolve) => {
     const dialog = $("#dialog"), confirm = $("#dialog-confirm"), form = dialog.querySelector("form");
@@ -1007,28 +1252,36 @@ async function unsavedChoice(dirty = profileEditor.dirty, titleKey = "profiles.u
     dialog.addEventListener("close", () => { stay.remove(); cancel.textContent = t("cancel"); resolve(dialog.returnValue === "confirm" ? "save" : dialog.returnValue === "stay" ? "stay" : "discard"); }, { once: true });
   });
 }
-async function selectProfile(id) {
-  const choice = await unsavedChoice(); if (choice === "stay") return;
-  if (choice === "save" && !(await saveSelectedProfile())) return;
-  if (choice === "discard" && profileEditor.newIds.has(profileEditor.selectedId)) {
-    profileEditor.profiles = profileEditor.profiles.filter((profile) => profile.id !== profileEditor.selectedId);
-    profileEditor.newIds.delete(profileEditor.selectedId);
-  }
-  profileEditor.selectedId = id; renderProfileEditor();
-}
 $("#profile-new").addEventListener("click", () => {
-  void (async () => { const choice = await unsavedChoice(); if (choice === "stay" || choice === "save" && !(await saveSelectedProfile())) return;
-    const profile = { id: crypto.randomUUID(), name: "", roleTitle: "", instructions: "", summary: "", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only" };
-    profileEditor.profiles.push(profile); profileEditor.newIds.add(profile.id); profileEditor.selectedId = profile.id; renderProfileEditor(); $("#profile-name").focus();
-  })();
+  const profile = { id: crypto.randomUUID(), name: "", roleTitle: "", instructions: "", summary: "", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only", color: "" };
+  profileEditor.records.push(makeProfileRecord(profile, true)); profileEditor.expanded.add(profile.id); renderProfileEditor(); $(`[data-profile-id="${CSS.escape(profile.id)}"] input[data-field="name"]`).focus();
 });
-$("#profile-duplicate").addEventListener("click", async () => { const choice = await unsavedChoice(); if (choice === "stay") return; if (choice === "save" && !(await saveSelectedProfile())) return; const result = await profileRequest("duplicate", { profileId: profileEditor.selectedId }); profileEditor.profiles = result.profiles; profileEditor.selectedId = result.selectedId; state.profiles = result.profiles; renderProfileEditor(); });
-$("#profile-delete").addEventListener("click", async () => { const choice = await unsavedChoice(); if (choice === "stay") return; if (choice === "save" && !(await saveSelectedProfile())) return; if (await askDialog({ title: t("profiles.deleteTitle"), message: t("profiles.deleteConfirm"), confirmLabel: t("profiles.delete"), danger: true }) === null) return; const result = await profileRequest("delete", { profileId: profileEditor.selectedId }); profileEditor.profiles = result.profiles; state.profiles = result.profiles; profileEditor.selectedId = result.profiles[0]?.id || ""; renderProfileEditor(); });
-$("#profile-reset").addEventListener("click", async () => { const choice = await unsavedChoice(); if (choice === "stay") return; if (choice === "save" && !(await saveSelectedProfile())) return; if (await askDialog({ title: t("profiles.resetTitle"), message: t("profiles.resetConfirm"), confirmLabel: t("profiles.reset"), danger: true }) === null) return; const result = await profileRequest("reset"); profileEditor.profiles = result.profiles; state.profiles = result.profiles; profileEditor.selectedId = result.profiles[0]?.id || ""; renderProfileEditor(); });
-for (const id of ["profile-name", "profile-role-title", "profile-instructions", "profile-summary", "profile-permission"]) $("#" + id).addEventListener("input", setProfileDirty);
-$("#profile-permission").addEventListener("change", setProfileDirty);
-$("#profile-provider").addEventListener("change", () => { refreshProfileModels(); setProfileDirty(); });
-$("#profile-model").addEventListener("change", () => { refreshProfileEfforts(); setProfileDirty(); });
+async function profilePanelAction(id, action) {
+  let record = profileRecord(id); if (!record) return;
+  if (record.dirty) {
+    const choice = await unsavedChoice(true); if (choice === "stay") return;
+    if (choice === "save" && !(await saveProfileRecord(record))) { renderProfileEditor(); return; }
+    if (choice === "discard") {
+      if (record.isNew) { profileEditor.records = profileEditor.records.filter((item) => item !== record); profileEditor.expanded.delete(id); renderProfileEditor(); return; }
+      record.draft = structuredClone(record.base); record.dirty = false; record.error = "";
+    }
+  }
+  record = profileRecord(id); if (!record) return;
+  if (action === "duplicate") {
+    try { const result = await profileRequest("duplicate", { profileId: id }); applyProfileResponse(result); const created = profileRecord(result.selectedId); if (created) { profileEditor.expanded.add(created.draft.id); renderProfileEditor(); } }
+    catch (error) { record.error = error.detail || error.message; renderProfileEditor(); }
+  } else if (action === "delete") {
+    if (await askDialog({ title: t("profiles.deleteTitle"), message: t("profiles.deleteConfirm", { name: record.base?.name || record.draft.name, role: record.base?.roleTitle || record.draft.roleTitle }), confirmLabel: t("profiles.delete"), danger: true }) === null) return;
+    try { const result = await profileRequest("delete", { profileId: id }); profileEditor.expanded.delete(id); applyProfileResponse(result, { render: true }); }
+    catch (error) { record.error = error.detail || error.message; renderProfileEditor(); }
+  }
+}
+$("#profile-reset").addEventListener("click", async () => {
+  if (profileEditor.records.some((record) => record.dirty)) { const choice = await unsavedChoice(true); if (choice === "stay") return; if (choice === "save" && !(await saveAllProfiles())) return; }
+  if (await askDialog({ title: t("profiles.resetTitle"), message: t("profiles.resetConfirm"), confirmLabel: t("profiles.reset"), danger: true }) === null) return;
+  try { const result = await profileRequest("reset"); profileEditor.expanded.clear(); applyProfileResponse(result, { render: true }); }
+  catch (error) { showError(error.detail || error.message); }
+});
 // Enter would submit through the form's first button (Cancel); make it confirm instead.
 $("#dialog-input").addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.isComposing) { event.preventDefault(); $("#dialog").close("confirm"); }
@@ -1181,13 +1434,15 @@ function updateControls() {
 let configTab = "instructions";
 const instructionsEditor = { provider: "", saved: "", defaultText: "" };
 function instructionsDirty() { return $("#instructions-text").value !== instructionsEditor.saved; }
-function updateConfigSave() { $("#config-save").disabled = configTab === "profiles" && !profileEditor.profiles.some((profile) => profile.id === profileEditor.selectedId); }
+function updateConfigSave() { $("#config-save").disabled = configTab === "profiles" && !profileEditor.records.some((record) => record.dirty); }
 function setConfigTab(tab) {
   configTab = tab;
   for (const button of document.querySelectorAll("#config-dialog [role=tab]")) { const active = button.dataset.tab === tab; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); }
   $("#config-instructions").classList.toggle("hidden", tab !== "instructions");
   $("#config-profiles").classList.toggle("hidden", tab !== "profiles");
   $("#instructions-reset").classList.toggle("hidden", tab !== "instructions");
+  $("#profile-reset").classList.toggle("hidden", tab !== "profiles");
+  $("#profile-new").classList.toggle("hidden", tab !== "profiles");
   updateConfigSave();
 }
 async function openConfig(tab) {
@@ -1198,7 +1453,7 @@ async function openConfig(tab) {
   Object.assign(instructionsEditor, { provider, saved: message.text, defaultText: message.defaultText });
   const text = $("#instructions-text"); text.value = message.text;
   await refreshProfileCatalog();
-  profileEditor = { profiles: state.profiles, descriptions: state.catalog, selectedId: state.profiles[0]?.id || "", original: null, dirty: false, newIds: new Set() };
+  profileEditor = { records: state.profiles.map((profile) => makeProfileRecord(profile)), expanded: new Set() };
   renderProfileEditor(); setConfigTab(tab);
   $("#config-dialog").showModal();
   if (tab === "instructions") { text.focus(); text.setSelectionRange(0, 0); text.scrollTop = 0; }
@@ -1211,8 +1466,8 @@ async function saveInstructions() {
   instructionsEditor.saved = text; return true;
 }
 async function closeConfig() {
-  const profileChoice = await unsavedChoice(); if (profileChoice === "stay") return;
-  if (profileChoice === "save" && !(await saveSelectedProfile())) return;
+  const profileChoice = await unsavedChoice(profileEditor.records.some((record) => record.dirty)); if (profileChoice === "stay") return;
+  if (profileChoice === "save" && !(await saveAllProfiles())) return;
   const instructionsChoice = await unsavedChoice(instructionsDirty(), "instructionsUnsavedTitle"); if (instructionsChoice === "stay") return;
   if (instructionsChoice === "save" && !(await saveInstructions())) return;
   $("#config-dialog").close();
@@ -1220,7 +1475,7 @@ async function closeConfig() {
 for (const button of document.querySelectorAll("#config-dialog [role=tab]")) button.addEventListener("click", () => setConfigTab(button.dataset.tab));
 $("#config-dialog").addEventListener("cancel", (event) => { event.preventDefault(); void closeConfig(); });
 $("#config-cancel").addEventListener("click", () => void closeConfig());
-$("#config-save").addEventListener("click", () => void (configTab === "instructions" ? saveInstructions() : saveSelectedProfile()));
+$("#config-save").addEventListener("click", () => void (configTab === "instructions" ? saveInstructions() : saveAllProfiles()));
 // Reset only fills the editor; nothing is stored until Save.
 $("#instructions-reset").addEventListener("click", () => { $("#instructions-text").value = instructionsEditor.defaultText; $("#instructions-text").focus(); });
 // ── Session lifecycle ──────────────────────────────────────────────────────
@@ -1297,13 +1552,13 @@ function appendEntries(view, entries) {
         const participant = state.groupIndex.find((group) => group.mainSessionId === parentId)?.participants.find((item) => item.name === segment.author?.name);
         if (segment.text.trim() === GROUP_PASS) continue;
         // Posts reach Master as user turns, so the header, not the transcript role, says who wrote it.
-        const author = segment.author ? { ...segment.author, roleTitle: participant?.roleTitle || segment.author.role, provider: participant?.provider || (segment.author.name === "Master" ? view.provider : ""), kind: segment.author.name === "user" ? "user" : "agent" } : null;
+        const author = segment.author ? { ...segment.author, roleTitle: participant?.roleTitle || segment.author.role, profileId: participant?.profileId || "", provider: participant?.provider || (segment.author.name === "Master" ? view.provider : ""), kind: segment.author.name === "user" ? "user" : "agent" } : null;
         // A join/leave notice is stored as "Agent X (Role) joined" plus the role summary (and, on the first join, the rules reminder).
         const notice = author && /^Agent .+ \(.+\) (joined|left)$/.exec(segment.text.split("\n")[0]);
         if (notice) {
           author.kind = "notice";
           view.groupMessages.push({ author, text: segment.text });
-          addGroupMessage(view, segment.text.split("\n")[0], author, { notice: true, summary: notice[1] === "joined" ? segment.text.split("\n").slice(1).join("\n").trim() : "" });
+          addGroupMessage(view, segment.text.split("\n")[0], author, { notice: true, summary: notice[1] === "joined" ? segment.text.split("\n").slice(1).join("\n").trim() : "", detail: notice[1] === "joined" ? noticeDetail(participant) : "" });
         }
         else if (author) { view.groupMessages.push({ author, text: segment.text }); addGroupMessage(view, segment.text + suffix, author); }
         else if (entry.role === "user") addUserMessage(view, segment.text + suffix, false);
@@ -1698,7 +1953,7 @@ function handleEvent(view, event) {
       view.groupMessages.push(item);
       const notice = author.kind === "notice";
       const summary = event.noticeAction === "joined" ? (event.author?.summary || "") : "";
-      addGroupMessage(view, displayText, author, { notice, summary, reminder: event.reminder });
+      addGroupMessage(view, displayText, author, { notice, summary, reminder: event.reminder, detail: event.noticeAction === "joined" ? noticeDetail(author) : "" });
       break;
     }
     case "group-participant-error":
@@ -2519,6 +2774,7 @@ $("#decline").addEventListener("click", () => void consentSdk(false));
 persephone.state.init({ session: null }, { restorableKeys: ["session"] });
 showNewSession();
 renderSessions();
+void refreshProfileCatalog().catch(() => {});
 void (async () => {
   const saved = (await persephone.state.get())?.session;
   await refreshDescription();

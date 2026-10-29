@@ -33,10 +33,10 @@ const GROUP_ROOT = () => {
   return path.resolve(base, "Persephone", "board-data", "claude-agent", "group-chat");
 };
 const DEFAULT_PROFILES = Object.freeze([
-  { id: "nova-reviewer", name: "Nova", roleTitle: "Reviewer", instructions: "Review the requested work, inspect relevant code or evidence, and report concrete defects, risks, and fixes. Do not make changes.", summary: "Reviews work and identifies defects, risks, and fixes.", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only" },
-  { id: "rex-critic", name: "Rex", roleTitle: "Critic", instructions: "Challenge the proposal's assumptions, look for counterexamples and failure cases, and explain where reasoning or evidence is weak. Do not make changes.", summary: "Challenges assumptions and finds counterexamples.", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only" },
-  { id: "atlas-researcher", name: "Atlas", roleTitle: "Researcher", instructions: "Investigate the question using available sources, distinguish evidence from inference, and report concise findings with source references. Do not make changes.", summary: "Researches questions and reports evidence and sources.", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only" },
-  { id: "kai-developer", name: "Kai", roleTitle: "Developer", instructions: "Implement the requested change in the working directory. Read the relevant code first, follow its existing patterns and conventions, keep the change focused on what was asked, and verify it builds or runs where you can. Report the files you changed and anything left undone. Do not commit unless asked.", summary: "Implements code changes; edits files directly and asks before running commands.", provider: "claude", model: "opus", effort: "medium", permissionMode: "auto-edit" },
+  { id: "nova-reviewer", name: "Nova", roleTitle: "Reviewer", instructions: "Review the requested work, inspect relevant code or evidence, and report concrete defects, risks, and fixes. Do not make changes.", summary: "Reviews work and identifies defects, risks, and fixes.", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only", color: "" },
+  { id: "rex-critic", name: "Rex", roleTitle: "Critic", instructions: "Challenge the proposal's assumptions, look for counterexamples and failure cases, and explain where reasoning or evidence is weak. Do not make changes.", summary: "Challenges assumptions and finds counterexamples.", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only", color: "" },
+  { id: "atlas-researcher", name: "Atlas", roleTitle: "Researcher", instructions: "Investigate the question using available sources, distinguish evidence from inference, and report concise findings with source references. Do not make changes.", summary: "Researches questions and reports evidence and sources.", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only", color: "" },
+  { id: "kai-developer", name: "Kai", roleTitle: "Developer", instructions: "Implement the requested change in the working directory. Read the relevant code first, follow its existing patterns and conventions, keep the change focused on what was asked, and verify it builds or runs where you can. Report the files you changed and anything left undone. Do not commit unless asked.", summary: "Implements code changes; edits files directly and asks before running commands.", provider: "claude", model: "opus", effort: "medium", permissionMode: "auto-edit", color: "" },
 ]);
 // Master's whole reply when it has nothing to add; the service drops it instead of sharing it.
 const GROUP_PASS = "[[pass]]";
@@ -74,14 +74,14 @@ async function readProfiles() {
   const stored = await readJson(profilesFile(), null, 256 * 1024);
   if (stored !== null) {
     if (!Array.isArray(stored) || stored.length > 64) throw new Error("Saved profile list is invalid.");
-    for (const profile of stored) await validateProfile(profile, { catalog: false });
-    return stored;
+    return Promise.all(stored.map((profile) => validateProfile(profile, { catalog: false })));
   }
   await atomicJson(profilesFile(), DEFAULT_PROFILES, 256 * 1024);
   return DEFAULT_PROFILES;
 }
 const PROFILE_MODES = ["read-only", "ask", "auto-edit", "full-auto"];
-const PROFILE_FIELDS = ["id", "name", "roleTitle", "instructions", "summary", "provider", "model", "effort", "permissionMode"];
+const PROFILE_COLORS = ["red", "orange", "yellow", "green", "teal", "blue", "purple", "pink"];
+const PROFILE_FIELDS = ["id", "name", "roleTitle", "instructions", "summary", "provider", "model", "effort", "permissionMode", "color"];
 function nextProfileName(name, profiles) {
   for (let suffix = 2; suffix < 100000; suffix++) {
     const tail = ` ${suffix}`, candidate = `${name.slice(0, 60 - tail.length)}${tail}`;
@@ -90,14 +90,16 @@ function nextProfileName(name, profiles) {
   throw new Error("No available duplicate profile name could be generated.");
 }
 async function validateProfile(profile, { catalog = true } = {}) {
-  if (!profile || typeof profile !== "object" || Array.isArray(profile) || Object.keys(profile).some((key) => !PROFILE_FIELDS.includes(key)) || PROFILE_FIELDS.some((key) => !Object.hasOwn(profile, key))) throw new Error("Profile data is invalid.");
+  if (!profile || typeof profile !== "object" || Array.isArray(profile) || Object.keys(profile).some((key) => !PROFILE_FIELDS.includes(key)) || PROFILE_FIELDS.some((key) => key !== "color" && !Object.hasOwn(profile, key))) throw new Error("Profile data is invalid.");
   if (typeof profile.id !== "string" || !/^[a-z0-9-]{1,48}$/.test(profile.id)) throw new Error("Profile id is invalid.");
   safeHeaderPart(profile.name, 60); safeHeaderPart(profile.roleTitle, 60);
-  if (typeof profile.instructions !== "string" || Buffer.byteLength(profile.instructions) > 16 * 1024 || typeof profile.summary !== "string" || Buffer.byteLength(profile.summary) > 2048) throw new Error("Profile instructions or summary exceed the size limit.");
+  if (typeof profile.instructions !== "string" || !profile.instructions.trim() || Buffer.byteLength(profile.instructions) > 16 * 1024 || typeof profile.summary !== "string" || !profile.summary.trim() || Buffer.byteLength(profile.summary) > 2048) throw new Error("Profile instructions and summary are required and must stay within their size limits.");
   if (!providers.has(profile.provider)) throw new Error("The selected provider is unavailable.");
   if (typeof profile.model !== "string" || !profile.model || profile.model.length > 200 || typeof profile.effort !== "string" || profile.effort.length > 40) throw new Error("Profile model or effort is invalid.");
   if (!PROFILE_MODES.includes(profile.permissionMode)) throw new Error("The permission preset is unsupported.");
-  const normalized = Object.fromEntries(PROFILE_FIELDS.map((key) => [key, key === "instructions" || key === "summary" ? profile[key] : String(profile[key]).trim()]));
+  const color = profile.color === undefined ? "" : profile.color;
+  if (typeof color !== "string" || color !== "" && !PROFILE_COLORS.includes(color)) throw new Error("The profile color is unsupported.");
+  const normalized = Object.fromEntries(PROFILE_FIELDS.map((key) => [key, key === "instructions" || key === "summary" ? profile[key] : key === "color" ? color : String(profile[key]).trim()]));
   if (!catalog) return normalized;
   const description = await providers.get(profile.provider).describe({ cwd: "" });
   if (description.available === false) throw new Error("The selected provider is unavailable.");
@@ -195,6 +197,8 @@ async function send(channel, event, session) {
   if (session?.closed) return;
   if (session?.groupParticipant) {
     const group = session.group;
+    // The internal channel tracks the turn's reply and shares it when the agent never called post_message.
+    try { channel?.send(event); } catch { /* channel closed */ }
     if (group) for (const observer of group.observers || []) if (observer.participantId === session.groupParticipant.id && !observer.closed) {
       try { if (!observer.channel.writable) await observer.channel.whenWritable(); observer.channel.send(serializeEvent(event)); } catch { /* observer closed */ }
     }
@@ -437,7 +441,9 @@ async function publishGroupMessage(group, stamped, author, sourceParticipantId =
   for (const participant of group.participants.filter((row) => !row.removed)) {
     const live = group.live.get(participant.id);
     if (!live) continue;
-    // The source receives the shared timeline on its next turn too; agents are instructed to answer only when named.
+    // The author already has its own post (and its own join or leave notice) in its session; an echo would only
+    // show it twice and wake it for a turn that ends in a pass.
+    if (participant.id === sourceParticipantId || author.kind === "notice" && participant.profileId === author.profileId) continue;
     queueGroupText(group, live, stamped);
   }
 }
@@ -487,7 +493,7 @@ async function addGroupParticipant(group, request) {
     await adapter.dispatchSession(live, { type: "send", id: randomUUID(), text: firstTurn });
     const reminder = hadParticipantFile ? "" : GROUP_CORE("Master", "main");
     const notice = `${AUTHOR_HEADER(name, profile.roleTitle)}\nAgent ${name} (${profile.roleTitle}) joined\n\n${escapeBodyHeaders(profile.summary)}${reminder ? `\n\n${reminder}` : ""}`;
-    await publishGroupMessage(group, notice, { name, roleTitle: profile.roleTitle, profileId: profile.id, provider: providerId, summary: profile.summary, reminder, action: "joined", kind: "notice" });
+    await publishGroupMessage(group, notice, { name, roleTitle: profile.roleTitle, profileId: profile.id, provider: providerId, model: participant.model, effort: participant.effort, summary: profile.summary, reminder, action: "joined", kind: "notice" });
     await saveParticipants(group);
     return participant;
   } catch (error) {
@@ -674,11 +680,14 @@ async function manageProfiles(channel, request) {
     let profiles = await readProfiles(), selectedId;
     if (request.action === "save") {
       const next = await validateProfile(request.profile), index = profiles.findIndex((item) => item.id === next.id);
+      if (profiles.some((item) => item.id !== next.id && item.name.trim().toLowerCase() === next.name.toLowerCase())) throw new Error(`A profile named '${next.name}' already exists.`);
       if (index < 0 && profiles.length >= 64) throw new Error("A maximum of 64 profiles is supported.");
       if (index < 0) profiles.push(next); else profiles[index] = next;
       await atomicJson(profilesFile(), profiles, 256 * 1024); selectedId = next.id;
     } else if (request.action === "delete") {
+      if (!profiles.some((profile) => profile.id === request.profileId)) throw new Error("The selected profile is unavailable.");
       profiles = profiles.filter((profile) => profile.id !== request.profileId);
+      await atomicJson(profilesFile(), profiles, 256 * 1024);
     } else if (request.action === "duplicate") {
       const source = profiles.find((profile) => profile.id === request.profileId);
       if (!source) throw new Error("The selected profile is unavailable.");
@@ -702,7 +711,7 @@ async function sendGroupIndex(channel, request) {
     let participants;
     try { participants = await readParticipants(decodeURIComponent(match[1])); } catch { continue; }
     if (!participants.length) continue;
-    groupsIndex.push({ mainSessionId: participants[0].mainSessionId, provider: participants[0].mainProvider || "", participants: participants.map(({ profileId, name, roleTitle, provider, sessionId, removed }) => ({ profileId, name, roleTitle, provider, sessionId, removed: Boolean(removed) })) });
+    groupsIndex.push({ mainSessionId: participants[0].mainSessionId, provider: participants[0].mainProvider || "", participants: participants.map(({ id, profileId, name, roleTitle, provider, model, effort, sessionId, removed }) => ({ id, profileId, name, roleTitle, provider, model: model || "", effort: effort || "", sessionId, removed: Boolean(removed) })) });
   }
   const start = Number.isSafeInteger(request.offset) && request.offset >= 0 ? request.offset : 0;
   let page = [], bytes = 0, offset = start;

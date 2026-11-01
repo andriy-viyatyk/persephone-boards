@@ -1,5 +1,9 @@
 # What's New — Audio Player
 
+## 1.0.1
+
+- Fixed: with gapless playback on, a track that started automatically after the previous one ended played twice, and Next had to be pressed twice to move on.
+
 ## 1.0.0
 
 - First release. A music player for Persephone with Bars and Circular visualizers, volume, shuffle and repeat.

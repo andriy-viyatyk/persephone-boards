@@ -9,7 +9,7 @@
     async function resolve(item) { return (await window.persephone.content.open(item.href,{timeoutMs:30000})).url; }
     function cleanupDeck(index) { const a=decks[index]; a.pause(); a.removeAttribute('src'); a.load(); visualizer.setDeckGain(index,0); }
     function cancelTransition() { preloadSequence++; transitionSequence++; fading=false; transitioning=false; crossfade.cancel(gains); gapless.cancel(decks[1-active]); preloadPromise=null; fadeTarget=null; visualizer.setDeckGain(active,1); visualizer.setDeckGain(1-active,0); }
-    function activate(index,item) { const old=active; active=index; current=item; visualizer.setDeckGain(active,1); if(old!==active) visualizer.setDeckGain(old,0); onChange('track',{...item,activationId:++activationSequence,audio:decks[active]}); }
+    function activate(index,item,queueIndex) { const old=active; active=index; current=item; visualizer.setDeckGain(active,1); if(old!==active) visualizer.setDeckGain(old,0); onChange('track',{...item,queueIndex,activationId:++activationSequence,audio:decks[active]}); }
     async function preload() {
       if(destroyed || fading || transitioning || preloadPromise || gapless.pending || (!settings.gapless && !settings.crossfadeSeconds)) return;
       const next=provider(); if(!next?.item || next.index===undefined) return;
@@ -29,7 +29,7 @@
         if(settings.crossfadeSeconds>0 && fade) {
           transitioning=true; fading=true; visualizer.setDeckGain(next.deck,0); await incoming.play(); if(token!==transitionSequence||destroyed){cleanupDeck(next.deck);return false;} active=next.deck; current=next.item; onChange('track',{...next.item,queueIndex:next.index,activationId:++activationSequence,audio:incoming}); crossfade.schedule(gains[old],gains[next.deck],settings.crossfadeSeconds);
         } else {
-          transitioning=true; await incoming.play(); if(token!==transitionSequence||destroyed){cleanupDeck(next.deck);return false;} activate(next.deck,next.item); outgoing.pause(); cleanupDeck(old); transitioning=false; void preload();
+          transitioning=true; await incoming.play(); if(token!==transitionSequence||destroyed){cleanupDeck(next.deck);return false;} activate(next.deck,next.item,next.index); outgoing.pause(); cleanupDeck(old); transitioning=false; void preload();
         }
         return true;
       } catch(error) { if(token!==transitionSequence||destroyed)return false; transitioning=false; fading=false; cleanupDeck(next.deck); visualizer.setDeckGain(old,1); onChange('failure',{item:next.item,error}); return false; }

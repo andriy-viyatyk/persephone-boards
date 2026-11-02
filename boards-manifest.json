@@ -176,7 +176,7 @@
     },
     {
       "id": "audio-player",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Audio Player",
       "description": "Play audio sources and browse a user-owned music catalog.",
       "fileMasks": [
@@ -198,9 +198,9 @@
       "minAppVersion": "5.0.11",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/audio-player-v1.0.0/audio-player.zip",
-        "size": 211712,
-        "sha256": "78dbe1c02afbd13fe74829d9c3c86d343b59ff21106ab75a22bd6c1e79465719"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/audio-player-v1.0.1/audio-player.zip",
+        "size": 211790,
+        "sha256": "c7155872265b24779fbeb6e3502c24061fcd01c56e1ff6272e7ca7e13365c457"
       }
     },
     {
@@ -385,16 +385,16 @@
     },
     {
       "id": "claude-agent",
-      "version": "1.3.2",
+      "version": "1.3.3",
       "name": "Agent Chat",
       "description": "A resumable agent session provider and chat board for the installed Claude and Codex CLIs.",
       "standalone": true,
       "minAppVersion": "5.0.15",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/claude-agent-v1.3.2/claude-agent.zip",
-        "size": 259118,
-        "sha256": "f9b18e6ac463573d61dc403f6f32a1f0750285114f8d3f8a325fde0c00326a21"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/claude-agent-v1.3.3/claude-agent.zip",
+        "size": 275183,
+        "sha256": "d35c06389f3b913d02a9e12baf15a1d69ce25bc5409f1a93a66db74ab64631c7"
       },
       "localized": {
         "be": {
@@ -1008,16 +1008,16 @@
     },
     {
       "id": "speech-to-text",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "name": "Speech to Text",
       "description": "Local speech transcription powered by whisper.cpp.",
       "standalone": true,
       "minAppVersion": "5.0.15",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/speech-to-text-v1.3.0/speech-to-text.zip",
-        "size": 70653,
-        "sha256": "65f09d91260b19d2f57889d283d61a23ced2fac639db10c7895a285186d19673"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/speech-to-text-v1.4.0/speech-to-text.zip",
+        "size": 72451,
+        "sha256": "56dc70f65ffb754121bf5a1929d5b0240a7415a942f51ac9f17d79164d6f0d87"
       },
       "localized": {
         "be": {

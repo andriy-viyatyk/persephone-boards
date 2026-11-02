@@ -16,7 +16,7 @@ const MODE_OPTIONS = Object.freeze({
   full: { approvalPolicy: "never" },
   read: { approvalPolicy: "on-request" },
 });
-const CAPABILITIES = Object.freeze({ providerSetup: false, sessionStore: true, transcriptFollow: false, permissionModes: true, modelSelection: true, effortSelection: true, slashCommands: false, mcpPanel: false, subagents: false, tokenUsage: true, costUsage: false, contextUsage: true, rateLimits: false });
+const CAPABILITIES = Object.freeze({ providerSetup: false, sessionStore: true, transcriptFollow: false, permissionModes: true, modelSelection: true, effortSelection: true, slashCommands: false, mcpPanel: false, subagents: false, tokenUsage: true, costUsage: false, contextUsage: true, rateLimits: false, steer: true });
 const label = (id, fallback) => ({ id, label: fallback, efforts: [] });
 let host;
 let adapter;
@@ -246,7 +246,7 @@ function sandboxPolicy(session) {
 }
 async function onNotification(session, method, params) {
     if (method === "thread/started") { session.id = params.thread?.id || params.threadId || session.id; return; }
-  if (method === "turn/started") { session.busy = true; void host.send(session.channel, { type: "turn-started" }, session); return; }
+  if (method === "turn/started") { session.busy = true; session.turnId = params.turn?.id || null; void host.send(session.channel, { type: "turn-started" }, session); return; }
   if (method === "item/agentMessage/delta") { eventText(session, "text-delta", params.delta); return; }
   if (method === "item/reasoning/textDelta" || method === "item/reasoning/summaryTextDelta") { eventText(session, "thinking-delta", params.delta); return; }
   if (method === "item/commandExecution/outputDelta" || method === "item/fileChange/outputDelta") {
@@ -256,6 +256,7 @@ async function onNotification(session, method, params) {
   }
   if (method === "item/started") {
     const item = params.item || {};
+    if (item.type === "agentMessage") session.streamingItemId = item.id;
     const name = item.command ? "Shell" : item.type || "Codex action";
     const summary = summarizeToolInput(name, { command: Array.isArray(item.command) ? item.command.join(" ") : item.command || item.title || item.path || item.type });
     session.items.set(item.id, { name, summary: summary.summary });
@@ -265,6 +266,7 @@ async function onNotification(session, method, params) {
   }
   if (method === "item/completed") {
     const item = params.item || {};
+    if (item.type === "agentMessage" && item.id === session.streamingItemId) session.streamingItemId = null;
     const prior = session.items.get(item.id);
     if (prior) void host.send(session.channel, { type: "tool-result", callId: item.id, ok: item.status !== "failed", summary: boundedString(`${item.exitCode === undefined ? prior.summary : `Exit code ${item.exitCode}`}${item.aggregatedOutput ? `\n${item.aggregatedOutput}` : ""}`, 32 * 1024).value }, session);
     if (item.type === "agentMessage" && item.text) eventText(session, "text", item.text);
@@ -273,13 +275,44 @@ async function onNotification(session, method, params) {
   }
   if (method === "thread/tokenUsage/updated") { session.tokenUsage = params.tokenUsage || null; statusEvent(session); return; }
   if (method === "turn/completed") {
-    session.busy = false; session.completedTurns++;
     const status = params.turn?.status;
+    session.turnId = null; session.streamingItemId = null;
+    if (await startHeldSteers(session, status)) return;
+    session.busy = false; session.completedTurns++;
     if (status === "failed" && params.turn?.error?.message) await host.send(session.channel, { type: "error", code: "codex-turn-error", message: boundedString(params.turn.error.message, 32 * 1024).value, fatal: false }, session);
     await host.send(session.channel, { type: "turn-ended", reason: status === "interrupted" ? "interrupted" : status === "failed" ? "error" : "completed", usage: {} }, session);
     if (session.open.limits?.maxAgentSteps && session.completedTurns >= session.open.limits.maxAgentSteps) await host.closeSession(session, "limit", true, true);
     session.currentRequestId = null;
   }
+}
+function sendSteerState(session, requestId, state) {
+  return host.send(session.channel, { type: "user-input", id: requestId, state }, session);
+}
+// A follow-up ("steer") from the board's own page joins the running turn through turn/steer. When Codex cannot take
+// it (no active turn id, a review or compact turn, or the turn just ended) the text is held and starts the next turn,
+// which the page sees as part of the same turn.
+async function steerTurn(session, request) {
+  if (session.turnId) {
+    try {
+      await session.rpc.request("turn/steer", { threadId: session.id, expectedTurnId: session.turnId, input: [{ type: "text", text: request.text, text_elements: [] }], clientUserMessageId: request.id || null });
+      // A steer abandons reply text still streaming; Codex writes the reply again.
+      if (session.streamingItemId) { session.streamingItemId = null; await host.send(session.channel, { type: "stream-reset" }, session); }
+      await sendSteerState(session, request.id, "delivered");
+      return;
+    } catch { /* hold it for the next turn */ }
+  }
+  session.heldSteers.push({ requestId: request.id, text: request.text });
+  await sendSteerState(session, request.id, "next-turn");
+  if (!session.busy) await startHeldSteers(session, "completed");
+}
+async function startHeldSteers(session, status) {
+  if (!session.heldSteers.length) return false;
+  const held = session.heldSteers.splice(0);
+  if (status === "interrupted" || status === "failed") { for (const steer of held) await sendSteerState(session, steer.requestId, "cancelled"); return false; }
+  session.busy = true;
+  for (const steer of held) await sendSteerState(session, steer.requestId, "delivered");
+  try { await callTurn(session, held.map((steer) => steer.text).join("\n\n")); return true; }
+  catch (error) { await host.send(session.channel, { type: "error", code: "codex-turn-error", message: boundedString(error.message || "Codex could not start the follow-up turn.", 32 * 1024).value, fatal: false }, session); return false; }
 }
 async function callTurn(session, text) {
   const policy = MODE_OPTIONS[session.permissionMode] || MODE_OPTIONS.auto;
@@ -314,7 +347,7 @@ async function startSession(channel, request, info) {
   }
   const id = open.resume || "";
   const policyMode = crossBoard ? mode : localMode === "read" ? "read-only" : localMode === "auto" ? "ask" : "full-auto";
-  const session = { id, channel, open, providerId: "codex", adapter, children: new Set(), approvals: new Map(), allowedScopes: new Set(), closed: false, busy: false, completedTurns: 0, crossBoard, mode, policyMode: request.groupChat?.position === "joined" ? request.groupChat.permissionMode : policyMode, permissionMode: localMode, model, effort, models, endpoint, groupEndpoint, groupMain: request.groupChat?.position === "main", tokenUsage: null, items: new Map(), currentRequestId: open.id, status: {}, title: open.title || "" };
+  const session = { id, channel, open, providerId: "codex", adapter, children: new Set(), approvals: new Map(), allowedScopes: new Set(), closed: false, busy: false, completedTurns: 0, turnId: null, streamingItemId: null, heldSteers: [], crossBoard, mode, policyMode: request.groupChat?.position === "joined" ? request.groupChat.permissionMode : policyMode, permissionMode: localMode, model, effort, models, endpoint, groupEndpoint, groupMain: request.groupChat?.position === "main", tokenUsage: null, items: new Map(), currentRequestId: open.id, status: {}, title: open.title || "" };
   session.rpc = new JsonRpcProcess(executable, { cwd: open.cwd, endpoint, envToken: endpointToken, groupEndpoint, onServerRequest: async (native) => {
     const { tool, summary } = approvalDescriptor(native);
     const classification = host.approvalKind(tool);
@@ -436,10 +469,18 @@ function createCodexProvider(serviceHost) {
     acceptsMode(mode) { return Object.values(MODE_IDS).includes(mode); },
     sessionStatus,
     async dispatchSession(session, request) {
-      if (request.type === "interrupt") { for (const id of [...session.approvals.keys()]) host.settleApproval(session, id, { decision: "deny", message: "Turn was interrupted." }); await session.rpc.request("turn/interrupt", { threadId: session.id }).catch(() => {}); return; }
+      if (request.type === "interrupt") { for (const id of [...session.approvals.keys()]) host.settleApproval(session, id, { decision: "deny", message: "Turn was interrupted." }); for (const steer of session.heldSteers.splice(0)) await sendSteerState(session, steer.requestId, "cancelled"); await session.rpc.request("turn/interrupt", { threadId: session.id, ...(session.turnId ? { turnId: session.turnId } : {}) }).catch(() => {}); return; }
       if (request.type === "approve" || request.type === "approval-response") { host.approve(session, request); return; }
       if (request.type === "close") { await host.closeSession(session, "closed", true, true); return; }
-      if (request.type === "send") { const text = typeof request.text === "string" ? request.text : ""; session.currentRequestId = request.id; session.busy = true; await callTurn(session, text); return; }
+      if (request.type === "send") {
+        const text = typeof request.text === "string" ? request.text : "";
+        if (session.busy) {
+          // Only the board's own page may add a follow-up to a running turn; slash commands never steer.
+          if (request.steer !== true || session.crossBoard || !text.trim() || text.trimStart().startsWith("/")) { await host.replyError(session.channel, request, "busy", "A turn is already running.", false, session); return; }
+          await steerTurn(session, { ...request, text }); return;
+        }
+        session.currentRequestId = request.id; session.busy = true; await callTurn(session, text); return;
+      }
       if (request.type === "control") {
         const result = await (async () => {
           if (request.action === "models") return { models: session.models, current: session.model || "default" };

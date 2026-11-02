@@ -147,7 +147,11 @@ const MODEL_ALIASES = [
   { id: "opus", label: "Opus (CLI alias)", efforts: EFFORT_LEVELS },
   { id: "haiku", label: "Haiku (CLI alias)", efforts: EFFORT_LEVELS },
 ];
-const CAPABILITIES = Object.freeze({ providerSetup: true, sessionStore: true, transcriptFollow: true, permissionModes: true, modelSelection: true, effortSelection: true, slashCommands: true, mcpPanel: true, subagents: true, tokenUsage: true, costUsage: true, contextUsage: true, rateLimits: true });
+const CAPABILITIES = Object.freeze({ providerSetup: true, sessionStore: true, transcriptFollow: true, permissionModes: true, modelSelection: true, effortSelection: true, slashCommands: true, mcpPanel: true, subagents: true, tokenUsage: true, costUsage: true, contextUsage: true, rateLimits: true, steer: true });
+// Follow-up ("steer") messages pushed into a running turn. If steers are still pending when a turn result
+// arrives, the provider waits this long for their follow-up turn to start before it ends the turn anyway
+// (a CLI that neither folds them nor reports them would otherwise leave the session busy).
+const STEER_FOLLOW_UP_WAIT_MS = 8000;
 let cachedModels = null;
 let settings = {};
 const settingIds = ["claude-executable", "default-model", "default-effort", "cross-board-permission-ceiling"];
@@ -628,8 +632,8 @@ async function askUserQuestion(session, input, signal) {
   return { behavior: "deny", message: result.message || "The user skipped these questions. Continue with your best judgment, or ask in your reply." };
 }
 
-function userMessage(text) {
-  return { type: "user", message: { role: "user", content: text }, parent_tool_use_id: null };
+function userMessage(text, uuid) {
+  return { type: "user", message: { role: "user", content: text }, parent_tool_use_id: null, ...(uuid ? { uuid } : {}) };
 }
 
 // Provider-specific additive event (consumers ignore unknown types): model, effort, context fill,
@@ -689,7 +693,16 @@ function trackStatus(session, message) {
 }
 
 async function emitNative(session, message) {
+  // The held turn's follow-up has started once the CLI re-inits or the model streams again.
+  if (session.steerTimer && (message?.type === "assistant" || message?.type === "stream_event" || (message?.type === "system" && message.subtype === "init"))) { clearTimeout(session.steerTimer); session.steerTimer = null; }
   if (message?.parent_tool_use_id != null) return;
+  // Undocumented CLI frame (msg_lifecycle_v1) reporting each uuid-stamped user message; used only as a signal.
+  if (message?.type === "command_lifecycle") {
+    const steer = session.steers.get(message.command_uuid);
+    if (steer && message.state === "started" && !steer.delivered) { steer.delivered = true; await sendSteerState(session, steer, "delivered"); }
+    if (steer && message.state === "cancelled") { session.steers.delete(message.command_uuid); await sendSteerState(session, steer, "cancelled"); }
+    return;
+  }
   if (trackStatus(session, message)) await send(session.channel, sessionStatus(session), session);
   if (message.type === "system" && message.subtype === "init") {
     if (message.session_id) session.id = message.session_id;
@@ -704,6 +717,7 @@ async function emitNative(session, message) {
   if (session.interrupted && events.some((event) => event.type === "turn-ended")) events = events.filter((event) => event.type !== "error");
   let turnEnded = false;
   for (const event of events) {
+    if (event.type === "turn-ended" && await holdTurnForSteers(session, message, event)) continue;
     if (event.type === "turn-ended") {
       if (session.status.compacting) { session.status.compacting = false; await send(session.channel, sessionStatus(session), session); }
       if (session.interrupted) event.reason = "interrupted";
@@ -720,6 +734,41 @@ async function emitNative(session, message) {
     if (event.type === "error" && event.fatal) await closeSession(session, "fatal-result", true);
   }
   if (turnEnded) session.currentRequestId = null;
+}
+
+function sendSteerState(session, steer, state) {
+  return send(session.channel, { type: "user-input", id: steer.requestId, state }, session);
+}
+function addUsage(total, usage = {}) {
+  for (const [key, value] of Object.entries(usage)) if (Number.isFinite(value)) total[key] = (total[key] || 0) + value;
+  return total;
+}
+// A turn result settles the steers it consumed. Steers still pending run as a follow-up turn, which the page sees
+// as part of the same turn: this result's turn-ended is held back (its usage carried) and true is returned.
+async function holdTurnForSteers(session, message, event) {
+  const consumed = new Set(Array.isArray(message.user_message_uuids) ? message.user_message_uuids : []);
+  for (const [uuid, steer] of [...session.steers]) {
+    if (!consumed.has(uuid) && !steer.delivered && !steer.nextTurn) continue;
+    session.steers.delete(uuid);
+    if (!steer.delivered) await sendSteerState(session, steer, "delivered");
+  }
+  if (session.interrupted) for (const [uuid, steer] of [...session.steers]) { session.steers.delete(uuid); await sendSteerState(session, steer, "cancelled"); }
+  if (session.carryUsage) { event.usage = addUsage(session.carryUsage, event.usage); session.carryUsage = null; }
+  if (!session.steers.size || event.reason !== "completed") return false;
+  for (const steer of session.steers.values()) if (!steer.nextTurn) { steer.nextTurn = true; await sendSteerState(session, steer, "next-turn"); }
+  session.carryUsage = addUsage({}, event.usage);
+  session.heldTurnEnd = event;
+  session.steerTimer = setTimeout(() => void releaseHeldTurn(session), STEER_FOLLOW_UP_WAIT_MS);
+  session.steerTimer.unref?.();
+  return true;
+}
+async function releaseHeldTurn(session) {
+  session.steerTimer = null;
+  const event = session.heldTurnEnd;
+  if (!event || session.closed || !session.busy) return;
+  for (const steer of session.steers.values()) await sendSteerState(session, steer, "delivered");
+  session.steers.clear();
+  await emitNative(session, { type: "result", subtype: "success", is_error: false, user_message_uuids: [], usage: {}, synthetic: true });
 }
 
 async function runQuery(session) {
@@ -772,7 +821,7 @@ async function startSession(channel, openRequest, info) {
     id, channel, open, providerId: open.provider, adapter: provider, defaults, sdk, executable, mode, nativeMode, crossBoard, endpoint, groupEndpoint, groupMain: open.groupChat?.position === "main", policyMode: groupJoined ? mode : mode, composed: await makePreamble(open, Boolean(endpoint)),
     inputQueue: new AsyncQueue(), children: new Set(), approvals: new Map(), allowedScopes: new Set(),
     closed: false, busy: false, completedTurns: 0, initSeen: false, query: null, queryTask: null,
-    interrupted: false, pendingFirstTurn: true, started: false, nativeState: { pendingFiles: new Map() }, status: {},
+    interrupted: false, steers: new Map(), carryUsage: null, heldTurnEnd: null, steerTimer: null, pendingFirstTurn: true, started: false, nativeState: { pendingFiles: new Map() }, status: {},
     pendingTitle: !open.resume && typeof open.title === "string" ? boundedString(open.title.trim(), 1024).value : "",
   };
   registerSession(session);
@@ -789,7 +838,15 @@ async function handleSessionMessage(session, request) {
   if (request.type === "send") {
     if (typeof request.text !== "string" || !request.text.trim()) return replyError(session.channel, request, "protocol-error", "send.text must be a non-empty string.", false, session);
     if (request.id !== undefined && (typeof request.id !== "string" || request.id.length > 256)) return replyError(session.channel, request, "protocol-error", "Request id must be a short string.", false, session);
-    if (session.busy) return replyError(session.channel, request, "busy", "A turn is already running.", false, session);
+    if (session.busy) {
+      // Only the board's own page may add a follow-up to a running turn; slash commands never steer.
+      if (request.steer !== true || session.crossBoard || request.text.trimStart().startsWith("/")) return replyError(session.channel, request, "busy", "A turn is already running.", false, session);
+      const uuid = randomUUID();
+      session.steers.set(uuid, { requestId: request.id, delivered: false, nextTurn: false });
+      session.inputQueue.push(userMessage(request.text, uuid));
+      await sendSteerState(session, session.steers.get(uuid), "queued");
+      return;
+    }
     if (session.open.limits?.maxUserTurns && session.completedTurns >= session.open.limits.maxUserTurns) return replyError(session.channel, request, "limit-reached", "The session reached maxUserTurns.", false, session);
     if (request.attachments?.length) return replyError(session.channel, request, "protocol-error", "Attachments are not supported by this provider.", false, session);
     session.busy = true;
@@ -804,7 +861,10 @@ async function handleSessionMessage(session, request) {
     if (session.busy && session.query) {
       session.interrupted = true;
       if (session.status.compacting) { session.status.compacting = false; await send(session.channel, sessionStatus(session), session); }
-      try { await session.query.interrupt(); } catch { /* query may already have stopped */ }
+      // cancelQueued (CLI capability interrupt_cancel_queued_v1; not in the SDK typings) also drops queued
+      // follow-ups, so a stopped turn does not restart for them; the page puts their text back in the composer.
+      try { await session.query.interrupt({ cancelQueued: true }); } catch { /* query may already have stopped */ }
+      for (const [uuid, steer] of [...session.steers]) { session.steers.delete(uuid); await sendSteerState(session, steer, "cancelled"); }
       const query = session.query;
       setTimeout(async () => {
         if (!session.closed && session.busy) {

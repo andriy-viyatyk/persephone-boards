@@ -1,4 +1,7 @@
 ## 1.3.3
+- A **Cancel** button next to the agent's typing dots stops the running turn; it replaces the toolbar's hard-to-find Interrupt button.
+- Session and agent list rows now hover and highlight like Persephone's file tree: the selected row is green with an outline while its list has focus, and gray otherwise.
+- Send a follow-up message while the agent works, as in the terminal: Claude and Codex pick it up between steps of the running turn. It stays dimmed until the agent has it; Cancel puts a follow-up that has not been picked up yet back into the message box.
 - Reworked Agent profiles into independently editable, collapsible panels with per-profile drafts and save handling.
 - Added AI Vision access to read, create, update, duplicate, and delete saved Agent Chat profiles, with provider choices and permission effects described.
 - Added per-agent message colors, including existing group chat history, with color choices in the profile editor.

@@ -46,7 +46,7 @@ function createView(item = {}) {
   const view = {
     id: item.id || "", provider, description: state.descriptions.get(provider) || null, cwd: item.cwd || "", title: item.title || "", messages: element("div", "messages hidden"),
     channel: null, follow: null, live: false, busy: false, pendingPrompt: "", liveWaiters: [], controls: new Map(), approvals: new Map(),
-    stream: null, lastText: "", thinkingNode: null, tools: new Map(), commandTurn: false, historyToken: 0,
+    stream: null, lastText: "", thinkingNode: null, tools: new Map(), commandTurn: false, historyToken: 0, steers: new Map(),
     footer: null, usage: null, sessionCost: 0, statusText: "", statusBusy: false, error: "",
     draft: "", unread: false, stick: true, scrollTop: 0,
     agents: [], agentsChannel: null, selectedAgentId: "", agentViews: new Map(), groupMain: false, groupMode: false, groupLoading: false, groupProfiles: [], groupParticipants: [], groupMessages: [], readOnlyParticipant: item.participant || null,
@@ -238,15 +238,25 @@ function addCompactSummary(view, text) {
   addActivity(view, t("compactSummary"), text, "compact-summary", null);
 }
 
-// Typing dots: a reply bubble with three dots lit in turn while the shown session works and no reply text is
-// streaming (or waiting on an approval card). One node, placed after the shown view's messages, so it never counts
-// as the last message (tool calls group with the message before them).
+// Typing dots: a reply bubble with three dots lit in turn and a Cancel button while the shown session works. While
+// reply text streams (or an approval card waits) the dots and bubble hide and only Cancel stays. One node, placed
+// after the shown view's messages, so it never counts as the last message (tool calls group with the message before them).
 const typing = element("div", "msg agent typing");
-typing.setAttribute("role", "status"); typing.setAttribute("aria-label", t("working"));
-typing.append(element("span"), element("span"), element("span"));
+const typingDots = element("span", "typing-dots");
+typingDots.setAttribute("role", "status"); typingDots.setAttribute("aria-label", t("working"));
+typingDots.append(element("span"), element("span"), element("span"));
+const typingCancel = element("button", "typing-cancel", t("cancel"));
+typingCancel.type = "button";
+typingCancel.addEventListener("click", () => {
+  if (!current?.channel || !current.busy) return;
+  typingCancel.disabled = true;
+  void channelSend(current.channel, { type: "interrupt" });
+});
+typing.append(typingDots, typingCancel);
 function updateTyping() {
   const view = current;
-  if (!view || view.selectedAgentId || !view.busy || view.stream || view.approvals.size) { typing.remove(); return; }
+  if (!view || view.selectedAgentId || view.readOnlyParticipant || !view.busy || !view.channel) { typing.remove(); typingCancel.disabled = false; return; }
+  typing.classList.toggle("quiet", Boolean(view.stream || view.approvals.size));
   if (typing.previousElementSibling === view.messages) return;
   const stick = nearBottom();
   view.messages.after(typing);
@@ -770,7 +780,15 @@ function reportWorking() {
   reportedWorking = working;
   persephone.setWorking(working);
 }
+// The list is rebuilt on every change, which would drop keyboard focus from the clicked row; keep it on the selected
+// row so the selection shows its focused look, like Persephone's file tree.
 function renderSessions() {
+  const list = $("#session-list");
+  const hadFocus = list.contains(document.activeElement);
+  renderSessionRows();
+  if (hadFocus && !list.contains(document.activeElement)) list.querySelector(".session-item.active")?.focus({ preventScroll: true });
+}
+function renderSessionRows() {
   reportWorking();
   const list = $("#session-list");
   const hiddenParticipants = participantSessionIds();
@@ -1398,12 +1416,10 @@ async function loadGroupIndex() {
 // Toolbar controls cannot be hidden, so the catalog is re-declared only when its shape changes.
 let toolbarShape = "";
 function updateToolbar() {
-  const interruptible = Boolean(current?.channel) && current.busy;
-  if (String(interruptible) !== toolbarShape) {
-    toolbarShape = String(interruptible);
+  // Cancel lives in the chat's typing bubble; the toolbar catalog is fixed.
+  if (!toolbarShape) {
+    toolbarShape = "fixed";
     persephone.toolbar.set([
-      // Interrupt comes first, so the buttons after it keep their place when it appears.
-      ...(interruptible ? [{ id: "interrupt", type: "button", label: t("interrupt"), icon: { name: "stop" } }] : []),
       { id: "new-session", type: "button", label: t("newSession"), icon: { name: "plus" } },
       { id: "refresh-sessions", type: "button", title: t("refresh"), icon: { name: "refresh" } },
       { id: "configure", type: "button", label: t("configure"), icon: { name: "settings" } },
@@ -1414,7 +1430,6 @@ function updateToolbar() {
 persephone.toolbar.onAction(({ id }) => {
   if (id === "new-session") showNewSession();
   else if (id === "refresh-sessions") void refreshSessions();
-  else if (id === "interrupt" && current?.channel) void channelSend(current.channel, { type: "interrupt" });
   else if (id === "configure") void openConfig("instructions");
 });
 function updateControls() {
@@ -1422,7 +1437,7 @@ function updateControls() {
   const slash = promptText().trim().startsWith("/");
   const connectOnly = canConnect(current) && !promptText().trim();
   $("#send").textContent = t(connectOnly ? "connect" : "send");
-  $("#send").disabled = Boolean(current?.readOnlyParticipant || current?.busy && (slash || !current.groupMode));
+  $("#send").disabled = Boolean(current?.readOnlyParticipant || current?.busy && (slash || !(current.groupMode || capabilities(current).steer)));
   $("#readonly-hint").classList.toggle("hidden", !current?.readOnlyParticipant);
   $("#prompt").classList.toggle("hidden", Boolean(current?.readOnlyParticipant));
   $("#send").classList.toggle("hidden", Boolean(current?.readOnlyParticipant));
@@ -1493,6 +1508,7 @@ const closeChannel = (channel) => { if (channel) { try { channel.close(); } catc
 function disconnect(view) {
   const channel = view.channel;
   view.channel = null; view.busy = false; view.pendingPrompt = "";
+  settleFollowUps(view, "cancelled");
   endStream(view); endLive(view); closeChannel(channel);
   setViewStatus(view);
   if (view === current) { updateControls(); void startFollow(view); }
@@ -1840,7 +1856,7 @@ async function connectView(view) {
     view.channel = null; view.busy = false; view.pendingPrompt = ""; view.groupLoading = false;
     // Resuming continues in the mode the session last ran in.
     if (MODES.includes(view.footer?.mode)) view.mode = view.footer.mode;
-    endStream(view); endLive(view); expireApprovals(view); updateTyping();
+    endStream(view); endLive(view); expireApprovals(view); settleFollowUps(view, "cancelled"); updateTyping();
     setViewStatus(view, `${t("closed")}: ${reason?.code || "channel-closed"}`);
     if (view === current) { updateControls(); void startFollow(view); }
     else view.unread = true;
@@ -1880,7 +1896,12 @@ function handleEvent(view, event) {
     case "compacted": endStream(view); addCompacted(view, event); break;
     case "compact-summary": addCompactSummary(view, event.text); break;
     case "session-status": view.footer = event; if (view === current) { updateFooter(event, view); renderChips(); setViewStatus(view, event.compacting ? t("compacting") : "", Boolean(event.compacting)); } break;
-    case "turn-started": view.busy = true; setViewStatus(view); updateTyping(); updateControls(); renderSessions(); break;
+    case "user-input":
+      // Once the agent has a follow-up, its next words answer it: start a new reply bubble below the follow-up.
+      if (settleFollowUp(view, event.id, event.state) && event.state === "delivered") { endStream(view); view.lastText = ""; }
+      break;
+    case "stream-reset": if (view.stream) { view.stream.node.remove(); view.stream = null; updateTyping(); } break;
+    case "turn-started": settleFollowUp(view, event.id, "delivered"); view.busy = true; setViewStatus(view); updateTyping(); updateControls(); renderSessions(); break;
     case "text-delta":
       view.thinkingNode = null;
       (view.stream || startStream(view)).text += `${event.text || ""}${event.truncated ? ` ${t("truncated")}` : ""}`;
@@ -1913,6 +1934,7 @@ function handleEvent(view, event) {
     }
     case "file-change": addActivity(view, `${t("file")} · ${event.kind} — ${event.path}`, event.path); break;
     case "turn-ended": {
+      settleFollowUps(view, event.reason === "interrupted" ? "cancelled" : "delivered");
       endStream(view); expireApprovals(view);
       view.busy = false; view.lastText = ""; view.thinkingNode = null; view.commandTurn = false;
       updateTyping();
@@ -1974,6 +1996,7 @@ function handleEvent(view, event) {
       updateTyping(); break;
     }
     case "error":
+      settleFollowUp(view, event.id, "cancelled");
       setViewError(view, `${event.code}: ${event.message}`);
       if (event.fatal) setViewStatus(view, t("error"));
       if (event.code === "provider-setup-required") { $("#consent").classList.remove("hidden"); }
@@ -2095,6 +2118,7 @@ function expireApprovals(view) {
 }
 
 async function sendPrompt(view, text) {
+  if (view.busy && !view.groupMode && !text.startsWith("/")) { await sendFollowUp(view, text); return; }
   view.commandTurn = text.startsWith("/");
   if (view.commandTurn) addCommandMessage(view, text);
   else if (!view.groupMode) addUserMessage(view, text);
@@ -2104,6 +2128,30 @@ async function sendPrompt(view, text) {
   }
   catch (error) { setViewError(view, error.message); }
 }
+
+// A follow-up typed while the agent works joins the running turn; the provider reports when the agent has it
+// (user-input events). Until then the bubble is dimmed; a cancelled follow-up goes back into the composer.
+async function sendFollowUp(view, text) {
+  const id = crypto.randomUUID();
+  const node = addUserMessage(view, text);
+  node.classList.add("queued"); node.title = t("followUpQueued");
+  view.steers.set(id, { node, text });
+  try { await channelSend(view.channel, { type: "send", id, text, steer: true }); }
+  catch (error) { settleFollowUp(view, id, "cancelled"); setViewError(view, error.message); }
+}
+function settleFollowUp(view, id, state) {
+  const steer = view.steers.get(id);
+  if (!steer) return false;
+  if (state === "queued" || state === "next-turn") return true;
+  view.steers.delete(id);
+  if (state !== "cancelled") { steer.node.classList.remove("queued"); steer.node.removeAttribute("title"); return true; }
+  steer.node.remove();
+  const restored = view === current ? promptText() : view.draft;
+  const next = restored.trim() ? `${steer.text}\n\n${restored}` : steer.text;
+  if (view === current) setPrompt(next); else view.draft = next;
+  return true;
+}
+function settleFollowUps(view, state) { for (const id of [...view.steers.keys()]) settleFollowUp(view, id, state); }
 
 // ── Composer ───────────────────────────────────────────────────────────────
 // The prompt is a plaintext-only contenteditable div; innerText carries a trailing "\n" the user never typed.
@@ -2475,7 +2523,7 @@ $("#composer").addEventListener("submit", async (event) => {
   const boardCommand = text && boardCommandFor(text);
   if (boardCommand) { clearPrompt(); await boardCommand(); return; }
   if (!text && canConnect(view) && !view.connectTask) { await connectSession(view); return; }
-  if (!text || (view.busy && (!view.groupMode || text.startsWith("/"))) || view.pendingPrompt) return;
+  if (!text || (view.busy && (text.startsWith("/") || !(view.groupMode || capabilities(view).steer))) || view.pendingPrompt) return;
   clearPrompt();
   if (view.channel) { await sendPrompt(view, text); return; }
   // Not running yet: start a new session from the form, or resume the shown one, then send.

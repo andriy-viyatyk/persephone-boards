@@ -24,6 +24,7 @@ export const LIVE_TUNING = {
   joinGapMs: 1200, // Keep short gaps inside one utterance.
   minSpeechMs: 250, // Ignore detections shorter than this minimum speech duration.
   trimBoundarySearchMs: 3000, // Search this much audio before a cap for a quiet split point.
+  idleRetainMs: 5000, // Audio kept while no utterance is open: the pre-roll plus slack for VAD lag behind intake.
 };
 const samplesForMs = (ms) => Math.round(ms * 16);
 const FRAME = samplesForMs(LIVE_TUNING.frameMs);
@@ -267,6 +268,17 @@ export class LiveStream {
     this.baseSample = boundary;
     if (this.segmenter.current) this.segmenter.current.start = Math.max(this.segmenter.current.start, boundary);
     return boundary;
+  }
+  // Commit jobs are the only other trim point, so a channel that never hears speech (a quiet microphone)
+  // would keep every chunk until it closes. With no utterance open, no future range can start before the
+  // retained window. The caller must only call this when no queued job still reads older audio.
+  trimIdle() {
+    if (this.failed || this.segmenter.current) return;
+    const keep = samplesForMs(LIVE_TUNING.idleRetainMs);
+    // Speech in audio the VAD has not scored yet still needs its pre-roll, however far the helper lags.
+    const boundary = Math.min(this.samples - keep, this.segmenter.received - PRE);
+    // Trim once a whole window can go rather than on every chunk.
+    if (boundary - this.baseSample >= keep) this.trimBefore(boundary);
   }
   fail(error) {
     if (this.failed || this.closed) return;

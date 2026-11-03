@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "font-viewer",
+  "versions": [
+    {
+      "version": "1.0.0",
+      "date": "2026-11-03",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/font-viewer-v1.0.0/font-viewer.zip",
+        "size": 252797,
+        "sha256": "b887cc107862c4ca1b7078f45336b7b54f896c74e9d409d4090052ac64e7c44c"
+      },
+      "minAppVersion": "5.0.10"
+    }
+  ]
+}

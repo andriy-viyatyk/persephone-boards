@@ -647,6 +647,28 @@
       }
     },
     {
+      "id": "font-viewer",
+      "version": "1.0.0",
+      "name": "Font Viewer",
+      "description": "Offline, read-only font preview, glyphs, coverage and metadata.",
+      "fileMasks": [
+        "*.ttf",
+        "*.otf",
+        "*.woff",
+        "*.woff2"
+      ],
+      "editorName": "Font Viewer",
+      "editorKind": "simple",
+      "standalone": false,
+      "minAppVersion": "5.0.10",
+      "screenshot": "screenshot.png",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/font-viewer-v1.0.0/font-viewer.zip",
+        "size": 252797,
+        "sha256": "b887cc107862c4ca1b7078f45336b7b54f896c74e9d409d4090052ac64e7c44c"
+      }
+    },
+    {
       "id": "force-graph",
       "version": "1.1.0",
       "name": "Force Graph",

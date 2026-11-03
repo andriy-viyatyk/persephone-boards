@@ -1,3 +1,6 @@
+## 1.4.1
+- Live transcription keeps memory flat when one source stays silent, such as a quiet microphone in Transcript **Both** mode; before, the service kept all of that source's audio until the session ended.
+
 ## 1.4.0
 - Added English translation requests to the `speech.transcribe` v1 service while preserving source-language detection and ordinary transcription.
 - Added the optional Large v3 model (about 1.1 GB): the best translation to English, slower than the default Large v3 Turbo.

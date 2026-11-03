@@ -629,8 +629,10 @@ function startTranscription(channel, open, early = []) {
       request.totalSamples += bytes.length / 2;
       if (live) {
         if (!request.stream) return void terminal(request, { type: "error", code: "engine-failed", message: "Live audio stream was not ready." });
-        try { request.stream.append(bytes); }
-        catch { request.draftsInvalid = true; }
+        try {
+          request.stream.append(bytes);
+          if (!request.pending) request.stream.trimIdle();
+        } catch { request.draftsInvalid = true; }
       } else request.chunks.push(bytes);
     } else if (message.type === "end") {
       request.ended = true;

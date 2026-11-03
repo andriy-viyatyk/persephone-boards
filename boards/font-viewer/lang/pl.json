@@ -1,0 +1,28 @@
+{
+  "messages": {
+    "title": "Przeglądarka czcionek",
+    "loading": "Wczytywanie czcionki…",
+    "empty": "Otwórz plik TTF, OTF, WOFF lub WOFF2.",
+    "preview": "Podgląd",
+    "sample": "Tekst przykładowy",
+    "size": "Rozmiar",
+    "glyphs": "Glify",
+    "previous": "Poprzednia",
+    "next": "Następna",
+    "coverage": "Pokrycie Unicode",
+    "coverageNote": "Przypisane punkty kodowe według bloków Unicode 17.0; glify bez kodowania są pominięte. Pokrycie nie oznacza obsługi języka.",
+    "version": "Wersja",
+    "designer": "Projektant",
+    "license": "Licencja",
+    "licenseUrl": "Adres licencji",
+    "glyphCount": "Liczba glifów",
+    "units": "Jednostki na em",
+    "unavailable": "Niedostępne",
+    "unencoded": "Bez kodowania",
+    "unassigned": "Poza nazwanymi blokami",
+    "decoderError": "Błąd dekodowania WOFF2.",
+    "tooLarge": "Czcionka przekracza 64 MiB.",
+    "unsupported": "Nieobsługiwany format czcionki.",
+    "error": "Nie można otworzyć czcionki:"
+  }
+}

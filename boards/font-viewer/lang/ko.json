@@ -1,0 +1,28 @@
+{
+  "messages": {
+    "title": "글꼴 뷰어",
+    "loading": "글꼴을 불러오는 중…",
+    "empty": "TTF, OTF, WOFF 또는 WOFF2 파일을 여세요.",
+    "preview": "미리보기",
+    "sample": "예제 텍스트",
+    "size": "크기",
+    "glyphs": "글리프",
+    "previous": "이전",
+    "next": "다음",
+    "coverage": "유니코드 범위",
+    "coverageNote": "Unicode 17.0 블록별로 매핑된 코드 포인트입니다. 인코딩되지 않은 글리프는 제외됩니다. 범위가 언어 지원을 뜻하지는 않습니다.",
+    "version": "버전",
+    "designer": "디자이너",
+    "license": "라이선스",
+    "licenseUrl": "라이선스 URL",
+    "glyphCount": "글리프 수",
+    "units": "em당 단위",
+    "unavailable": "사용할 수 없음",
+    "unencoded": "인코딩되지 않음",
+    "unassigned": "이름 있는 블록 외부",
+    "decoderError": "WOFF2 디코딩 오류입니다.",
+    "tooLarge": "글꼴이 64 MiB를 초과합니다.",
+    "unsupported": "지원하지 않는 글꼴 형식입니다.",
+    "error": "글꼴을 열 수 없습니다:"
+  }
+}

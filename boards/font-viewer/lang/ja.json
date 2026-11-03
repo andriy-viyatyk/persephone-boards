@@ -1,0 +1,28 @@
+{
+  "messages": {
+    "title": "フォントビューアー",
+    "loading": "フォントを読み込み中…",
+    "empty": "TTF、OTF、WOFF、WOFF2 ファイルを開きます。",
+    "preview": "プレビュー",
+    "sample": "サンプルテキスト",
+    "size": "サイズ",
+    "glyphs": "グリフ",
+    "previous": "前へ",
+    "next": "次へ",
+    "coverage": "Unicode カバー範囲",
+    "coverageNote": "Unicode 17.0 のブロック別に対応するコードポイントを表示します。未符号化のグリフは除外されます。言語のサポートは保証されません。",
+    "version": "バージョン",
+    "designer": "デザイナー",
+    "license": "ライセンス",
+    "licenseUrl": "ライセンス URL",
+    "glyphCount": "グリフ数",
+    "units": "em あたりの単位",
+    "unavailable": "情報なし",
+    "unencoded": "未符号化",
+    "unassigned": "名前付きブロックの範囲外",
+    "decoderError": "WOFF2 のデコードに失敗しました。",
+    "tooLarge": "フォントが 64 MiB の上限を超えています。",
+    "unsupported": "サポートされていないフォント形式です。",
+    "error": "フォントを開けませんでした:"
+  }
+}

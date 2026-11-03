@@ -1,0 +1,4 @@
+woff-lib 0.0.3, https://github.com/countertype/woff-lib
+Unmodified npm dist/woff2-decode.umd.js: 168421 bytes, includes brotli-lib.
+The preferred wawoff2 2.0.1 fails under the board CSP because its generated binding uses unsafe-eval.
+Bundled inside woff2-decode.umd.js: brotli-lib 0.0.7 (MIT, https://github.com/countertype/brotli-lib), a port of Google Brotli; see LICENSE-brotli-lib and LICENSE_THIRD_PARTY-brotli-lib.

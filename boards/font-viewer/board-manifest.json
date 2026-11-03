@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "minBridgeVersion": "1.36.0",
+  "languages": {
+    "folder": "lang",
+    "default": "en"
+  },
+  "permissions": {
+    "execute": false,
+    "service": false,
+    "fileSystem": false,
+    "openExternal": false,
+    "appScripting": false,
+    "network": false,
+    "clipboardRead": false,
+    "camera": false,
+    "microphone": false,
+    "geolocation": false,
+    "notifications": false,
+    "themes": false
+  },
+  "description": "Offline, read-only font preview, glyphs, coverage and metadata.",
+  "author": "Persephone",
+  "name": "Font Viewer",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "5.0.10",
+  "fileMasks": [
+    "*.ttf",
+    "*.otf",
+    "*.woff",
+    "*.woff2"
+  ],
+  "editorKind": "simple",
+  "editorName": "Font Viewer",
+  "editorPriority": 100,
+  "screenshot": "screenshot.png",
+  "editorSources": "any"
+}

@@ -1,0 +1,28 @@
+{
+  "messages": {
+    "title": "Fontu skatītājs",
+    "loading": "Ielādē fontu…",
+    "empty": "Atveriet TTF, OTF, WOFF vai WOFF2 failu.",
+    "preview": "Priekšskatījums",
+    "sample": "Parauga teksts",
+    "size": "Izmērs",
+    "glyphs": "Glifi",
+    "previous": "Iepriekšējā",
+    "next": "Nākamā",
+    "coverage": "Unicode pārklājums",
+    "coverageNote": "Kartētie koda punkti pēc Unicode 17.0 blokiem; nekodētie glifi nav iekļauti. Pārklājums nenozīmē valodas atbalstu.",
+    "version": "Versija",
+    "designer": "Dizainers",
+    "license": "Licence",
+    "licenseUrl": "Licences URL",
+    "glyphCount": "Glifu skaits",
+    "units": "Vienības uz em",
+    "unavailable": "Nav pieejams",
+    "unencoded": "Nekodēts",
+    "unassigned": "Ārpus nosauktajiem blokiem",
+    "decoderError": "WOFF2 dekodēšana neizdevās.",
+    "tooLarge": "Fonts pārsniedz 64 MiB ierobežojumu.",
+    "unsupported": "Neatbalstīts fonta formāts.",
+    "error": "Neizdevās atvērt fontu:"
+  }
+}

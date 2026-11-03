@@ -1,0 +1,28 @@
+{
+  "messages": {
+    "title": "Šriftų peržiūra",
+    "loading": "Įkeliamas šriftas…",
+    "empty": "Atverkite TTF, OTF, WOFF arba WOFF2 failą.",
+    "preview": "Peržiūra",
+    "sample": "Pavyzdinis tekstas",
+    "size": "Dydis",
+    "glyphs": "Glifai",
+    "previous": "Ankstesnis",
+    "next": "Kitas",
+    "coverage": "Unicode aprėptis",
+    "coverageNote": "Susieti kodų taškai pagal Unicode 17.0 blokus; nekoduoti glifai neįtraukti. Aprėptis nereiškia kalbos palaikymo.",
+    "version": "Versija",
+    "designer": "Kūrėjas",
+    "license": "Licencija",
+    "licenseUrl": "Licencijos URL",
+    "glyphCount": "Glifų skaičius",
+    "units": "Vienetų viename em",
+    "unavailable": "Nėra",
+    "unencoded": "Nekoduotas",
+    "unassigned": "Už įvardytų blokų ribų",
+    "decoderError": "WOFF2 dekodavimo klaida.",
+    "tooLarge": "Šriftas viršija 64 MiB ribą.",
+    "unsupported": "Nepalaikomas šrifto formatas.",
+    "error": "Nepavyko atverti šrifto:"
+  }
+}

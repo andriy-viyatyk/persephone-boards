@@ -1,0 +1,28 @@
+{
+  "messages": {
+    "title": "Prehliadač písiem",
+    "loading": "Načítava sa písmo…",
+    "empty": "Otvorte súbor TTF, OTF, WOFF alebo WOFF2.",
+    "preview": "Ukážka",
+    "sample": "Vzorový text",
+    "size": "Veľkosť",
+    "glyphs": "Glyfy",
+    "previous": "Predchádzajúca",
+    "next": "Nasledujúca",
+    "coverage": "Pokrytie Unicode",
+    "coverageNote": "Priradené kódové body podľa blokov Unicode 17.0; nekódované glyfy sú vylúčené. Pokrytie neznamená podporu jazyka.",
+    "version": "Verzia",
+    "designer": "Dizajnér",
+    "license": "Licencia",
+    "licenseUrl": "URL licencie",
+    "glyphCount": "Počet glyfov",
+    "units": "Jednotky na em",
+    "unavailable": "Nedostupné",
+    "unencoded": "Nekódovaný",
+    "unassigned": "Mimo pomenovaných blokov",
+    "decoderError": "Dekódovanie WOFF2 zlyhalo.",
+    "tooLarge": "Písmo prekračuje limit 64 MiB.",
+    "unsupported": "Nepodporovaný formát písma.",
+    "error": "Písmo sa nepodarilo otvoriť:"
+  }
+}

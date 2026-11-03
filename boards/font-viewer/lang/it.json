@@ -1,0 +1,28 @@
+{
+  "messages": {
+    "title": "Visualizzatore font",
+    "loading": "Caricamento font…",
+    "empty": "Apri un file TTF, OTF, WOFF o WOFF2.",
+    "preview": "Anteprima",
+    "sample": "Testo di esempio",
+    "size": "Dimensione",
+    "glyphs": "Glifi",
+    "previous": "Precedente",
+    "next": "Successivo",
+    "coverage": "Copertura Unicode",
+    "coverageNote": "Punti di codice mappati per blocco Unicode 17.0; i glifi non codificati sono esclusi. La copertura non implica il supporto linguistico.",
+    "version": "Versione",
+    "designer": "Autore",
+    "license": "Licenza",
+    "licenseUrl": "URL licenza",
+    "glyphCount": "Numero di glifi",
+    "units": "Unità per em",
+    "unavailable": "Non disponibile",
+    "unencoded": "Non codificato",
+    "unassigned": "Fuori dai blocchi denominati",
+    "decoderError": "Decodifica WOFF2 non riuscita.",
+    "tooLarge": "Il font supera 64 MiB.",
+    "unsupported": "Formato font non supportato.",
+    "error": "Impossibile aprire il font:"
+  }
+}

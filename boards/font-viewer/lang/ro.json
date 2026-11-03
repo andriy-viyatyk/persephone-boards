@@ -1,0 +1,28 @@
+{
+  "messages": {
+    "title": "Vizualizator de fonturi",
+    "loading": "Se încarcă fontul…",
+    "empty": "Deschideți un fișier TTF, OTF, WOFF sau WOFF2.",
+    "preview": "Previzualizare",
+    "sample": "Text de exemplu",
+    "size": "Dimensiune",
+    "glyphs": "Glife",
+    "previous": "Anterior",
+    "next": "Următor",
+    "coverage": "Acoperire Unicode",
+    "coverageNote": "Puncte de cod mapate pe blocuri Unicode 17.0; glifele necodificate sunt excluse. Acoperirea nu implică suport pentru o limbă.",
+    "version": "Versiune",
+    "designer": "Designer",
+    "license": "Licență",
+    "licenseUrl": "URL licență",
+    "glyphCount": "Număr de glife",
+    "units": "Unități pe em",
+    "unavailable": "Indisponibil",
+    "unencoded": "Necodificat",
+    "unassigned": "În afara blocurilor numite",
+    "decoderError": "Decodarea WOFF2 a eșuat.",
+    "tooLarge": "Fontul depășește 64 MiB.",
+    "unsupported": "Format de font neacceptat.",
+    "error": "Fontul nu a putut fi deschis:"
+  }
+}

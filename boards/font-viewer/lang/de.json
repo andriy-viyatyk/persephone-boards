@@ -1,0 +1,28 @@
+{
+  "messages": {
+    "title": "Schriftbetrachter",
+    "loading": "Schrift wird geladen…",
+    "empty": "Öffnen Sie eine TTF-, OTF-, WOFF- oder WOFF2-Datei.",
+    "preview": "Vorschau",
+    "sample": "Beispieltext",
+    "size": "Größe",
+    "glyphs": "Glyphen",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "coverage": "Unicode-Abdeckung",
+    "coverageNote": "Zugeordnete Codepunkte nach Unicode-17.0-Block; nicht kodierte Glyphen sind ausgeschlossen. Die Abdeckung belegt keine Sprachunterstützung.",
+    "version": "Version",
+    "designer": "Designer",
+    "license": "Lizenz",
+    "licenseUrl": "Lizenz-URL",
+    "glyphCount": "Glyphenzahl",
+    "units": "Einheiten pro em",
+    "unavailable": "Nicht verfügbar",
+    "unencoded": "Nicht kodiert",
+    "unassigned": "Außerhalb benannter Blöcke",
+    "decoderError": "WOFF2-Dekodierung fehlgeschlagen.",
+    "tooLarge": "Schrift überschreitet 64 MiB.",
+    "unsupported": "Nicht unterstütztes Schriftformat.",
+    "error": "Schrift konnte nicht geöffnet werden:"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "messages": {
+    "title": "字体查看器",
+    "loading": "正在加载字体…",
+    "empty": "打开 TTF、OTF、WOFF 或 WOFF2 文件。",
+    "preview": "预览",
+    "sample": "示例文本",
+    "size": "大小",
+    "glyphs": "字形",
+    "previous": "上一页",
+    "next": "下一页",
+    "coverage": "Unicode 覆盖范围",
+    "coverageNote": "按 Unicode 17.0 区块统计映射的码位；不包含未编码的字形。覆盖范围不代表支持相应语言。",
+    "version": "版本",
+    "designer": "设计者",
+    "license": "许可证",
+    "licenseUrl": "许可证网址",
+    "glyphCount": "字形数量",
+    "units": "每 em 单位数",
+    "unavailable": "不可用",
+    "unencoded": "未编码",
+    "unassigned": "命名区块之外",
+    "decoderError": "WOFF2 解码失败。",
+    "tooLarge": "字体超过 64 MiB 限制。",
+    "unsupported": "不支持的字体格式。",
+    "error": "无法打开字体："
+  }
+}

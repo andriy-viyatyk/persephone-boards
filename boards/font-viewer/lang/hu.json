@@ -1,0 +1,28 @@
+{
+  "messages": {
+    "title": "Betűkészlet-megjelenítő",
+    "loading": "Betűkészlet betöltése…",
+    "empty": "Nyisson meg egy TTF, OTF, WOFF vagy WOFF2 fájlt.",
+    "preview": "Előnézet",
+    "sample": "Mintaszöveg",
+    "size": "Méret",
+    "glyphs": "Glifák",
+    "previous": "Előző",
+    "next": "Következő",
+    "coverage": "Unicode-lefedettség",
+    "coverageNote": "Hozzárendelt kódpontok Unicode 17.0 blokkok szerint; a kódolatlan glifák kimaradnak. A lefedettség nem jelent nyelvi támogatást.",
+    "version": "Verzió",
+    "designer": "Tervező",
+    "license": "Licenc",
+    "licenseUrl": "Licenc URL-je",
+    "glyphCount": "Glifák száma",
+    "units": "Egység em-enként",
+    "unavailable": "Nem elérhető",
+    "unencoded": "Kódolatlan",
+    "unassigned": "Elnevezett blokkokon kívül",
+    "decoderError": "A WOFF2 dekódolása sikertelen.",
+    "tooLarge": "A betűkészlet meghaladja a 64 MiB korlátot.",
+    "unsupported": "Nem támogatott betűformátum.",
+    "error": "A betűkészlet nem nyitható meg:"
+  }
+}

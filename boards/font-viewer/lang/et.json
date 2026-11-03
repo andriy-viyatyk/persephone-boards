@@ -1,0 +1,28 @@
+{
+  "messages": {
+    "title": "Fondivaatur",
+    "loading": "Fondi laadimine…",
+    "empty": "Avage TTF-, OTF-, WOFF- või WOFF2-fail.",
+    "preview": "Eelvaade",
+    "sample": "Näidistekst",
+    "size": "Suurus",
+    "glyphs": "Glüüfid",
+    "previous": "Eelmine",
+    "next": "Järgmine",
+    "coverage": "Unicode’i katvus",
+    "coverageNote": "Vastendatud koodipunktid Unicode 17.0 plokkide kaupa; kodeerimata glüüfid on välja jäetud. Katvus ei tähenda keele tuge.",
+    "version": "Versioon",
+    "designer": "Kujundaja",
+    "license": "Litsents",
+    "licenseUrl": "Litsentsi URL",
+    "glyphCount": "Glüüfide arv",
+    "units": "Ühikuid em-i kohta",
+    "unavailable": "Pole saadaval",
+    "unencoded": "Kodeerimata",
+    "unassigned": "Väljaspool nimetatud plokke",
+    "decoderError": "WOFF2 dekodeerimine nurjus.",
+    "tooLarge": "Font ületab 64 MiB piiri.",
+    "unsupported": "Toetamata fondivorming.",
+    "error": "Fonti ei saanud avada:"
+  }
+}

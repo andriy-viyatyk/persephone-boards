@@ -1,0 +1,2 @@
+opentype.js 2.0.0: https://github.com/opentypejs/opentype.js
+Unmodified npm dist/opentype.js, 528484 bytes.

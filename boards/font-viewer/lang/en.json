@@ -1,0 +1,28 @@
+{
+  "messages": {
+    "title": "Font Viewer",
+    "loading": "Loading font…",
+    "empty": "Open a TTF, OTF, WOFF or WOFF2 file.",
+    "preview": "Preview",
+    "sample": "Sample text",
+    "size": "Size",
+    "glyphs": "Glyphs",
+    "previous": "Previous",
+    "next": "Next",
+    "coverage": "Unicode coverage",
+    "coverageNote": "Mapped code points by Unicode 17.0 block; unencoded glyphs are excluded. Coverage does not imply language support.",
+    "version": "Version",
+    "designer": "Designer",
+    "license": "License",
+    "licenseUrl": "License URL",
+    "glyphCount": "Glyph count",
+    "units": "Units per em",
+    "unavailable": "Unavailable",
+    "unencoded": "Unencoded",
+    "unassigned": "Outside named blocks",
+    "decoderError": "WOFF2 decoding failed.",
+    "tooLarge": "Font exceeds 64 MiB.",
+    "unsupported": "Unsupported font format.",
+    "error": "Could not open font:"
+  }
+}

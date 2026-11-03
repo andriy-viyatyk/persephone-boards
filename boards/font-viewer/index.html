@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Font Viewer</title>
+        <link rel="stylesheet" href="board-base.css" />
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <main>
+            <div id="state" role="status" data-i18n="loading"></div>
+            <div id="viewer" hidden>
+                <header>
+                    <div class="eyebrow" data-i18n="title"></div>
+                    <h1 id="family"></h1>
+                    <p id="subtitle"></p>
+                    <dl id="metadata"></dl>
+                </header>
+                <section>
+                    <h2 data-i18n="preview"></h2>
+                    <div class="controls">
+                        <label
+                            ><span data-i18n="sample"></span
+                            ><input
+                                id="sample"
+                                type="text"
+                                value="The quick brown fox jumps over the lazy dog 0123456789" /></label
+                        ><label
+                            ><span data-i18n="size"></span
+                            ><input id="size" type="range" min="12" max="96" value="32" /><output
+                                id="size-value"
+                                >32 px</output
+                            ></label
+                        >
+                    </div>
+                    <div id="previews"></div>
+                </section>
+                <section>
+                    <div class="section-heading">
+                        <h2 data-i18n="glyphs"></h2>
+                        <div class="pager">
+                            <button id="prev" data-i18n="previous"></button><span id="page"></span
+                            ><button id="next" data-i18n="next"></button>
+                        </div>
+                    </div>
+                    <div id="glyph-grid"></div>
+                </section>
+                <section>
+                    <h2 data-i18n="coverage"></h2>
+                    <p class="muted" data-i18n="coverageNote"></p>
+                    <div id="coverage"></div>
+                </section>
+            </div>
+        </main>
+        <script src="lib/opentype/opentype.js"></script>
+        <script src="lib/unicode/blocks.js"></script>
+        <script src="i18n.js"></script>
+        <script src="app.js"></script>
+    </body>
+</html>

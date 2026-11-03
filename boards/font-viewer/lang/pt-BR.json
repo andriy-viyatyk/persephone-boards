@@ -1,0 +1,28 @@
+{
+  "messages": {
+    "title": "Visualizador de fontes",
+    "loading": "Carregando fonte…",
+    "empty": "Abra um arquivo TTF, OTF, WOFF ou WOFF2.",
+    "preview": "Prévia",
+    "sample": "Texto de exemplo",
+    "size": "Tamanho",
+    "glyphs": "Glifos",
+    "previous": "Anterior",
+    "next": "Próximo",
+    "coverage": "Cobertura Unicode",
+    "coverageNote": "Pontos de código mapeados por bloco Unicode 17.0; glifos não codificados são excluídos. A cobertura não implica suporte a idiomas.",
+    "version": "Versão",
+    "designer": "Designer",
+    "license": "Licença",
+    "licenseUrl": "URL da licença",
+    "glyphCount": "Número de glifos",
+    "units": "Unidades por em",
+    "unavailable": "Indisponível",
+    "unencoded": "Não codificado",
+    "unassigned": "Fora dos blocos nomeados",
+    "decoderError": "Falha na decodificação WOFF2.",
+    "tooLarge": "A fonte excede 64 MiB.",
+    "unsupported": "Formato de fonte não suportado.",
+    "error": "Não foi possível abrir a fonte:"
+  }
+}

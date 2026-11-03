@@ -1,0 +1,28 @@
+{
+  "messages": {
+    "title": "Visionneuse de polices",
+    "loading": "Chargement de la police…",
+    "empty": "Ouvrez un fichier TTF, OTF, WOFF ou WOFF2.",
+    "preview": "Aperçu",
+    "sample": "Texte exemple",
+    "size": "Taille",
+    "glyphs": "Glyphes",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "coverage": "Couverture Unicode",
+    "coverageNote": "Points de code associés par bloc Unicode 17.0 ; les glyphes non codés sont exclus. La couverture ne garantit pas la prise en charge d’une langue.",
+    "version": "Version",
+    "designer": "Créateur",
+    "license": "Licence",
+    "licenseUrl": "URL de licence",
+    "glyphCount": "Nombre de glyphes",
+    "units": "Unités par em",
+    "unavailable": "Indisponible",
+    "unencoded": "Non codé",
+    "unassigned": "Hors des blocs nommés",
+    "decoderError": "Échec du décodage WOFF2.",
+    "tooLarge": "La police dépasse 64 Mio.",
+    "unsupported": "Format de police non pris en charge.",
+    "error": "Impossible d’ouvrir la police :"
+  }
+}

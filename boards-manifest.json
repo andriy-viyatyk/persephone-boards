@@ -1030,16 +1030,16 @@
     },
     {
       "id": "speech-to-text",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "name": "Speech to Text",
       "description": "Local speech transcription powered by whisper.cpp.",
       "standalone": true,
       "minAppVersion": "5.0.15",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/speech-to-text-v1.4.0/speech-to-text.zip",
-        "size": 72451,
-        "sha256": "56dc70f65ffb754121bf5a1929d5b0240a7415a942f51ac9f17d79164d6f0d87"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/speech-to-text-v1.4.1/speech-to-text.zip",
+        "size": 72926,
+        "sha256": "c0ede94672df19581cc0fe9b4352e232e20366132ea803f701a10e5d18112f85"
       },
       "localized": {
         "be": {

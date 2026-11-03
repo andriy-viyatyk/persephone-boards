@@ -3,6 +3,16 @@
   "id": "speech-to-text",
   "versions": [
     {
+      "version": "1.4.1",
+      "date": "2026-11-03",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/speech-to-text-v1.4.1/speech-to-text.zip",
+        "size": 72926,
+        "sha256": "c0ede94672df19581cc0fe9b4352e232e20366132ea803f701a10e5d18112f85"
+      },
+      "minAppVersion": "5.0.15"
+    },
+    {
       "version": "1.4.0",
       "date": "2026-11-02",
       "archive": {

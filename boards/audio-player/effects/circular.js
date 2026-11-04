@@ -4,13 +4,17 @@
     { startFrac: .06, endFrac: .28, darkRgb: "12, 60, 16", lightRgb: "10, 140, 30", darkSparkRgb: "220, 240, 225", lightSparkRgb: "155, 210, 170", sparkMin: .5, sparkMax: .6, sparkSize: 2, baseR: .44, rotSpeed: -.00143, segments: 24, modSource: 0, expansionScale: .7 },
     { startFrac: .28, endFrac: .65, darkRgb: "15, 32, 70", lightRgb: "20, 60, 180", darkSparkRgb: "220, 225, 240", lightSparkRgb: "155, 170, 210", sparkMin: .3, sparkMax: .4, sparkSize: 3, baseR: .74, rotSpeed: .0009375, segments: 32, modSource: 1, expansionScale: .5 },
   ];
+  // The middle and outer rings' radii also jump on detected kicks (beat-detector.js); everything else follows band energy.
+  const KICK_BANDS = [false, true, true];
+  // Kick-driven radius easing in seconds: rise time and fall-back time (larger = softer, less strobe-like).
+  const KICK_ATTACK = .07, KICK_RELEASE = .4;
   const MAX_SPIKE_FRAC = .11, EXPANSION = .3, SAMPLES_PER_SEG = 8, MOD_STRENGTH = .6, GLOW_WIDTH = 14, GLOW_PAD = Math.ceil(GLOW_WIDTH / 2) + 2;
   const SPARK_SPEED = .12, SPARK_MIN_RATE = 1, SPARK_MAX_RATE = 15, SPARK_MAX_AGE = 10, MOD_SAMPLES = 64, SEG_PTS = SAMPLES_PER_SEG + 1;
   const REORDER = (() => { const map = new Uint8Array(SAMPLES_PER_SEG), center = SAMPLES_PER_SEG >> 1; let s = 0; map[center] = s++; for (let off = 1; s < SAMPLES_PER_SEG; off++) { if (center - off >= 0) map[center - off] = s++; if (center + off < SAMPLES_PER_SEG && s < SAMPLES_PER_SEG) map[center + off] = s++; } return map; })();
   class CircularEffect {
-    constructor() { this.data = new Uint8Array(0); this.smoothedEnergy = new Float32Array(BANDS.length); this.smoothedBins = Array.from({ length: BANDS.length }, () => new Float32Array(SAMPLES_PER_SEG)); this.modBins = Array.from({ length: BANDS.length }, () => new Float32Array(MOD_SAMPLES)); this.rotations = new Float32Array(BANDS.length); this.oc = null; this.ocW = 0; this.ocH = 0; this.sparks = []; this.sparkAccum = new Float32Array(BANDS.length); this.lastDrawTime = 0; this.sparkStamps = []; this.sparkStampDark = false; this.segOX = new Float32Array(SEG_PTS); this.segOY = new Float32Array(SEG_PTS); this.segIX = new Float32Array(SEG_PTS); this.segIY = new Float32Array(SEG_PTS); }
+    constructor() { this.data = new Uint8Array(0); this.smoothedEnergy = new Float32Array(BANDS.length); this.smoothedBins = Array.from({ length: BANDS.length }, () => new Float32Array(SAMPLES_PER_SEG)); this.modBins = Array.from({ length: BANDS.length }, () => new Float32Array(MOD_SAMPLES)); this.rotations = new Float32Array(BANDS.length); this.oc = null; this.ocW = 0; this.ocH = 0; this.sparks = []; this.sparkAccum = new Float32Array(BANDS.length); this.lastDrawTime = 0; this.kickEase = 0; this.sparkStamps = []; this.sparkStampDark = false; this.segOX = new Float32Array(SEG_PTS); this.segOY = new Float32Array(SEG_PTS); this.segIX = new Float32Array(SEG_PTS); this.segIY = new Float32Array(SEG_PTS); }
     dispose() { this.oc = null; this.octx = null; this.sparks.length = 0; this.sparkStamps.length = 0; }
-    draw(ctx, analyser, W, H, isDark) {
+    draw(ctx, analyser, W, H, isDark, features) {
       if (this.data.length !== analyser.frequencyBinCount) this.data = new Uint8Array(analyser.frequencyBinCount);
       analyser.getByteFrequencyData(this.data);
       const now = performance.now() / 1000, dt = this.lastDrawTime > 0 ? Math.min(now - this.lastDrawTime, .1) : 0; this.lastDrawTime = now;
@@ -29,8 +33,9 @@
       ctx.globalCompositeOperation = "source-over";
       for (let j = this.sparks.length - 1; j >= 0; j--) { const s = this.sparks[j]; s.x += s.vx * dt; s.y += s.vy * dt; s.age += dt; if (s.x < -20 || s.x > W + 20 || s.y < -20 || s.y > H + 20 || s.age > SPARK_MAX_AGE) { this.sparks[j] = this.sparks[this.sparks.length - 1]; this.sparks.pop(); continue; } const stamp = this.sparkStamps[s.bandIdx], half = stamp.width / 2; ctx.globalAlpha = Math.max(0, 1 - s.age / SPARK_MAX_AGE); ctx.drawImage(stamp, s.x - half, s.y - half); }
       ctx.globalCompositeOperation = isDark ? "lighter" : "multiply";
+      if (features && dt > 0) { const target = features.kick, tau = target > this.kickEase ? KICK_ATTACK : KICK_RELEASE; this.kickEase += (target - this.kickEase) * (1 - Math.exp(-dt / tau)); }
       for (let i = 0; i < BANDS.length; i++) {
-        const band = BANDS[i], energy = this.smoothedEnergy[i], ringR = unit * (band.baseR + energy * energy * EXPANSION * band.expansionScale), maxSpike = unit * MAX_SPIKE_FRAC, segments = band.segments, segAngle = Math.PI * 2 / segments, baseAlpha = .20 + energy * .80, color = `rgb(${isDark ? band.darkRgb : band.lightRgb})`;
+        const band = BANDS[i], energy = this.smoothedEnergy[i], radiusDrive = KICK_BANDS[i] && features ? Math.max(energy, this.kickEase) : energy, ringR = unit * (band.baseR + radiusDrive * radiusDrive * EXPANSION * band.expansionScale), maxSpike = unit * MAX_SPIKE_FRAC, segments = band.segments, segAngle = Math.PI * 2 / segments, baseAlpha = .20 + energy * .80, color = `rgb(${isDark ? band.darkRgb : band.lightRgb})`;
         let sparkRate = 0; if (energy > band.sparkMin) { const sparkEnergy = Math.max(0, energy - band.sparkMax) / (1 - band.sparkMax); sparkRate = SPARK_MIN_RATE + sparkEnergy * sparkEnergy * (SPARK_MAX_RATE - SPARK_MIN_RATE); }
         this.sparkAccum[i] += sparkRate * dt;
         while (this.sparkAccum[i] >= 1) { this.sparkAccum[i] -= 1; const a = Math.random() * Math.PI * 2, speed = unit * SPARK_SPEED; this.sparks.push({ x: cx + Math.cos(a) * ringR, y: cy + Math.sin(a) * ringR, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, bandIdx: i, age: 0 }); }

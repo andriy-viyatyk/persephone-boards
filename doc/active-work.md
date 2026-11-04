@@ -8,6 +8,7 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
+- [ ] [BT-075: Beat detection for the Circular visualizer](tasks/BT-075-beat-detection/README.md): spectral-flux kick detector drives the inner ring, so loud vocals no longer mask the beat
 - [ ] [BT-072: Agent Chat profile management through AI Vision](tasks/BT-072-agent-chat-ai-vision/README.md): expose profile CRUD and provider/model/effort catalogs through `pages[id].editor.app`, backed by the existing service path
 
 Board work for Persephone's **EPIC-135** (*Translation service*):
@@ -16,6 +17,8 @@ Board work for Persephone's **EPIC-135** (*Translation service*):
 - [ ] [BT-070: Translate board v1.0.0](tasks/BT-070-translate-board/README.md): the `text.translate@1` provider, CLD2 language detection, language manager and test panel
 
 ## Planned
+
+- [ ] [BT-076: Harmonic/percussive separation for new visualizers](tasks/BT-076-hpss-instrument-features/README.md): real-time HPSS → drums / bass / vocal-range features for new Audio Player effects (after BT-075)
 
 Board work for Persephone's **EPIC-134** (*Live transcription and meeting transcripts*) is finished:
 BT-060 – BT-068 added live segmentation, hour-long live sessions and the language picker to

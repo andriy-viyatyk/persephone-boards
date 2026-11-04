@@ -1,5 +1,10 @@
 # What's New — Audio Player
 
+## 1.0.2
+
+- New "Instruments" visualizer: waves for drums, bass and vocals, with note clouds that rain into them and occasional lightning on the beat.
+- Circular visualizer: the middle and outer rings now swell on each kick drum, even under loud vocals.
+
 ## 1.0.1
 
 - Fixed: with gapless playback on, a track that started automatically after the previous one ended played twice, and Next had to be pressed twice to move on.

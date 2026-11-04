@@ -17,6 +17,7 @@
     "visualizer.bars": "バー",
     "visualizer.circular": "円形",
     "visualizer.off": "オフ",
+    "visualizer.instruments": "楽器",
     "empty.instructions": "オーディオファイルを開くと再生が始まります。",
     "error.unsupported": "対応していない音声形式です。",
     "error.decode": "この音声を再生できませんでした。",

@@ -17,6 +17,7 @@
     "visualizer.bars": "Tulbad",
     "visualizer.circular": "Ringikujuline",
     "visualizer.off": "Väljas",
+    "visualizer.instruments": "Instrumendid",
     "empty.instructions": "Alustamiseks ava helifail.",
     "error.unsupported": "Helivorming pole toetatud.",
     "error.decode": "Seda heli ei saanud esitada.",

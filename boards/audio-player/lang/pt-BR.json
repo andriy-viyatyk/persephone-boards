@@ -17,6 +17,7 @@
     "visualizer.bars": "Barras",
     "visualizer.circular": "Circular",
     "visualizer.off": "Desativado",
+    "visualizer.instruments": "Instrumentos",
     "empty.instructions": "Abra um arquivo de áudio para iniciar a reprodução.",
     "error.unsupported": "Formato de áudio incompatível.",
     "error.decode": "Não foi possível reproduzir este áudio.",

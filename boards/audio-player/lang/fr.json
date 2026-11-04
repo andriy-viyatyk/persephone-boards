@@ -17,6 +17,7 @@
     "visualizer.bars": "Barres",
     "visualizer.circular": "Circulaire",
     "visualizer.off": "Désactivé",
+    "visualizer.instruments": "Instruments",
     "empty.instructions": "Ouvrez un fichier audio pour lancer la lecture.",
     "error.unsupported": "Format audio non pris en charge.",
     "error.decode": "Impossible de lire cet audio.",

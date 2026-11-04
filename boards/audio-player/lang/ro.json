@@ -17,6 +17,7 @@
     "visualizer.bars": "Bare",
     "visualizer.circular": "Circular",
     "visualizer.off": "Dezactivat",
+    "visualizer.instruments": "Instrumente",
     "empty.instructions": "Deschide un fișier audio pentru a începe redarea.",
     "error.unsupported": "Format audio neacceptat.",
     "error.decode": "Acest fișier audio nu a putut fi redat.",

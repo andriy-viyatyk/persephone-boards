@@ -14,7 +14,7 @@
 - `ai-vision.js` — main-frame-only `pages[pageId].editor.app` model for track indexing, bounded gap queries, bulk update/undo, category paths, folder scans, and playback/queue actions.
 - `folder-import.js`, `metadata.js`, `lib/board-range-tokenizer.js` — recursive folder import and bounded Range-based tag parsing.
 - `scripts/build-metadata-bundle.mjs`, `package.json`, `lib/VERSION.txt` — pinned, dev-only browser parser build; the board loads only its generated `lib/music-metadata.js` output.
-- `visualizer.js`, `equalizer.js`, `crossfade.js`, `gapless.js`, `player-settings.js`, `effects/` — shared Web Audio graph, EQ and transition controls, canvas lifecycle, and the ported Bars/Circular visualizers.
+- `visualizer.js`, `beat-detector.js`, `hpss.js`, `equalizer.js`, `crossfade.js`, `gapless.js`, `player-settings.js`, `effects/` — shared Web Audio graph, beat detection, instrument group analysis, EQ and transition controls, canvas lifecycle, and visualizer effects.
 - `i18n.js`, `lang/` — board-pack translation adapter and 18 aligned language packs.
 
 ## Source and queue behavior

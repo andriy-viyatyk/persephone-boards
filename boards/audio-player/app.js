@@ -134,7 +134,7 @@
     if (light && navigationStarted) return;
     if (type === "track") {
       if (Number.isInteger(detail.queueIndex)) queue.select(detail.queueIndex);
-      visualizer.setTrack(detail); updateMediaSession(detail); setStatus(""); if (!light) void queue.save(); renderQueue();
+      visualizer.resetBeat(); visualizer.setTrack(detail); updateMediaSession(detail); setStatus(""); if (!light) void queue.save(); renderQueue();
       const found = catalog.document?.links.find((link) => window.AudioCatalog.normalizedHref(link.href) === window.AudioCatalog.normalizedHref(detail.href));
       catalogView?.render(); setStatus(found ? "catalog.member" : "catalog.notMember");
       if (found) playCounts.record(detail.activationId, found);

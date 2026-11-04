@@ -17,6 +17,7 @@
     "visualizer.bars": "Balken",
     "visualizer.circular": "Kreisförmig",
     "visualizer.off": "Aus",
+    "visualizer.instruments": "Instrumente",
     "empty.instructions": "Öffne eine Audiodatei, um die Wiedergabe zu starten.",
     "error.unsupported": "Nicht unterstütztes Audioformat.",
     "error.decode": "Diese Audiodatei konnte nicht abgespielt werden.",

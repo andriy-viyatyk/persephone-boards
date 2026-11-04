@@ -17,6 +17,7 @@
     "visualizer.bars": "Sávok",
     "visualizer.circular": "Kör alakú",
     "visualizer.off": "Ki",
+    "visualizer.instruments": "Hangszerek",
     "empty.instructions": "A lejátszás indításához nyisson meg egy hangfájlt.",
     "error.unsupported": "Nem támogatott hangformátum.",
     "error.decode": "Ez a hang nem játszható le.",

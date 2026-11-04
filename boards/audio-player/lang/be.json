@@ -17,6 +17,7 @@
     "visualizer.bars": "Палосы",
     "visualizer.circular": "Круговая",
     "visualizer.off": "Выключана",
+    "visualizer.instruments": "Інструменты",
     "empty.instructions": "Адкрыйце аўдыяфайл, каб пачаць прайграванне.",
     "error.unsupported": "Фармат аўдыя не падтрымліваецца.",
     "error.decode": "Не ўдалося прайграць гэты аўдыяфайл.",

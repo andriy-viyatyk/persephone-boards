@@ -17,6 +17,7 @@
     "visualizer.bars": "Słupki",
     "visualizer.circular": "Kołowa",
     "visualizer.off": "Wyłączona",
+    "visualizer.instruments": "Instrumenty",
     "empty.instructions": "Otwórz plik audio, aby rozpocząć odtwarzanie.",
     "error.unsupported": "Nieobsługiwany format audio.",
     "error.decode": "Nie można odtworzyć tego dźwięku.",

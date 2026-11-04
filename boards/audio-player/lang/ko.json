@@ -17,6 +17,7 @@
     "visualizer.bars": "막대",
     "visualizer.circular": "원형",
     "visualizer.off": "끔",
+    "visualizer.instruments": "악기",
     "empty.instructions": "오디오 파일을 열면 재생이 시작됩니다.",
     "error.unsupported": "지원되지 않는 오디오 형식입니다.",
     "error.decode": "이 오디오를 재생할 수 없습니다.",

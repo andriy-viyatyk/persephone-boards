@@ -38,6 +38,8 @@ uniform vec2 uCloudWind;
 uniform float uCloudCover;
 uniform vec3 uCloudAmbient;
 uniform float uLightSea;
+uniform vec3 uDeepPos[5];
+uniform vec3 uDeepColors[5];
 out vec4 fragColor;
 #define CAMERA_HEIGHT 1.5
 // Waves come in octaves (each 18% higher in frequency, 20% lighter). Octaves are grouped into 5 bands, each driven by one
@@ -170,6 +172,30 @@ vec4 skyAt(vec3 dir) {
   return vec4(min(rgb, vec3(alpha)), alpha);
 }
 
+// ---- Underwater lights (our own code) ----
+// Each light sits at a 3D point under the sea. The view ray is refracted into the water at the hit point; the light shows by how
+// close that refracted ray passes it, dimmed by the water it travels through (red is absorbed fastest) and by the share of light
+// that crosses the surface (1 - Fresnel). The refraction follows the moving surface normal, so the glow ripples with the waves.
+#define DEEP_RADIUS 0.7
+#define DEEP_RADIUS_GROW 1.4
+#define DEEP_HALO 0.35
+const vec3 DEEP_ABSORB = vec3(0.16, 0.09, 0.06);
+
+vec3 deepLights(vec3 hit, vec3 ray, vec3 N, float fresnel) {
+  vec3 refr = refract(ray, N, 1.0 / 1.33);
+  vec3 sum = vec3(0.0);
+  for (int i = 0; i < 5; i++) {
+    float level = max(uDeepColors[i].r, max(uDeepColors[i].g, uDeepColors[i].b));
+    if (level < 0.01) continue;
+    vec3 toLight = uDeepPos[i] - hit;
+    float along = max(dot(toLight, refr), 0.0), miss = length(toLight - refr * along), path = length(toLight);
+    float r = DEEP_RADIUS + level * DEEP_RADIUS_GROW;
+    float glow = exp(-miss * miss / (r * r)) + DEEP_HALO * exp(-miss / (r * 3.0));
+    sum += uDeepColors[i] * glow * exp(-DEEP_ABSORB * path);
+  }
+  return sum * (1.0 - fresnel);
+}
+
 float intersectPlane(vec3 origin, vec3 direction, vec3 point, vec3 normal) {
   return clamp(dot(point - origin, normal) / dot(direction, normal), -1.0, 9991999.0);
 }
@@ -201,7 +227,8 @@ void main() {
   vec3 skyLight = skyAt(R).rgb * uLightSea;
   float crest = 0.2 + (waterHitPos.y + uAmp * WAVE_MEAN) / max(uAmp, 0.05);
   vec3 scattering = (vec3(0.0293, 0.0698, 0.1717) * 0.1 + uTint) * crest;
-  vec3 color = aces_tonemap((fresnel * reflection + scattering + skyLight * (fresnel + 0.12)) * 2.0);
+  vec3 deep = deepLights(waterHitPos, ray, N, fresnel);
+  vec3 color = aces_tonemap((fresnel * reflection + scattering + skyLight * (fresnel + 0.12) + deep) * 2.0);
   float alpha = 1.0 - smoothstep(uFade * 0.25, uFade, dist);
   fragColor = vec4(color * alpha, alpha);
 }`;
@@ -223,16 +250,17 @@ void main() {
     const buffer = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
     const position = gl.getAttribLocation(program, "aPosition"); gl.enableVertexAttribArray(position); gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-    const uniform = Object.fromEntries(["iResolution", "uGain", "uPhase", "uSlab", "uAmp", "uDrag", "uPitch", "uSky", "uFade", "uTint", "uFlash", "uLights", "uLightColors", "uCloudWind", "uCloudCover", "uCloudAmbient", "uLightSea"].map((name) => [name, gl.getUniformLocation(program, name)]));
+    const uniform = Object.fromEntries(["iResolution", "uGain", "uPhase", "uSlab", "uAmp", "uDrag", "uPitch", "uSky", "uFade", "uTint", "uFlash", "uLights", "uLightColors", "uCloudWind", "uCloudCover", "uCloudAmbient", "uLightSea", "uDeepPos", "uDeepColors"].map((name) => [name, gl.getUniformLocation(program, name)]));
     return {
       canvas,
       // p: { gains: [5], phases: [5] (bands kick, bass, vocals, other, hats), amp, drag, pitch, sky, fade, tint: [r,g,b], flash: [r,g,b],
-      //    lights: 12 x (screen x, screen y, level) in shader uv units, lightColors: 12 x rgb, cloudWind: [x, y], cloudCover, cloudAmbient: rgb, lightSea }
+      //    lights: 12 x (screen x, screen y, level) in shader uv units, lightColors: 12 x rgb, cloudWind: [x, y], cloudCover, cloudAmbient: rgb, lightSea,
+      //    deepPositions: 5 x world xyz (y < 0 is under the sea), deepColors: 5 x rgb already scaled by level }
       render(width, height, p) {
         if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; gl.viewport(0, 0, width, height); }
         gl.uniform2f(uniform.iResolution, width, height); gl.uniform1fv(uniform.uGain, p.gains); gl.uniform1fv(uniform.uPhase, p.phases); gl.uniform1f(uniform.uSlab, 1 + Math.max(...p.gains)); gl.uniform1f(uniform.uAmp, p.amp); gl.uniform1f(uniform.uDrag, p.drag);
         gl.uniform1f(uniform.uPitch, p.pitch); gl.uniform1f(uniform.uSky, p.sky); gl.uniform1f(uniform.uFade, p.fade); gl.uniform3fv(uniform.uTint, p.tint); gl.uniform3fv(uniform.uFlash, p.flash);
-        gl.uniform3fv(uniform.uLights, p.lights); gl.uniform3fv(uniform.uLightColors, p.lightColors); gl.uniform2fv(uniform.uCloudWind, p.cloudWind); gl.uniform1f(uniform.uCloudCover, p.cloudCover); gl.uniform3fv(uniform.uCloudAmbient, p.cloudAmbient); gl.uniform1f(uniform.uLightSea, p.lightSea);
+        gl.uniform3fv(uniform.uLights, p.lights); gl.uniform3fv(uniform.uLightColors, p.lightColors); gl.uniform2fv(uniform.uCloudWind, p.cloudWind); gl.uniform1f(uniform.uCloudCover, p.cloudCover); gl.uniform3fv(uniform.uCloudAmbient, p.cloudAmbient); gl.uniform1f(uniform.uLightSea, p.lightSea); gl.uniform3fv(uniform.uDeepPos, p.deepPositions); gl.uniform3fv(uniform.uDeepColors, p.deepColors);
         gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); gl.drawArrays(gl.TRIANGLES, 0, 6);
         return canvas;
       },

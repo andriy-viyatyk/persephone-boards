@@ -25,6 +25,11 @@
   // picked as the best of LIGHT_TRIES candidates (farthest from the other lights). Area fractions: x across the width, y from the top
   // down to LIGHT_SKY_BOTTOM of the way to the horizon.
   const LIGHT_OFF = .05, LIGHT_TRIES = 12, LIGHT_X_MIN = .06, LIGHT_X_MAX = .94, LIGHT_Y_MIN = .06, LIGHT_SKY_BOTTOM = .8;
+  // Underwater lights: one per instrument group (the original five bars, same colours and left-to-right order), brightness and size
+  // following that group's volume. World units: DEEP_DEPTH below sea level, DEEP_DISTANCE ahead of the camera (alternate lights
+  // DEEP_STAGGER further back), DEEP_SPREAD apart sideways. DEEP_GAIN scales their brightness.
+  const DEEP_ORDER = ["kick", "hats", "bass", "vocals", "other"], DEEP_DEPTH = 1.8, DEEP_DISTANCE = 3.5, DEEP_STAGGER = 1.5, DEEP_SPREAD = 1.9, DEEP_GAIN = 1.2;
+  const DEEP_POSITIONS = new Float32Array(DEEP_ORDER.flatMap((_, i) => [(i - (DEEP_ORDER.length - 1) / 2) * DEEP_SPREAD, -DEEP_DEPTH, DEEP_DISTANCE + (i % 2) * DEEP_STAGGER]));
   const CLOUD_COVER = .48, CLOUD_WIND = .025, CLOUD_AMBIENT_DARK = [.08, .09, .11], CLOUD_AMBIENT_LIGHT = [.82, .84, .88];
   // Lightning: on a detected kick, with LIGHTNING_CHANCE, a jagged bolt strikes from a loud cloud down to the sea.
   // Times in seconds; LIGHTNING_JAG is the sideways jitter as a fraction of each segment's length.
@@ -43,7 +48,7 @@
   }
   const noteColor = (n, isDark) => isDark ? `hsl(${n * 30}, 100%, 62%)` : `hsl(${n * 30}, 85%, 48%)`;
   class InstrumentsEffect {
-    constructor() { this.usesGroups = true; this.stamps = []; this.stampDark = null; this.lastDrawTime = 0; this.splashes = []; this.bolts = []; this.prevKick = 0; this.lastStrike = 0; this.ocean = window.AudioOceanGL?.create() || null; this.cloudTime = 0; this.lightSpots = NOTES.map(() => null); this.lightLit = new Uint8Array(NOTES.length); this.lights = new Float32Array(NOTES.length * 3); this.lightColors = new Float32Array(NOTES.map((_, n) => hueToRgb(n * 30)).flat()); this.oceanPhases = new Float32Array(OCEAN_BANDS.length); this.oceanGains = new Float32Array(OCEAN_BANDS.length); }
+    constructor() { this.usesGroups = true; this.stamps = []; this.stampDark = null; this.lastDrawTime = 0; this.splashes = []; this.bolts = []; this.prevKick = 0; this.lastStrike = 0; this.ocean = window.AudioOceanGL?.create() || null; this.cloudTime = 0; this.deepColors = new Float32Array(DEEP_ORDER.length * 3); this.lightSpots = NOTES.map(() => null); this.lightLit = new Uint8Array(NOTES.length); this.lights = new Float32Array(NOTES.length * 3); this.lightColors = new Float32Array(NOTES.map((_, n) => hueToRgb(n * 30)).flat()); this.oceanPhases = new Float32Array(OCEAN_BANDS.length); this.oceanGains = new Float32Array(OCEAN_BANDS.length); }
     dispose() { this.ocean?.dispose(); this.ocean = null; this.bolts.length = 0; this.splashes.length = 0; this.stamps.length = 0; }
     draw(ctx, analyser, W, H, isDark, features) {
       const now = performance.now() / 1000, dt = this.lastDrawTime > 0 ? Math.min(now - this.lastDrawTime, .1) : 0; this.lastDrawTime = now;
@@ -86,11 +91,12 @@
           if (dt > 0) this.oceanGains[b] += (target - current) * (1 - Math.exp(-dt / (target > current ? OCEAN_BAND_ATTACK : OCEAN_BAND_RELEASE)));
         });
         this.cloudTime += dt * CLOUD_WIND;
+        DEEP_ORDER.forEach((key, i) => { const rgb = GROUP_RGB[GROUPS.indexOf(key)]; for (let c = 0; c < 3; c++) this.deepColors[i * 3 + c] = rgb[c] * level(key) * DEEP_GAIN; });
         NOTES.forEach((_, n) => { this.lights[n * 3] = (this.lightSpots[n].x * 2 - 1) * (W / H); this.lights[n * 3 + 1] = 1 - 2 * this.lightSpots[n].y; this.lights[n * 3 + 2] = features?.notes?.[n] || 0; });
         const image = this.ocean.render(Math.max(1, Math.round(W * OCEAN_SCALE)), Math.max(1, Math.round(H * OCEAN_SCALE)), {
           gains: this.oceanGains, phases: this.oceanPhases, amp: OCEAN_AMP, drag: OCEAN_DRAG + level("bass") * OCEAN_DRAG_BASS,
           pitch: OCEAN_PITCH, sky: isDark ? OCEAN_SKY_DARK : OCEAN_SKY_LIGHT, fade: OCEAN_FADE, tint, flash,
-          lights: this.lights, lightColors: this.lightColors, cloudWind: [this.cloudTime, this.cloudTime * .35], cloudCover: CLOUD_COVER, cloudAmbient: isDark ? CLOUD_AMBIENT_DARK : CLOUD_AMBIENT_LIGHT, lightSea: OCEAN_LIGHT_REFLECT,
+          lights: this.lights, lightColors: this.lightColors, cloudWind: [this.cloudTime, this.cloudTime * .35], cloudCover: CLOUD_COVER, cloudAmbient: isDark ? CLOUD_AMBIENT_DARK : CLOUD_AMBIENT_LIGHT, lightSea: OCEAN_LIGHT_REFLECT, deepPositions: DEEP_POSITIONS, deepColors: this.deepColors,
         });
         ctx.drawImage(image, 0, 0, W, H);
       }

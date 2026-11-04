@@ -758,6 +758,20 @@
       }
     },
     {
+      "id": "gem-keep",
+      "version": "1.0.0",
+      "name": "Gem Keep",
+      "description": "A 3D tower-defense game. Build and upgrade towers along the road, drop meteors on the raiders and keep the gems in your vault safe. Zoom with the mouse wheel and turn the camera with the mouse or a pen. Levels are plain JSON files, so you can make your own.",
+      "standalone": true,
+      "minAppVersion": "5.0.16",
+      "screenshot": "screenshot.png",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/gem-keep-v1.0.0/gem-keep.zip",
+        "size": 2594516,
+        "sha256": "ea36ddacad183f4b7302d91ff9461f3d6ddbbe09c37423f899507df4069e57dc"
+      }
+    },
+    {
       "id": "pdf-viewer",
       "version": "1.2.0",
       "name": "PDF Viewer",

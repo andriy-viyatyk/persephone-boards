@@ -1,5 +1,9 @@
 # What's New — Audio Player
 
+## 1.0.5
+
+- Instruments visualizer: a moon now hangs low over the horizon and lays a shimmering path of light across the waves. Lightning strikes the sea far out near the horizon or jumps between the colored lights in the sky, and the underwater lights sit deeper in the distance.
+
 ## 1.0.4
 
 - Instruments visualizer: five colored lights now glow deep in the ocean, one for each instrument group (kick, cymbals, bass, vocals, other), brightening with its volume and shimmering through the waves.

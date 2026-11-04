@@ -12,7 +12,7 @@
   //   WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
   //   COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
   //   ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-  // Changes: the daytime sky is not drawn (it is only reflected); instead the sky shows our own cloud deck (below), fixed sun and camera,
+  // Changes: the daytime sky is not drawn (it is only reflected); instead the sky shows our own cloud deck (below), the sun's glint is replaced by a moon, fixed camera,
   // a fixed sea level, per-band wave heights and speeds (uGain / uPhase), drag and tint uniforms, a reflection flash for lightning, and a distance fade at the horizon.
   // Cloud deck and note lights are our own code: a perspective cloud layer of domain-warped value-noise FBM, with 12 coloured
   // lights behind it (dimmed where the cloud is thick, lighting the cloud body and its thin edges); also reflected in the sea.
@@ -118,7 +118,19 @@ vec3 extra_cheap_atmosphere(vec3 raydir, vec3 sundir) {
 const vec3 SUN = vec3(-0.0773502691896258, 0.28, 0.5773502691896258);
 
 vec3 getAtmosphere(vec3 dir) { return extra_cheap_atmosphere(dir, normalize(SUN)) * 0.5; }
-float getSun(vec3 dir) { return pow(max(0.0, dot(dir, normalize(SUN))), 720.0) * 210.0; }
+
+// ---- Moon (our own code) ----
+// A moon low over the horizon, drawn in the sky behind the clouds; its glint on the waves makes the light path on the sea.
+// MOON_DIR: direction (x right, y up, z forward). MOON_RADIUS / MOON_HALO: angular sizes in radians. MOON_SHINE: glint
+// sharpness (higher = narrower path); MOON_PATH: glint brightness.
+const vec3 MOON_DIR = vec3(0.42, 0.075, 1.0);
+const vec3 MOON_COLOR = vec3(1.0, 0.95, 0.82);
+#define MOON_RADIUS 0.03
+#define MOON_HALO 0.12
+#define MOON_HALO_GLOW 0.18
+#define MOON_SHINE 420.0
+#define MOON_PATH 55.0
+float moonGlint(vec3 dir) { return pow(max(0.0, dot(dir, normalize(MOON_DIR))), MOON_SHINE) * MOON_PATH; }
 
 vec3 aces_tonemap(vec3 color) {
   mat3 m1 = mat3(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383, 0.04823, 0.01566, 0.83777);
@@ -167,6 +179,14 @@ vec4 skyAt(vec3 dir) {
     float r = 0.02 + L.z * 0.06, dd2 = dot(dd, dd), core = exp(-dd2 / (r * r)), halo = exp(-dd2 / (9.0 * r * r));
     light += uLightColors[n] * L.z * (core * exp(-LIGHT_ABSORB * d) * 1.2 + halo * LIGHT_GLOW + halo * d * LIGHT_SCATTER + halo * d * (1.0 - d) * LIGHT_SILVER);
   }
+  // Moon disc with faint darker patches and a soft halo, dimmed by the clouds in front of it.
+  vec3 moonDir = normalize(MOON_DIR);
+  float angle = acos(clamp(dot(dir, moonDir), -1.0, 1.0));
+  vec3 moonRight = normalize(cross(vec3(0.0, 1.0, 0.0), moonDir)), moonUp = cross(moonDir, moonRight);
+  vec2 face = vec2(dot(dir, moonRight), dot(dir, moonUp)) / MOON_RADIUS;
+  float disc = smoothstep(MOON_RADIUS, MOON_RADIUS * 0.9, angle) * (0.82 + 0.18 * smoothstep(0.35, 0.65, fbm(face * 2.2 + 7.0)));
+  float moonHalo = exp(-angle / MOON_HALO * 3.0) * MOON_HALO_GLOW;
+  light += MOON_COLOR * (disc * exp(-LIGHT_ABSORB * d * 1.5) + moonHalo * (1.0 + d * LIGHT_SCATTER));
   vec3 rgb = uCloudAmbient * d * CLOUD_OPACITY + light + uFlash * d * 0.6;
   float alpha = clamp(max(d * CLOUD_OPACITY, max(rgb.r, max(rgb.g, rgb.b))), 0.0, 1.0);
   return vec4(min(rgb, vec3(alpha)), alpha);
@@ -221,7 +241,7 @@ void main() {
   vec3 R = normalize(reflect(ray, N));
   R.y = abs(R.y);
 
-  vec3 reflection = (getAtmosphere(R) + getSun(R)) * uSky + uFlash;
+  vec3 reflection = getAtmosphere(R) * uSky + MOON_COLOR * moonGlint(R) + uFlash;
   // The note lights and their clouds, mirrored in the water. A small floor under the Fresnel term lets them also show on the
   // steeper water near the camera, so lights highlight the sea without lifting its overall brightness.
   vec3 skyLight = skyAt(R).rgb * uLightSea;

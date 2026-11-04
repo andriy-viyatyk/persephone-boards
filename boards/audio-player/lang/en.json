@@ -16,6 +16,7 @@
     "visualizer.choose": "Choose visualizer",
     "visualizer.bars": "Bars",
     "visualizer.circular": "Circular",
+    "visualizer.instruments": "Instruments",
     "visualizer.off": "Off",
     "empty.instructions": "Open an audio file to start playback.",
     "error.unsupported": "Unsupported audio format.",

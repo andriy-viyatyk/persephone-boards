@@ -17,6 +17,7 @@
     "visualizer.bars": "Juostos",
     "visualizer.circular": "Apskritiminė",
     "visualizer.off": "Išjungta",
+    "visualizer.instruments": "Instrumentai",
     "empty.instructions": "Atverkite garso failą, kad pradėtumėte atkūrimą.",
     "error.unsupported": "Garso formatas nepalaikomas.",
     "error.decode": "Nepavyko paleisti šio garso.",

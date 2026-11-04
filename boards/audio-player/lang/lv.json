@@ -17,6 +17,7 @@
     "visualizer.bars": "Joslas",
     "visualizer.circular": "Apļveida",
     "visualizer.off": "Izslēgts",
+    "visualizer.instruments": "Instrumenti",
     "empty.instructions": "Atveriet audio failu, lai sāktu atskaņošanu.",
     "error.unsupported": "Audio formāts netiek atbalstīts.",
     "error.decode": "Šo audio nevarēja atskaņot.",

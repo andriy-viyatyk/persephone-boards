@@ -17,6 +17,7 @@
     "visualizer.bars": "频谱条",
     "visualizer.circular": "圆形",
     "visualizer.off": "关闭",
+    "visualizer.instruments": "乐器",
     "empty.instructions": "打开音频文件即可开始播放。",
     "error.unsupported": "不支持此音频格式。",
     "error.decode": "无法播放此音频。",

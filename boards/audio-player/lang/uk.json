@@ -17,6 +17,7 @@
     "visualizer.bars": "Стовпчики",
     "visualizer.circular": "Кругова",
     "visualizer.off": "Вимкнено",
+    "visualizer.instruments": "Інструменти",
     "empty.instructions": "Відкрийте аудіофайл, щоб почати відтворення.",
     "error.unsupported": "Формат аудіо не підтримується.",
     "error.decode": "Не вдалося відтворити це аудіо.",

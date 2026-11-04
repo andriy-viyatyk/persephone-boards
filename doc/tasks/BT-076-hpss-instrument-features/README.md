@@ -2,10 +2,10 @@
 
 ## Status
 
-**Status:** Planned
+**Status:** In Progress
 **Priority:** Low
 **Board id:** `audio-player`
-**Started:**
+**Started:** 2026-11-04
 **Completed:**
 
 ## Goal
@@ -35,29 +35,21 @@ visualizer effects can draw drums, bass and vocals separately.
 
 ## Implementation Plan
 
-- [ ] **`hpss.js`** (board root), or extend `beat-detector.js` if it stays small.
+- [x] **`hpss.js`** (board root).
   - Run on the beat analyser's linear-magnitude frame.
   - Keep a frame ring buffer (N_h ≈ 17 frames, about 0.28 s at 60 fps).
   - Median along frequency with w ≈ 8 bins.
   - Produce `harmonic` and `percussive` `Float32Array`s.
   - Restrict processing to roughly 30 Hz – 8 kHz to keep the median cost low (see Concerns).
-- [ ] **Features**, added to the shared `features` object:
-  - `drums` — onset pulse from percussive-only spectral flux, full range. Optionally
-    `drumsLow` (kick) and `drumsHigh` (snare and hats) as separate pulses.
-  - `bass` — harmonic energy, 40–250 Hz, automatically gain-normalised.
-  - `vocals` — harmonic energy, ~250 Hz – 4 kHz (a "voice-range harmonic" proxy, not true vocal
-    isolation).
-  - `harmonicSpectrum` / `percussiveSpectrum` — the raw arrays, for effects that want to draw them.
-- [ ] **Optional:** switch BT-075's kick detector to percussive-only flux if it proves cleaner.
-- [ ] **New effect(s)** in `effects/`, registered in `effects/effect-types.js`, with a picker button
-  and translated labels in all `lang/` packs.
-  - The visual design is to be agreed with the user before implementation. Starting idea: one
-    element per group, e.g. a drum shockwave ring, a bass "floor" wave and a vocal ribbon.
-- [ ] `CLAUDE.md` key-files line; WHATS-NEW and version bump at completion.
+- [x] **Features:** `features.groups` contains fixed-dB-mapped, smoothed volume levels for
+  percussive kick and hats and harmonic bass, vocals and other. Existing `features.kick` is unchanged.
+- [x] **Instruments test effect**, registered with a picker button and English labels.
+- [x] Update the `CLAUDE.md` key-files line.
+- [ ] WHATS-NEW and version bump at completion, after user testing.
 
 ## Concerns / Open Questions
 
-- **Visual design of the new effect(s) is open.** Decide this with the user before implementing.
+- **Visual design.** Instruments is a five-bar test effect; artistic effects are deferred.
 - **CPU.** A per-bin time median over 1024 bins × 17 frames per frame is ~17k values to sort per
   frame. Limiting the range to ~350 bins and using a small insertion-sort median keeps it cheap. If
   it is not cheap enough, run HPSS every second frame.
@@ -72,8 +64,7 @@ visualizer effects can draw drums, bass and vocals separately.
 
 ## Acceptance Criteria
 
-- [ ] `drums` pulses on hits and stays quiet on sustained vocal/pad passages.
-- [ ] `bass` and `vocals` follow their parts audibly (checked by ear on a few tracks).
+- [ ] Group levels follow their bands audibly (checked by ear on a few tracks).
 - [ ] The new effect runs smoothly (no visible frame drops) on a typical track.
 - [ ] Existing Bars/Circular effects are unchanged.
 - [ ] `ui.log` is clean.
@@ -84,7 +75,31 @@ visualizer effects can draw drums, bass and vocals separately.
 | File | Change |
 |------|--------|
 | `boards/audio-player/hpss.js` | New — HPSS + group features |
-| `boards/audio-player/effects/<new>.js` | New effect(s) |
-| `boards/audio-player/effects/effect-types.js`, `index.html`, `lang/*` | Register the effect, picker label |
+| `boards/audio-player/visualizer.js` | Conditional analysis and reset wiring |
+| `boards/audio-player/effects/instruments.js` | Five-bar test effect |
+| `boards/audio-player/effects/effect-types.js`, `index.html`, `lang/en.json` | Register the effect and English labels |
+| `boards/audio-player/CLAUDE.md` | Key-files line |
 
 ## Notes
+
+- 2026-11-04, user decision: the first effect is a **test effect, "Instruments"**. It draws one
+  labelled vertical bar per group, and each bar's height is that group's current volume. The
+  artistic effects come later.
+- 2026-11-04, user request: per-note volume (chromagram). `hpss.js` sums the harmonic spectrum
+  over 400 Hz – 5 kHz into 12 pitch classes, giving `features.notes[12]`. Each note's value is its
+  share of the strongest note, squared, times the overall loudness. The Instruments effect draws
+  12 coloured dots (C … B) across the top, whose radius and glow grow with that note's volume.
+- Note rain: a dot louder than `RAIN_MIN` (.55) emits drops of its colour, up to 30 per second at
+  full volume. The drops fall under gravity and are drawn before the bars, so they pass behind them.
+  The constants block is in `effects/instruments.js`.
+- Ocean: the five bars were replaced by five layered waves, ordered far to near as other, vocals,
+  hats, bass, kick. Each wave rises, swells and speeds up with its group's volume, and the rain
+  falls into them. The note labels and group labels are no longer drawn, so the
+  `visualizer.group.*` keys are unused; remove them at completion unless labels come back.
+- Drops land on the wave nearest their colour (`NOTE_LAYER`). Each landing adds a ripple packet that
+  runs outward along that wave's surface and fades (at most 40 per wave), plus three splash
+  droplets. The constants are in `effects/instruments.js`.
+- Clouds and lightning: the note dots are drawn as clouds (`CLOUD_PUFFS`). On a beat-detector kick
+  onset there is a `LIGHTNING_CHANCE` of a strike, with a cooldown. It picks a loud cloud weighted by
+  volume and draws a midpoint-displacement bolt with branches down to that note's wave, with a faint
+  canvas flash and a splash where it hits.

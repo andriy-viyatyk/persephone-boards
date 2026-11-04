@@ -17,6 +17,7 @@
     "visualizer.bars": "Pruhy",
     "visualizer.circular": "Kruhová",
     "visualizer.off": "Vypnuté",
+    "visualizer.instruments": "Nástroje",
     "empty.instructions": "Prehrávanie spustíte otvorením zvukového súboru.",
     "error.unsupported": "Nepodporovaný zvukový formát.",
     "error.decode": "Tento zvuk sa nepodarilo prehrať.",

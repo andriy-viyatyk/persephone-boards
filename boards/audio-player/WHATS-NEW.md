@@ -1,5 +1,9 @@
 # What's New — Audio Player
 
+## 1.0.4
+
+- Instruments visualizer: five colored lights now glow deep in the ocean, one for each instrument group (kick, cymbals, bass, vocals, other), brightening with its volume and shimmering through the waves.
+
 ## 1.0.3
 
 - Instruments visualizer is now a 3D scene: a night ocean whose big swells heave with the kick drum, under drifting clouds lit from behind by twelve colored note lights that reflect in the water, with occasional lightning on the beat.

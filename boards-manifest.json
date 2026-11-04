@@ -176,7 +176,7 @@
     },
     {
       "id": "audio-player",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "name": "Audio Player",
       "description": "Play audio sources and browse a user-owned music catalog.",
       "fileMasks": [
@@ -198,9 +198,9 @@
       "minAppVersion": "5.0.11",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/audio-player-v1.0.4/audio-player.zip",
-        "size": 227149,
-        "sha256": "5de9f6bd021156b5e1e2dd8eeb3cf93f386264dbd5f8e416dcdac0857e108e63"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/audio-player-v1.0.5/audio-player.zip",
+        "size": 228271,
+        "sha256": "224eae2f61d02411d757d92db6221d0bfd7e836c7e396b8cce61ce6838086920"
       }
     },
     {

@@ -1,0 +1,42 @@
+{
+  "name": "Frost Pass",
+  "description": "A long mountain road in the snow. The raiders bring everything they have.",
+  "environment": "winter",
+  "gold": 380,
+  "gems": 20,
+  "seed": 37,
+  "map": [
+    ".,.......,..,......,,,.^^^",
+    "S######################,t.",
+    ",.,..,.,.,,.,,.,....,,#...",
+    "^^.,.o,,.,o..T,o.t..o.#,o.",
+    ",..,........,.....,.,,#...",
+    ",.,####################..,",
+    ",.,#........,..,,...,.,,,.",
+    ".o.#.,.o,..,o,...o...,..o.",
+    "...#,....,.,,...,,.,,,....",
+    ",,.####################..t",
+    ".....,........,.,.,..,#,..",
+    "R....o,.,.o.T.,o..,.o.#,o,",
+    "..,...,.,.,...,....,..#,.,",
+    ",..####################...",
+    ",o,#,,,,....,..,,.,...,...",
+    ",.,#,,.o....,,o.T,,.T...~~",
+    "...#########V.~~~~~.,...~~",
+    ".,.......,....~~~~~t,t..~~"
+  ],
+  "waves": [
+    {"groups": [{"enemy": "scout", "count": 7, "interval": 1.4}]},
+    {"groups": [{"enemy": "soldier", "count": 7, "interval": 1.3}]},
+    {"groups": [{"enemy": "bat", "count": 8, "interval": 1.0}]},
+    {"groups": [{"enemy": "soldier", "count": 10, "interval": 0.9}, {"enemy": "scout", "count": 10, "interval": 0.5, "delay": 3}]},
+    {"groups": [{"enemy": "brute", "count": 3, "interval": 3}]},
+    {"groups": [{"enemy": "bat", "count": 12, "interval": 0.6}, {"enemy": "soldier", "count": 10, "interval": 0.8, "delay": 4}]},
+    {"groups": [{"enemy": "brute", "count": 4, "interval": 2.5}, {"enemy": "scout", "count": 16, "interval": 0.4, "delay": 2}]},
+    {"groups": [{"enemy": "soldier", "count": 20, "interval": 0.6}]},
+    {"groups": [{"enemy": "bat", "count": 20, "interval": 0.5}, {"enemy": "brute", "count": 3, "interval": 3, "delay": 5}]},
+    {"groups": [{"enemy": "brute", "count": 8, "interval": 2}]},
+    {"groups": [{"enemy": "soldier", "count": 24, "interval": 0.5}, {"enemy": "bat", "count": 16, "interval": 0.5, "delay": 3}, {"enemy": "brute", "count": 4, "interval": 2.5, "delay": 6}]},
+    {"groups": [{"enemy": "brute", "count": 10, "interval": 1.6}, {"enemy": "soldier", "count": 20, "interval": 0.5, "delay": 2}, {"enemy": "bat", "count": 20, "interval": 0.4, "delay": 5}]}
+  ]
+}

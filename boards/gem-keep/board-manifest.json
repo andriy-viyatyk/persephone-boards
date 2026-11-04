@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "name": "Gem Keep",
+  "description": "A 3D tower-defense game. Build and upgrade towers along the road, drop meteors on the raiders and keep the gems in your vault safe. Zoom with the mouse wheel and turn the camera with the mouse or a pen. Levels are plain JSON files, so you can make your own.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "5.0.16",
+  "minBridgeVersion": "1.40.0",
+  "languages": {
+    "folder": "lang",
+    "default": "en"
+  },
+  "permissions": {
+    "execute": false,
+    "service": false,
+    "fileSystem": false,
+    "openExternal": false,
+    "appScripting": false,
+    "network": false,
+    "clipboardRead": false,
+    "camera": false,
+    "microphone": false,
+    "geolocation": false,
+    "notifications": false,
+    "themes": false
+  },
+  "screenshot": "screenshot.png"
+}

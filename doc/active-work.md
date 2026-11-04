@@ -8,6 +8,8 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
+- [ ] [BT-077: Gem Keep — 3D tower-defense board](tasks/BT-077-gem-keep/README.md): original WebGL tower-defense game with JSON levels, mouse/pen camera
+
 - [ ] [BT-072: Agent Chat profile management through AI Vision](tasks/BT-072-agent-chat-ai-vision/README.md): expose profile CRUD and provider/model/effort catalogs through `pages[id].editor.app`, backed by the existing service path
 
 Board work for Persephone's **EPIC-135** (*Translation service*):

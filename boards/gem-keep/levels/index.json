@@ -1,0 +1,19 @@
+{
+  "levels": [
+    {
+      "file": "01-green-meadow.json",
+      "name": "Green Meadow",
+      "description": "A quiet road through the fields. A good place to learn."
+    },
+    {
+      "file": "02-red-canyon.json",
+      "name": "Red Canyon",
+      "description": "Two roads join before the river bridge. Watch both of them."
+    },
+    {
+      "file": "03-frost-pass.json",
+      "name": "Frost Pass",
+      "description": "A long mountain road in the snow. The raiders bring everything they have."
+    }
+  ]
+}

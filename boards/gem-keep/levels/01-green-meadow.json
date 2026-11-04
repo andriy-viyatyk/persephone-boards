@@ -1,0 +1,34 @@
+{
+  "name": "Green Meadow",
+  "description": "A quiet road through the fields. A good place to learn.",
+  "environment": "meadow",
+  "gold": 300,
+  "gems": 20,
+  "seed": 11,
+  "map": [
+    "TT..t.,..T,t,..,....TT",
+    "T,,,,........,....,,tT",
+    "S#######..o.,..,o,..,,",
+    ",,.,o.,#,.,.#######...",
+    ",.,,.,,#o.,.#.....#,..",
+    ",,..,..#.,,.#.o..,#.,,",
+    "...,T,,#.,o.#,....#.o,",
+    ",...,..#,.,.#.t..o#...",
+    ".......######.....#.,.",
+    ".,~~..o,,.o,..o.,.#...",
+    ".~~~~.....,,.,,...#.o.",
+    ",~~~~T,.,,.,R,^^^.V...",
+    ".~~~~..,,,....^^^,..,.",
+    ".........,....^^^...,."
+  ],
+  "waves": [
+    {"groups": [{"enemy": "scout", "count": 5, "interval": 1.8}]},
+    {"groups": [{"enemy": "scout", "count": 8, "interval": 1.3}]},
+    {"groups": [{"enemy": "soldier", "count": 5, "interval": 1.6}, {"enemy": "scout", "count": 5, "interval": 1.0, "delay": 4}]},
+    {"groups": [{"enemy": "soldier", "count": 8, "interval": 1.3}]},
+    {"groups": [{"enemy": "bat", "count": 6, "interval": 1.2}, {"enemy": "scout", "count": 6, "interval": 0.9, "delay": 3}]},
+    {"groups": [{"enemy": "soldier", "count": 10, "interval": 1.0}, {"enemy": "brute", "count": 1, "interval": 1, "delay": 8}]},
+    {"groups": [{"enemy": "brute", "count": 2, "interval": 5.0}, {"enemy": "scout", "count": 8, "interval": 0.8, "delay": 3}, {"enemy": "bat", "count": 5, "interval": 1.0, "delay": 10}]},
+    {"groups": [{"enemy": "brute", "count": 3, "interval": 4.0}, {"enemy": "soldier", "count": 12, "interval": 0.9, "delay": 2}, {"enemy": "bat", "count": 6, "interval": 1.0, "delay": 12}]}
+  ]
+}

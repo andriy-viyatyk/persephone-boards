@@ -1,0 +1,38 @@
+{
+  "name": "Red Canyon",
+  "description": "Two roads join before the river bridge. Watch both of them.",
+  "environment": "canyon",
+  "gold": 330,
+  "gems": 20,
+  "seed": 23,
+  "map": [
+    "^^^^^^^^^^^~~^^^^^^^^^^^",
+    "......R,...~~,,,^^^^^^^^",
+    ",.o,..,t...~~...^^^^^^^^",
+    "S#####..,,t~~.,,^^^^^^^^",
+    ",....#...,,~~...,R,..,.,",
+    "..,o.#o,..o~~o,.T,......",
+    "^^^..#...,,~~.,.....,o,,",
+    "^^^,.######==##.,.,.,...",
+    "^^^.,..,#.,~~.#....###V,",
+    ".,..o...#o,~~.#o..,#...,",
+    ".,,....o#..~~o#..o.#o..,",
+    "...,,...#.,~~,#..,,#,.,.",
+    "S########..~~,######.,.T",
+    ",.,,.....,o~~.,..,.,,^^^",
+    ".,t.....,..~~...o,...^^^",
+    "^^^^^^^^^^^~~^^^^^^^^^^^"
+  ],
+  "waves": [
+    {"groups": [{"enemy": "scout", "count": 4, "interval": 1.8, "spawn": 0}, {"enemy": "scout", "count": 4, "interval": 1.8, "delay": 3, "spawn": 1}]},
+    {"groups": [{"enemy": "soldier", "count": 5, "interval": 1.5, "spawn": 0}, {"enemy": "scout", "count": 6, "interval": 1.0, "delay": 1, "spawn": 1}]},
+    {"groups": [{"enemy": "soldier", "count": 8, "interval": 1.1, "spawn": 1}, {"enemy": "bat", "count": 6, "interval": 1.0, "delay": 4, "spawn": 0}]},
+    {"groups": [{"enemy": "brute", "count": 2, "interval": 4, "spawn": 0}, {"enemy": "scout", "count": 12, "interval": 0.5, "delay": 2, "spawn": 1}]},
+    {"groups": [{"enemy": "soldier", "count": 10, "interval": 0.9, "spawn": 0}, {"enemy": "soldier", "count": 10, "interval": 0.9, "spawn": 1}]},
+    {"groups": [{"enemy": "bat", "count": 14, "interval": 0.6, "spawn": 0}, {"enemy": "brute", "count": 2, "interval": 3, "delay": 3, "spawn": 1}]},
+    {"groups": [{"enemy": "brute", "count": 3, "interval": 3, "spawn": 0}, {"enemy": "brute", "count": 3, "interval": 3, "delay": 1, "spawn": 1}, {"enemy": "scout", "count": 16, "interval": 0.4, "delay": 6, "spawn": 0}]},
+    {"groups": [{"enemy": "soldier", "count": 16, "interval": 0.7, "spawn": 0}, {"enemy": "bat", "count": 12, "interval": 0.7, "delay": 2, "spawn": 1}]},
+    {"groups": [{"enemy": "brute", "count": 5, "interval": 2.5, "spawn": 1}, {"enemy": "soldier", "count": 14, "interval": 0.7, "delay": 2, "spawn": 0}, {"enemy": "bat", "count": 10, "interval": 0.6, "delay": 8, "spawn": 1}]},
+    {"groups": [{"enemy": "brute", "count": 6, "interval": 2.2, "spawn": 0}, {"enemy": "brute", "count": 6, "interval": 2.2, "delay": 1, "spawn": 1}, {"enemy": "soldier", "count": 20, "interval": 0.5, "delay": 4, "spawn": 0}, {"enemy": "bat", "count": 16, "interval": 0.5, "delay": 8, "spawn": 1}]}
+  ]
+}

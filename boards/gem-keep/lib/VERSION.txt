@@ -1,0 +1,3 @@
+three.js 0.180.0 (npm "three", build/three.module.min.js + build/three.core.min.js), MIT
+
+Add-ons in lib/addons/ (GLTFLoader.js, SkeletonUtils.js, BufferGeometryUtils.js) are from examples/jsm of the same version; their `from 'three'` imports were rewritten to `../three.module.min.js`.

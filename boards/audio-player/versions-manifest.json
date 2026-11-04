@@ -3,6 +3,16 @@
   "id": "audio-player",
   "versions": [
     {
+      "version": "1.0.4",
+      "date": "2026-11-04",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/audio-player-v1.0.4/audio-player.zip",
+        "size": 227149,
+        "sha256": "5de9f6bd021156b5e1e2dd8eeb3cf93f386264dbd5f8e416dcdac0857e108e63"
+      },
+      "minAppVersion": "5.0.11"
+    },
+    {
       "version": "1.0.3",
       "date": "2026-11-04",
       "archive": {

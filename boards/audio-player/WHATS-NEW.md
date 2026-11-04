@@ -1,5 +1,9 @@
 # What's New — Audio Player
 
+## 1.0.3
+
+- Instruments visualizer is now a 3D scene: a night ocean whose big swells heave with the kick drum, under drifting clouds lit from behind by twelve colored note lights that reflect in the water, with occasional lightning on the beat.
+
 ## 1.0.2
 
 - New "Instruments" visualizer: waves for drums, bass and vocals, with note clouds that rain into them and occasional lightning on the beat.

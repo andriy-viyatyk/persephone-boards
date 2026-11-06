@@ -772,6 +772,25 @@
       }
     },
     {
+      "id": "notebook",
+      "version": "1.0.0",
+      "name": "Notebook",
+      "description": "Organize notes, code snippets, Markdown and JSON grids in one searchable notebook.",
+      "fileMasks": [
+        "*.note.json"
+      ],
+      "editorName": "Notebook",
+      "editorKind": "content-host",
+      "standalone": false,
+      "minAppVersion": "5.0.18",
+      "screenshot": "screenshot.png",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/notebook-v1.0.0/notebook.zip",
+        "size": 450284,
+        "sha256": "25bf61a13e21b1c34beb83358bbb6b28ec13962aaee841e4f4da151a91a00935"
+      }
+    },
+    {
       "id": "pdf-viewer",
       "version": "1.2.0",
       "name": "PDF Viewer",

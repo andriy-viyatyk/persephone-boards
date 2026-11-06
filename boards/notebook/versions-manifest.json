@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "notebook",
+  "versions": [
+    {
+      "version": "1.0.0",
+      "date": "2026-11-06",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/notebook-v1.0.0/notebook.zip",
+        "size": 450284,
+        "sha256": "25bf61a13e21b1c34beb83358bbb6b28ec13962aaee841e4f4da151a91a00935"
+      },
+      "minAppVersion": "5.0.18"
+    }
+  ]
+}

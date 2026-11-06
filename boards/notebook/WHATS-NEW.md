@@ -1,4 +1,4 @@
-# What?s New
+# What's New — Notebook
 
 ## 1.0.0
 

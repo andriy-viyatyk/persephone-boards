@@ -1,0 +1,787 @@
+/* Notebook presentation: compact themed cards, editing affordances, and dialogs. */
+
+:root {
+    --p-notebook-card-gap: 14px;
+    --p-notebook-marker-column: 18px; /* dot and line column at the card's left edge */
+    --p-notebook-body-indent: 28px;   /* rows below the title start this far right of it */
+    --p-notebook-dot-size: 8px;
+    --p-notebook-row-height: 28px;
+    --p-notebook-inline-editor-height: 400px;
+    --p-notebook-deactivate-width: 48px; /* click strip on each card's right edge */
+}
+
+[hidden] {
+    display: none !important;
+}
+
+/* Persephone's scrollbar (its .scroll-container rule): thin, invisible until the pointer is
+   over the scrolling element, then the thumb fades in. Applied to every scroller here: the
+   list, side panel, code editor, preview, comment and suggestions. Setting scrollbar-color
+   also switches off board-base.css's ::-webkit-scrollbar styling for these elements. */
+* {
+    scrollbar-color: transparent transparent;
+    scrollbar-width: thin;
+    transition: scrollbar-color 0.3s ease;
+}
+
+*:hover {
+    scrollbar-color: var(--p-scrollbar-thumb) transparent;
+}
+
+/* av-grid puts its bars on thin strips beside the viewport; take hover from the whole grid. */
+[data-type="render-grid"]:hover > [data-type="render-grid-scrollbar-y"],
+[data-type="render-grid"]:hover > [data-type="render-grid-scrollbar-x"] {
+    scrollbar-color: var(--p-scrollbar-thumb) transparent;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body {
+    font-family: var(--p-font-family, system-ui, sans-serif);
+    min-width: 0;
+    min-height: 100vh;
+    overflow: hidden;
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100vh;
+    min-height: 0;
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+    color: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+.note-list {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--p-notebook-card-gap);
+    min-height: 0;
+    padding: var(--p-space-md);
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+.note-card {
+    position: relative;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    padding-left: var(--p-notebook-marker-column);
+    padding-right: var(--p-notebook-deactivate-width);
+}
+
+.note-list:focus {
+    outline: none;
+}
+
+/* Right-edge strip: clicking it releases the active note (see the wheel handler in cards.js). */
+.card-deactivate {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--p-notebook-deactivate-width);
+    cursor: default;
+}
+
+.note-card.expanded-card {
+    padding-right: 0;
+}
+
+.note-card.expanded-card > .card-deactivate {
+    display: none;
+}
+
+/* List marker: a dot beside the title and a line down to the card's last row. */
+.note-card::before,
+.note-card::after {
+    content: "";
+    position: absolute;
+    left: calc((var(--p-notebook-marker-column) - var(--p-notebook-dot-size)) / 2);
+    pointer-events: none;
+    transition: background-color 120ms ease;
+}
+
+.note-card::before {
+    top: calc((var(--p-notebook-row-height) - var(--p-notebook-dot-size)) / 2);
+    width: var(--p-notebook-dot-size);
+    height: var(--p-notebook-dot-size);
+    border-radius: 50%;
+    background: var(--p-text-muted);
+}
+
+.note-card::after {
+    top: calc(var(--p-notebook-row-height) / 2);
+    bottom: 0;
+    width: 1px;
+    margin-left: calc(var(--p-notebook-dot-size) / 2 - 0.5px);
+    background: var(--p-border);
+}
+
+.note-card.card-hovered::after,
+.note-card:focus-within::after {
+    background: var(--p-text-muted);
+}
+
+.note-card:focus-within::before,
+.note-card:focus-within::after {
+    background: var(--p-accent);
+}
+
+/* Everything below the title row sits indented, like a sub-list. */
+.note-card > :not(.card-heading) {
+    margin-left: var(--p-notebook-body-indent);
+}
+
+.card-metadata,
+.card-heading,
+.tag-area,
+.tag-list,
+.category-control,
+.comment-area {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.card-metadata {
+    gap: 6px;
+    min-height: 24px;
+    color: var(--p-text-muted);
+    font-size: 12px;
+}
+
+/* Secondary controls stay faded until the card is hovered or focused. */
+.card-metadata,
+.updated-date,
+.card-heading .icon-button {
+    opacity: 0.6;
+    transition: opacity 120ms ease;
+}
+
+.note-card.card-hovered .card-metadata,
+.note-card:focus-within .card-metadata,
+.note-card.card-hovered .updated-date,
+.note-card:focus-within .updated-date,
+.note-card.card-hovered .card-heading .icon-button,
+.note-card:focus-within .card-heading .icon-button {
+    opacity: 1;
+}
+
+.category-control,
+.tag-area {
+    gap: 4px;
+}
+
+.category-chip,
+.tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    min-height: 20px;
+    padding: 2px 6px;
+    border: 0;
+    border-radius: 3px;
+    color: var(--p-text-muted);
+    background: var(--p-bg-light);
+    font-size: 12px;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.category-chip {
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.category-chip:hover,
+.tag-chip:hover {
+    color: var(--p-text);
+}
+
+.category-empty {
+    opacity: 0.75;
+}
+
+.category-input,
+.tag-input {
+    width: 120px;
+    min-width: 72px;
+    padding: 2px 5px;
+}
+
+/* Category and tag suggestions (suggest.js), themed instead of the native datalist popup. */
+.suggest-popup {
+    position: fixed;
+    z-index: 1000;
+    max-width: 360px;
+    max-height: 240px;
+    padding: 2px;
+    overflow: auto;
+    border: 1px solid var(--p-border);
+    border-radius: 3px;
+    color: var(--p-text);
+    background: var(--p-panel);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--p-bg-dark) 60%, transparent);
+    font-size: 12px;
+}
+
+.suggest-item {
+    padding: 3px 8px;
+    border-radius: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.suggest-item:hover,
+.suggest-item.active {
+    background: color-mix(in srgb, var(--p-accent) 22%, transparent);
+}
+
+.tag-list {
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.tag-chip {
+    padding-right: 2px;
+}
+
+.tag-label {
+    padding: 0;
+    border: 0;
+    color: inherit;
+    background: transparent;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+.meta-spacer {
+    flex: 1 1 auto;
+}
+
+.updated-date {
+    flex: 0 0 auto;
+    color: var(--p-text-muted);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.icon-button {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    color: var(--p-text-muted);
+    background: transparent;
+    line-height: 1;
+}
+
+.icon-button:hover,
+.icon-button:focus-visible {
+    border-color: var(--p-border-light);
+    color: var(--p-text);
+    outline: none;
+}
+
+.delete-button:hover,
+.delete-button:focus-visible {
+    color: var(--p-error);
+}
+
+.remove-tag-button,
+.remove-comment-button {
+    width: 16px;
+    height: 16px;
+    border: 0;
+    border-radius: 2px;
+    font-size: 15px;
+    opacity: 0;
+}
+
+.tag-chip:hover .remove-tag-button,
+.tag-chip:focus-within .remove-tag-button,
+.comment-area:hover .remove-comment-button,
+.comment-area:focus-within .remove-comment-button {
+    opacity: 1;
+}
+
+.card-heading {
+    gap: 6px;
+    min-height: var(--p-notebook-row-height);
+}
+
+/* Editable controls: no border at rest, a border on hover, the accent while focused. */
+.note-title,
+.language-select,
+.category-input,
+.tag-input,
+.comment-input,
+.view-controls,
+.note-editor,
+.markdown-body {
+    border: 1px solid transparent;
+    border-radius: 3px;
+    outline: none;
+    transition: border-color 120ms ease;
+}
+
+.note-title,
+.language-select,
+.category-input,
+.tag-input,
+.comment-input {
+    min-height: 24px;
+    padding: 2px 5px;
+    background: transparent;
+}
+
+.note-title:hover,
+.language-select:hover,
+.category-input:hover,
+.tag-input:hover,
+.comment-input:hover,
+.view-controls:hover,
+.note-editor:hover,
+.markdown-body:hover {
+    border-color: var(--p-border);
+}
+
+.note-title:focus,
+.language-select:focus,
+.category-input:focus,
+.tag-input:focus,
+.comment-input:focus,
+.view-controls:focus-within,
+.note-editor:focus-within,
+.markdown-body:focus-within {
+    border-color: var(--p-accent);
+}
+
+.note-title {
+    flex: 1 1 auto;
+    width: 0;
+    min-width: 60px;
+    margin-left: 2px;
+    color: var(--p-text);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.language-select {
+    flex: 0 1 auto;
+    width: auto;
+    max-width: 140px;
+    color: var(--p-text-muted);
+    font-size: 12px;
+}
+
+.language-select option {
+    color: var(--p-text);
+    background: var(--p-bg);
+}
+
+.view-controls {
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 2px;
+    padding: 1px;
+}
+
+.view-button {
+    min-height: 22px;
+    padding: 2px 6px;
+    border: 0;
+    color: var(--p-text-muted);
+    background: transparent;
+    font-size: 11px;
+}
+
+.view-button.selected,
+.view-button[aria-pressed="true"] {
+    color: var(--p-text);
+    background: var(--p-bg-light);
+}
+
+.comment-area {
+    position: relative;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.comment-input {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    min-height: 22px;
+    max-height: 120px;
+    resize: none;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    color: var(--p-text-muted);
+    font-size: 12px;
+    font-style: italic;
+    line-height: 1.45;
+}
+
+.note-editor {
+    min-width: 0;
+    overflow: auto;
+}
+
+.note-content {
+    min-width: 0;
+}
+
+.view-notice {
+    flex: 0 0 auto;
+    padding: 4px 7px;
+    border-left: 2px solid var(--p-warning);
+    color: var(--p-text-muted);
+    font-size: 12px;
+}
+
+.note-card.expanded-card .note-content {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.note-card.expanded-card .note-editor,
+.note-card.expanded-card .markdown-body,
+.note-card.expanded-card .grid-host {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.note-card.expanded-card .markdown-body {
+    max-height: none;
+}
+
+.markdown-body {
+    min-width: 0;
+    /* Same inline cap as the code editor and the grid (MAX_GRID_HEIGHT in grid.js);
+       the expanded card lifts it below. */
+    max-height: var(--p-notebook-inline-editor-height);
+    padding: 10px 12px;
+    overflow: auto;
+    color: var(--p-text);
+    background: var(--p-bg);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.markdown-body a {
+    color: var(--p-link);
+    cursor: pointer;
+}
+
+.markdown-body pre {
+    padding: 10px;
+    border-radius: 3px;
+    overflow: auto;
+    background: var(--p-bg-dark);
+}
+
+.markdown-body table {
+    border-collapse: collapse;
+}
+
+.markdown-body th,
+.markdown-body td {
+    padding: 4px 8px;
+    border: 1px solid var(--p-border-light);
+}
+
+.grid-host {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.grid-host .avg-grid-wrap {
+    height: 100%;
+}
+
+.note-editor .cm-editor {
+    min-height: 1lh;
+    max-height: var(--p-notebook-inline-editor-height);
+}
+
+.note-editor .cm-scroller {
+    overflow: auto;
+    font-family: var(--p-font-mono, ui-monospace, monospace);
+}
+
+/* Expanded card: the card fills the panel, its title and metadata rows stay put, and only
+   the content (and a long comment, capped by MAX_COMMENT_HEIGHT in cards.js) scrolls. */
+.expanded-note {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    padding: var(--p-space-md);
+    overflow: hidden;
+}
+
+.note-card.expanded-card {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.note-card.expanded-card > :not(.note-content) {
+    flex: 0 0 auto;
+}
+
+.expanded-card .note-editor {
+    display: flex;
+    flex-direction: column;
+}
+
+.expanded-card .note-editor .cm-editor {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+}
+
+.search-highlight {
+    display: block;
+    max-height: 3em;
+    overflow: hidden;
+    color: var(--p-text-muted);
+    font-size: var(--p-font-sm);
+    white-space: pre-wrap;
+}
+
+mark {
+    color: var(--p-accent-text);
+    background: color-mix(in srgb, var(--p-accent) 34%, transparent);
+}
+
+.more-button {
+    align-self: center;
+}
+
+.pagination-sentinel {
+    flex: 0 0 1px;
+    min-height: 1px;
+}
+
+.message,
+.navigation-placeholder {
+    margin: auto;
+    padding: var(--p-space-xl);
+    color: var(--p-text-muted);
+    text-align: center;
+}
+
+.error-message {
+    flex: 0 0 auto;
+    margin: var(--p-space-md);
+    padding: var(--p-space-sm);
+    border: 1px solid var(--p-error);
+    color: var(--p-error);
+    text-align: left;
+}
+
+.empty-message {
+    flex: 1 1 auto;
+}
+
+.delete-dialog {
+    width: min(420px, calc(100vw - 32px));
+    border: 1px solid var(--p-border);
+    border-radius: var(--p-radius-md);
+    color: var(--p-text);
+    background: var(--p-panel);
+}
+
+.delete-dialog::backdrop {
+    background: color-mix(in srgb, var(--p-bg-dark) 70%, transparent);
+}
+
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--p-space-sm);
+}
+
+.navigation-placeholder {
+    display: grid;
+    align-content: center;
+    gap: var(--p-space-md);
+    height: 100vh;
+}
+
+.navigation-placeholder h1,
+.navigation-placeholder p {
+    margin: 0;
+}
+
+.navigation-selection {
+    color: var(--p-text);
+}
+
+@media (max-width: 640px) {
+    .card-metadata {
+        flex-wrap: wrap;
+    }
+
+    .meta-spacer {
+        flex-basis: 8px;
+    }
+}
+
+/* Navigation panel rows follow Persephone's file tree (uikit/Tree): the hovered (active) row
+   and the selected row both get the panel shade (--color-bg-message equals --color-bg-light,
+   i.e. --p-panel, in every theme). While the panel has focus the selected row takes the
+   tree-selection colour, and both selected and hovered rows get the accent outline. */
+.navigation {
+    overflow: auto;
+    padding: 8px 0;
+}
+
+.navigation h2 {
+    margin: 12px 8px 4px;
+    color: var(--p-text-muted);
+    font-size: var(--p-font-sm, 12px);
+}
+
+.nav-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-height: 22px;
+    padding-right: 6px;
+    cursor: pointer;
+}
+
+.nav-row:hover {
+    background: var(--p-panel);
+}
+
+.nav-row.selected {
+    background: var(--p-panel);
+}
+
+.navigation:focus-within .nav-row.selected {
+    color: var(--p-accent-text);
+    background: var(--p-tree-selection);
+}
+
+.navigation:focus-within .nav-row.selected,
+.navigation:focus-within .nav-row:hover {
+    outline: 1px solid var(--p-accent-hover);
+    outline-offset: -1px;
+}
+
+.nav-label,
+.nav-toggle,
+.nav-action {
+    padding: 2px 4px;
+    border: 0;
+    color: inherit;
+    background: transparent;
+}
+
+.nav-label {
+    flex: 1;
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    outline: none;
+}
+
+/* Chevron column, 14px like the file tree's, with a 12px glyph; the stub keeps leaf labels aligned. */
+.nav-toggle,
+.nav-toggle-stub {
+    display: inline-flex;
+    flex: 0 0 14px;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    margin-left: 6px;
+    padding: 0;
+}
+
+.nav-toggle {
+    color: var(--p-text-muted);
+    cursor: pointer;
+}
+
+.nav-toggle:hover {
+    color: var(--p-text);
+}
+
+.nav-toggle svg {
+    width: 12px;
+    height: 12px;
+}
+
+.navigation:focus-within .nav-row.selected .nav-toggle,
+.navigation:focus-within .nav-row.selected .nav-count,
+.navigation:focus-within .nav-row.selected .nav-action {
+    color: inherit;
+}
+
+.nav-count {
+    flex: 0 0 auto;
+    color: var(--p-text-muted);
+    font-size: var(--p-font-sm, 12px);
+}
+
+/* Rename pencil: before the count, shown only while the row is hovered or focused. */
+.nav-action {
+    display: inline-flex;
+    align-items: center;
+    color: var(--p-text-muted);
+    visibility: hidden;
+}
+
+.nav-row:hover .nav-action,
+.nav-row:focus-within .nav-action {
+    visibility: visible;
+}
+
+.nav-action:hover {
+    color: var(--p-text);
+}
+
+.nav-action svg {
+    width: 13px;
+    height: 13px;
+}
+
+.nav-input {
+    flex: 1;
+    width: 0;
+    min-width: 30px;
+}

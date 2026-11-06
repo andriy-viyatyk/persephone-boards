@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "minBridgeVersion": "1.49.0",
+  "languages": {
+    "folder": "lang",
+    "default": "en"
+  },
+  "permissions": {
+    "execute": false,
+    "service": false,
+    "fileSystem": false,
+    "openExternal": false,
+    "appScripting": false,
+    "network": false,
+    "clipboardRead": false,
+    "camera": false,
+    "microphone": false,
+    "geolocation": false,
+    "notifications": false,
+    "themes": false
+  },
+  "description": "Organize notes, code snippets, Markdown and JSON grids in one searchable notebook.",
+  "author": "Persephone",
+  "name": "Notebook",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "5.0.18",
+  "editorKind": "content-host",
+  "fileMasks": [
+    "*.note.json"
+  ],
+  "editorPriority": 200,
+  "editorName": "Notebook",
+  "secondaryViews": [
+    {
+      "id": "nav",
+      "title": "Categories & Tags"
+    }
+  ],
+  "guides": "guides",
+  "screenshot": "screenshot.png"
+}

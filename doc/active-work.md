@@ -8,9 +8,15 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-- [ ] [BT-077: Gem Keep — 3D tower-defense board](tasks/BT-077-gem-keep/README.md): original WebGL tower-defense game with JSON levels, mouse/pen camera
-
 - [ ] [BT-072: Agent Chat profile management through AI Vision](tasks/BT-072-agent-chat-ai-vision/README.md): expose profile CRUD and provider/model/effort catalogs through `pages[id].editor.app`, backed by the existing service path
+
+Board work for Persephone's **EPIC-137** (*Notebook moves to a published board*). All four are implemented
+and verified through MCP; awaiting the user's hands-on test, then publish `notebook` v1.0.0:
+
+- [ ] [BT-078: Notebook board — scaffold, model, paged card list, CodeMirror, search](tasks/BT-078-notebook-board/README.md)
+- [ ] [BT-079: Categories & Tags secondary view](tasks/BT-079-notebook-nav/README.md)
+- [ ] [BT-080: Markdown preview and av-grid view for JSON array notes](tasks/BT-080-notebook-views/README.md)
+- [ ] [BT-081: Notebook release preparation](tasks/BT-081-notebook-release-prep/README.md)
 
 Board work for Persephone's **EPIC-135** (*Translation service*):
 

@@ -105,18 +105,27 @@ export async function embed(features) {
   return vector;
 }
 
-// One model window of silence before an enrollment clip, as the research prototype did: a quickly
-// called name (~0.5 s) is shorter than the 775 ms the model needs for its first embedding, so without
-// it a short name yields no embedding at all. Windows lying entirely in the padding are skipped.
-const ENROLL_PAD_SAMPLES = 12800;
-const FIRST_SPEECH_END_FRAME = 84;
+// Template building and matching follow the US-1783 research prototype, which the user tested.
+const TEMPLATE = {
+  padSamples: 12800, // one model window of silence before the clip: a short name still gets embeddings
+  stepSamples: 1280, // one embedding every 80 ms
+  leadSteps: 3,      // the template starts this many steps after speech starts (embedding lag)
+  tailSteps: 4,      // ...and ends this many steps after speech ends
+};
+export const TEMPLATE_VERSION = 2;
 
-export async function encodeSamples(samples) {
-  const padded = new Float32Array(ENROLL_PAD_SAMPLES + samples.length);
-  padded.set(samples, ENROLL_PAD_SAMPLES);
-  const features = logMel(padded);
+/** Embedding sequence for an enrolled name. `clip` is the whole recording; speech bounds are sample indices in it. */
+export async function encodeTemplate(clip, speechStart, speechEnd) {
+  const tail = TEMPLATE.tailSteps * TEMPLATE.stepSamples;
+  const padded = new Float32Array(TEMPLATE.padSamples + clip.length + tail);
+  padded.set(clip, TEMPLATE.padSamples);
+  const features = logMel(padded), frames = Math.floor(features.length / BANDS);
+  const first = TEMPLATE.padSamples + speechStart + TEMPLATE.leadSteps * TEMPLATE.stepSamples;
+  const last = TEMPLATE.padSamples + speechEnd + tail;
   const sequence = [];
-  for (let end = FIRST_SPEECH_END_FRAME; end <= Math.floor(features.length / BANDS); end += 8) {
+  for (let endSample = first; endSample <= last; endSample += TEMPLATE.stepSamples) {
+    // An embedding uses the 76 frames whose last one ends at `endSample` (a frame ends 240 samples after its hop start).
+    const end = Math.min(frames, Math.max(76, Math.round((endSample - (FRAME - HOP)) / HOP)));
     sequence.push(Array.from(await embed(features.slice((end - 76) * BANDS, end * BANDS))));
   }
   return sequence;
@@ -128,15 +137,41 @@ export function cosineDistance(a, b) {
   for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; aa += a[i] ** 2; bb += b[i] ** 2; }
   return 1 - dot / Math.max(1e-12, Math.sqrt(aa * bb));
 }
-export function subsequenceDistance(template, history) {
-  if (!template?.length || !history?.length) return Infinity;
-  let previous = new Float64Array(history.length + 1);
-  for (let i = 1; i <= template.length; i++) {
-    const current = new Float64Array(history.length + 1); current[0] = Infinity;
-    for (let j = 1; j <= history.length; j++) current[j] = cosineDistance(template[i - 1], history[j - 1]) + Math.min(previous[j], current[j - 1], previous[j - 1]);
-    previous = current;
+
+/**
+ * Mean path cost of the best alignment of `template` that ENDS at the newest frame of `stream`
+ * (subsequence DTW, free start). The cost is divided by the path length, and the template may stretch
+ * horizontally over at most 2L stream frames, as in the research prototype.
+ */
+export function subsequenceDistance(template, stream) {
+  const L = template?.length ?? 0, N = stream?.length ?? 0;
+  if (!L || !N) return Infinity;
+  let prevD = new Float64Array(N), prevS = new Float64Array(N);
+  for (let j = 0; j < N; j++) { prevD[j] = cosineDistance(template[0], stream[j]); prevS[j] = 1; }
+  for (let i = 1; i < L; i++) {
+    const D = new Float64Array(N), S = new Float64Array(N);
+    for (let j = 0; j < N; j++) {
+      let best = prevD[j], steps = prevS[j];
+      if (j && prevD[j - 1] < best) { best = prevD[j - 1]; steps = prevS[j - 1]; }
+      if (j && D[j - 1] < best && S[j - 1] < 2 * L) { best = D[j - 1]; steps = S[j - 1]; }
+      D[j] = best + cosineDistance(template[i], stream[j]); S[j] = steps + 1;
+    }
+    prevD = D; prevS = S;
   }
-  return Math.min(...Array.from(previous.slice(1), (cost) => cost / template.length));
+  return prevD[N - 1] / prevS[N - 1];
+}
+
+/** The stream frames a template is matched against: the newest 2L + 4. */
+export function matchWindow(template, history) { return history.slice(-(2 * template.length + 4)); }
+
+/** Distance between two enrolled samples: the best alignment of one anywhere inside the other. */
+export function sampleDistance(a, b) {
+  const inside = (template, stream) => {
+    let best = Infinity;
+    for (let end = 1; end <= stream.length; end++) best = Math.min(best, subsequenceDistance(template, stream.slice(Math.max(0, end - 2 * template.length - 4), end)));
+    return best;
+  };
+  return Math.min(inside(a, b), inside(b, a));
 }
 
 export function pcmToFloat(buffer) {

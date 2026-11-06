@@ -1,6 +1,7 @@
 "use strict";
 (() => {
   const $ = (id) => document.getElementById(id), format = { encoding: "pcm-s16le", sampleRate: 16000, channels: 1 };
+  const DEFAULT_PERSON = "Me";
   let current = null, diagnostics = null, capture = null, sendQueue = Promise.resolve(), mode = "", timer = null, devices = [];
   const say = (key, params) => t(key, params);
   function setStatus(key) { $("status").textContent = say(key); }
@@ -20,7 +21,8 @@
         setStatus(message.quality.accepted ? "status.ready" : "status.quality"); refreshList();
       } else if (message.type === "diagnostic") $("live-score").textContent = say("live.score", { score: message.score.toFixed(3) });
       else if (message.type === "wake" || message.type === "stop") {
-        const li = document.createElement("li"); li.textContent = `${message.kind || message.type}: “${message.phrase}” · ${message.person} · ${(message.score * 100).toFixed(1)}% · ${(message.time / 1000).toFixed(2)} s`;
+        const custom = message.phrase !== message.type ? ` “${message.phrase}”` : "";
+        const li = document.createElement("li"); li.textContent = `${say(`kind.${message.type}`)}${custom} · ${message.person} · ${(message.score * 100).toFixed(1)}% · ${(message.time / 1000).toFixed(2)} s`;
         $("events").prepend(li); while ($("events").children.length > 30) $("events").lastElementChild.remove();
       } else if (message.type === "enrollments") renderList(message.phrases);
       else if (message.type === "deleted") { setStatus("status.deleted"); refreshList(); }
@@ -52,8 +54,10 @@
   }
   async function finishStream() { await new Promise((resolve) => setTimeout(resolve, 120)); stopCapture(); await sendQueue; await send({ type: "end" }); }
   async function beginEnrollment() {
-    clearError(); const phrase = $("phrase").value, person = $("person").value, kind = $("kind").value;
-    if (!phrase.trim() || !person.trim()) { showError(say("error.required")); return; }
+    // Every enrolled sample of a kind is a wake (or stop) word, so the contract's phrase is just the
+    // kind. The person tells the assistant's agent who is speaking; empty means "Me" (not translated,
+    // so a person's samples stay together whatever the interface language).
+    clearError(); const kind = $("kind").value, phrase = kind, person = $("person").value.trim() || DEFAULT_PERSON;
     try {
       mode = "enroll"; $("record").disabled = true; $("recording").textContent = say("enroll.recording"); setStatus("status.recording");
       await open({ type: "enroll", phrase, kind, person, format }); await startCapture();
@@ -79,7 +83,9 @@
     if (!groups?.length) { host.textContent = say("samples.empty"); return; }
     for (const group of groups) {
       const row = document.createElement("div"); row.className = "sample-group";
-      const label = document.createElement("strong"); label.textContent = `${group.phrase} · ${say(`kind.${group.kind}`)} · ${group.person}`; row.append(label);
+      // Samples enrolled before the phrase input was removed keep their own phrase as a label.
+      const custom = group.phrase !== group.kind ? `${group.phrase} · ` : "";
+      const label = document.createElement("strong"); label.textContent = `${custom}${say(`kind.${group.kind}`)} · ${group.person}`; row.append(label);
       const ids = document.createElement("span"); ids.className = "muted"; ids.textContent = say("samples.count", { count: group.samples.length }); row.append(ids);
       for (const sample of group.samples) {
         const button = document.createElement("button"); button.textContent = say("delete.sample"); button.title = sample.sampleId;
@@ -102,8 +108,6 @@
   $("record").addEventListener("click", () => void beginEnrollment());
   $("listen").addEventListener("click", () => mode === "listen" ? void stopListen() : void beginListen());
   $("refresh").addEventListener("click", refreshList);
-  $("delete-person-button").addEventListener("click", () => $("delete-person").value.trim() && void removeTarget({ person: $("delete-person").value }));
-  $("delete-phrase-button").addEventListener("click", () => $("delete-phrase").value.trim() && void removeTarget({ phrase: $("delete-phrase").value, kind: $("delete-kind").value }));
-  window.addEventListener("pagehide", () => { stopCapture(); if (current && !current.closed) current.close(); if (diagnostics && !diagnostics.closed) diagnostics.close(); });
+  $("delete-person-button").addEventListener("click", () => $("delete-person").value.trim() && void removeTarget({ person: $("delete-person").value }));  window.addEventListener("pagehide", () => { stopCapture(); if (current && !current.closed) current.close(); if (diagnostics && !diagnostics.closed) diagnostics.close(); });
   applyI18n(); void loadDevices(); void describe(); refreshList();
 })();

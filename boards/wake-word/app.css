@@ -8,7 +8,7 @@ h1, h2, p { margin: 0; } h1 { font-size: 1.45rem; } h2 { font-size: 1.08rem; }
 .page-header p, .muted, .hint, footer { color: var(--p-text-muted); }
 .pill { padding: 3px 10px; border: 1px solid var(--p-border); border-radius: 999px; white-space: nowrap; }
 .panel { border: 1px solid var(--p-border); background: var(--p-panel); border-radius: 10px; padding: 16px; display: grid; gap: 14px; }
-.form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 label { display: grid; gap: 5px; min-width: 0; }
 label > input, label > select { width: 100%; min-width: 0; }
 input, select, button { min-height: 36px; border: 1px solid var(--p-border); border-radius: 6px; padding: 6px 9px; color: var(--p-text); background: var(--p-bg-dark); font: inherit; }

@@ -18,11 +18,15 @@ matched by query-by-example. Persephone's voice assistant (EPIC-139) streams mic
   JS in `scripts/engine.mjs`; they reproduce Google's own preprocessing exactly.
 - **Runtime:** `onnxruntime-web` (WASM) vendored under `vendor/onnxruntime-web/` — about 5.7% of
   one core per active stream; no native addon.
-- **Matching:** each enrolled sample is a sequence of 96-dimensional embeddings (every 80 ms);
-  live audio is matched by subsequence DTW over cosine distance. Score = `1 - distance`;
-  `defaultThreshold` 0.85 is provisional until calibrated with real voices.
-- **Enrollment clips are padded** with one model window of silence before embedding: a quickly
-  called name is shorter than the 775 ms the model needs for its first embedding.
+- **Templates** (`encodeTemplate`, `TEMPLATE` constants in `scripts/engine.mjs`), as in the
+  US-1783 research prototype: the whole recording is padded with one model window of silence in
+  front (a quickly called name is shorter than the 775 ms the model needs), and the template runs
+  from 3 steps (240 ms) after speech starts to 4 steps (320 ms) after it ends, one 96-dimensional
+  embedding per 80 ms. Samples carry `frontendVersion`; only `TEMPLATE_VERSION` samples are matched.
+- **Matching** (`subsequenceDistance`): subsequence DTW over cosine distance whose path must END at
+  the newest live embedding, normalized by path length, horizontal stretch limited to 2L, over the
+  newest 2L + 4 embeddings only. Without the end anchor every new frame re-finds an older hit and
+  any speech "triggers". Score = `1 - distance`; `defaultThreshold` 0.85 is provisional.
 - **Storage:** only embeddings and phrase/person metadata, in
   `%LOCALAPPDATA%/Persephone/board-data/wake-word/enrollments-v1.json`. No audio is stored.
 - **Caller policy:** a channel without `info.interface` is the board's own page

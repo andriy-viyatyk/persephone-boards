@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { TEMPLATE_VERSION } from "./engine.mjs";
 
 export function dataRoot(env = process.env) {
   const local = env.LOCALAPPDATA;
@@ -46,13 +47,16 @@ export async function list() {
   return [...groups.values()];
 }
 
-export async function templates() { return (await readState()).samples; }
+// Samples enrolled with an older template layout are not comparable with live audio; they stay
+// listed (so they can be deleted) but are never matched.
+const current = (sample) => sample.frontendVersion === TEMPLATE_VERSION;
+export async function templates() { return (await readState()).samples.filter(current); }
 
 export async function add({ phrase, kind, person, embeddings }) {
   return mutate((state) => {
     const earlier = state.samples.filter((s) => s.phrase === phrase && s.kind === kind && s.person === person);
     const sampleId = randomUUID();
-    state.samples.push({ sampleId, phrase, kind, person, createdAt: new Date().toISOString(), embeddings, frontendVersion: 1 });
+    state.samples.push({ sampleId, phrase, kind, person, createdAt: new Date().toISOString(), embeddings, frontendVersion: TEMPLATE_VERSION });
     return { sampleId, earlier };
   });
 }
@@ -66,14 +70,11 @@ export async function remove(target) {
   });
 }
 
-export async function scoreAgainstEarlier(embeddings, phrase, kind, person, cosineDistance) {
-  const earlier = (await readState()).samples.filter((s) => s.phrase === phrase && s.kind === kind && s.person === person);
+/** Best similarity of a new sample to the earlier current samples of the same phrase, kind and person. */
+export async function scoreAgainstEarlier(embeddings, phrase, kind, person, sampleSimilarity) {
+  const earlier = (await readState()).samples.filter((s) => current(s) && s.phrase === phrase && s.kind === kind && s.person === person);
   if (!earlier.length) return null;
   let best = 0;
-  for (const sample of earlier) {
-    let total = 0, count = 0;
-    for (const a of embeddings) for (const b of sample.embeddings) { total += cosineDistance(a, b); count++; }
-    best = Math.max(best, Math.max(0, Math.min(1, 1 - total / Math.max(1, count))));
-  }
+  for (const sample of earlier) best = Math.max(best, sampleSimilarity(embeddings, sample.embeddings));
   return best;
 }

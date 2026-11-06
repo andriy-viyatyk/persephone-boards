@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { add, list, remove, scoreAgainstEarlier, templates } from "./enrollments.mjs";
-import { StreamingFrontend, cosineDistance, embed, encodeSamples, pcmToFloat, similarity, subsequenceDistance } from "./engine.mjs";
+import { StreamingFrontend, embed, encodeTemplate, matchWindow, pcmToFloat, sampleDistance, similarity, subsequenceDistance } from "./engine.mjs";
 
 const MODEL = fileURLToPath(new URL("../model/speech-embedding.onnx", import.meta.url));
 const MAX_ENROLL_BYTES = 16000 * 2 * 3;
@@ -35,11 +35,11 @@ function quality(samples) {
   const noise = levels.length ? [...levels].map((x) => x.rms).sort((a, b) => a - b)[Math.floor((levels.length - 1) * 0.2)] : 0;
   const active = levels.filter((x) => x.rms > Math.max(0.006, noise * 2.4));
   if (!active.length || active.reduce((n, x) => n + x.rms, 0) / active.length < 0.009) return { accepted: false, reason: "silence" };
-  const start = Math.max(0, active[0].start - 1600), end = Math.min(samples.length, active.at(-1).end + 1600);
-  if ((end - start) / 16 < 300) return { accepted: false, reason: "short" };
-  const signal = samples.slice(start, end), peak = Math.max(...signal.map(Math.abs));
+  const speechStart = active[0].start, speechEnd = active.at(-1).end;
+  if ((speechEnd - speechStart) / 16 < 200) return { accepted: false, reason: "short" };
+  let peak = 0; for (let i = speechStart; i < speechEnd; i++) peak = Math.max(peak, Math.abs(samples[i]));
   if (peak > 0.995 || peak < 0.02) return { accepted: false, reason: "noise" };
-  return { accepted: true, samples: signal };
+  return { accepted: true, speechStart, speechEnd };
 }
 
 async function handle(channel, open, info, inbox, stopInbox) {
@@ -98,11 +98,11 @@ async function handle(channel, open, info, inbox, stopInbox) {
       while (!ended && !channel.closed) { if (!inbox.length) await new Promise((resolve) => setTimeout(resolve, 10)); while (inbox.length) pushAudio(inbox.shift()); }
       if (channel.closed) return;
       const joined = new Uint8Array(bytes); let offset = 0; for (const part of audio) { joined.set(new Uint8Array(part), offset); offset += part.byteLength; }
-      const assessed = quality(pcmToFloat(joined.buffer));
+      const clip = pcmToFloat(joined.buffer), assessed = quality(clip);
       if (!assessed.accepted) { await send(channel, { type: "enrolled", sampleId: "", quality: { accepted: false, reason: assessed.reason }, match: null }); close(channel); return; }
-      const embeddings = await encodeSamples(assessed.samples);
+      const embeddings = await encodeTemplate(clip, assessed.speechStart, assessed.speechEnd);
       if (!embeddings.length) { await send(channel, { type: "enrolled", sampleId: "", quality: { accepted: false, reason: "short" }, match: null }); close(channel); return; }
-      const match = await scoreAgainstEarlier(embeddings, open.phrase, open.kind, open.person, cosineDistance);
+      const match = await scoreAgainstEarlier(embeddings, open.phrase, open.kind, open.person, (a, b) => similarity(sampleDistance(a, b)));
       const saved = await add({ phrase: open.phrase, kind: open.kind, person: open.person, embeddings });
       await send(channel, { type: "enrolled", sampleId: saved.sampleId, quality: { accepted: true }, match }); close(channel); return;
     }
@@ -128,7 +128,8 @@ async function handle(channel, open, info, inbox, stopInbox) {
         if (history.length > 100) history.shift();
         let best = null;
         for (const sample of samples) {
-          const distance = subsequenceDistance(sample.embeddings, history);
+          if (history.length < sample.embeddings.length) continue;
+          const distance = subsequenceDistance(sample.embeddings, matchWindow(sample.embeddings, history));
           if (!best || distance < best.distance) best = { sample, distance };
         }
         const score = best ? similarity(best.distance) : 0;

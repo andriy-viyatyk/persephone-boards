@@ -9,6 +9,7 @@ import * as model from "./model.js";
 
 const PAGE_SIZE = 30;
 const MAX_COMMENT_HEIGHT = 120;
+const WHEEL_LINE_PIXELS = 16; // wheel deltaMode LINE -> pixels when forwarding to the list
 const LANGUAGE_OPTIONS = [
     "plaintext",
     "javascript",
@@ -81,7 +82,8 @@ export function createCards(listElement, expandedElement, appApi) {
             return;
         }
         const target = document.elementFromPoint(pointerX, pointerY);
-        setHoveredCard(target?.closest(".note-card") || null);
+        const overCard = target && !target.closest(".card-deactivate") ? target.closest(".note-card") : null;
+        setHoveredCard(overCard);
     }
 
     function scheduleHoverUpdate() {
@@ -107,6 +109,28 @@ export function createCards(listElement, expandedElement, appApi) {
         container.addEventListener("pointerleave", onPointerLeave);
         // Capture also catches scrolls inside nested scrollers (code editor, preview, grid).
         container.addEventListener("scroll", scheduleHoverUpdate, { capture: true, passive: true });
+    }
+
+    // Only the active (focused) note scrolls its own content. Over any other note the wheel
+    // scrolls the list: caught in capture, before the code editor, preview, grid or comment
+    // can consume it. Click a note to activate it; click its right-edge strip to release it.
+    listElement.tabIndex = -1;
+    listElement.addEventListener("wheel", (event) => {
+        const card = event.target instanceof Element ? event.target.closest(".note-card") : null;
+        if (!card || card.contains(document.activeElement)) {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const scale = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? WHEEL_LINE_PIXELS
+            : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? listElement.clientHeight : 1;
+        listElement.scrollTop += event.deltaY * scale;
+        listElement.scrollLeft += event.deltaX * scale;
+    }, { capture: true, passive: false });
+
+    function deactivateNotes() {
+        listElement.focus({ preventScroll: true });
+        setHoveredCard(null);
     }
 
     /** Reconcile cards against the filtered notes without remounting retained editors. */
@@ -206,6 +230,12 @@ export function createCards(listElement, expandedElement, appApi) {
         const cardElement = document.createElement("article");
         cardElement.className = "note-card";
         cardElement.dataset.noteId = note.id;
+
+        // Click strip along the right edge: deactivates the note so the wheel scrolls the list.
+        const deactivateArea = document.createElement("div");
+        deactivateArea.className = "card-deactivate";
+        deactivateArea.addEventListener("click", deactivateNotes);
+        cardElement.append(deactivateArea);
 
         // Row 1: title, then the date and card actions on the same line.
         const heading = document.createElement("div");

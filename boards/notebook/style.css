@@ -7,10 +7,31 @@
     --p-notebook-dot-size: 8px;
     --p-notebook-row-height: 28px;
     --p-notebook-inline-editor-height: 400px;
+    --p-notebook-deactivate-width: 48px; /* click strip on each card's right edge */
 }
 
 [hidden] {
     display: none !important;
+}
+
+/* Persephone's scrollbar (its .scroll-container rule): thin, invisible until the pointer is
+   over the scrolling element, then the thumb fades in. Applied to every scroller here: the
+   list, side panel, code editor, preview, comment and suggestions. Setting scrollbar-color
+   also switches off board-base.css's ::-webkit-scrollbar styling for these elements. */
+* {
+    scrollbar-color: transparent transparent;
+    scrollbar-width: thin;
+    transition: scrollbar-color 0.3s ease;
+}
+
+*:hover {
+    scrollbar-color: var(--p-scrollbar-thumb) transparent;
+}
+
+/* av-grid puts its bars on thin strips beside the viewport; take hover from the whole grid. */
+[data-type="render-grid"]:hover > [data-type="render-grid-scrollbar-y"],
+[data-type="render-grid"]:hover > [data-type="render-grid-scrollbar-x"] {
+    scrollbar-color: var(--p-scrollbar-thumb) transparent;
 }
 
 html,
@@ -64,6 +85,29 @@ button {
     gap: 4px;
     min-width: 0;
     padding-left: var(--p-notebook-marker-column);
+    padding-right: var(--p-notebook-deactivate-width);
+}
+
+.note-list:focus {
+    outline: none;
+}
+
+/* Right-edge strip: clicking it releases the active note (see the wheel handler in cards.js). */
+.card-deactivate {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--p-notebook-deactivate-width);
+    cursor: default;
+}
+
+.note-card.expanded-card {
+    padding-right: 0;
+}
+
+.note-card.expanded-card > .card-deactivate {
+    display: none;
 }
 
 /* List marker: a dot beside the title and a line down to the card's last row. */
@@ -437,8 +481,15 @@ button {
     min-height: 0;
 }
 
+.note-card.expanded-card .markdown-body {
+    max-height: none;
+}
+
 .markdown-body {
     min-width: 0;
+    /* Same inline cap as the code editor and the grid (MAX_GRID_HEIGHT in grid.js);
+       the expanded card lifts it below. */
+    max-height: var(--p-notebook-inline-editor-height);
     padding: 10px 12px;
     overflow: auto;
     color: var(--p-text);
@@ -488,24 +539,34 @@ button {
     font-family: var(--p-font-mono, ui-monospace, monospace);
 }
 
+/* Expanded card: the card fills the panel, its title and metadata rows stay put, and only
+   the content (and a long comment, capped by MAX_COMMENT_HEIGHT in cards.js) scrolls. */
 .expanded-note {
+    display: flex;
     flex: 1 1 auto;
+    flex-direction: column;
     min-height: 0;
     padding: var(--p-space-md);
-    overflow: auto;
+    overflow: hidden;
 }
 
-.expanded-card {
-    min-height: 100%;
+.note-card.expanded-card {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.note-card.expanded-card > :not(.note-content) {
+    flex: 0 0 auto;
 }
 
 .expanded-card .note-editor {
-    flex: 1 1 auto;
-    min-height: 55vh;
+    display: flex;
+    flex-direction: column;
 }
 
 .expanded-card .note-editor .cm-editor {
-    height: 55vh;
+    flex: 1 1 auto;
+    min-height: 0;
     max-height: none;
 }
 

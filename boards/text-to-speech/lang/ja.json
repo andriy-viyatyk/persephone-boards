@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "テキスト読み上げ",
+    "notice": "Supertonic 3 によるローカル合成。",
+    "retry": "インストールを再試行",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "ready": "準備完了",
+    "missing": "開始するには、実行環境とモデルをインストールしてください。",
+    "working": "インストール中…",
+    "unsupported": "Windows x64 のみ対応しています。",
+    "disconnected": "サービスが切断されました。再接続するにはボードを再読み込みしてください。",
+    "install": "実行環境とモデルをインストール",
+    "test": "音声をテスト",
+    "text": "テキスト",
+    "english": "英語の数字",
+    "ukrainian": "ウクライナ語の数字",
+    "language": "言語",
+    "voice": "音声",
+    "speed": "速度",
+    "speak": "読み上げ",
+    "stop": "停止",
+    "manifest.name": "テキスト読み上げ",
+    "manifest.description": "Supertonic 3 によるローカル音声合成。",
+    "manifest.serviceInterfaces.speech.synthesize.title": "音声合成",
+    "manifest.settings.default-voice.label": "デフォルトの音声",
+    "manifest.settings.default-voice.description": "音声の番号（0〜9）。",
+    "manifest.settings.caller-approval-policy.label": "呼び出し元の承認ポリシー",
+    "manifest.settings.caller-approval-policy.description": "許可された音声合成の呼び出し元、またはこのボードのみを受け入れます。"
+  }
+}

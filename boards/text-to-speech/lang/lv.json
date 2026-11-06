@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "Teksts runā",
+    "notice": "Lokāla runas sintēze ar Supertonic 3.",
+    "retry": "Mēģināt instalēt vēlreiz",
+    "cancel": "Atcelt",
+    "delete": "Dzēst",
+    "ready": "Gatavs",
+    "missing": "Lai sāktu, instalējiet izpildvidi un modeli.",
+    "working": "Instalē…",
+    "unsupported": "Tiek atbalstīta tikai Windows x64.",
+    "disconnected": "Pakalpojums atvienots. Pārlādējiet tāfeli, lai atjaunotu savienojumu.",
+    "install": "Instalēt izpildvidi un modeli",
+    "test": "Pārbaudīt runu",
+    "text": "Teksts",
+    "english": "Angļu skaitļi",
+    "ukrainian": "Ukraiņu skaitļi",
+    "language": "Valoda",
+    "voice": "Balss",
+    "speed": "Ātrums",
+    "speak": "Runāt",
+    "stop": "Apturēt",
+    "manifest.name": "Teksts runā",
+    "manifest.description": "Lokāla runas sintēze, izmantojot Supertonic 3.",
+    "manifest.serviceInterfaces.speech.synthesize.title": "Runas sintēze",
+    "manifest.settings.default-voice.label": "Noklusējuma balss",
+    "manifest.settings.default-voice.description": "Balss indekss no 0 līdz 9.",
+    "manifest.settings.caller-approval-policy.label": "Zvanītāju apstiprināšanas politika",
+    "manifest.settings.caller-approval-policy.description": "Pieņemt apstiprinātos runas sintēzes zvanītājus vai tikai šo tāfeli."
+  }
+}

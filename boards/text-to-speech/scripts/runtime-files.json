@@ -1,0 +1,114 @@
+{
+  "sherpa-onnx-node": {
+    "addon-static-import.js": [
+      2492,
+      "5eb1b8b13b33735f95e80dcb9b5a40d9725f7d41394c1496ce61d1d087667c9c"
+    ],
+    "addon.js": [
+      2760,
+      "ccdfdd81775611bb1b4de2f30fc22a987f9d6936b280c91b6a0c597e02f3c839"
+    ],
+    "audio-tagg.js": [
+      1285,
+      "4f38deacb6fd0dddc6adb717f54f515079a2bb8c7c077d45a4f59d7ed88664a5"
+    ],
+    "keyword-spotter.js": [
+      1609,
+      "de79f3c50dba37be650e8f3688f56cd1a6c400f1074d9034ed99f82941e74439"
+    ],
+    "non-streaming-asr.js": [
+      4509,
+      "768f5afe411e1f960c0e5c59d6bec8120520461704f2786fb110667ed3eeefea"
+    ],
+    "non-streaming-speaker-diarization.js": [
+      1164,
+      "ec2d8bae9365d6d1d6b43bb6ae31d641c7c7bce3cf31f1adb96cfed0d53b9233"
+    ],
+    "non-streaming-speech-denoiser.js": [
+      993,
+      "86b2562f53078f6bfa39895b77984e43556717de94cdf38b39cb9b4d0670ae52"
+    ],
+    "non-streaming-tts.js": [
+      3220,
+      "0e59318cefbfaaf3d9247ee0b772595f2afcac039ffa79f91b2aa31bfc92e56f"
+    ],
+    "online-speech-denoiser.js": [
+      1286,
+      "40c060d62e8080e4d37fbc4bce37273afaadd42ad19ff3f6ce35c008755b7eef"
+    ],
+    "package.json": [
+      1701,
+      "ddecdea9a1216cf8b25f09d13fef1dcb0aef5cbf50fb8bdb388c9a8303a9350b"
+    ],
+    "punctuation.js": [
+      1186,
+      "723f7fd4920906418067ad5b63f1e5bdd12ccbce6f9af49c5dfc74e767bbaa2f"
+    ],
+    "README.md": [
+      343,
+      "5706568eaac6a98ce8c7da76c5676086010b68254d0a0c307b742cb6357afb0b"
+    ],
+    "resampler.js": [
+      2216,
+      "49f0eeaed2d256ad442e56a74182b3848dd276b96351a1adf9ff9a0928162dae"
+    ],
+    "sherpa-onnx.js": [
+      2080,
+      "120bb60c0f9042236573236abf44935c8403fa7e27cd6cbb3cbd08fe3900271a"
+    ],
+    "speaker-identification.js": [
+      3912,
+      "811ab1d07005c110593bbf3a3e17deeb6b1763b4f46f25c793554a41afa01aa2"
+    ],
+    "spoken-language-identification.js": [
+      1120,
+      "d7faace010316d0eb200e5afbef9fe3a6d2a2dbeab317c7f23fa2e685cb65a26"
+    ],
+    "streaming-asr.js": [
+      4576,
+      "e201af0cf90abbfdd6cb4336c2262d4d85142de09829f7f0f0efe546412d110a"
+    ],
+    "types.js": [
+      24730,
+      "3fa418208be9c6439152511a1daa89b869f4c001bacdeff1d2253ee377e7a4c2"
+    ],
+    "vad.js": [
+      2971,
+      "516759499cfd4479f6feaf8dd81452d8189c4909ad402923dd983fba71496c38"
+    ]
+  },
+  "sherpa-onnx-win-x64": {
+    "index.js": [
+      49,
+      "b6db53e997183ee97dd3f565ac0caea4d98f8f8d931c22ba91e0986700f760bc"
+    ],
+    "onnxruntime.dll": [
+      17799168,
+      "7f66f939a881baf4f46a2216496798edf4a1429878b646d12674aa62f27d8a25"
+    ],
+    "onnxruntime_providers_shared.dll": [
+      104960,
+      "551d0e1fe4c227d8542314ba718d52f4379e0c7bfe729a37c59833a884e27b4d"
+    ],
+    "package.json": [
+      1451,
+      "ad7d51b57cdc6c3ef402c3e6516939aa4960d4e96b2d32af2d008937d5f075d6"
+    ],
+    "README.md": [
+      97,
+      "33cc04186235622d194a4bfe157e50dfa5f99079ceed97d19ace4cb54067d2ed"
+    ],
+    "sherpa-onnx-c-api.dll": [
+      4294656,
+      "97dab91a51a9ae279ef6e18936fef652b5ecb881d63880de883a16f1a63d15cb"
+    ],
+    "sherpa-onnx-cxx-api.dll": [
+      264192,
+      "869d7c22ddc788f102f3d1850f738f31d31864e033640fddc8176b96bfac402b"
+    ],
+    "sherpa-onnx.node": [
+      697344,
+      "62fdf07d99ecb56054d868a7cf21f994c1cc729814dcdefcaf32eab34f8cb1f7"
+    ]
+  }
+}

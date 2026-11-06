@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "Tekst na mowę",
+    "notice": "Lokalna synteza mowy z Supertonic 3.",
+    "retry": "Ponów instalację",
+    "cancel": "Anuluj",
+    "delete": "Usuń",
+    "ready": "Gotowe",
+    "missing": "Aby rozpocząć, zainstaluj środowisko uruchomieniowe i model.",
+    "working": "Instalowanie…",
+    "unsupported": "Obsługiwany jest tylko Windows x64.",
+    "disconnected": "Usługa rozłączona. Załaduj ponownie tablicę, aby przywrócić połączenie.",
+    "install": "Zainstaluj środowisko i model",
+    "test": "Przetestuj mowę",
+    "text": "Tekst",
+    "english": "Liczby angielskie",
+    "ukrainian": "Liczby ukraińskie",
+    "language": "Język",
+    "voice": "Głos",
+    "speed": "Szybkość",
+    "speak": "Mów",
+    "stop": "Zatrzymaj",
+    "manifest.name": "Tekst na mowę",
+    "manifest.description": "Lokalna synteza mowy przy użyciu Supertonic 3.",
+    "manifest.serviceInterfaces.speech.synthesize.title": "Synteza mowy",
+    "manifest.settings.default-voice.label": "Domyślny głos",
+    "manifest.settings.default-voice.description": "Indeks głosu od 0 do 9.",
+    "manifest.settings.caller-approval-policy.label": "Zasady zatwierdzania wywołujących",
+    "manifest.settings.caller-approval-policy.description": "Akceptuj zatwierdzonych wywołujących syntezę mowy lub tylko tę tablicę."
+  }
+}

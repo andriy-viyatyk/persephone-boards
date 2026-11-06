@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "Tekst kõneks",
+    "notice": "Kohalik kõnesüntees Supertonic 3 abil.",
+    "retry": "Proovi paigaldust uuesti",
+    "cancel": "Tühista",
+    "delete": "Kustuta",
+    "ready": "Valmis",
+    "missing": "Alustamiseks paigalda käituskeskkond ja mudel.",
+    "working": "Paigaldamine…",
+    "unsupported": "Toetatud on ainult Windows x64.",
+    "disconnected": "Teenuse ühendus katkes. Ühenduse taastamiseks laadi tahvel uuesti.",
+    "install": "Paigalda käituskeskkond ja mudel",
+    "test": "Testi kõnet",
+    "text": "Tekst",
+    "english": "Inglise numbrid",
+    "ukrainian": "Ukraina numbrid",
+    "language": "Keel",
+    "voice": "Hääl",
+    "speed": "Kiirus",
+    "speak": "Räägi",
+    "stop": "Peata",
+    "manifest.name": "Tekst kõneks",
+    "manifest.description": "Kohalik kõnesüntees Supertonic 3 abil.",
+    "manifest.serviceInterfaces.speech.synthesize.title": "Kõnesüntees",
+    "manifest.settings.default-voice.label": "Vaikimisi hääl",
+    "manifest.settings.default-voice.description": "Hääle indeks vahemikus 0 kuni 9.",
+    "manifest.settings.caller-approval-policy.label": "Helistaja kinnitamise reegel",
+    "manifest.settings.caller-approval-policy.description": "Luba heaks kiidetud kõnesünteesi kutsujad või ainult see tahvel."
+  }
+}

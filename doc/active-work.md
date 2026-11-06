@@ -8,6 +8,11 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
+- [ ] [BT-082: Text to Speech board — speech.synthesize provider](tasks/BT-082-text-to-speech/README.md)
+
+
+- [ ] [BT-083: Wake Word board — speech.wake provider](tasks/BT-083-wake-word/README.md)
+
 - [ ] [BT-072: Agent Chat profile management through AI Vision](tasks/BT-072-agent-chat-ai-vision/README.md): expose profile CRUD and provider/model/effort catalogs through `pages[id].editor.app`, backed by the existing service path
 
 Board work for Persephone's **EPIC-137** (*Notebook moves to a published board*). All four are implemented
@@ -24,6 +29,9 @@ Board work for Persephone's **EPIC-135** (*Translation service*):
 - [ ] [BT-070: Translate board v1.0.0](tasks/BT-070-translate-board/README.md): the `text.translate@1` provider, CLD2 language detection, language manager and test panel
 
 ## Planned
+
+Board work for Persephone's **EPIC-139** (*Voice assistant*):
+
 
 Board work for Persephone's **EPIC-134** (*Live transcription and meeting transcripts*) is finished:
 BT-060 – BT-068 added live segmentation, hour-long live sessions and the language picker to

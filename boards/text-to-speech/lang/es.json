@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "Texto a voz",
+    "notice": "Síntesis local con Supertonic 3.",
+    "retry": "Reintentar instalación",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "ready": "Listo",
+    "missing": "Instala el entorno de ejecución y el modelo para empezar.",
+    "working": "Instalando…",
+    "unsupported": "Solo se admite Windows x64.",
+    "disconnected": "Servicio desconectado. Recarga el tablero para volver a conectarte.",
+    "install": "Instalar entorno y modelo",
+    "test": "Probar voz",
+    "text": "Texto",
+    "english": "Números en inglés",
+    "ukrainian": "Números en ucraniano",
+    "language": "Idioma",
+    "voice": "Voz",
+    "speed": "Velocidad",
+    "speak": "Hablar",
+    "stop": "Detener",
+    "manifest.name": "Texto a voz",
+    "manifest.description": "Síntesis de voz local con Supertonic 3.",
+    "manifest.serviceInterfaces.speech.synthesize.title": "Síntesis de voz",
+    "manifest.settings.default-voice.label": "Voz predeterminada",
+    "manifest.settings.default-voice.description": "Índice de voz de 0 a 9.",
+    "manifest.settings.caller-approval-policy.label": "Política de aprobación de llamadas",
+    "manifest.settings.caller-approval-policy.description": "Aceptar las llamadas autorizadas de síntesis de voz o solo las de este tablero."
+  }
+}

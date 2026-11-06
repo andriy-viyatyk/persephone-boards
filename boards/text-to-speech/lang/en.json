@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "Text to Speech",
+    "notice": "Local synthesis with Supertonic 3.",
+    "retry": "Retry installation",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "ready": "Ready",
+    "missing": "Install the runtime and model to get started.",
+    "working": "Installing…",
+    "unsupported": "Only Windows x64 is supported.",
+    "disconnected": "Service disconnected. Reload the board to reconnect.",
+    "install": "Install runtime and model",
+    "test": "Test speech",
+    "text": "Text",
+    "english": "English numbers",
+    "ukrainian": "Ukrainian numbers",
+    "language": "Language",
+    "voice": "Voice",
+    "speed": "Speed",
+    "speak": "Speak",
+    "stop": "Stop",
+    "manifest.name": "Text to Speech",
+    "manifest.description": "Local speech synthesis using Supertonic 3.",
+    "manifest.serviceInterfaces.speech.synthesize.title": "Speech Synthesis",
+    "manifest.settings.default-voice.label": "Default voice",
+    "manifest.settings.default-voice.description": "Voice index from 0 to 9.",
+    "manifest.settings.caller-approval-policy.label": "Caller approval policy",
+    "manifest.settings.caller-approval-policy.description": "Accept granted speech synthesis callers or only this board."
+  }
+}

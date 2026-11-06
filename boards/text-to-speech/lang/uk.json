@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "Синтез мовлення",
+    "notice": "Локальний синтез мовлення Supertonic 3.",
+    "install": "Встановити рушій і модель",
+    "retry": "Повторити встановлення",
+    "cancel": "Скасувати",
+    "delete": "Видалити",
+    "ready": "Готово",
+    "missing": "Встановіть рушій і модель, щоб почати.",
+    "working": "Встановлення…",
+    "unsupported": "Підтримується лише Windows x64.",
+    "disconnected": "З'єднання зі службою втрачено. Перезавантажте дошку.",
+    "test": "Перевірити мовлення",
+    "text": "Текст",
+    "english": "Числа англійською",
+    "ukrainian": "Числа українською",
+    "language": "Мова",
+    "voice": "Голос",
+    "speed": "Швидкість",
+    "speak": "Промовити",
+    "stop": "Зупинити",
+    "manifest.name": "Синтез мовлення",
+    "manifest.description": "Локальний синтез мовлення Supertonic 3.",
+    "manifest.serviceInterfaces.speech.synthesize.title": "Синтез мовлення",
+    "manifest.settings.default-voice.label": "Типовий голос",
+    "manifest.settings.default-voice.description": "Номер голосу від 0 до 9.",
+    "manifest.settings.caller-approval-policy.label": "Правило схвалення викликів",
+    "manifest.settings.caller-approval-policy.description": "Приймати дозволені виклики синтезу мовлення або лише сторінки цієї дошки."
+  }
+}

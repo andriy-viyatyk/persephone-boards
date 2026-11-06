@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "Text zu Sprache",
+    "notice": "Lokale Sprachsynthese mit Supertonic 3.",
+    "retry": "Installation wiederholen",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "ready": "Bereit",
+    "missing": "Installieren Sie Laufzeit und Modell, um zu beginnen.",
+    "working": "Wird installiert…",
+    "unsupported": "Nur Windows x64 wird unterstützt.",
+    "disconnected": "Dienst getrennt. Laden Sie das Board neu, um die Verbindung wiederherzustellen.",
+    "install": "Laufzeit und Modell installieren",
+    "test": "Sprachausgabe testen",
+    "text": "Text",
+    "english": "Englische Zahlen",
+    "ukrainian": "Ukrainische Zahlen",
+    "language": "Sprache",
+    "voice": "Stimme",
+    "speed": "Geschwindigkeit",
+    "speak": "Sprechen",
+    "stop": "Stopp",
+    "manifest.name": "Text zu Sprache",
+    "manifest.description": "Lokale Sprachsynthese mit Supertonic 3.",
+    "manifest.serviceInterfaces.speech.synthesize.title": "Sprachsynthese",
+    "manifest.settings.default-voice.label": "Standardstimme",
+    "manifest.settings.default-voice.description": "Stimmenindex von 0 bis 9.",
+    "manifest.settings.caller-approval-policy.label": "Richtlinie zur Anruferfreigabe",
+    "manifest.settings.caller-approval-policy.description": "Freigegebene Anrufer für die Sprachsynthese oder nur dieses Board akzeptieren."
+  }
+}

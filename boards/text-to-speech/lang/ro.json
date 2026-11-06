@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "Text în vorbire",
+    "notice": "Sinteză locală cu Supertonic 3.",
+    "retry": "Reîncearcă instalarea",
+    "cancel": "Anulează",
+    "delete": "Șterge",
+    "ready": "Pregătit",
+    "missing": "Instalează mediul de rulare și modelul pentru a începe.",
+    "working": "Se instalează…",
+    "unsupported": "Este acceptat doar Windows x64.",
+    "disconnected": "Serviciul s-a deconectat. Reîncarcă tabla pentru a te reconecta.",
+    "install": "Instalează mediul și modelul",
+    "test": "Testează vorbirea",
+    "text": "Text",
+    "english": "Numere în engleză",
+    "ukrainian": "Numere în ucraineană",
+    "language": "Limbă",
+    "voice": "Voce",
+    "speed": "Viteză",
+    "speak": "Vorbește",
+    "stop": "Oprește",
+    "manifest.name": "Text în vorbire",
+    "manifest.description": "Sinteză vocală locală cu Supertonic 3.",
+    "manifest.serviceInterfaces.speech.synthesize.title": "Sinteză vocală",
+    "manifest.settings.default-voice.label": "Voce implicită",
+    "manifest.settings.default-voice.description": "Indicele vocii de la 0 la 9.",
+    "manifest.settings.caller-approval-policy.label": "Politica de aprobare a apelanților",
+    "manifest.settings.caller-approval-policy.description": "Acceptă apelanții autorizați pentru sinteza vocală sau doar această tablă."
+  }
+}

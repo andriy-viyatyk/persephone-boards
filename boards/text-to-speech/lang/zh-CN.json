@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "文本转语音",
+    "notice": "使用 Supertonic 3 进行本地语音合成。",
+    "retry": "重试安装",
+    "cancel": "取消",
+    "delete": "删除",
+    "ready": "就绪",
+    "missing": "安装运行环境和模型后即可开始。",
+    "working": "正在安装…",
+    "unsupported": "仅支持 Windows x64。",
+    "disconnected": "服务已断开。重新加载面板以重新连接。",
+    "install": "安装运行环境和模型",
+    "test": "测试语音",
+    "text": "文本",
+    "english": "英语数字",
+    "ukrainian": "乌克兰语数字",
+    "language": "语言",
+    "voice": "声音",
+    "speed": "速度",
+    "speak": "说话",
+    "stop": "停止",
+    "manifest.name": "文本转语音",
+    "manifest.description": "使用 Supertonic 3 进行本地语音合成。",
+    "manifest.serviceInterfaces.speech.synthesize.title": "语音合成",
+    "manifest.settings.default-voice.label": "默认声音",
+    "manifest.settings.default-voice.description": "声音索引（0 至 9）。",
+    "manifest.settings.caller-approval-policy.label": "调用者批准策略",
+    "manifest.settings.caller-approval-policy.description": "接受已授权的语音合成调用者，或仅接受此面板。"
+  }
+}

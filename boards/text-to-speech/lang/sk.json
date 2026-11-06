@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "Text na reč",
+    "notice": "Lokálna syntéza reči pomocou Supertonic 3.",
+    "retry": "Skúsiť inštaláciu znova",
+    "cancel": "Zrušiť",
+    "delete": "Odstrániť",
+    "ready": "Pripravené",
+    "missing": "Ak chcete začať, nainštalujte runtime a model.",
+    "working": "Inštaluje sa…",
+    "unsupported": "Podporovaný je iba Windows x64.",
+    "disconnected": "Služba je odpojená. Znova načítajte nástenku a obnovte pripojenie.",
+    "install": "Nainštalovať runtime a model",
+    "test": "Vyskúšať reč",
+    "text": "Text",
+    "english": "Anglické čísla",
+    "ukrainian": "Ukrajinské čísla",
+    "language": "Jazyk",
+    "voice": "Hlas",
+    "speed": "Rýchlosť",
+    "speak": "Hovoriť",
+    "stop": "Zastaviť",
+    "manifest.name": "Text na reč",
+    "manifest.description": "Lokálna syntéza reči pomocou Supertonic 3.",
+    "manifest.serviceInterfaces.speech.synthesize.title": "Syntéza reči",
+    "manifest.settings.default-voice.label": "Predvolený hlas",
+    "manifest.settings.default-voice.description": "Index hlasu od 0 do 9.",
+    "manifest.settings.caller-approval-policy.label": "Pravidlá schvaľovania volajúcich",
+    "manifest.settings.caller-approval-policy.description": "Prijímať schválených volajúcich syntézy reči alebo iba túto nástenku."
+  }
+}

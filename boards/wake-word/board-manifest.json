@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "name": "Wake Word",
+  "description": "Local enrollment-based wake and stop phrase detection.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "5.0.18",
+  "minBridgeVersion": "1.42.0",
+  "permissions": {
+    "execute": false,
+    "service": true,
+    "fileSystem": false,
+    "openExternal": false,
+    "appScripting": false,
+    "network": false,
+    "clipboardRead": false,
+    "camera": false,
+    "microphone": true,
+    "geolocation": false,
+    "notifications": false,
+    "themes": false
+  },
+  "service": "scripts/service.mjs",
+  "serviceInterfaces": [{ "id": "speech.wake", "version": 1, "title": "Speech Wake" }],
+  "languages": { "folder": "lang", "default": "en" },
+  "screenshot": "screenshot.png",
+  "settings": [{
+    "id": "caller-approval-policy",
+    "type": "enum",
+    "options": ["accept-granted", "same-board-only"],
+    "default": "accept-granted",
+    "label": "Caller approval policy",
+    "description": "Accept granted speech.wake v1 callers, or only this board's own page."
+  }]
+}

@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "Szövegfelolvasás",
+    "notice": "Helyi beszédszintézis a Supertonic 3-mal.",
+    "retry": "Telepítés újrapróbálása",
+    "cancel": "Mégse",
+    "delete": "Törlés",
+    "ready": "Kész",
+    "missing": "A kezdéshez telepítse a futtatókörnyezetet és a modellt.",
+    "working": "Telepítés…",
+    "unsupported": "Csak a Windows x64 támogatott.",
+    "disconnected": "A szolgáltatás megszakadt. A kapcsolat helyreállításához töltse újra a táblát.",
+    "install": "Futtatókörnyezet és modell telepítése",
+    "test": "Beszéd tesztelése",
+    "text": "Szöveg",
+    "english": "Angol számok",
+    "ukrainian": "Ukrán számok",
+    "language": "Nyelv",
+    "voice": "Hang",
+    "speed": "Sebesség",
+    "speak": "Felolvasás",
+    "stop": "Leállítás",
+    "manifest.name": "Szövegfelolvasás",
+    "manifest.description": "Helyi beszédszintézis a Supertonic 3-mal.",
+    "manifest.serviceInterfaces.speech.synthesize.title": "Beszédszintézis",
+    "manifest.settings.default-voice.label": "Alapértelmezett hang",
+    "manifest.settings.default-voice.description": "A hang indexe 0 és 9 között.",
+    "manifest.settings.caller-approval-policy.label": "Hívó-jóváhagyási szabályzat",
+    "manifest.settings.caller-approval-policy.description": "A beszédszintézis engedélyezett hívóinak vagy csak ennek a táblának az elfogadása."
+  }
+}

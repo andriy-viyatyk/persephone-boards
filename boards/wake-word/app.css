@@ -1,0 +1,30 @@
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; color: var(--p-text); background: var(--p-bg); font: 14px/1.5 system-ui, sans-serif; }
+#app { max-width: 1000px; margin: 0 auto; padding: 22px; display: grid; gap: 16px; }
+.page-header, .section-heading, .actions, .delete-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+h1, h2, p { margin: 0; } h1 { font-size: 1.45rem; } h2 { font-size: 1.08rem; }
+.page-header p, .muted, .hint, footer { color: var(--p-text-muted); }
+.pill { padding: 3px 10px; border: 1px solid var(--p-border); border-radius: 999px; white-space: nowrap; }
+.panel { border: 1px solid var(--p-border); background: var(--p-panel); border-radius: 10px; padding: 16px; display: grid; gap: 14px; }
+.form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+label { display: grid; gap: 5px; min-width: 0; }
+label > input, label > select { width: 100%; min-width: 0; }
+input, select, button { min-height: 36px; border: 1px solid var(--p-border); border-radius: 6px; padding: 6px 9px; color: var(--p-text); background: var(--p-bg-dark); font: inherit; }
+button { cursor: pointer; } button:hover { border-color: var(--p-accent); } button:disabled { opacity: .55; cursor: wait; }
+button.primary { background: var(--p-accent); color: var(--p-accent-text); border-color: transparent; font-weight: 650; }
+.actions { justify-content: flex-start; }
+.hint { font-size: .9rem; }
+.sample-list { display: grid; gap: 8px; }
+.sample-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 9px; border-radius: 7px; background: var(--p-bg-dark); }
+.sample-group strong { margin-right: auto; }
+.sample-group button { min-height: 30px; font-size: .86rem; }
+.delete-row { justify-content: flex-start; flex-wrap: wrap; }
+.delete-row label { flex: 1 1 220px; }
+.threshold { grid-template-columns: auto 90px; align-items: center; }
+.events { max-height: 220px; overflow: auto; display: grid; gap: 5px; margin: 0; padding-left: 24px; }
+#error { color: var(--p-error, #c22); border: 1px solid currentColor; padding: 8px 10px; border-radius: 6px; }
+footer { font-size: .85rem; padding: 0 4px 10px; }
+@media (max-width: 760px) { #app { padding: 14px; } .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .section-heading { align-items: flex-start; } }
+@media (max-width: 460px) { .form-grid { grid-template-columns: 1fr; } .page-header { align-items: flex-start; } }

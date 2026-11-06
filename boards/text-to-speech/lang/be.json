@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "Тэкст у маўленне",
+    "notice": "Лакальны сінтэз з Supertonic 3.",
+    "retry": "Паўтарыць усталяванне",
+    "cancel": "Скасаваць",
+    "delete": "Выдаліць",
+    "ready": "Гатова",
+    "missing": "Усталюйце асяроддзе выканання і мадэль, каб пачаць.",
+    "working": "Усталяванне…",
+    "unsupported": "Падтрымліваецца толькі Windows x64.",
+    "disconnected": "Служба адключана. Перазагрузіце дошку, каб аднавіць злучэнне.",
+    "install": "Усталяваць асяроддзе і мадэль",
+    "test": "Праверыць маўленне",
+    "text": "Тэкст",
+    "english": "Англійскія лікі",
+    "ukrainian": "Украінскія лікі",
+    "language": "Мова",
+    "voice": "Голас",
+    "speed": "Хуткасць",
+    "speak": "Вымаўляць",
+    "stop": "Спыніць",
+    "manifest.name": "Тэкст у маўленне",
+    "manifest.description": "Лакальны сінтэз маўлення з дапамогай Supertonic 3.",
+    "manifest.serviceInterfaces.speech.synthesize.title": "Сінтэз маўлення",
+    "manifest.settings.default-voice.label": "Голас па змаўчанні",
+    "manifest.settings.default-voice.description": "Індэкс голасу ад 0 да 9.",
+    "manifest.settings.caller-approval-policy.label": "Палітыка дазволу выклікаў",
+    "manifest.settings.caller-approval-policy.description": "Прымаць дазволеныя выклікі сінтэзу маўлення або толькі з гэтай дошкі."
+  }
+}

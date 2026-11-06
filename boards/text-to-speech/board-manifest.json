@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "name": "Text to Speech",
+  "description": "Local speech synthesis using Supertonic 3.",
+  "author": "Persephone",
+  "repository": "https://github.com/andriy-viyatyk/persephone-boards",
+  "version": "1.0.0",
+  "minAppVersion": "5.0.18",
+  "minBridgeVersion": "1.42.0",
+  "permissions": {
+    "service": true
+  },
+  "service": "scripts/service.mjs",
+  "serviceInterfaces": [
+    {
+      "id": "speech.synthesize",
+      "version": 1,
+      "title": "Speech Synthesis"
+    }
+  ],
+  "languages": {
+    "folder": "lang",
+    "default": "en"
+  },
+  "screenshot": "screenshot.png",
+  "settings": [
+    {
+      "id": "default-voice",
+      "type": "number",
+      "default": 0,
+      "label": "Default voice",
+      "description": "Voice index from 0 to 9."
+    },
+    {
+      "id": "caller-approval-policy",
+      "type": "enum",
+      "options": [
+        "accept-granted",
+        "same-board-only"
+      ],
+      "default": "accept-granted",
+      "label": "Caller approval policy",
+      "description": "Accept granted speech synthesis callers or only this board."
+    }
+  ]
+}

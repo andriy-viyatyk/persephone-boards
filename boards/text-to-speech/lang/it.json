@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "Sintesi vocale",
+    "notice": "Sintesi locale con Supertonic 3.",
+    "retry": "Riprova installazione",
+    "cancel": "Annulla",
+    "delete": "Elimina",
+    "ready": "Pronto",
+    "missing": "Installa il runtime e il modello per iniziare.",
+    "working": "Installazione…",
+    "unsupported": "È supportato solo Windows x64.",
+    "disconnected": "Servizio disconnesso. Ricarica la bacheca per riconnetterti.",
+    "install": "Installa runtime e modello",
+    "test": "Prova la voce",
+    "text": "Testo",
+    "english": "Numeri inglesi",
+    "ukrainian": "Numeri ucraini",
+    "language": "Lingua",
+    "voice": "Voce",
+    "speed": "Velocità",
+    "speak": "Parla",
+    "stop": "Ferma",
+    "manifest.name": "Sintesi vocale",
+    "manifest.description": "Sintesi vocale locale con Supertonic 3.",
+    "manifest.serviceInterfaces.speech.synthesize.title": "Sintesi vocale",
+    "manifest.settings.default-voice.label": "Voce predefinita",
+    "manifest.settings.default-voice.description": "Indice della voce da 0 a 9.",
+    "manifest.settings.caller-approval-policy.label": "Criterio di approvazione dei chiamanti",
+    "manifest.settings.caller-approval-policy.description": "Accetta i chiamanti autorizzati per la sintesi vocale oppure solo questa bacheca."
+  }
+}

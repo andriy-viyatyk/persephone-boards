@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "Texte en parole",
+    "notice": "Synthèse locale avec Supertonic 3.",
+    "retry": "Réessayer l’installation",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "ready": "Prêt",
+    "missing": "Installez le moteur et le modèle pour commencer.",
+    "working": "Installation…",
+    "unsupported": "Seul Windows x64 est pris en charge.",
+    "disconnected": "Service déconnecté. Rechargez le tableau pour rétablir la connexion.",
+    "install": "Installer le moteur et le modèle",
+    "test": "Tester la voix",
+    "text": "Texte",
+    "english": "Nombres anglais",
+    "ukrainian": "Nombres ukrainiens",
+    "language": "Langue",
+    "voice": "Voix",
+    "speed": "Vitesse",
+    "speak": "Parler",
+    "stop": "Arrêter",
+    "manifest.name": "Texte en parole",
+    "manifest.description": "Synthèse vocale locale avec Supertonic 3.",
+    "manifest.serviceInterfaces.speech.synthesize.title": "Synthèse vocale",
+    "manifest.settings.default-voice.label": "Voix par défaut",
+    "manifest.settings.default-voice.description": "Indice de voix de 0 à 9.",
+    "manifest.settings.caller-approval-policy.label": "Règle d’approbation des appelants",
+    "manifest.settings.caller-approval-policy.description": "Accepter les appelants autorisés pour la synthèse vocale ou uniquement ce tableau."
+  }
+}

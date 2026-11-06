@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "Texto para fala",
+    "notice": "Síntese local com Supertonic 3.",
+    "retry": "Tentar instalação novamente",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "ready": "Pronto",
+    "missing": "Instale o ambiente de execução e o modelo para começar.",
+    "working": "Instalando…",
+    "unsupported": "Somente Windows x64 é compatível.",
+    "disconnected": "Serviço desconectado. Recarregue o quadro para reconectar.",
+    "install": "Instalar ambiente e modelo",
+    "test": "Testar fala",
+    "text": "Texto",
+    "english": "Números em inglês",
+    "ukrainian": "Números em ucraniano",
+    "language": "Idioma",
+    "voice": "Voz",
+    "speed": "Velocidade",
+    "speak": "Falar",
+    "stop": "Parar",
+    "manifest.name": "Texto para fala",
+    "manifest.description": "Síntese de fala local usando Supertonic 3.",
+    "manifest.serviceInterfaces.speech.synthesize.title": "Síntese de fala",
+    "manifest.settings.default-voice.label": "Voz padrão",
+    "manifest.settings.default-voice.description": "Índice da voz de 0 a 9.",
+    "manifest.settings.caller-approval-policy.label": "Política de aprovação de chamadas",
+    "manifest.settings.caller-approval-policy.description": "Aceitar chamadas autorizadas de síntese de fala ou somente deste quadro."
+  }
+}

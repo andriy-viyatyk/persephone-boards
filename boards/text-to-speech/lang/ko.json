@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "텍스트 음성 변환",
+    "notice": "슈퍼토닉 3을 사용하는 로컬 음성 합성.",
+    "retry": "설치 다시 시도",
+    "cancel": "취소",
+    "delete": "삭제",
+    "ready": "준비",
+    "missing": "시작하려면 런타임과 모델을 설치하세요.",
+    "working": "설치 중…",
+    "unsupported": "Windows x64만 지원합니다.",
+    "disconnected": "서비스 연결이 끊겼습니다. 다시 연결하려면 보드를 새로고침하세요.",
+    "install": "런타임 및 모델 설치",
+    "test": "음성 테스트",
+    "text": "텍스트",
+    "english": "영어 숫자",
+    "ukrainian": "우크라이나어 숫자",
+    "language": "언어",
+    "voice": "목소리",
+    "speed": "속도",
+    "speak": "말하기",
+    "stop": "중지",
+    "manifest.name": "텍스트 음성 변환",
+    "manifest.description": "슈퍼토닉 3을 사용하는 로컬 음성 합성.",
+    "manifest.serviceInterfaces.speech.synthesize.title": "음성 합성",
+    "manifest.settings.default-voice.label": "기본 목소리",
+    "manifest.settings.default-voice.description": "목소리 인덱스(0~9).",
+    "manifest.settings.caller-approval-policy.label": "호출자 승인 정책",
+    "manifest.settings.caller-approval-policy.description": "승인된 음성 합성 호출자 또는 이 보드만 허용합니다."
+  }
+}

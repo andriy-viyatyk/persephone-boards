@@ -1,0 +1,31 @@
+{
+  "messages": {
+    "title": "Tekstas į kalbą",
+    "notice": "Vietinė kalbos sintezė su „Supertonic 3“.",
+    "retry": "Bandyti įdiegti dar kartą",
+    "cancel": "Atšaukti",
+    "delete": "Ištrinti",
+    "ready": "Paruošta",
+    "missing": "Norėdami pradėti, įdiekite vykdymo aplinką ir modelį.",
+    "working": "Diegiama…",
+    "unsupported": "Palaikoma tik „Windows x64“.",
+    "disconnected": "Paslauga atjungta. Iš naujo įkelkite lentą, kad prisijungtumėte iš naujo.",
+    "install": "Įdiegti vykdymo aplinką ir modelį",
+    "test": "Išbandyti kalbą",
+    "text": "Tekstas",
+    "english": "Angliški skaičiai",
+    "ukrainian": "Ukrainietiški skaičiai",
+    "language": "Kalba",
+    "voice": "Balsas",
+    "speed": "Greitis",
+    "speak": "Kalbėti",
+    "stop": "Sustabdyti",
+    "manifest.name": "Tekstas į kalbą",
+    "manifest.description": "Vietinė kalbos sintezė naudojant „Supertonic 3“.",
+    "manifest.serviceInterfaces.speech.synthesize.title": "Kalbos sintezė",
+    "manifest.settings.default-voice.label": "Numatytasis balsas",
+    "manifest.settings.default-voice.description": "Balso indeksas nuo 0 iki 9.",
+    "manifest.settings.caller-approval-policy.label": "Skambintojų patvirtinimo politika",
+    "manifest.settings.caller-approval-policy.description": "Priimti patvirtintus kalbos sintezės skambintojus arba tik šią lentą."
+  }
+}

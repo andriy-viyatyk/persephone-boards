@@ -4,9 +4,9 @@
   "description": "Local enrollment-based wake and stop phrase detection.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minAppVersion": "5.0.18",
-  "minBridgeVersion": "1.42.0",
+  "minBridgeVersion": "1.51.0",
   "permissions": {
     "execute": false,
     "service": true,
@@ -17,11 +17,25 @@
     "clipboardRead": false,
     "camera": false,
     "microphone": true,
+    "computerAudio": true,
     "geolocation": false,
     "notifications": false,
     "themes": false
   },
   "service": "scripts/service.mjs",
+  "uses": [{ "id": "audio", "version": 1 }],
+  "capabilities": [{
+    "id": "speech.wake",
+    "version": 1,
+    "title": "Speech Wake",
+    "methods": {
+      "describe": { "kind": "call", "summary": "Describe the wake provider.", "returns": "Provider metadata", "agent": true, "timeoutMs": 10000 },
+      "list": { "kind": "call", "summary": "List enrollments for an exact phrase.", "args": [{ "name": "phrase", "type": "string" }], "returns": "Enrollment groups", "agent": true, "timeoutMs": 10000 },
+      "delete": { "kind": "call", "summary": "Delete enrollments for an exact phrase.", "args": [{ "name": "target", "type": "{ phrase: string; kind?: string; person?: string; sampleId?: string }" }], "returns": "{ count: number }", "agent": false, "timeoutMs": 10000 },
+      "enroll": { "kind": "channel", "summary": "Enroll a phrase from the microphone.", "args": [{ "name": "open", "type": "{ phrase: string; kind: string; person: string; deviceId?: string; echoCancel?: boolean }" }], "agent": false, "timeoutMs": 15000 },
+      "listen": { "kind": "channel", "summary": "Listen for enrolled phrases.", "args": [{ "name": "open", "type": "{ phrases: string[]; sources: string[]; deviceId?: string; threshold?: number; echoCancel?: boolean }" }], "agent": false, "timeoutMs": 15000 }
+    }
+  }],
   "serviceInterfaces": [{ "id": "speech.wake", "version": 1, "title": "Speech Wake" }],
   "languages": { "folder": "lang", "default": "en" },
   "screenshot": "screenshot.png",

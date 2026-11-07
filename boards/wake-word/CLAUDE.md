@@ -1,41 +1,33 @@
 # Wake Word — board notes
 
-A Persephone **service board** that provides the platform interface `speech.wake@1`
-(contract: Persephone's `guides.agents["speech-wake"]`): enrollment-based wake and stop phrases,
-matched by query-by-example. Persephone's voice assistant (EPIC-139) streams microphone audio to
-`listen` and receives `wake` / `stop` events.
+This service board implements `speech.wake@1`; the normative contract is
+`guides.agents["speech-wake"]`. The page uses private service channels for the same operations,
+and `audio.devices()` for microphone IDs. It does not capture audio itself. Service, microphone,
+computerAudio and `uses: audio@1` grants are required. The caller policy allows the private page;
+`same-board-only` rejects every external call and channel. Diagnostics are private to the page.
 
-> The generic board authoring reference (the `persephone.*` bridge, the `--p-*` theme contract,
-> CSP rules, reload/test flow) is available via `guides.agents.boards` in Persephone's MCP. This
-> file documents only what is specific to this board.
+The service shares audio capture and matching work between compatible listeners and enrollment.
+Microphone listening also spots computer audio, even if computer detections are not requested.
+Detection times and conservative start estimates use the audio epoch clock. Gaps reset the
+frontend; epoch changes clear matching and suppression state. The decision-4 tuning constants and
+their delivery-delay rationale live together in `scripts/service.mjs`. Suppression is provisional:
+missed computer detections, late delivery and imperfect echo cancellation can allow false triggers.
 
-## How it works
+The page defaults phrase IDs by kind to `agent-wake` and `agent-stop`, and offers a microphone
+and echo cancellation setting for enrollment and listening. Device IDs come from the audio origin,
+can change, and labels may be unavailable. Use the same echo cancellation setting for both operations.
+Phrase IDs are exact names, not an ownership boundary.
 
-- Wake and stop events carry a conservative sample-relative `start` (US-1786).
-- **Model:** `model/speech-embedding.onnx` is Google's Apache-2.0 `speech_embedding` (Kaggle
-  `google/speech-embedding`, TF1 v1), exported by `scripts/speech-embedding-export/` at the repo
-  root. Never replace it with openWakeWord's packaged copies (CC-BY-NC-SA).
-- **Front end:** the 32-bin log-mel features (25 ms window, 10 ms hop, 60–3800 Hz) are computed in
-  JS in `scripts/engine.mjs`; they reproduce Google's own preprocessing exactly.
-- **Runtime:** `onnxruntime-web` (WASM) vendored under `vendor/onnxruntime-web/` — about 5.7% of
-  one core per active stream; no native addon.
-- **Templates** (`encodeTemplate`, `TEMPLATE` constants in `scripts/engine.mjs`), as in the
-  US-1783 research prototype: the whole recording is padded with one model window of silence in
-  front (a quickly called name is shorter than the 775 ms the model needs), and the template runs
-  from 3 steps (240 ms) after speech starts to 4 steps (320 ms) after it ends, one 96-dimensional
-  embedding per 80 ms. Samples carry `frontendVersion`; only `TEMPLATE_VERSION` samples are matched.
-- **Matching** (`subsequenceDistance`): subsequence DTW over cosine distance whose path must END at
-  the newest live embedding, normalized by path length, horizontal stretch limited to 2L, over the
-  newest 2L + 4 embeddings only. Without the end anchor every new frame re-finds an older hit and
-  any speech "triggers". Score = `1 - distance`; `defaultThreshold` 0.85 is provisional.
-- **Storage:** only embeddings and phrase/person metadata, in
-  `%LOCALAPPDATA%/Persephone/board-data/wake-word/enrollments-v1.json`. No audio is stored.
-- **Caller policy:** a channel without `info.interface` is the board's own page
-  (`isOwnPage()` in `scripts/service.mjs`; `info.page.boardId` is the page instance id, not the
-  folder name). Other callers must arrive through `speech.wake@1` and pass the
-  `caller-approval-policy` setting. The `diagnostics` channel (live scores) is own-page only.
+The versioned enrollment migration preserves sample IDs, embeddings, and custom phrase names;
+legacy `wake` and `stop` defaults become `agent-wake` and `agent-stop` and are marked as
+pre-change capture with echo cancellation off. Only current frontend versions are matched; older
+samples remain listable and deletable. New samples record echo cancellation. Audio is transient;
+only metadata and sensitive embeddings persist in
+`%LOCALAPPDATA%/Persephone/board-data/wake-word/enrollments-v1.json`.
 
-## Not in this board
-
-The microphone-plus-loopback rule (ignore a name the computer itself played) lives in the
-Persephone app: a board cannot capture loopback audio.
+The model `model/speech-embedding.onnx` is Google's Apache-2.0 `speech_embedding` TF1 v1, exported
+by the repository's `scripts/speech-embedding-export/`. Do not replace it with openWakeWord's
+CC-BY-NC-SA copies. `scripts/engine.mjs` implements Google's 32-band log-mel frontend, 96-dimensional
+embeddings at 80 ms steps and end-anchored subsequence DTW; the default similarity threshold 0.85
+and onset estimate need live calibration. The vendored ONNX Runtime Web WASM backend is offline.
+See `THIRD-PARTY-NOTICES.md` for licenses.

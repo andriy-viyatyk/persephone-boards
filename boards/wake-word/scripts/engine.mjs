@@ -82,14 +82,17 @@ export class StreamingFrontend {
   }
   takeReady() {
     const ready = [];
-    while (this.frames.length >= this.nextInferenceFrame) { ready.push(this.latestWindow()); this.nextInferenceFrame += 8; }
+    while (this.frames.length >= this.nextInferenceFrame) {
+      ready.push(this.windowEndingAt(this.nextInferenceFrame));
+      this.nextInferenceFrame += 8;
+    }
     return ready;
   }
-  latestWindow() {
-    if (this.frames.length < 76) return null;
-    const rows = this.frames.slice(-76), out = new Float32Array(76 * BANDS);
+  windowEndingAt(frameCount) {
+    const rows = this.frames.slice(frameCount - 76, frameCount);
+    const out = new Float32Array(76 * BANDS);
     rows.forEach((row, i) => out.set(row, i * BANDS));
-    return { features: out, sampleEnd: this.frameEndSamples.at(-1) };
+    return { features: out, sampleEnd: this.frameEndSamples[frameCount - 1] };
   }
 }
 

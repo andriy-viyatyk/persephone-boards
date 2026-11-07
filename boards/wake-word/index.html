@@ -15,17 +15,21 @@
     <section class="panel enrollment">
       <h2 data-i18n="enroll.title"></h2>
       <div class="form-grid">
-        <label><span data-i18n="field.person"></span><input id="person" maxlength="128" autocomplete="off" placeholder="Me"></label>
         <label><span data-i18n="field.kind"></span><select id="kind"><option value="wake" data-i18n="kind.wake"></option><option value="stop" data-i18n="kind.stop"></option></select></label>
+        <label><span data-i18n="field.phrase"></span><input id="phrase" maxlength="128" value="agent-wake" autocomplete="off"></label>
+        <label><span data-i18n="field.person"></span><input id="person" maxlength="128" autocomplete="off" placeholder="Me"></label>
         <label><span data-i18n="field.microphone"></span><select id="microphone"></select></label>
+        <label><span data-i18n="field.echoCancel"></span><select id="echo-cancel"><option value="true" data-i18n="echo.on"></option><option value="false" data-i18n="echo.off"></option></select></label>
       </div>
+      <div><button id="refresh-devices" data-i18n="microphone.refresh"></button></div>
       <div class="actions"><button id="record" class="primary" data-i18n="enroll.record"></button><span id="recording" class="muted" data-i18n="enroll.prompt"></span></div>
       <p class="hint" data-i18n="enroll.hint"></p>
     </section>
     <section class="panel">
       <div class="section-heading"><h2 data-i18n="samples.title"></h2><button id="refresh" data-i18n="common.refresh"></button></div>
       <div id="samples" class="sample-list"></div>
-      <div class="delete-row"><label><span data-i18n="delete.person"></span><input id="delete-person"></label><button id="delete-person-button" data-i18n="delete.run"></button></div>    </section>
+      <div class="delete-row"><label><span data-i18n="delete.personScoped"></span><input id="delete-person" maxlength="128"></label><button id="delete-person-button" data-i18n="delete.run"></button></div>
+    </section>
     <section class="panel live-panel">
       <div class="section-heading"><div><h2 data-i18n="live.title"></h2><p class="muted" data-i18n="live.hint"></p></div><label class="threshold"><span data-i18n="live.threshold"></span><input id="threshold" type="number" min="0" max="1" step="0.01" value="0.85"></label></div>
       <div class="actions"><button id="listen" class="primary" data-i18n="live.start"></button><span id="live-score" class="muted"></span></div>

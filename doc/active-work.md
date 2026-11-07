@@ -14,6 +14,7 @@ Overview of active and planned board work in this repo.
 
 
 - [ ] [BT-083: Wake Word board — speech.wake provider](tasks/BT-083-wake-word/README.md)
+- [ ] [BT-085: Wake Word — audio service capture, phrase filter, consumer-named phrases, film suppression](tasks/BT-085-wake-word-audio-service/README.md)
 
 - [ ] [BT-072: Agent Chat profile management through AI Vision](tasks/BT-072-agent-chat-ai-vision/README.md): expose profile CRUD and provider/model/effort catalogs through `pages[id].editor.app`, backed by the existing service path
 

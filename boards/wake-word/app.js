@@ -1,113 +1,309 @@
 "use strict";
+
 (() => {
-  const $ = (id) => document.getElementById(id), format = { encoding: "pcm-s16le", sampleRate: 16000, channels: 1 };
-  const DEFAULT_PERSON = "Me";
-  let current = null, diagnostics = null, capture = null, sendQueue = Promise.resolve(), mode = "", timer = null, devices = [];
-  const say = (key, params) => t(key, params);
-  function setStatus(key) { $("status").textContent = say(key); }
-  function showError(error) { $("error").hidden = false; $("error").textContent = error?.message || String(error); }
-  function clearError() { $("error").hidden = true; $("error").textContent = ""; }
-  async function send(message) {
-    if (!current || current.closed) return;
-    if (!current.writable) await current.whenWritable();
-    if (current && !current.closed) current.send(message);
+  const element = id => document.getElementById(id);
+  const channels = new Set();
+  const defaultPhrases = { wake: "agent-wake", stop: "agent-stop" };
+  let activity = null;
+  let pageClosed = false;
+  let listGeneration = 0;
+
+  function setStatus(key) {
+    element("status").textContent = t(key);
   }
-  async function open(openMessage) {
-    current = await persephone.service.openChannel(openMessage);
-    current.onMessage((message) => {
-      if (message.type === "error") { showError(`${message.code}: ${message.message}`); stopCapture(); setStatus("status.error"); }
-      else if (message.type === "enrolled") {
-        $("recording").textContent = message.quality.accepted ? say("enroll.accepted", { match: message.match === null ? say("common.first") : `${Math.round(message.match * 100)}%` }) : say(`quality.${message.quality.reason || "rejected"}`);
-        setStatus(message.quality.accepted ? "status.ready" : "status.quality"); refreshList();
-      } else if (message.type === "diagnostic") $("live-score").textContent = say("live.score", { score: message.score.toFixed(3) });
-      else if (message.type === "wake" || message.type === "stop") {
-        const custom = message.phrase !== message.type ? ` “${message.phrase}”` : "";
-        const li = document.createElement("li"); li.textContent = `${say(`kind.${message.type}`)}${custom} · ${message.person} · ${(message.score * 100).toFixed(1)}% · ${(message.time / 1000).toFixed(2)} s`;
-        $("events").prepend(li); while ($("events").children.length > 30) $("events").lastElementChild.remove();
-      } else if (message.type === "enrollments") renderList(message.phrases);
-      else if (message.type === "deleted") { setStatus("status.deleted"); refreshList(); }
-      else if (message.type === "description") $("threshold").value = message.defaultThreshold;
-      else if (message.type === "done") { stopCapture(); setStatus("status.ready"); }
-    });
-    current.onClose(() => { if (mode) { stopCapture(); mode = ""; if (diagnostics && !diagnostics.closed) diagnostics.close(); diagnostics = null; } });
-    return current;
+
+  function showError(error) {
+    element("error").hidden = false;
+    element("error").textContent = error?.message || String(error);
+    setStatus("status.error");
   }
-  async function startCapture() {
-    const deviceId = $("microphone").value;
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { ...(deviceId ? { deviceId: { exact: deviceId } } : {}), channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-    const context = new AudioContext(); await context.audioWorklet.addModule("./audio-capture-worklet.js");
-    const source = context.createMediaStreamSource(stream), node = new AudioWorkletNode(context, "wake-capture"), mute = context.createGain();
-    mute.gain.value = 0;
-    node.port.onmessage = (event) => {
-      if (event.data?.type !== "audio" || !current || current.closed) return;
-      sendQueue = sendQueue.then(() => send({ type: "audio", data: event.data.data })).catch(showError);
+
+  function clearError() {
+    element("error").hidden = true;
+    element("error").textContent = "";
+  }
+
+  function selectedPhrase() {
+    const phrase = element("phrase").value.trim();
+    if (!phrase) throw new Error(t("error.phrase"));
+    return phrase;
+  }
+
+  function captureOptions() {
+    const deviceId = element("microphone").value;
+    return {
+      ...(deviceId ? { deviceId } : {}),
+      echoCancel: element("echo-cancel").value === "true",
     };
-    source.connect(node); node.connect(mute); mute.connect(context.destination);
-    capture = { stream, context, source, node, mute };
   }
-  function stopCapture() {
-    clearTimeout(timer); timer = null;
-    if (!capture) return;
-    try { capture.node.port.postMessage({ type: "stop" }); capture.source.disconnect(); capture.node.disconnect(); capture.mute.disconnect(); } catch {}
-    for (const track of capture.stream.getTracks()) track.stop();
-    void capture.context.close(); capture = null;
+
+  function updateControls() {
+    const busy = activity !== null;
+    element("record").disabled = busy;
+    element("listen").disabled = busy && activity.kind !== "listen";
+    element("listen").textContent = t(activity?.kind === "listen" ? "live.stop" : "live.start");
+    for (const id of ["kind", "phrase", "person", "microphone", "echo-cancel", "refresh-devices"]) {
+      element(id).disabled = busy;
+    }
   }
-  async function finishStream() { await new Promise((resolve) => setTimeout(resolve, 120)); stopCapture(); await sendQueue; await send({ type: "end" }); }
-  async function beginEnrollment() {
-    // Every enrolled sample of a kind is a wake (or stop) word, so the contract's phrase is just the
-    // kind. The person tells the assistant's agent who is speaking; empty means "Me" (not translated,
-    // so a person's samples stay together whatever the interface language).
-    clearError(); const kind = $("kind").value, phrase = kind, person = $("person").value.trim() || DEFAULT_PERSON;
+
+  async function openChannel(message, onMessage, onClose) {
+    const channel = await persephone.service.openChannel(message);
+    if (pageClosed) {
+      channel.close();
+      return null;
+    }
+    channels.add(channel);
+    channel.onMessage(onMessage);
+    channel.onClose(reason => {
+      channels.delete(channel);
+      onClose?.(reason);
+    });
+    return channel;
+  }
+
+  function closeChannel(channel) {
+    if (channel && !channel.closed) channel.close();
+  }
+
+  async function request(message, expectedType) {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      void openChannel(message, reply => {
+        if (settled) return;
+        if (reply?.type === "error") {
+          settled = true;
+          reject(new Error(`${reply.code}: ${reply.message}`));
+        } else if (reply?.type === expectedType) {
+          settled = true;
+          resolve(reply);
+        }
+      }, reason => {
+        if (!settled && !pageClosed) {
+          settled = true;
+          reject(new Error(reason?.message || t("error.channel")));
+        }
+      }).then(channel => {
+        if (!channel && !settled) {
+          settled = true;
+          reject(new Error(t("error.channel")));
+        }
+      }, reject);
+    });
+  }
+
+  async function refreshList() {
+    const generation = ++listGeneration;
     try {
-      mode = "enroll"; $("record").disabled = true; $("recording").textContent = say("enroll.recording"); setStatus("status.recording");
-      await open({ type: "enroll", phrase, kind, person, format }); await startCapture();
-      timer = setTimeout(() => { void finishStream().catch(showError); $("record").disabled = false; }, 2500);
-    } catch (error) { stopCapture(); $("record").disabled = false; mode = ""; showError(error); setStatus("status.error"); }
+      const phrase = selectedPhrase();
+      const reply = await request({ type: "list", phrase }, "enrollments");
+      if (generation === listGeneration && phrase === element("phrase").value.trim()) {
+        renderList(reply.phrases);
+      }
+    } catch (error) {
+      if (!pageClosed && generation === listGeneration) showError(error);
+    }
   }
-  async function beginListen() {
-    clearError(); const threshold = Number($("threshold").value);
-    if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) { showError(say("error.threshold")); return; }
-    try {
-      mode = "listen"; $("listen").textContent = say("live.stop"); setStatus("status.listening");
-      diagnostics = await open({ type: "diagnostics" });
-      await open({ type: "listen", format, threshold }); await startCapture();
-    } catch (error) { stopCapture(); if (diagnostics && !diagnostics.closed) diagnostics.close(); diagnostics = null; mode = ""; $("listen").textContent = say("live.start"); showError(error); setStatus("status.error"); }
-  }
-  async function stopListen() {
-    stopCapture(); await sendQueue.catch(() => {}); await send({ type: "end" }).catch(() => {});
-    if (current && !current.closed) current.close(); current = null; mode = ""; $("listen").textContent = say("live.start"); setStatus("status.ready");
-    if (diagnostics && !diagnostics.closed) diagnostics.close(); diagnostics = null;
-  }
+
   function renderList(groups) {
-    const host = $("samples"); host.replaceChildren();
-    if (!groups?.length) { host.textContent = say("samples.empty"); return; }
+    const host = element("samples");
+    host.replaceChildren();
+    if (!groups?.length) {
+      host.textContent = t("samples.empty");
+      return;
+    }
     for (const group of groups) {
-      const row = document.createElement("div"); row.className = "sample-group";
-      // Samples enrolled before the phrase input was removed keep their own phrase as a label.
-      const custom = group.phrase !== group.kind ? `${group.phrase} · ` : "";
-      const label = document.createElement("strong"); label.textContent = `${custom}${say(`kind.${group.kind}`)} · ${group.person}`; row.append(label);
-      const ids = document.createElement("span"); ids.className = "muted"; ids.textContent = say("samples.count", { count: group.samples.length }); row.append(ids);
+      const row = document.createElement("div");
+      row.className = "sample-group";
+      const label = document.createElement("strong");
+      label.textContent = `${group.phrase} · ${t(`kind.${group.kind}`)} · ${group.person}`;
+      row.append(label);
       for (const sample of group.samples) {
-        const button = document.createElement("button"); button.textContent = say("delete.sample"); button.title = sample.sampleId;
-        button.addEventListener("click", () => void removeTarget({ sampleId: sample.sampleId })); row.append(button);
+        const button = document.createElement("button");
+        const provenance = sample.legacyCapture ? t("samples.legacy")
+          : sample.echoCancel === true ? t("samples.echoOn")
+            : sample.echoCancel === false ? t("samples.echoOff") : t("samples.echoUnknown");
+        const compatibility = sample.frontendVersion !== 2 ? ` · ${t("samples.incompatible")}` : "";
+        button.textContent = `${t("delete.sample")} · ${provenance}${compatibility}`;
+        button.title = sample.sampleId;
+        button.addEventListener("click", () => void deleteTarget({ phrase: group.phrase, sampleId: sample.sampleId }));
+        row.append(button);
       }
       host.append(row);
     }
   }
-  function refreshList() { void open({ type: "list" }).catch(showError); }
-  async function removeTarget(target) { try { await open({ type: "delete", target }); } catch (error) { showError(error); } }
-  async function loadDevices() {
+
+  async function deleteTarget(target) {
+    clearError();
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => stream.getTracks().forEach((track) => track.stop()));
-      devices = (await navigator.mediaDevices.enumerateDevices()).filter((item) => item.kind === "audioinput");
-      const select = $("microphone"); select.replaceChildren();
-      for (const [index, device] of devices.entries()) { const option = document.createElement("option"); option.value = device.deviceId; option.textContent = device.label || say("field.microphoneNumber", { number: index + 1 }); select.append(option); }
-    } catch { $("microphone").innerHTML = `<option value="">${say("microphone.default")}</option>`; }
+      await request({ type: "delete", target }, "deleted");
+      setStatus("status.deleted");
+      await refreshList();
+    } catch (error) {
+      if (!pageClosed) showError(error);
+    }
   }
-  async function describe() { try { await open({ type: "describe" }); } catch (error) { showError(error); } }
-  $("record").addEventListener("click", () => void beginEnrollment());
-  $("listen").addEventListener("click", () => mode === "listen" ? void stopListen() : void beginListen());
-  $("refresh").addEventListener("click", refreshList);
-  $("delete-person-button").addEventListener("click", () => $("delete-person").value.trim() && void removeTarget({ person: $("delete-person").value }));  window.addEventListener("pagehide", () => { stopCapture(); if (current && !current.closed) current.close(); if (diagnostics && !diagnostics.closed) diagnostics.close(); });
-  applyI18n(); void loadDevices(); void describe(); refreshList();
+
+  async function loadDevices() {
+    const select = element("microphone");
+    const previous = select.value;
+    select.replaceChildren();
+    const defaultOption = document.createElement("option");
+    defaultOption.value = "";
+    defaultOption.textContent = t("microphone.default");
+    select.append(defaultOption);
+    try {
+      const audio = await persephone.getCapability("audio", { version: 1 });
+      if (!audio) throw new Error("audio@1 is unavailable.");
+      const devices = await audio.devices();
+      for (const [index, device] of devices.entries()) {
+        if (!device.deviceId || device.isDefault) continue;
+        const option = document.createElement("option");
+        option.value = device.deviceId;
+        option.textContent = device.label || t("field.microphoneNumber", { number: index + 1 });
+        select.append(option);
+      }
+      if ([...select.options].some(option => option.value === previous)) select.value = previous;
+    } catch (error) {
+      if (!pageClosed) showError(error);
+    }
+  }
+
+  function finishActivity(current) {
+    closeChannel(current.diagnostics);
+    current.diagnostics = null;
+    if (activity !== current) return;
+    activity = null;
+    updateControls();
+  }
+
+  async function beginEnrollment() {
+    if (activity) return;
+    clearError();
+    let current = null;
+    try {
+      const phrase = selectedPhrase();
+      current = { kind: "enroll", channel: null, finished: false };
+      activity = current;
+      updateControls();
+      setStatus("status.starting");
+      element("recording").textContent = t("enroll.recording");
+      const open = {
+        type: "enroll", phrase, kind: element("kind").value,
+        person: element("person").value.trim() || "Me", ...captureOptions(),
+      };
+      current.channel = await openChannel(open, message => {
+        if (message?.type === "error") {
+          current.finished = true;
+          showError(new Error(`${message.code}: ${message.message}`));
+        } else if (message?.type === "enrolled") {
+          current.finished = true;
+          const match = message.match === null ? t("common.first") : `${Math.round(message.match * 100)}%`;
+          element("recording").textContent = message.quality.accepted
+            ? t("enroll.accepted", { match }) : t(`quality.${message.quality.reason || "silence"}`);
+          setStatus(message.quality.accepted ? "status.ready" : "status.quality");
+          void refreshList();
+        }
+      }, reason => {
+        if (!current.finished && !pageClosed) showError(new Error(reason?.message || t("error.channel")));
+        finishActivity(current);
+      });
+      if (activity !== current || pageClosed) closeChannel(current.channel);
+      else if (!current.finished) setStatus("status.recording");
+    } catch (error) {
+      const stillCurrent = !current || activity === current;
+      if (current) finishActivity(current);
+      if (!pageClosed && stillCurrent) showError(error);
+    }
+  }
+
+  function handleListenMessage(current, message) {
+    if (message?.type === "error") {
+      current.finished = true;
+      showError(new Error(`${message.code}: ${message.message}`));
+    } else if (message?.type === "status" && message.status === "listening") {
+      setStatus("status.listening");
+    } else if (message?.type === "status" && message.status === "reset") {
+      element("events").replaceChildren();
+      setStatus("status.reset");
+    } else if (message?.type === "detection") {
+      const item = document.createElement("li");
+      item.textContent = `${message.phrase} · ${t(`kind.${message.kind}`)} · ${message.person} · ${(message.score * 100).toFixed(1)}% · ${message.time.epoch} / ${(message.time.timeMs / 1000).toFixed(2)} s`;
+      element("events").prepend(item);
+      while (element("events").children.length > 30) element("events").lastElementChild.remove();
+    }
+  }
+
+  async function beginListen() {
+    if (activity) return;
+    clearError();
+    let current = null;
+    try {
+      const phrase = selectedPhrase();
+      const threshold = Number(element("threshold").value);
+      if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) throw new Error(t("error.threshold"));
+      current = { kind: "listen", channel: null, diagnostics: null, finished: false };
+      activity = current;
+      updateControls();
+      setStatus("status.starting");
+      current.diagnostics = await openChannel({ type: "diagnostics" }, message => {
+        if (message?.type === "diagnostic") element("live-score").textContent = t("live.score", { score: message.score.toFixed(3) });
+      });
+      if (activity !== current || pageClosed) {
+        closeChannel(current.diagnostics);
+        current.diagnostics = null;
+        return;
+      }
+      current.channel = await openChannel({
+        type: "listen", phrases: [phrase], sources: ["microphone"], threshold, ...captureOptions(),
+      }, message => handleListenMessage(current, message), reason => {
+        if (!current.finished && activity === current && !pageClosed) showError(new Error(reason?.message || t("error.channel")));
+        finishActivity(current);
+      });
+      if (activity !== current || pageClosed) closeChannel(current.channel);
+    } catch (error) {
+      const stillCurrent = !current || activity === current;
+      if (current) finishActivity(current);
+      if (!pageClosed && stillCurrent) showError(error);
+    }
+  }
+
+  function stopListen() {
+    const current = activity;
+    if (!current || current.kind !== "listen") return;
+    current.finished = true;
+    closeChannel(current.channel);
+    finishActivity(current);
+    setStatus("status.ready");
+  }
+
+  element("kind").addEventListener("change", () => {
+    const phrase = element("phrase");
+    if (!phrase.value.trim() || Object.values(defaultPhrases).includes(phrase.value.trim())) {
+      phrase.value = defaultPhrases[element("kind").value];
+    }
+    void refreshList();
+  });
+  element("phrase").addEventListener("change", () => void refreshList());
+  element("refresh").addEventListener("click", () => void refreshList());
+  element("refresh-devices").addEventListener("click", () => void loadDevices());
+  element("record").addEventListener("click", () => void beginEnrollment());
+  element("listen").addEventListener("click", () => activity?.kind === "listen" ? stopListen() : void beginListen());
+  element("delete-person-button").addEventListener("click", () => {
+    try {
+      const person = element("delete-person").value.trim();
+      if (person) void deleteTarget({ phrase: selectedPhrase(), person });
+    } catch (error) {
+      showError(error);
+    }
+  });
+  window.addEventListener("pagehide", () => {
+    pageClosed = true;
+    for (const channel of channels) closeChannel(channel);
+    channels.clear();
+  });
+  applyI18n();
+  updateControls();
+  void loadDevices();
+  void refreshList();
 })();

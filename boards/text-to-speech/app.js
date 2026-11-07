@@ -9,27 +9,51 @@ $("language").value = "en";
 const samples = { en: "It is 19:45. The film lasts 2 hours and 15 minutes, with a rating of 8.4. Episode 3 of 12.", uk: "Зараз 19:45. Фільм триває 2 години 15 хвилин, рейтинг 8,4. Серія 3 із 12." };
 function sample(lang) { $("text").value = samples[lang]; $("language").value = lang; }
 $("english").onclick = () => sample("en"); $("ukrainian").onclick = () => sample("uk"); sample("en");
-let channel, audio, nextTime = 0, sources = new Set(), generation = 0;
-function stop() { generation++; channel?.close(); channel = null; for (const source of sources) { try { source.stop(); } catch {} } sources.clear(); nextTime = 0; }
-$("stop").onclick = stop;
-$("speak").onclick = async () => {
-  stop(); const current = generation;
+let testChannel;
+let testConnection;
+let requestId = 0;
+let unloading = false;
+async function connectTest() {
+  if (testChannel) return testChannel;
+  if (!testConnection) {
+    testConnection = persephone.service.openChannel({ type: "test" }).then(channel => {
+      if (unloading) {
+        channel.close();
+        throw new Error("Page closed.");
+      }
+      testChannel = channel;
+      channel.onMessage(message => {
+        if (message.id !== requestId) return;
+        if (message.type === "error") $("status").textContent = message.message;
+        if (message.type === "result") $("status").textContent = message.status;
+      });
+      channel.onClose(() => { testChannel = null; });
+      return channel;
+    }).finally(() => { testConnection = null; });
+  }
+  return testConnection;
+}
+$("stop").onclick = async () => {
   try {
-    audio ||= new AudioContext(); await audio.resume();
-    const opened = await persephone.service.openChannel({ type: "speak", text: $("text").value, lang: $("language").value, voice: Number($("voice").value), speed: Number($("speed").value) });
-    if (current !== generation) { opened.close(); return; } channel = opened;
-    channel.onMessage(message => {
-      if (current !== generation) return;
-      if (message.type === "error") { $("status").textContent = message.message; return; }
-      if (message.type !== "audio") return;
-      if (message.encoding !== "pcm-f32le" || !(message.data instanceof ArrayBuffer) || message.data.byteLength % 4) { stop(); $("status").textContent = "Invalid audio"; return; }
-      const view = new DataView(message.data), buffer = audio.createBuffer(1, view.byteLength / 4, message.sampleRate), out = buffer.getChannelData(0);
-      for (let i = 0; i < out.length; i++) out[i] = view.getFloat32(i * 4, true);
-      const source = audio.createBufferSource(); source.buffer = buffer; source.connect(audio.destination); sources.add(source); source.onended = () => sources.delete(source);
-      nextTime = Math.max(nextTime, audio.currentTime); source.start(nextTime); nextTime += buffer.duration;
+    const channel = await connectTest();
+    channel.send({ type: "stop" });
+  } catch (error) {
+    $("status").textContent = error.message;
+  }
+};
+$("speak").onclick = async () => {
+  const id = ++requestId;
+  try {
+    const channel = await connectTest();
+    channel.send({
+      type: "speak",
+      id,
+      text: $("text").value,
+      options: { lang: $("language").value, voice: Number($("voice").value), speed: Number($("speed").value) }
     });
-    channel.onClose(() => { if (channel === opened) channel = null; });
-  } catch (error) { if (current === generation) $("status").textContent = error.message; }
+  } catch (error) {
+    if (id === requestId) $("status").textContent = error.message;
+  }
 };
 let management;
 async function connectManagement() {
@@ -53,5 +77,9 @@ async function connectManagement() {
 $("install").onclick = () => management?.send({ type: "install" });
 $("cancel").onclick = () => management?.send({ type: "cancel" });
 $("delete").onclick = () => management?.send({ type: "delete" });
-window.addEventListener("beforeunload", () => { stop(); management?.close(); void audio?.close(); });
+window.addEventListener("beforeunload", () => {
+  unloading = true;
+  testChannel?.close();
+  management?.close();
+});
 void connectManagement();

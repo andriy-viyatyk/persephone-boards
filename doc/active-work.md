@@ -10,6 +10,8 @@ Overview of active and planned board work in this repo.
 
 - [ ] [BT-082: Text to Speech board — speech.synthesize provider](tasks/BT-082-text-to-speech/README.md)
 
+- [ ] [BT-084: Text to Speech — play through the audio service; speak / stop](tasks/BT-084-tts-audio-service/README.md)
+
 
 - [ ] [BT-083: Wake Word board — speech.wake provider](tasks/BT-083-wake-word/README.md)
 

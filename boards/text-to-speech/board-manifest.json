@@ -4,13 +4,39 @@
   "description": "Local speech synthesis using Supertonic 3.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minAppVersion": "5.0.18",
-  "minBridgeVersion": "1.42.0",
+  "minBridgeVersion": "1.51.0",
   "permissions": {
     "service": true
   },
   "service": "scripts/service.mjs",
+  "uses": [{ "id": "audio", "version": 1 }],
+  "capabilities": [{
+    "id": "speech.synthesize",
+    "version": 1,
+    "title": "Text to Speech",
+    "methods": {
+      "speak": {
+        "kind": "call",
+        "summary": "Speak until finished or interrupted.",
+        "args": [
+          { "name": "text", "type": "string" },
+          { "name": "options", "type": "{ lang?: string; voice?: number; speed?: number }", "optional": true }
+        ],
+        "returns": "{ status: 'finished' | 'interrupted' }",
+        "agent": true,
+        "timeoutMs": 600000
+      },
+      "stop": {
+        "kind": "call",
+        "summary": "Stop current speech.",
+        "returns": "null",
+        "agent": true,
+        "timeoutMs": 10000
+      }
+    }
+  }],
   "serviceInterfaces": [
     {
       "id": "speech.synthesize",

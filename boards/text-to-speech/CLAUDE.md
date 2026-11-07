@@ -1,8 +1,8 @@
 # Text to Speech — board notes
 
 A Persephone **service board** that provides the platform interface `speech.synthesize@1`
-(contract: Persephone's `guides.agents["speech-synthesize"]`). Persephone's voice assistant
-(EPIC-139) and other boards send text and play the returned audio.
+(contract: Persephone's `guides.agents["speech-synthesize"]`). Callers send text and the
+service plays it through Persephone's `audio@1` capability.
 
 > The generic board authoring reference (the `persephone.*` bridge, the `--p-*` theme contract,
 > CSP rules, reload/test flow) is available via `guides.agents.boards` in Persephone's MCP. This
@@ -18,10 +18,13 @@ A Persephone **service board** that provides the platform interface `speech.synt
   files from a pinned Hugging Face revision into
   `%LOCALAPPDATA%/Persephone/board-data/text-to-speech/`, verifying each against the integrity /
   SHA-256 values pinned there. Windows x64 only; other platforms report `not-ready`.
-- **Streaming:** `scripts/text.mjs` splits text into sentences (long ones again at commas); each
-  sentence is synthesized and sent as Float32 PCM chunks of at most 256 KiB, then `done`.
-- **One synthesis at a time:** a FIFO queue across all channels; a closed channel's queued
-  sentences are dropped. The engine unloads after 10 idle minutes.
+- **Playback:** `speak(text, options?)` plays local synthesis through `audio@1` and returns
+  finished or interrupted. A new call replaces current speech; `stop()` interrupts it. The page
+  tests the same service path. There is no board text-length limit.
+- **Defaults:** Cyrillic text defaults to Ukrainian and other text to English; the default voice
+  comes from settings. `scripts/text.mjs` splits sentences and long sentences at commas.
+- **One synthesis at a time:** inference is serialized even after interruption. The engine unloads
+  after 10 idle minutes.
 - **Caller policy:** a channel without `info.interface` is the board's own page; other callers
   must arrive through `speech.synthesize@1` and pass the `caller-approval-policy` setting.
 

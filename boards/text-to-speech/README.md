@@ -6,6 +6,13 @@ The installer downloads sherpa-onnx-node and sherpa-onnx-win-x64 2.0.1 from npm 
 
 The provider advertises 31 languages and ten voices, numbered 0–9. English and Ukrainian alone were listening-verified during research. Number pronunciation, including times and decimals, remains to be checked by listening. No number normalization is performed.
 
+The `speech.synthesize@1` capability provides `speak(text, { lang?, voice?, speed? })`
+and `stop()`. Speech plays through Persephone's audio service; a new speak replaces the current
+one, and the result reports `finished` or `interrupted`. The default language is Ukrainian
+for text containing Cyrillic and English otherwise; the default voice comes from board settings.
+There is no board-imposed text-length limit. The page's Speak and Stop controls exercise the same
+playback path.
+
 ## Licences and restrictions
 
 The Supertonic 3 weights are subject to [Supertone's OpenRAIL-M licence](licenses/supertonic-3-OpenRAIL-M.txt), including its use restrictions and redistribution conditions. For example, the restrictions address impersonation without consent, harmful misinformation, certain discriminatory uses, medical advice, and disclosure of machine-generated content. Read the complete licence and Attachment A before use or redistribution. The model conversion has its own [MIT licence](licenses/sherpa-conversion-MIT.txt), which is not the weights licence. Both notices are copied to the installed model.

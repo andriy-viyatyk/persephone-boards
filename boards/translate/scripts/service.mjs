@@ -75,10 +75,12 @@ function removeQueued(job) { const index = queue.indexOf(job); if (index >= 0) q
 function cancelJob(job, reason = "Translation cancelled.") {
   if (job.cancelled) return;
   job.cancelled = true; job.controller.abort(err("cancelled", reason)); removeQueued(job);
+  job.reject?.(job.controller.signal.reason);
+  job.cleanup?.();
 }
 async function runTranslation(job) {
   const { channel, open, route, from, selection } = job;
-  if (channel.closed || job.cancelled) return;
+  if (channel?.closed || job.cancelled) return;
   const output = new Array(open.items.length), groups = new Map();
   for (let i = 0; i < open.items.length; i++) {
     const item = open.items[i];
@@ -86,7 +88,7 @@ async function runTranslation(job) {
     groups.get(item.format).push({ item, index: i });
   }
   let done = 0;
-  const progress = async () => { done++; await send(channel, { type: "progress", id: open.id, done, total: open.items.length }); };
+  const progress = async () => { done++; if (channel) await send(channel, { type: "progress", id: open.id, done, total: open.items.length }); };
   for (const [format, group] of groups) {
     if (job.controller.signal.aborted) throw job.controller.signal.reason;
     const eligible = format === "html" ? group.filter(({ item }) => item.text.length <= 8192) : group;
@@ -109,7 +111,10 @@ async function runTranslation(job) {
       for (const { item, index } of eligible) { output[index] = { key: item.key, ok: false, error: { code: "engine-failed", message: error?.message || "This item could not be translated." } }; await progress(); }
     }
   }
-  if (!channel.closed && !job.cancelled) { await send(channel, { type: "result", id: open.id, items: output }); close(channel); }
+  if (job.cancelled) return;
+  if (channel) { if (!channel.closed) { await send(channel, { type: "result", id: open.id, items: output }); close(channel); } }
+  else if (output[0].ok) job.resolve(output[0].text);
+  else job.reject(err("rejected", output[0].error.message));
 }
 async function pump() {
   if (pumping) return;
@@ -118,18 +123,19 @@ async function pump() {
     while (queue.length) {
       queue.sort((a, b) => priorities[a.priority] - priorities[b.priority] || a.sequence - b.sequence);
       const job = queue.shift();
-      if (job.cancelled || job.channel.closed) continue;
+      if (job.cancelled || job.channel?.closed) continue;
       activeJob = job;
       try { await runTranslation(job); }
-      catch (error) { if (!job.channel.closed) await sendTranslationError(job.channel, job.open.id, error?.code || "engine-failed", error?.message || "Translation failed."); }
-      finally { activeJob = null; }
+      catch (error) {
+        if (job.channel) { if (!job.channel.closed) await sendTranslationError(job.channel, job.open.id, error?.code || "engine-failed", error?.message || "Translation failed."); }
+        else job.reject(error);
+      }
+      finally { job.cleanup?.(); activeJob = null; }
     }
   } finally { pumping = false; if (queue.length) void pump(); }
 }
-async function acceptTranslate(channel, open, signal, early = []) {
-  const { priority } = validateTranslate(open);
+async function prepareTranslation(open, signal, call = false) {
   if (signal?.aborted) throw signal.reason || err("cancelled", "Translation channel closed.");
-  if (!open.items.length) { await send(channel, { type: "result", id: open.id, items: [] }); close(channel); return; }
   const selection = await selectedModels();
   let from = open.from;
   if (from === undefined) {
@@ -139,23 +145,62 @@ async function acceptTranslate(channel, open, signal, early = []) {
     from = result.language;
   }
   if (signal?.aborted) throw signal.reason || err("cancelled", "Translation channel closed.");
-  if (typeof from !== "string" || !from) throw err("unsupported-language-pair", "A supported source language could not be determined.");
+  if (typeof from !== "string" || !from) throw err(call ? "rejected" : "unsupported-language-pair", "A supported source language could not be determined.");
   const route = await routeFor(from, open.to, selection);
+  if (signal?.aborted) throw signal.reason || err("cancelled", "Translation cancelled.");
   if (!route) {
     const legs = routeLegs(from, open.to, selection);
+    if (call) {
+      if (!legs) throw err("rejected", `No supported route exists for ${from} → ${open.to}.`);
+      const missing = [];
+      for (const leg of legs) if (!await runtime.assets.getInstalledPair(leg.from, leg.to, { selection })) missing.push(`${leg.from} → ${leg.to}`);
+      throw err("rejected", `Install the required ${missing.join(", ") || `${from} → ${open.to}`} model in the Translate board's language manager.`);
+    }
     if (!legs) throw err("unsupported-language-pair", `No direct or English-pivot route exists for ${from} to ${open.to}.`);
     throw err("not-ready", "Download the required language models first.");
   }
+  return { selection, from, route };
+}
+async function acceptTranslate(channel, open, signal, early = []) {
+  const { priority } = validateTranslate(open);
+  if (signal?.aborted) throw signal.reason || err("cancelled", "Translation channel closed.");
+  if (!open.items.length) { await send(channel, { type: "result", id: open.id, items: [] }); close(channel); return; }
+  const { selection, from, route } = await prepareTranslation(open, signal);
   const controller = new AbortController();
-  const cancelOnClose = () => controller.abort(signal.reason || err("cancelled", "Translation channel closed."));
+  const cancelOnClose = () => cancelJob(job, "Translation channel closed.");
+  const job = { channel, open, route, from, selection, priority, sequence: sequence++, controller, cancelled: false, cleanup: () => signal?.removeEventListener("abort", cancelOnClose) };
   if (signal?.aborted) cancelOnClose(); else signal?.addEventListener("abort", cancelOnClose, { once: true });
-  const job = { channel, open, route, from, selection, priority, sequence: sequence++, controller, cancelled: false };
   if (signal?.aborted || channel.closed) { cancelJob(job, "Translation channel closed."); return; }
   channel.onMessage((message) => { if (message?.type === "cancel") cancelJob(job); });
   channel.onClose(() => cancelJob(job, "Translation channel closed."));
   for (const message of early) if (message?.type === "cancel") cancelJob(job);
-  queue.push(job);
+  if (!job.cancelled) queue.push(job);
   void pump();
+}
+
+function authorizeTranslationCall(kind) {
+  if (kind === "agent" || kind === "platform") return;
+  if ((kind === "board-page" || kind === "board-service") && settings.approval === "accept-granted") return;
+  throw err("permission-denied", "This provider does not accept board callers.");
+}
+async function translateOneText(text, to, from, signal) {
+  const open = { id: "translateText", to, ...(from === undefined ? {} : { from }), priority: "background", items: [{ key: "text", text, format: "text" }] };
+  try { validateTranslate(open); }
+  catch (error) { throw err("rejected", error.message); }
+  const { selection, from: source, route } = await prepareTranslation(open, signal, true);
+  return await new Promise((resolve, reject) => {
+    const controller = new AbortController();
+    let settled = false;
+    const cleanup = () => signal?.removeEventListener("abort", onAbort);
+    const settle = (callback, value) => { if (!settled) { settled = true; cleanup(); callback(value); } };
+    const job = { open, route, from: source, selection, priority: "background", sequence: sequence++, controller, cancelled: false,
+      resolve: (value) => settle(resolve, value), reject: (error) => settle(reject, error), cleanup };
+    const onAbort = () => cancelJob(job);
+    if (signal?.aborted) { onAbort(); return; }
+    signal?.addEventListener("abort", onAbort, { once: true });
+    queue.push(job);
+    void pump();
+  });
 }
 
 async function managementSnapshot(channel, { refresh = false } = {}) {
@@ -237,6 +282,11 @@ const settingsReady = Promise.all(settingIds.map(async (id) => applySetting(id, 
 
 runtime = new BergamotRuntime({ idleMinutes: settings.idleMinutes });
 detection = new LanguageDetection();
+persephone.capabilities.handle("text.translate", "translateText", async ([text, to, from], ctx) => {
+  await settingsReady;
+  authorizeTranslationCall(ctx.caller.kind);
+  return await translateOneText(text, to, from, ctx.signal);
+});
 persephone.service.onChannel(async (channel, open, info) => {
   const early = [];
   const stopEarly = channel.onMessage((message) => early.push(message));
@@ -271,7 +321,7 @@ persephone.service.onChannel(async (channel, open, info) => {
   }
 });
 persephone.service.onShutdown(async () => {
-  for (const job of queue) cancelJob(job, "Service shutting down.");
+  for (const job of [...queue]) cancelJob(job, "Service shutting down.");
   if (activeJob) cancelJob(activeJob, "Service shutting down.");
   for (const record of downloads.values()) record.controller?.abort(err("cancelled", "Service shutting down."));
   await Promise.all([runtime.close(), detection.close()]);

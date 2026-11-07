@@ -1,5 +1,8 @@
 # What's new
 
+## 1.2.1
+- Improved theme editing capability discovery.
+
 ## 1.2.0
 - Interface languages: Ukrainian, Polish, Lithuanian, Latvian, Estonian, Belarusian, Romanian, Slovak, Hungarian, German, French, Spanish, Italian, Portuguese (Brazil), Chinese (Simplified), Japanese, Korean.
 - Interface text moved to a language pack (`lang/en.json`) so the board can be translated; requires Persephone with board bridge 1.36.0.

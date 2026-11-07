@@ -4,9 +4,9 @@
   "description": "Local speech transcription powered by whisper.cpp.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.4.1",
-  "minAppVersion": "5.0.15",
-  "minBridgeVersion": "1.43.0",
+  "version": "1.4.2",
+  "minAppVersion": "5.0.18",
+  "minBridgeVersion": "1.50.0",
   "permissions": {
     "execute": false,
     "service": true,
@@ -25,6 +25,22 @@
   "serviceInterfaces": [
     { "id": "speech.transcribe", "version": 1, "title": "Speech to Text" }
   ],
+  "capabilities": [{
+    "id": "speech.transcribe", "version": 1, "title": "Speech to Text",
+    "methods": {
+      "describe": { "kind": "channel", "summary": "Describe the transcription engine and limits.", "args": [{ "name": "options", "type": "{}", "optional": true, "description": "Empty channel options." }] },
+      "transcribe": { "kind": "channel", "summary": "Stream PCM audio for transcription.", "args": [{ "name": "options", "type": "{ format: { encoding: 'pcm-s16le', sampleRate: 16000, channels: 1 }, languages?: string[], prompt?: string, live?: boolean, translate?: boolean }", "description": "V1 stream options; omit type." }] },
+      "transcribeFile": {
+        "kind": "call", "summary": "Transcribe a local PCM16 or float32 WAV file.",
+        "args": [
+          { "name": "path", "type": "string", "description": "Absolute path to a WAV file, at most 32 MiB and five minutes." },
+          { "name": "options", "type": "{ language?: string }", "optional": true, "description": "Optional supported language code; otherwise use the board language settings." }
+        ],
+        "returns": "{ text: string, language: string | null, audioMs: number, elapsedMs: number }",
+        "timeoutMs": 600000
+      }
+    }
+  }],
   "languages": { "folder": "lang", "default": "en" },
   "screenshot": "screenshot.png",
   "settings": [

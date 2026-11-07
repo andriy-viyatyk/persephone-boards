@@ -1,14 +1,16 @@
 "use strict";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
-import { mkdir, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, open as openFile, readFile, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { assetSnapshot, dataRoot, downloadVerified, installRuntime, MODELS, RUNTIME, sha256File, stopProcessTree, verifyRuntime } from "./downloads.mjs";
 import { languageCodeForName, languageNameForCode } from "./whisper-languages.mjs";
 import { LiveStream, LIVE_TUNING } from "./live.mjs";
+import { decodeWav } from "./wav-file.mjs";
 
 // Queue pressure is shared by all live channels using the single whisper-server.
 const MAX_AUDIO_MS = 300000;
+const MAX_WAV_BYTES = 33554432;
 const LIVE_QUEUE_TUNING = {
   draftPartialSkipMs: 60000, // Skip draft and partial inference when queued commits reach one minute.
   queuedCommitHardCapMs: 300000, // Stop live intake and drain accepted commits at five minutes queued.
@@ -64,8 +66,14 @@ const terminal = async (request, message) => {
   removeJobs(request);
   request.controller?.abort(new Error("Request ended."));
   if (request.stream) { await request.stream.stop(); request.stream.clear(); }
-  await send(request.channel, message);
-  close(request.channel);
+  if (request.sink) {
+    request.signal.removeEventListener("abort", request.cancel);
+    if (message.type === "result") request.sink.resolve({ text: message.text, language: message.language || null, audioMs: message.audioMs, elapsedMs: message.elapsedMs });
+    else request.sink.reject(Object.assign(new Error(message.message), { code: message.code === "cancelled" ? "cancelled" : "rejected" }));
+  } else {
+    await send(request.channel, message);
+    close(request.channel);
+  }
   liveDone(request);
   if (engine && !activeRequest && queue.length === 0) scheduleIdleStop();
 };
@@ -498,12 +506,16 @@ async function waitJobs(request) {
   if (!request.pending) return;
   await new Promise((resolve) => request.waiters.push(resolve));
 }
+function assignController(request) {
+  request.controller = new AbortController();
+  if (request.signal?.aborted) request.controller.abort();
+}
 async function pumpQueue() {
   if (queuePump) return queuePump;
   queuePump = (async () => {
     while (!stopping && queue.length) {
       const job = queue.shift(), request = job.request;
-      if (request.terminal || request.channel.closed || draftIsStale(job)) {
+      if (request.terminal || request.channel?.closed || draftIsStale(job)) {
         request.pending--;
         if (job.kind === "partial") { request.partialPending = false; request.stream?.segmenter.partialComplete(request.stream.samples, job.range.utterance); }
         liveDone(request); continue;
@@ -511,17 +523,18 @@ async function pumpQueue() {
       activeRequest = job;
       try {
         const model = await getActiveModel();
-        request.controller = new AbortController();
+        if (request.terminal || request.signal?.aborted) continue;
+        assignController(request);
         const loading = !engine?.ready || engine.fingerprint !== `${model}:${settings.gpu}`;
         if (loading && (!request.live || !request.ended) && !request.preparingSent) {
           request.preparingSent = true;
-          await send(request.channel, { type: "status", state: "preparing" });
+          if (request.channel) await send(request.channel, { type: "status", state: "preparing" });
         }
         if (request.live && request.warmup) await request.warmup.catch(() => {});
         const server = await ensureEngine(model);
-        if (request.terminal || request.channel.closed) continue;
-        request.controller = new AbortController();
-        if (!request.live) await send(request.channel, { type: "status", state: "transcribing" });
+        if (request.terminal || request.channel?.closed || request.signal?.aborted) continue;
+        assignController(request);
+        if (!request.live && request.channel) await send(request.channel, { type: "status", state: "transcribing" });
         const result = await infer(request, server, job);
         if (request.live && job.kind === "partial") {
           if (result?.forcedLanguage) {
@@ -557,6 +570,56 @@ async function pumpQueue() {
     }
   })().finally(() => { queuePump = null; });
   return queuePump;
+}
+
+const callError = (message, code = "rejected") => Object.assign(new Error(message), { code });
+const checkCancelled = (signal) => { if (signal.aborted) throw callError("Transcription cancelled.", "cancelled"); };
+async function readWavFile(filePath, signal) {
+  let file;
+  try {
+    file = await openFile(filePath, "r");
+    const info = await file.stat();
+    if (!info.isFile()) throw callError("Choose a regular WAV file.");
+    if (info.size > MAX_WAV_BYTES) throw callError("WAV file exceeds the 32 MiB limit.");
+    const chunks = [];
+    let total = 0;
+    while (true) {
+      checkCancelled(signal);
+      const buffer = Buffer.alloc(Math.min(65536, MAX_WAV_BYTES + 1 - total));
+      const { bytesRead } = await file.read(buffer, 0, buffer.length, null);
+      if (!bytesRead) break;
+      total += bytesRead;
+      if (total > MAX_WAV_BYTES) throw callError("WAV file exceeds the 32 MiB limit.");
+      chunks.push(buffer.subarray(0, bytesRead));
+    }
+    checkCancelled(signal);
+    return Buffer.concat(chunks, total);
+  } catch (error) {
+    if (error?.code === "rejected" || error?.code === "cancelled") throw error;
+    throw callError("Cannot read the WAV file. Check that the path exists and is readable.");
+  } finally { await file?.close(); }
+}
+async function transcribeWavFile(filePath, options, signal) {
+  checkCancelled(signal);
+  if (typeof filePath !== "string" || !filePath.trim() || !path.isAbsolute(filePath)) throw callError("Provide an absolute path to a WAV file.");
+  if (options !== undefined && (!options || typeof options !== "object" || Array.isArray(options))) throw callError("Options must be an object with an optional language code.");
+  const language = options?.language;
+  if (language !== undefined && (typeof language !== "string" || !languageNameForCode(language))) throw callError("Choose a supported language code.");
+  const model = await getActiveModel();
+  if (!await installedModel(model) || !await installedRuntime()) throw callError("Install the whisper.cpp runtime and choose an installed model in the Speech to Text board.");
+  checkCancelled(signal);
+  const pcm = decodeWav(await readWavFile(filePath, signal), MAX_AUDIO_MS);
+  checkCancelled(signal);
+  return await new Promise((resolve, reject) => {
+    const now = Date.now();
+    const request = { sink: { resolve, reject }, signal, channel: null, live: false, translate: false, chunks: [pcm], bytes: pcm.length, totalSamples: pcm.length / 2, languages: language ? [language] : [], prompt: "", terminal: false, controller: null, endedAt: now, startedAt: now, ended: true, pending: 0, waiters: [], preparingSent: false, stream: null };
+    request.cancel = () => void terminal(request, { type: "error", code: "cancelled", message: "Transcription cancelled." });
+    requests.add(request);
+    signal.addEventListener("abort", request.cancel, { once: true });
+    if (signal.aborted) return request.cancel();
+    clearTimeout(idleTimer);
+    enqueueJob(request, "final", { start: 0, end: request.totalSamples });
+  });
 }
 function startTranscription(channel, open, early = []) {
   clearTimeout(idleTimer);
@@ -755,6 +818,15 @@ persephone.settings.onChange(({ id, value }) => applySetting(id, value));
 // onChange reports only later edits, so read the stored values once at startup.
 const settingsReady = Promise.all(SETTING_IDS.map(async (id) => applySetting(id, await persephone.settings.get(id)))).catch(() => {});
 
+persephone.capabilities.handle("speech.transcribe", "transcribeFile", async ([filePath, options], ctx) => {
+  if (ctx.caller.kind === "board-page" || ctx.caller.kind === "board-service")
+    throw Object.assign(new Error("Board callers must stream audio through speech.transcribe."), { code: "permission-denied" });
+  if (ctx.caller.kind !== "agent" && ctx.caller.kind !== "platform")
+    throw Object.assign(new Error("This caller cannot transcribe local files."), { code: "permission-denied" });
+  await settingsReady;
+  return await transcribeWavFile(filePath, options, ctx.signal);
+});
+
 persephone.service.onChannel(async (channel, open, info) => {
   // The host drops messages that arrive before a handler exists, and consumers may stream right after
   // connect, so collect from the first line and replay once the request is accepted.
@@ -791,7 +863,10 @@ persephone.service.onShutdown(async () => {
   clearTimeout(idleTimer);
   for (const download of downloads.values()) download.controller.abort(new Error("Service is shutting down."));
   const streams = [];
-  for (const request of requests) { request.controller?.abort(new Error("Service is shutting down.")); if (request.stream) streams.push(request.stream.stop()); }
+  for (const request of requests) {
+    if (request.sink) void terminal(request, { type: "error", code: "cancelled", message: "Service is shutting down." });
+    else { request.controller?.abort(new Error("Service is shutting down.")); if (request.stream) streams.push(request.stream.stop()); }
+  }
   queue.length = 0;
   const cleanup = Promise.all([...downloads.values()].map((entry) => entry.task).filter(Boolean).concat(streams, stopEngine()));
   let timeout;

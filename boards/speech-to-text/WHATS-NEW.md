@@ -1,3 +1,6 @@
+## 1.4.2
+- Added agent-friendly WAV transcription and capability discovery.
+
 ## 1.4.1
 - Live transcription keeps memory flat when one source stays silent, such as a quiet microphone in Transcript **Both** mode; before, the service kept all of that source's audio until the session ended.
 

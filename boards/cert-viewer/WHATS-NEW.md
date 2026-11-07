@@ -1,5 +1,8 @@
 # What's New
 
+## 1.1.1
+- Improved certificate capability discovery.
+
 ## 1.1.0
 
 - Interface languages: Ukrainian, Polish, Lithuanian, Latvian, Estonian, Belarusian, Romanian, Slovak, Hungarian, German, French, Spanish, Italian, Portuguese (Brazil), Chinese (Simplified), Japanese, Korean.

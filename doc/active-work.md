@@ -8,6 +8,10 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
+Board work for Persephone's **EPIC-140** (*Capabilities*):
+
+- [ ] [BT-087: Migrate capability declarations and add agent-shaped methods](tasks/BT-087-capability-migration/README.md)
+
 - [ ] [BT-082: Text to Speech board — speech.synthesize provider](tasks/BT-082-text-to-speech/README.md)
 
 

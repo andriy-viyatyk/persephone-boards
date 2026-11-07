@@ -5,9 +5,9 @@
   "description": "Local text and HTML translation with explicit model downloads.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.0.0",
-  "minAppVersion": "5.0.15",
-  "minBridgeVersion": "1.42.0",
+  "version": "1.0.1",
+  "minAppVersion": "5.0.18",
+  "minBridgeVersion": "1.50.0",
   "permissions": {
     "execute": false,
     "service": true,
@@ -26,6 +26,24 @@
   "serviceInterfaces": [
     { "id": "text.translate", "version": 1, "title": "Text Translation" }
   ],
+  "capabilities": [{
+    "id": "text.translate", "version": 1, "title": "Text Translation",
+    "methods": {
+      "describe": { "kind": "channel", "summary": "Describe available language pairs.", "args": [{ "name": "options", "type": "{}", "optional": true, "description": "Empty channel options." }] },
+      "detect": { "kind": "channel", "summary": "Detect the language of a text sample.", "args": [{ "name": "options", "type": "{ text: string, htmlLang?: string }", "description": "Text and optional HTML language hint." }] },
+      "translate": { "kind": "channel", "summary": "Translate a batch of text or HTML items.", "args": [{ "name": "options", "type": "{ id: string, to: string, from?: string, priority?: string, items: Array<{ key: string | number, text: string, format: 'text' | 'html' }> }", "description": "V1 translation batch; omit type." }] },
+      "download": { "kind": "channel", "summary": "Download a language pair with progress.", "args": [{ "name": "options", "type": "{ from: string, to: string }", "description": "Directed language pair; omit type." }] },
+      "translateText": {
+        "kind": "call", "summary": "Translate plain text using installed models.",
+        "args": [
+          { "name": "text", "type": "string", "description": "Plain text, up to 64,000 Unicode code points." },
+          { "name": "to", "type": "string", "description": "Target language code." },
+          { "name": "from", "type": "string", "optional": true, "description": "Source language code; detect when omitted." }
+        ],
+        "returns": "string", "timeoutMs": 180000
+      }
+    }
+  }],
   "languages": { "folder": "lang", "default": "en" },
   "screenshot": "screenshot.png",
   "settings": [

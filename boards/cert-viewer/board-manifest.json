@@ -4,8 +4,8 @@
   "description": "Offline, read-only inspection of X.509 certificates, requests, and certificate bundles.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.1.0",
-  "minAppVersion": "5.0.10",
+  "version": "1.1.1",
+  "minAppVersion": "5.0.18",
   "minBridgeVersion": "1.36.0",
   "permissions": {
     "execute": false,
@@ -40,7 +40,14 @@
       "version": 1,
       "title": "View certificate",
       "priority": 50,
-      "alwaysOpensNewPage": true
+      "alwaysOpensNewPage": true,
+      "methods": {
+        "open": {
+          "kind": "open", "summary": "View a certificate chain.",
+          "args": [{ "name": "payload", "type": "{ title: string, certificates: string[], source?: { url: string } }", "description": "Title and base64 DER certificates in leaf-first order." }],
+          "returns": "null"
+        }
+      }
     }
   ],
   "languages": {

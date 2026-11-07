@@ -1,3 +1,6 @@
+## 1.4.0
+- Added Wake mode for voice requests to a marked session.
+
 ## 1.3.3
 - A **Cancel** button next to the agent's typing dots stops the running turn; it replaces the toolbar's hard-to-find Interrupt button.
 - Session and agent list rows now hover and highlight like Persephone's file tree: the selected row is green with an outline while its list has focus, and gray otherwise.

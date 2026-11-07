@@ -33,6 +33,23 @@ async function connectTest() {
   }
   return testConnection;
 }
+// Volume applies to all speech, including agents' and other boards' speak() calls. The service reads the
+// stored value when it starts; the message updates a running service at once.
+function showVolume(value) {
+  $("volume").value = String(value);
+  $("volume-value").textContent = `${Math.round(value * 100)}%`;
+}
+persephone.storage.get("volume").then(value => { if (typeof value === "number") showVolume(value); }).catch(() => {});
+$("volume").oninput = () => showVolume(Number($("volume").value));
+$("volume").onchange = async () => {
+  const value = Number($("volume").value);
+  try {
+    await persephone.storage.set("volume", value);
+    (await connectTest()).send({ type: "volume", value });
+  } catch (error) {
+    $("status").textContent = error.message;
+  }
+};
 $("stop").onclick = async () => {
   try {
     const channel = await connectTest();

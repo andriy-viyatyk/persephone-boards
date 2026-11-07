@@ -18,5 +18,9 @@ input, select, button, textarea { min-height: 36px; border: 1px solid var(--p-bo
 textarea { resize: vertical; line-height: 1.45; }
 button { cursor: pointer; } button:hover { border-color: var(--p-accent); } button:disabled { opacity: .55; cursor: wait; }
 button.primary { background: var(--p-accent); color: var(--p-accent-text); border-color: transparent; font-weight: 650; }
+.volume-row { display: flex; align-items: center; gap: 12px; }
+.volume-row input { flex: 1; min-width: 0; padding: 0; border: 0; background: none; accent-color: var(--p-accent); }
+.volume-row output { min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; }
+.hint { color: var(--p-text-muted); font-size: .92em; }
 progress { width: 100%; height: 8px; accent-color: var(--p-accent); }
 @media (max-width: 560px) { #app { padding: 14px; } .form-grid { grid-template-columns: 1fr; } .page-header { align-items: flex-start; flex-direction: column; } }

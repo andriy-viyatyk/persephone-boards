@@ -12,6 +12,11 @@ const DEFAULT_THRESHOLD = 0.85;
 const ENROLL_SAMPLES = 40000;
 const MAX_QUEUE = 32;
 const REFRACTORY_MS = 1500;
+// Level gate (as in BT-083): match only while there is speech-level sound. Quiet audio (room or fan
+// noise) is never compared with the samples, and a pause longer than the hold clears the match
+// history, so a phrase is matched within one stretch of sound. Without it, noise alone could match.
+const GATE_RMS = 0.006;
+const GATE_HOLD_MS = 400;
 
 // A microphone hit waits 300 + 400 + 200 ms after its detection audio time, measured on a
 // monotonic wall clock from receipt of the microphone chunk containing that time, accounting
@@ -148,6 +153,7 @@ function resetSpotter(session) {
   session.frontend = new StreamingFrontend();
   session.history = [];
   session.sampleEnds = [];
+  session.gateUntil = -Infinity;
   session.segmentTime = null;
   session.nextTime = null;
 }
@@ -304,6 +310,14 @@ async function processChunk(session, message, receivedAt) {
   session.nextTime = message.timeMs + samples.length / 16;
   session.frontend.push(samples);
   const windows = session.frontend.takeReady();
+  let energy = 0;
+  for (const sample of samples) energy += sample * sample;
+  if (Math.sqrt(energy / samples.length) > GATE_RMS) session.gateUntil = session.nextTime + GATE_HOLD_MS;
+  if (!(session.gateUntil > message.timeMs)) {
+    session.history = [];
+    session.sampleEnds = [];
+    return;
+  }
   for (const window of windows) {
     if (session.closed || message.epoch !== currentEpoch) return;
     const vector = await embed(window.features);

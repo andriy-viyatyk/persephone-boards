@@ -725,7 +725,16 @@ async function sendGroupIndex(channel, request) {
   closeChannel(channel);
 }
 
+let wakeOwner = null;
 persephone.service.onChannel(async (channel, request, info) => {
+  if (request?.type === "wake-owner") {
+    if (info?.interface || info?.caller) return closeChannel(channel, { code: "connection-refused" });
+    if (wakeOwner) { await send(channel, { type: "wake-owner", status: "occupied" }); closeChannel(channel); return; }
+    wakeOwner = channel;
+    channel.onClose(() => { if (wakeOwner === channel) wakeOwner = null; });
+    await send(channel, { type: "wake-owner", status: "acquired" });
+    return;
+  }
   if (request?.type === "open") {
     try { validateOpen(request); }
     catch (error) { await sendProviderError(channel, request, error.code || "protocol-error", error.message); return; }

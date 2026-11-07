@@ -6,6 +6,18 @@ Standalone provider board; it is not a custom editor and has no file association
 
 ## Runtime design
 
+- `wake-assistant.js` owns the page's wake controller, in-memory audio ring and request buffer, channels,
+  transcription, stop cut, silence handling and turn lifecycle. `app.js` connects it to the marked session
+  and owns the Wake words configuration UI. `scripts/service.mjs` owns the private local-only `wake-owner`
+  lease channel; one page owns it until close, loss of trust or service exit.
+- Tune the commented constants at the top of `wake-assistant.js` together: pre-roll, request hold-back,
+  maximum request, default silence, no-speech timeout and interrupt wait. The hold-back is not a guarantee;
+  a late stop before the sent position requires re-transcription of the cut buffer. Never persist request PCM.
+- Page preferences in `claude-agent:*` localStorage use `wake-mode`, `wake-session` (`{provider,id}`),
+  `wake-threshold`, `wake-silence` and `wake-device`. Storage events propagate preferences between pages;
+  only the service lease arbitrates ownership. The sample `wake-instructions.md` is user-copyable and is
+  never automatically injected into sessions.
+
 - `scripts/agent-session-protocol.mjs` owns v1 validation, bounds, policy classification, and instruction composition.
 - `scripts/service.mjs` owns provider-neutral contract validation, provider catalog/session aggregation, channel lifecycle, policy and approvals, provider-scoped instruction files, MCP endpoint revocation, watcher lifecycle, and child process cleanup. `scripts/providers/claude.mjs` owns Claude SDK/CLI integration, Claude session storage, native event normalization, model/mode metadata, and setup. `scripts/providers/codex.mjs` owns the installed Codex app-server JSON-RPC protocol, Codex thread store, event normalization, and Codex model/mode metadata.
 - Providers are selected by the bounded `open.provider` id (default `claude`) from a closed registry. Keep provider-specific behavior behind the adapter boundary; descriptions publish capability flags and localized mode keys for the page.

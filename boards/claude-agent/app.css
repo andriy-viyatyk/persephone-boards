@@ -377,3 +377,12 @@ html[data-mode="light"] .msg[data-agent-profile]:not([data-agent-color="none"]) 
 @media (max-width: 760px) {
   .msg, .activity { max-width: 100%; }
 }
+.wake-status { padding: 4px 12px; }
+.wake-status #wake-request-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.wake-status:empty { display: none; }
+.wake-badge { font-size: 0.8em; opacity: 0.8; }
+.wake-panel { overflow: auto; }
+.wake-panel label { display: block; margin: 8px 0; }
+.wake-panel input, .wake-panel select { margin-left: 8px; }
+.wake-sample { margin: 6px 0 12px; }
+.wake-sample button { display: block; margin-top: 4px; }

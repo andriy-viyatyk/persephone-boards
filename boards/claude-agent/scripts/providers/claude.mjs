@@ -786,6 +786,9 @@ async function runQuery(session) {
       session.busy = false;
       await send(session.channel, { type: "turn-ended", reason: session.interrupted ? "interrupted" : "error", usage: {} }, session);
     }
+    // The query runs once per session; once it has ended, nothing reads the input queue, so a later prompt
+    // would wait forever. Close the session instead: the page shows it closed and resumes it on the next send.
+    if (!session.closed) await closeSession(session, "query-ended", true);
   }
 }
 
@@ -865,9 +868,12 @@ async function handleSessionMessage(session, request) {
       // follow-ups, so a stopped turn does not restart for them; the page puts their text back in the composer.
       try { await session.query.interrupt({ cancelQueued: true }); } catch { /* query may already have stopped */ }
       for (const [uuid, steer] of [...session.steers]) { session.steers.delete(uuid); await sendSteerState(session, steer, "cancelled"); }
+      // Escalate only if THIS interrupted turn is still running. A new turn sent within the 5 s (the voice
+      // assistant does this) clears `interrupted`; killing then would end that turn and the whole query.
       const query = session.query;
+      const turn = session.currentRequestId;
       setTimeout(async () => {
-        if (!session.closed && session.busy) {
+        if (!session.closed && session.busy && session.interrupted && session.currentRequestId === turn) {
           try { await query.close?.(); } catch { /* best effort escalation */ }
           await killChildren(session, true);
         }

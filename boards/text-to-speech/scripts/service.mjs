@@ -6,12 +6,19 @@ import { splitSentences } from "./text.mjs";
 const CHUNK_SECONDS = 0.25;
 const LEAD_SECONDS = 2;
 const IDLE_UNLOAD_MS = 10 * 60 * 1000;
+// Volume: a gain on the synthesizer's level, set by the page slider and kept in persephone.storage.
+// Each sentence's gain is capped so its loudest sample stays at PEAK_LIMIT: louder, never clipped.
+const VOLUME_KEY = "volume";
+const VOLUME_MIN = 0.25;
+const VOLUME_MAX = 4;
+const PEAK_LIMIT = 0.98;
 
 const languages = "ar bg cs da de el en es et fi fr hi hr hu id it ja ko lt lv nl pl pt ro ru sk sl sv tr uk vi".split(" ");
 const voices = Array.from({ length: 10 }, (_, index) => ({ index, name: `Voice ${index}` }));
 const management = new Set();
 let defaultVoice = 0;
 let policy = "accept-granted";
+let volume = 1;
 let active = null;
 let nativeWork = Promise.resolve();
 let nativeBusy = 0;
@@ -30,9 +37,20 @@ function setting(id, value) {
 }
 
 persephone.settings.onChange(({ id, value }) => setting(id, value));
-const settingsReady = Promise.all(["default-voice", "caller-approval-policy"].map(async id => {
-  setting(id, await persephone.settings.get(id));
-})).catch(() => {});
+function setVolume(value) {
+  volume = typeof value === "number" && Number.isFinite(value) ? Math.min(VOLUME_MAX, Math.max(VOLUME_MIN, value)) : 1;
+}
+
+const settingsReady = Promise.all([
+  ...["default-voice", "caller-approval-policy"].map(async id => setting(id, await persephone.settings.get(id))),
+  persephone.storage.get(VOLUME_KEY).then(setVolume)
+]).catch(() => {});
+
+function peakOf(samples) {
+  let peak = 0;
+  for (let index = 0; index < samples.length; index++) peak = Math.max(peak, Math.abs(samples[index]));
+  return peak;
+}
 
 function failure(code, message) {
   return Object.assign(new Error(message), { code });
@@ -191,6 +209,7 @@ async function speak(text, options = {}, signal, owner = null) {
         next = generate(operation, sentences[index + 1], selectedVoice, speed, lang);
         next.catch(() => {});
       }
+      const peak = peakOf(audio.samples);
       const chunkSamples = Math.max(1, Math.floor(sampleRate * CHUNK_SECONDS));
       for (let start = 0; start < audio.samples.length; start += chunkSamples) {
         check(operation);
@@ -200,11 +219,13 @@ async function speak(text, options = {}, signal, owner = null) {
           const delay = (sentSeconds + duration - LEAD_SECONDS) * 1000 - (performance.now() - firstSendTime);
           if (delay > 0) await cancellable(new Promise(resolve => setTimeout(resolve, delay)), operation);
         }
+        // Read per chunk, so moving the slider during speech takes effect within a quarter second.
+        const gain = peak > 0 ? Math.min(volume, PEAK_LIMIT / peak) : 1;
         const data = new ArrayBuffer(samples.length * 4);
         const view = new DataView(data);
         for (let sample = 0; sample < samples.length; sample++) {
           if (!Number.isFinite(samples[sample])) throw failure("rejected", "Synthesizer returned invalid audio.");
-          view.setFloat32(sample * 4, samples[sample], true);
+          view.setFloat32(sample * 4, samples[sample] * gain, true);
         }
         if (!operation.channel.writable) await cancellable(operation.channel.whenWritable(), operation);
         check(operation);
@@ -317,6 +338,8 @@ persephone.service.onChannel(async (channel, open, info) => {
     const handle = message => {
       if (message?.type === "stop") {
         stopSpeech();
+      } else if (message?.type === "volume") {
+        setVolume(message.value);
       } else if (message?.type === "speak") {
         void speak(message.text, message.options, pageController.signal, channel).then(
           result => send(channel, { type: "result", id: message.id, ...result }),

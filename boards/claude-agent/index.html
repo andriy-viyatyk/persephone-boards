@@ -21,6 +21,7 @@
     <div id="splitter" class="splitter" role="separator" aria-orientation="vertical" data-i18n-title="resizeSidebar"></div>
     <section class="main">
       <div id="error" class="error hidden" role="alert"><span id="error-text" class="error-text"></span><button id="error-close" class="icon error-close" type="button" data-i18n-title="close">×</button></div>
+      <div id="wake-status" class="wake-status" role="status"><span id="wake-status-text"></span> <button id="wake-retry" type="button" class="hidden" data-i18n="wake.retry"></button><div id="wake-request-text"></div></div>
       <div id="transcript" class="transcript" aria-live="polite">
         <section id="consent" class="card hidden">
           <h1 data-i18n="consent.title">Install Claude Agent SDK</h1>
@@ -64,6 +65,7 @@
     <button type="button" role="menuitem" data-action="connect" data-i18n="connect"></button>
     <button type="button" role="menuitem" data-action="disconnect" data-i18n="disconnect"></button>
     <button type="button" role="menuitem" data-action="rename" data-i18n="rename"></button>
+    <button type="button" role="menuitem" data-action="wake"></button>
     <button type="button" role="menuitem" data-action="delete" class="danger" data-i18n="delete"></button>
   </div>
   <dialog id="config-dialog" class="dialog wide config-dialog">
@@ -73,6 +75,7 @@
         <div class="config-tabs" role="tablist">
           <button type="button" role="tab" data-tab="instructions" data-i18n="instructions"></button>
           <button type="button" role="tab" data-tab="profiles" data-i18n="profiles.title"></button>
+          <button type="button" role="tab" data-tab="wake" data-i18n="wake.tab"></button>
         </div>
         <button type="button" id="profile-new" class="profile-new" data-i18n="profiles.newAgent"></button>
       </div>
@@ -82,6 +85,18 @@
       </section>
       <section id="config-profiles" class="config-panel" role="tabpanel">
         <div id="profiles-list" class="profiles-list" aria-live="polite"></div>
+      </section>
+      <section id="config-wake" class="config-panel wake-panel hidden" role="tabpanel">
+        <label><span data-i18n="wake.threshold"></span> <input id="wake-threshold" type="number" min="0" max="1" step="0.01"></label>
+        <p data-i18n="wake.thresholdHint"></p>
+        <label><span data-i18n="wake.silence"></span> <input id="wake-silence" type="number" min="0.5" max="30" step="0.5"></label>
+        <label><span data-i18n="wake.microphone"></span> <select id="wake-device"></select> <button id="wake-devices-refresh" type="button" data-i18n="refresh"></button></label>
+        <hr>
+        <label><span data-i18n="wake.person"></span> <input id="wake-person" type="text"></label>
+        <label><span data-i18n="wake.kind"></span> <select id="wake-kind"><option value="wake" data-i18n="wake.wake"></option><option value="stop" data-i18n="wake.stop"></option></select></label>
+        <button id="wake-enroll" type="button" data-i18n="wake.enroll"></button>
+        <p id="wake-enroll-status" role="status"></p>
+        <div id="wake-samples" aria-live="polite"></div>
       </section>
       <div class="actions">
         <button type="button" id="instructions-reset" class="start" data-i18n="resetToDefault"></button>
@@ -114,6 +129,7 @@
   <script src="./lib/marked.umd.js"></script>
   <script src="./lib/purify.min.js"></script>
   <script src="./i18n.js"></script>
+  <script src="./wake-assistant.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

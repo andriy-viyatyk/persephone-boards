@@ -8,17 +8,6 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-Board work for Persephone's **EPIC-139** (*Voice assistant*):
-
-- [ ] [BT-082: Text to Speech board — speech.synthesize provider](tasks/BT-082-text-to-speech/README.md)
-
-- [ ] [BT-084: Text to Speech — play through the audio service; speak / stop](tasks/BT-084-tts-audio-service/README.md)
-
-
-- [ ] [BT-083: Wake Word board — speech.wake provider](tasks/BT-083-wake-word/README.md)
-- [ ] [BT-085: Wake Word — audio service capture, phrase filter, consumer-named phrases, film suppression](tasks/BT-085-wake-word-audio-service/README.md)
-- [ ] [BT-086: Agent Chat — Wake mode, wake session, Wake words page, listening flow, interrupts](tasks/BT-086-agent-chat-voice-assistant/README.md)
-
 - [ ] [BT-072: Agent Chat profile management through AI Vision](tasks/BT-072-agent-chat-ai-vision/README.md): expose profile CRUD and provider/model/effort catalogs through `pages[id].editor.app`, backed by the existing service path
 
 Board work for Persephone's **EPIC-137** (*Notebook moves to a published board*). All four are implemented

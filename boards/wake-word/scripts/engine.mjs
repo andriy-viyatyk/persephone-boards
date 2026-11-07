@@ -114,6 +114,9 @@ const TEMPLATE = {
 };
 export const TEMPLATE_VERSION = 2;
 
+// Include the full embedding window and the template's lead when estimating speech onset.
+export function phraseStartSample(sampleEnd) { return sampleEnd - (75 * HOP + FRAME) - TEMPLATE.leadSteps * TEMPLATE.stepSamples; }
+
 /** Embedding sequence for an enrolled name. `clip` is the whole recording; speech bounds are sample indices in it. */
 export async function encodeTemplate(clip, speechStart, speechEnd) {
   const tail = TEMPLATE.tailSteps * TEMPLATE.stepSamples;
@@ -145,20 +148,20 @@ export function cosineDistance(a, b) {
  */
 export function subsequenceDistance(template, stream) {
   const L = template?.length ?? 0, N = stream?.length ?? 0;
-  if (!L || !N) return Infinity;
-  let prevD = new Float64Array(N), prevS = new Float64Array(N);
-  for (let j = 0; j < N; j++) { prevD[j] = cosineDistance(template[0], stream[j]); prevS[j] = 1; }
+  if (!L || !N) return { distance: Infinity, startIndex: null };
+  let prevD = new Float64Array(N), prevS = new Float64Array(N), prevStart = new Uint32Array(N);
+  for (let j = 0; j < N; j++) { prevD[j] = cosineDistance(template[0], stream[j]); prevS[j] = 1; prevStart[j] = j; }
   for (let i = 1; i < L; i++) {
-    const D = new Float64Array(N), S = new Float64Array(N);
+    const D = new Float64Array(N), S = new Float64Array(N), start = new Uint32Array(N);
     for (let j = 0; j < N; j++) {
-      let best = prevD[j], steps = prevS[j];
-      if (j && prevD[j - 1] < best) { best = prevD[j - 1]; steps = prevS[j - 1]; }
-      if (j && D[j - 1] < best && S[j - 1] < 2 * L) { best = D[j - 1]; steps = S[j - 1]; }
-      D[j] = best + cosineDistance(template[i], stream[j]); S[j] = steps + 1;
+      let best = prevD[j], steps = prevS[j], first = prevStart[j];
+      if (j && prevD[j - 1] < best) { best = prevD[j - 1]; steps = prevS[j - 1]; first = prevStart[j - 1]; }
+      if (j && D[j - 1] < best && S[j - 1] < 2 * L) { best = D[j - 1]; steps = S[j - 1]; first = start[j - 1]; }
+      D[j] = best + cosineDistance(template[i], stream[j]); S[j] = steps + 1; start[j] = first;
     }
-    prevD = D; prevS = S;
+    prevD = D; prevS = S; prevStart = start;
   }
-  return prevD[N - 1] / prevS[N - 1];
+  return { distance: prevD[N - 1] / prevS[N - 1], startIndex: prevStart[N - 1] };
 }
 
 /** The stream frames a template is matched against: the newest 2L + 4. */
@@ -168,7 +171,7 @@ export function matchWindow(template, history) { return history.slice(-(2 * temp
 export function sampleDistance(a, b) {
   const inside = (template, stream) => {
     let best = Infinity;
-    for (let end = 1; end <= stream.length; end++) best = Math.min(best, subsequenceDistance(template, stream.slice(Math.max(0, end - 2 * template.length - 4), end)));
+    for (let end = 1; end <= stream.length; end++) best = Math.min(best, subsequenceDistance(template, stream.slice(Math.max(0, end - 2 * template.length - 4), end)).distance);
     return best;
   };
   return Math.min(inside(a, b), inside(b, a));

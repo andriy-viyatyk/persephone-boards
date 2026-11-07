@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { add, list, remove, scoreAgainstEarlier, templates } from "./enrollments.mjs";
-import { StreamingFrontend, embed, encodeTemplate, matchWindow, pcmToFloat, sampleDistance, similarity, subsequenceDistance } from "./engine.mjs";
+import { StreamingFrontend, embed, encodeTemplate, matchWindow, pcmToFloat, phraseStartSample, sampleDistance, similarity, subsequenceDistance } from "./engine.mjs";
 
 const MODEL = fileURLToPath(new URL("../model/speech-embedding.onnx", import.meta.url));
 const MAX_ENROLL_BYTES = 16000 * 2 * 3;
@@ -107,7 +107,7 @@ async function handle(channel, open, info, inbox, stopInbox) {
       await send(channel, { type: "enrolled", sampleId: saved.sampleId, quality: { accepted: true }, match }); close(channel); return;
     }
 
-    const threshold = open.threshold ?? DEFAULT_THRESHOLD, frontend = new StreamingFrontend(), history = [], refractory = new Map();
+    const threshold = open.threshold ?? DEFAULT_THRESHOLD, frontend = new StreamingFrontend(), history = [], sampleEnds = [], refractory = new Map();
     let activeUntil = 0, gated = false, lastDiagnostic = 0;
     const samples = await templates();
     while (!ended && !channel.closed) {
@@ -122,22 +122,24 @@ async function handle(channel, open, info, inbox, stopInbox) {
       else if (sampleCount > activeUntil) gated = false;
       frontend.push(pcm);
       const windows = frontend.takeReady();
-      if (!gated) { if (history.length) history.length = 0; continue; }
+      if (!gated) { if (history.length) { history.length = 0; sampleEnds.length = 0; } continue; }
       for (const window of windows) {
-        const vector = await embed(window.features); history.push(Array.from(vector));
-        if (history.length > 100) history.shift();
+        const vector = await embed(window.features); history.push(Array.from(vector)); sampleEnds.push(window.sampleEnd);
+        if (history.length > 100) { history.shift(); sampleEnds.shift(); }
         let best = null;
         for (const sample of samples) {
           if (history.length < sample.embeddings.length) continue;
-          const distance = subsequenceDistance(sample.embeddings, matchWindow(sample.embeddings, history));
-          if (!best || distance < best.distance) best = { sample, distance };
+          const matchedHistory = matchWindow(sample.embeddings, history);
+          const { distance, startIndex } = subsequenceDistance(sample.embeddings, matchedHistory);
+          if (!best || distance < best.distance) best = { sample, distance, startIndex: history.length - matchedHistory.length + startIndex };
         }
         const score = best ? similarity(best.distance) : 0;
         if (best && score >= threshold) {
           const key = `${best.sample.phrase}\0${best.sample.person}\0${best.sample.kind}`, now = window.sampleEnd / 16;
           if (now - (refractory.get(key) ?? -Infinity) >= 1500) {
             refractory.set(key, now);
-            await send(channel, { type: best.sample.kind, phrase: best.sample.phrase, person: best.sample.person, score, time: now });
+            const start = Math.max(0, Math.min(now, phraseStartSample(sampleEnds[best.startIndex]) / 16));
+            await send(channel, { type: best.sample.kind, phrase: best.sample.phrase, person: best.sample.person, score, time: now, start });
           }
         }
         const now = Date.now();

@@ -11,6 +11,7 @@ matched by query-by-example. Persephone's voice assistant (EPIC-139) streams mic
 
 ## How it works
 
+- Wake and stop events carry a conservative sample-relative `start` (US-1786).
 - **Model:** `model/speech-embedding.onnx` is Google's Apache-2.0 `speech_embedding` (Kaggle
   `google/speech-embedding`, TF1 v1), exported by `scripts/speech-embedding-export/` at the repo
   root. Never replace it with openWakeWord's packaged copies (CC-BY-NC-SA).

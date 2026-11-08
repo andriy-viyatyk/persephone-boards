@@ -43,6 +43,7 @@
     "wake.thresholdHint": "Вышэйшы парог азначае больш строгую праверку.",
     "wake.silence": "Тайм-аўт цішыні (секунды)",
     "wake.microphone": "Мікрафон",
+    "wake.refreshDevices": "Абнавіць мікрафоны",
     "wake.defaultDevice": "Сістэмная прылада ўводу па змаўчанні",
     "wake.deviceNumber": "Прылада ўводу {number}",
     "wake.missingDevice": "Прылада ўводу адсутнічае: {id} (выкарыстоўваецца сістэмная прылада па змаўчанні)",

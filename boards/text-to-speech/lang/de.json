@@ -2,6 +2,8 @@
   "messages": {
     "title": "Text zu Sprache",
     "notice": "Lokale Sprachsynthese mit Supertonic 3.",
+    "engine.title": "Sprach-Engine",
+    "engine.detail": "Supertonic 3-Laufzeit und Stimmmodell, auf diesem Computer gespeichert.",
     "retry": "Installation wiederholen",
     "cancel": "Abbrechen",
     "delete": "Löschen",

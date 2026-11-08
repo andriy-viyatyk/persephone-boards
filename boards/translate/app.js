@@ -128,6 +128,8 @@
       $("#result").value = item.text;
     } catch (reason) { error(reason.message || t("error.generic")); }
   }
+  $("#open-models").addEventListener("click", () => { $("#models-dialog").showModal(); $("#filter").focus(); });
+  $("#models-close").addEventListener("click", () => $("#models-dialog").close());
   $("#refresh").addEventListener("click", () => sendManagement({ type: "refresh" }));
   $("#filter").addEventListener("input", renderPairs);
   $("#detect").addEventListener("click", () => void detect());

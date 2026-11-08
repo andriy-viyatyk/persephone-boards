@@ -43,6 +43,7 @@
     "wake.thresholdHint": "임계값이 높을수록 기준이 엄격합니다.",
     "wake.silence": "무음 시간 제한 (초)",
     "wake.microphone": "마이크",
+    "wake.refreshDevices": "마이크 새로 고침",
     "wake.defaultDevice": "시스템 기본 입력",
     "wake.deviceNumber": "입력 {number}",
     "wake.missingDevice": "입력을 찾을 수 없음: {id} (시스템 기본 입력 사용)",

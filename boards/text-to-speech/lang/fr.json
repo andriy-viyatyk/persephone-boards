@@ -2,6 +2,8 @@
   "messages": {
     "title": "Texte en parole",
     "notice": "Synthèse locale avec Supertonic 3.",
+    "engine.title": "Moteur vocal",
+    "engine.detail": "Environnement d’exécution et modèle vocal Supertonic 3, stockés sur cet ordinateur.",
     "retry": "Réessayer l’installation",
     "cancel": "Annuler",
     "delete": "Supprimer",

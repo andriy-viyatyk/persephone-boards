@@ -2,6 +2,8 @@
   "messages": {
     "title": "Text to Speech",
     "notice": "Local synthesis with Supertonic 3.",
+    "engine.title": "Speech engine",
+    "engine.detail": "Supertonic 3 runtime and voice model, stored on this computer.",
     "retry": "Retry installation",
     "cancel": "Cancel",
     "delete": "Delete",

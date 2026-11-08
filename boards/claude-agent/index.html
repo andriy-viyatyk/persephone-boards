@@ -87,15 +87,27 @@
         <div id="profiles-list" class="profiles-list" aria-live="polite"></div>
       </section>
       <section id="config-wake" class="config-panel wake-panel hidden" role="tabpanel">
-        <label><span data-i18n="wake.threshold"></span> <input id="wake-threshold" type="number" min="0" max="1" step="0.01"></label>
-        <p data-i18n="wake.thresholdHint"></p>
-        <label><span data-i18n="wake.silence"></span> <input id="wake-silence" type="number" min="0.5" max="30" step="0.5"></label>
-        <label><span data-i18n="wake.microphone"></span> <select id="wake-device"></select> <button id="wake-devices-refresh" type="button" data-i18n="refresh"></button></label>
-        <hr>
-        <label><span data-i18n="wake.person"></span> <input id="wake-person" type="text"></label>
-        <label><span data-i18n="wake.kind"></span> <select id="wake-kind"><option value="wake" data-i18n="wake.wake"></option><option value="stop" data-i18n="wake.stop"></option></select></label>
-        <button id="wake-enroll" type="button" data-i18n="wake.enroll"></button>
-        <p id="wake-enroll-status" role="status"></p>
+        <!-- Settings panel: listening settings on the left, enrollment on the right. -->
+        <div class="wake-settings">
+          <div class="wake-column">
+            <div class="wake-pair">
+              <label class="wake-field"><span data-i18n="wake.threshold"></span><input id="wake-threshold" type="number" min="0" max="1" step="0.01"></label>
+              <label class="wake-field"><span data-i18n="wake.silence"></span><input id="wake-silence" type="number" min="0.5" max="30" step="0.5"></label>
+            </div>
+            <p class="wake-hint" data-i18n="wake.thresholdHint"></p>
+            <div class="wake-field">
+              <label for="wake-device" data-i18n="wake.microphone"></label>
+              <div class="wake-row"><select id="wake-device"></select><button id="wake-devices-refresh" class="wake-icon-button" type="button" data-i18n-title="wake.refreshDevices"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></button></div>
+            </div>
+          </div>
+          <div class="wake-column">
+            <div class="wake-pair">
+              <div class="wake-field wake-person-field"><label for="wake-person" data-i18n="wake.person"></label><input id="wake-person" type="text" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="wake-people" aria-expanded="false"><div id="wake-people" class="wake-suggestions hidden" role="listbox"></div></div>
+              <label class="wake-field"><span data-i18n="wake.kind"></span><select id="wake-kind"><option value="wake" data-i18n="wake.wake"></option><option value="stop" data-i18n="wake.stop"></option></select></label>
+            </div>
+            <div class="wake-row wake-enroll-row"><p id="wake-enroll-status" class="wake-hint" role="status"></p><button id="wake-enroll" class="primary" type="button" data-i18n="wake.enroll"></button></div>
+          </div>
+        </div>
         <div id="wake-samples" aria-live="polite"></div>
       </section>
       <div class="actions">

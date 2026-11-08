@@ -2,6 +2,8 @@
   "messages": {
     "title": "Tekst kõneks",
     "notice": "Kohalik kõnesüntees Supertonic 3 abil.",
+    "engine.title": "Kõnemootor",
+    "engine.detail": "Supertonic 3 käituskeskkond ja häälemudel, salvestatud selles arvutis.",
     "retry": "Proovi paigaldust uuesti",
     "cancel": "Tühista",
     "delete": "Kustuta",

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Text to Speech: a "T" giving off sound waves. A coloured tile with a white glyph, the sibling
+       of the Speech to Text icon; fixed colours so it reads on light and dark themes. -->
+  <rect x="5" y="5" width="54" height="54" rx="13" fill="#12A594"/>
+  <path d="M14 19h20M24 19v26" stroke="white" stroke-width="4.5" stroke-linecap="round"/>
+  <path d="M39 25.5a9 9 0 0 1 0 13M45.5 19.5a17.5 17.5 0 0 1 0 25" stroke="white" stroke-width="4" stroke-linecap="round"/>
+</svg>

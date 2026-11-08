@@ -6,6 +6,10 @@ body { margin: 0; color: var(--p-text); background: var(--p-bg); font: 14px/1.5 
 .page-header, .actions { display: flex; align-items: center; gap: 12px; }
 .page-header { justify-content: space-between; }
 .actions { flex-wrap: wrap; }
+/* Speech engine panel: what is installed on the left, its Install/Cancel/Delete buttons on the right. */
+.engine-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.engine-info { display: grid; gap: 2px; min-width: 0; }
+.engine-info .muted { color: var(--p-text-muted); }
 h1, h2, p { margin: 0; } h1 { font-size: 1.45rem; } h2 { font-size: 1.08rem; }
 .page-header p { color: var(--p-text-muted); }
 .pill { padding: 3px 10px; border: 1px solid var(--p-border); border-radius: 999px; white-space: nowrap; }
@@ -16,6 +20,9 @@ label { display: grid; gap: 5px; min-width: 0; }
 label > input, label > select, label > textarea { width: 100%; min-width: 0; }
 input, select, button, textarea { min-height: 36px; border: 1px solid var(--p-border); border-radius: 6px; padding: 6px 9px; color: var(--p-text); background: var(--p-bg-dark); font: inherit; }
 textarea { resize: vertical; line-height: 1.45; }
+/* Text fields mark focus like Persephone's inputs: a 1px accent border, no outline ring.
+   The volume slider has no border, so it keeps the themed focus ring. */
+input:not([type="range"]):focus, select:focus, textarea:focus { outline: none; border-color: var(--p-accent); }
 button { cursor: pointer; } button:hover { border-color: var(--p-accent); } button:disabled { opacity: .55; cursor: wait; }
 button.primary { background: var(--p-accent); color: var(--p-accent-text); border-color: transparent; font-weight: 650; }
 .volume-row { display: flex; align-items: center; gap: 12px; }

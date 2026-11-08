@@ -43,6 +43,7 @@
     "wake.thresholdHint": "Un umbral más alto es más estricto.",
     "wake.silence": "Tiempo de espera por silencio (segundos)",
     "wake.microphone": "Micrófono",
+    "wake.refreshDevices": "Actualizar micrófonos",
     "wake.defaultDevice": "Entrada predeterminada del sistema",
     "wake.deviceNumber": "Entrada {number}",
     "wake.missingDevice": "Falta la entrada: {id} (se usará la entrada predeterminada)",

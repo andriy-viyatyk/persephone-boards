@@ -12,6 +12,7 @@
     "models.missing": "Not installed · {size}",
     "models.unsupported": "Unsupported direction",
     "models.download": "Download",
+    "models.close": "Close",
     "models.cancel": "Cancel",
     "models.remove": "Remove",
     "models.downloading": "{loaded} of {total}",
@@ -29,10 +30,10 @@
     "test.result": "Translation result",
     "test.detected": "Detected {language} ({confidence} confidence, {count} characters). Candidates: {candidates}",
     "test.routeDirect": "Direct model: {from} → {to}.",
-    "test.routePivot": "English pivot: {from} → en → {to}. Required legs are shown above.",
+    "test.routePivot": "English pivot: {from} → en → {to}.",
     "test.requiredLegs": "Required model legs: {legs}.",
     "test.noRoute": "No supported route is available.",
-    "test.missingModels": "Required model legs are not installed. Download them above, then translate.",
+    "test.missingModels": "Required model legs are not installed. Download them in Language models, then translate.",
     "privacy.note": "Text and models stay on this computer. Model downloads happen only after you select Download.",
     "error.generic": "The operation failed. See the board log for details."
   }

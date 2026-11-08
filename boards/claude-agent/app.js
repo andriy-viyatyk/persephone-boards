@@ -1630,25 +1630,99 @@ async function refreshWakeDevices() {
   }
 }
 
+// Person suggestions: a themed dropdown (the native datalist popup cannot be styled).
+let wakePeople = [];
+let wakeSuggestionIndex = -1;
+
+function wakeSuggestionItems() {
+  return [...$("#wake-people").children];
+}
+
+function hideWakeSuggestions() {
+  $("#wake-people").classList.add("hidden");
+  $("#wake-person").setAttribute("aria-expanded", "false");
+  wakeSuggestionIndex = -1;
+}
+
+function highlightWakeSuggestion(index) {
+  const items = wakeSuggestionItems();
+  wakeSuggestionIndex = items.length ? (index + items.length) % items.length : -1;
+  items.forEach((item, i) => item.classList.toggle("active", i === wakeSuggestionIndex));
+  items[wakeSuggestionIndex]?.scrollIntoView({ block: "nearest" });
+}
+
+function pickWakeSuggestion(person) {
+  $("#wake-person").value = person;
+  hideWakeSuggestions();
+}
+
+function showWakeSuggestions() {
+  const input = $("#wake-person"), list = $("#wake-people");
+  const query = input.value.trim().toLowerCase();
+  const matches = wakePeople.filter((person) => person.toLowerCase().includes(query) && person !== input.value.trim());
+  list.replaceChildren(...matches.map((person) => {
+    const item = element("div", "wake-suggestion", person);
+    item.setAttribute("role", "option");
+    // pointerdown keeps focus in the input, so the list is not closed by blur first.
+    item.addEventListener("pointerdown", (event) => { event.preventDefault(); pickWakeSuggestion(person); });
+    return item;
+  }));
+  wakeSuggestionIndex = -1;
+  list.classList.toggle("hidden", !matches.length);
+  input.setAttribute("aria-expanded", String(Boolean(matches.length)));
+}
+
+$("#wake-person").addEventListener("focus", showWakeSuggestions);
+$("#wake-person").addEventListener("input", showWakeSuggestions);
+$("#wake-person").addEventListener("blur", hideWakeSuggestions);
+$("#wake-person").addEventListener("keydown", (event) => {
+  const open = !$("#wake-people").classList.contains("hidden");
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    if (!open) showWakeSuggestions();
+    highlightWakeSuggestion(wakeSuggestionIndex + (event.key === "ArrowDown" ? 1 : -1));
+  } else if (event.key === "Enter" && open && wakeSuggestionIndex >= 0) {
+    event.preventDefault();
+    pickWakeSuggestion(wakeSuggestionItems()[wakeSuggestionIndex].textContent);
+  } else if (event.key === "Escape" && open) {
+    // Close only the list, not the Configure dialog.
+    event.preventDefault();
+    event.stopPropagation();
+    hideWakeSuggestions();
+  }
+});
+
 async function refreshWakeSamples() {
   try {
     const wake = await wakeCapability();
     const groups = (await Promise.all([
       wake.list("agent-wake"), wake.list("agent-stop")
     ])).flat();
+    // The Person field suggests everyone who already has samples.
+    wakePeople = [...new Set(groups.map((group) => group.person).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     const host = $("#wake-samples");
     host.replaceChildren();
     if (!groups.length) host.textContent = t("wake.noSamples");
     for (const group of groups) {
       const row = element("div", "wake-sample");
       row.append(element("strong", "", `${group.phrase} · ${group.person} · ${group.kind}`));
-      for (const sample of group.samples) {
+      const chips = element("div", "wake-chips");
+      row.append(chips);
+      group.samples.forEach((sample, index) => {
         const provenance = sample.legacyCapture ? t("wake.legacy")
           : sample.echoCancel === true ? t("wake.echoOn")
           : sample.echoCancel === false ? t("wake.echoOff") : t("wake.echoUnknown");
-        const button = element("button", "",
-          `${t("delete")} · ${sample.createdAt || ""} · ${sample.sampleId} · ${provenance}`);
+        // A chip shows the sample; only its "x" button deletes it.
+        const chip = element("span", "wake-chip");
+        chip.title = `${sample.createdAt || ""} · ${sample.sampleId}`;
+        chip.append(element("span", "", `${index + 1}. ${provenance}`));
+        const button = element("button", "wake-chip-remove");
         button.type = "button";
+        button.title = t("delete");
+        button.setAttribute("aria-label", t("delete"));
+        button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 7 7 17M7 7l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>';
+        chip.append(button);
+        chips.append(chip);
         button.addEventListener("click", () => void (async () => {
           try {
             await wake.delete({
@@ -1659,8 +1733,7 @@ async function refreshWakeSamples() {
             wakeError(error);
           }
         })());
-        row.append(button);
-      }
+      });
       host.append(row);
     }
   } catch (error) {
@@ -1734,6 +1807,7 @@ async function enrollWakeWord() {
     }
   }
 }
+$("#wake-devices-refresh").setAttribute("aria-label", t("wake.refreshDevices"));
 $("#wake-devices-refresh").addEventListener("click", () => void refreshWakeDevices());
 $("#wake-enroll").addEventListener("click", () => void enrollWakeWord());
 window.addEventListener("unload", cancelWakeEnrollment);

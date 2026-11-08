@@ -43,6 +43,7 @@
     "wake.thresholdHint": "Ein höherer Schwellenwert ist strenger.",
     "wake.silence": "Zeitlimit bei Stille (Sekunden)",
     "wake.microphone": "Mikrofon",
+    "wake.refreshDevices": "Mikrofone aktualisieren",
     "wake.defaultDevice": "Systemstandard-Eingabegerät",
     "wake.deviceNumber": "Eingabegerät {number}",
     "wake.missingDevice": "Eingabegerät fehlt: {id} (Systemstandard wird verwendet)",

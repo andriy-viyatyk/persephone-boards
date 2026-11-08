@@ -43,6 +43,7 @@
     "wake.thresholdHint": "Wyższy próg oznacza bardziej rygorystyczne dopasowanie.",
     "wake.silence": "Limit czasu ciszy (sekundy)",
     "wake.microphone": "Mikrofon",
+    "wake.refreshDevices": "Odśwież mikrofony",
     "wake.defaultDevice": "Domyślne wejście systemowe",
     "wake.deviceNumber": "Wejście {number}",
     "wake.missingDevice": "Brak wejścia: {id} (używane jest domyślne wejście systemowe)",

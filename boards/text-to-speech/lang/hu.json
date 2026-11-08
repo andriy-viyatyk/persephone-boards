@@ -2,6 +2,8 @@
   "messages": {
     "title": "Szövegfelolvasás",
     "notice": "Helyi beszédszintézis a Supertonic 3-mal.",
+    "engine.title": "Beszédmotor",
+    "engine.detail": "A Supertonic 3 futtatókörnyezete és hangmodellje, ezen a számítógépen tárolva.",
     "retry": "Telepítés újrapróbálása",
     "cancel": "Mégse",
     "delete": "Törlés",

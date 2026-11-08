@@ -382,7 +382,33 @@ html[data-mode="light"] .msg[data-agent-profile]:not([data-agent-color="none"]) 
 .wake-status:empty { display: none; }
 .wake-badge { font-size: 0.8em; opacity: 0.8; }
 .wake-panel { overflow: auto; }
-.wake-panel label { display: block; margin: 8px 0; }
-.wake-panel input, .wake-panel select { margin-left: 8px; }
+/* Wake words settings: one bordered panel, two columns (listening settings | enrollment). */
+.wake-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 20px; margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--p-border); border-radius: var(--p-radius-md, 6px); background: var(--p-bg); }
+.wake-column { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.wake-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.wake-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wake-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.wake-settings input, .wake-settings select, .wake-settings button { height: 26px; margin: 0; padding: 0 8px; }
+.wake-settings input, .wake-settings select { width: 100%; min-width: 0; background: var(--p-bg-dark, var(--p-bg)); }
+.wake-settings input:focus, .wake-settings select:focus { outline: none; border-color: var(--p-accent); }
+.wake-row select { flex: 1; }
+/* Person suggestions dropdown, themed like the board's context menus. */
+.wake-person-field { position: relative; }
+.wake-suggestions { position: absolute; top: 100%; left: 0; right: 0; z-index: 5; margin-top: 2px; max-height: 180px; overflow-y: auto; padding: 4px; background: var(--p-panel); border: 1px solid var(--p-border); border-radius: var(--p-radius-md, 6px); box-shadow: 0 4px 16px color-mix(in srgb, black 35%, transparent); }
+.wake-suggestion { padding: 3px 8px; border-radius: var(--p-radius-sm, 4px); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wake-suggestion:hover, .wake-suggestion.active { background: var(--p-hover); }
+/* Record sample sits in the panel's bottom-right corner; its status text fills the space to its left. */
+.wake-enroll-row { margin-top: auto; justify-content: flex-end; }
+.wake-enroll-row .wake-hint { flex: 1; text-align: right; }
+.wake-enroll-row button { flex: none; }
+.wake-settings .wake-icon-button { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 26px; padding: 0; }
+.wake-icon-button svg { width: 16px; height: 16px; }
+.wake-hint { margin: 0; font-size: 12px; color: var(--p-text-muted); overflow-wrap: anywhere; }
+@media (max-width: 640px) { .wake-settings { grid-template-columns: minmax(0, 1fr); } }
 .wake-sample { margin: 6px 0 12px; }
-.wake-sample button { display: block; margin-top: 4px; }
+/* Sample chips: a lighter pill; only the small "x" deletes the sample. */
+.wake-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.wake-chip { display: inline-flex; align-items: center; gap: 2px; height: 24px; padding: 0 2px 0 10px; font-size: 12px; border-radius: 12px; background: color-mix(in srgb, var(--p-text) 10%, var(--p-panel)); white-space: nowrap; }
+.wake-chip .wake-chip-remove { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 20px; height: 20px; min-width: 0; padding: 0; border: none; border-radius: 50%; background: transparent; color: var(--p-text-muted); }
+.wake-chip .wake-chip-remove:hover { color: var(--p-text); background: var(--p-bg-dark); }
+.wake-chip-remove svg { width: 12px; height: 12px; }

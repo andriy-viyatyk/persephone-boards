@@ -2,6 +2,8 @@
   "messages": {
     "title": "テキスト読み上げ",
     "notice": "Supertonic 3 によるローカル合成。",
+    "engine.title": "音声エンジン",
+    "engine.detail": "このコンピューターに保存された Supertonic 3 のランタイムと音声モデル。",
     "retry": "インストールを再試行",
     "cancel": "キャンセル",
     "delete": "削除",

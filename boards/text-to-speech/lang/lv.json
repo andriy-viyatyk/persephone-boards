@@ -2,6 +2,8 @@
   "messages": {
     "title": "Teksts runā",
     "notice": "Lokāla runas sintēze ar Supertonic 3.",
+    "engine.title": "Runas dzinējs",
+    "engine.detail": "Supertonic 3 izpildlaiks un balss modelis, saglabāti šajā datorā.",
     "retry": "Mēģināt instalēt vēlreiz",
     "cancel": "Atcelt",
     "delete": "Dzēst",

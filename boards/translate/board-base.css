@@ -2,6 +2,11 @@
 body { margin: 0; background: var(--p-bg, #1e1e1e); color: var(--p-text, #e0e0e0); font: var(--p-font-base, 13px) system-ui, "Segoe UI", sans-serif; line-height: 1.5; }
 button, input, select, textarea { font: inherit; }
 button, select, input, textarea { color: var(--p-text, #e0e0e0); background: var(--p-bg, #1e1e1e); border: 1px solid var(--p-border, #555); border-radius: var(--p-radius-sm, 4px); }
-button { padding: 5px 9px; cursor: pointer; }
+/* Match Persephone's control size (26px, the uikit "md" size). */
+button, select, input { height: 26px; padding: 0 8px; }
+select { padding: 0 4px; }
+button { cursor: pointer; white-space: nowrap; }
 button:disabled { opacity: .5; cursor: default; }
 :focus-visible { outline: 2px solid var(--p-accent, #0078d4); outline-offset: 2px; }
+/* Text fields mark focus like Persephone's inputs: a 1px accent border, no outline ring. */
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p-accent, #0078d4); }

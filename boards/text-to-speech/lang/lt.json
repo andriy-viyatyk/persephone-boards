@@ -2,6 +2,8 @@
   "messages": {
     "title": "Tekstas į kalbą",
     "notice": "Vietinė kalbos sintezė su „Supertonic 3“.",
+    "engine.title": "Kalbos variklis",
+    "engine.detail": "Supertonic 3 vykdymo aplinka ir balso modelis, saugomi šiame kompiuteryje.",
     "retry": "Bandyti įdiegti dar kartą",
     "cancel": "Atšaukti",
     "delete": "Ištrinti",

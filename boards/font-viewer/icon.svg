@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- Font Viewer: a type specimen "Aa", drawn as paths so it never depends on an installed font.
+       Fixed colours (not currentColor), like the other boards' icons, so it reads on light and dark themes. -->
+  <defs>
+    <linearGradient id="type" x1="2" y1="4" x2="22" y2="21" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FBBF24"/>
+      <stop offset="1" stop-color="#F43F5E"/>
+    </linearGradient>
+  </defs>
+  <!-- Capital A. -->
+  <path d="M1.8 20.5 8 3.5l6.2 17M4.3 14.2h7.4" stroke="url(#type)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Lowercase a: bowl and stem, with a gap from the A's right leg. -->
+  <circle cx="19" cy="17.6" r="2.6" stroke="url(#type)" stroke-width="1.9"/>
+  <path d="M21.6 13.6v6.9" stroke="url(#type)" stroke-width="1.9" stroke-linecap="round"/>
+</svg>

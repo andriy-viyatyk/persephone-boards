@@ -2,6 +2,8 @@
   "messages": {
     "title": "Texto para fala",
     "notice": "Síntese local com Supertonic 3.",
+    "engine.title": "Mecanismo de fala",
+    "engine.detail": "Runtime e modelo de voz do Supertonic 3, armazenados neste computador.",
     "retry": "Tentar instalação novamente",
     "cancel": "Cancelar",
     "delete": "Excluir",

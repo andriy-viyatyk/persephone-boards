@@ -43,6 +43,7 @@
     "wake.thresholdHint": "Una soglia più alta è più restrittiva.",
     "wake.silence": "Timeout del silenzio (secondi)",
     "wake.microphone": "Microfono",
+    "wake.refreshDevices": "Aggiorna microfoni",
     "wake.defaultDevice": "Ingresso predefinito di sistema",
     "wake.deviceNumber": "Ingresso {number}",
     "wake.missingDevice": "Ingresso mancante: {id} (uso dell’ingresso predefinito)",

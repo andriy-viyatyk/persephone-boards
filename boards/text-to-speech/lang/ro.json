@@ -2,6 +2,8 @@
   "messages": {
     "title": "Text în vorbire",
     "notice": "Sinteză locală cu Supertonic 3.",
+    "engine.title": "Motor de vorbire",
+    "engine.detail": "Mediul de rulare și modelul vocal Supertonic 3, stocate pe acest computer.",
     "retry": "Reîncearcă instalarea",
     "cancel": "Anulează",
     "delete": "Șterge",

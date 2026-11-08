@@ -105,6 +105,48 @@
     }
   }
 
+  // Chip rows show only the newest samples; "+N" expands a person to show all of them.
+  const VISIBLE_SAMPLES = 3;
+  const expandedPeople = new Set();
+  const CLOSE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 7 7 17M7 7l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>';
+
+  function removeButton(label, target) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "remove-button";
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    button.innerHTML = CLOSE_ICON;
+    button.addEventListener("click", () => void deleteTarget(target));
+    return button;
+  }
+
+  function treeRow(className, text, remove) {
+    const row = document.createElement("div");
+    row.className = `tree-row ${className}`;
+    const label = document.createElement("span");
+    label.className = "tree-label";
+    label.textContent = text;
+    row.append(label, remove);
+    return row;
+  }
+
+  function sampleChip(sample, number, phrase) {
+    // Only the embedding is stored, so a sample has no audio to play back.
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.title = sample.sampleId;
+    const provenance = sample.legacyCapture ? t("samples.legacy")
+      : sample.echoCancel === true ? t("samples.echoOn")
+        : sample.echoCancel === false ? t("samples.echoOff") : t("samples.echoUnknown");
+    const compatibility = sample.frontendVersion !== 2 ? ` · ${t("samples.incompatible")}` : "";
+    const text = document.createElement("span");
+    text.textContent = `${number}. ${provenance}${compatibility}`;
+    chip.append(text, removeButton(t("delete.sample"), { phrase, sampleId: sample.sampleId }));
+    return chip;
+  }
+
+  // Tree: phrase · kind → person → sample chips. Each level has its own remove button.
   function renderList(groups) {
     const host = element("samples");
     host.replaceChildren();
@@ -112,24 +154,38 @@
       host.textContent = t("samples.empty");
       return;
     }
+    const kinds = new Map();
     for (const group of groups) {
-      const row = document.createElement("div");
-      row.className = "sample-group";
-      const label = document.createElement("strong");
-      label.textContent = `${group.phrase} · ${t(`kind.${group.kind}`)} · ${group.person}`;
-      row.append(label);
-      for (const sample of group.samples) {
-        const button = document.createElement("button");
-        const provenance = sample.legacyCapture ? t("samples.legacy")
-          : sample.echoCancel === true ? t("samples.echoOn")
-            : sample.echoCancel === false ? t("samples.echoOff") : t("samples.echoUnknown");
-        const compatibility = sample.frontendVersion !== 2 ? ` · ${t("samples.incompatible")}` : "";
-        button.textContent = `${t("delete.sample")} · ${provenance}${compatibility}`;
-        button.title = sample.sampleId;
-        button.addEventListener("click", () => void deleteTarget({ phrase: group.phrase, sampleId: sample.sampleId }));
-        row.append(button);
+      const key = JSON.stringify([group.phrase, group.kind]);
+      if (!kinds.has(key)) kinds.set(key, { phrase: group.phrase, kind: group.kind, people: [] });
+      kinds.get(key).people.push(group);
+    }
+    for (const { phrase, kind, people } of kinds.values()) {
+      const node = document.createElement("div");
+      node.className = "tree-node";
+      node.append(treeRow("tree-kind", `${phrase} · ${t(`kind.${kind}`)}`, removeButton(t("delete.kind"), { phrase, kind })));
+      for (const group of people) {
+        const personKey = JSON.stringify([phrase, kind, group.person]);
+        const personNode = document.createElement("div");
+        personNode.className = "tree-node tree-children";
+        personNode.append(treeRow("tree-person", group.person, removeButton(t("delete.person"), { phrase, kind, person: group.person })));
+        const chips = document.createElement("div");
+        chips.className = "chips tree-children";
+        const total = group.samples.length;
+        const shown = expandedPeople.has(personKey) ? 0 : Math.max(0, total - VISIBLE_SAMPLES);
+        if (shown > 0) {
+          const more = document.createElement("button");
+          more.type = "button";
+          more.className = "chip more-chip";
+          more.textContent = `+${shown}`;
+          more.addEventListener("click", () => { expandedPeople.add(personKey); renderList(groups); });
+          chips.append(more);
+        }
+        group.samples.forEach((sample, index) => { if (index >= shown) chips.append(sampleChip(sample, index + 1, phrase)); });
+        personNode.append(chips);
+        node.append(personNode);
       }
-      host.append(row);
+      host.append(node);
     }
   }
 
@@ -289,14 +345,6 @@
   element("refresh-devices").addEventListener("click", () => void loadDevices());
   element("record").addEventListener("click", () => void beginEnrollment());
   element("listen").addEventListener("click", () => activity?.kind === "listen" ? stopListen() : void beginListen());
-  element("delete-person-button").addEventListener("click", () => {
-    try {
-      const person = element("delete-person").value.trim();
-      if (person) void deleteTarget({ phrase: selectedPhrase(), person });
-    } catch (error) {
-      showError(error);
-    }
-  });
   window.addEventListener("pagehide", () => {
     pageClosed = true;
     for (const channel of channels) closeChannel(channel);

@@ -3,8 +3,9 @@
 <body><main id="app">
 <header class="page-header"><div><h1 data-i18n="title"></h1><p data-i18n="notice"></p></div><p id="status" class="pill" role="status"></p></header>
 <section class="panel">
+<div class="engine-row"><div class="engine-info"><h2 data-i18n="engine.title"></h2><p class="muted" data-i18n="engine.detail"></p></div>
+<div class="actions"><button id="install" class="primary" data-i18n="install"></button><button id="cancel" hidden data-i18n="cancel"></button><button id="delete" hidden data-i18n="delete"></button></div></div>
 <progress id="progress" hidden></progress>
-<div class="actions"><button id="install" class="primary" data-i18n="install"></button><button id="cancel" hidden data-i18n="cancel"></button><button id="delete" hidden data-i18n="delete"></button></div>
 </section>
 <section class="panel"><h2 data-i18n="playback"></h2>
 <label class="volume"><span data-i18n="volume"></span><span class="volume-row"><input id="volume" type="range" min="0.25" max="4" step="0.05" value="1"><output id="volume-value">100%</output></span></label>

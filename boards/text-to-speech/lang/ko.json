@@ -2,6 +2,8 @@
   "messages": {
     "title": "텍스트 음성 변환",
     "notice": "슈퍼토닉 3을 사용하는 로컬 음성 합성.",
+    "engine.title": "음성 엔진",
+    "engine.detail": "이 컴퓨터에 저장된 Supertonic 3 런타임 및 음성 모델.",
     "retry": "설치 다시 시도",
     "cancel": "취소",
     "delete": "삭제",

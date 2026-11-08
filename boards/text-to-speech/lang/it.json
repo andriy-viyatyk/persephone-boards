@@ -2,6 +2,8 @@
   "messages": {
     "title": "Sintesi vocale",
     "notice": "Sintesi locale con Supertonic 3.",
+    "engine.title": "Motore vocale",
+    "engine.detail": "Runtime e modello vocale di Supertonic 3, salvati su questo computer.",
     "retry": "Riprova installazione",
     "cancel": "Annulla",
     "delete": "Elimina",

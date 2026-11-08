@@ -43,6 +43,7 @@
     "wake.thresholdHint": "Suurem lävi on rangem.",
     "wake.silence": "Vaikuse ajalõpp (sekundites)",
     "wake.microphone": "Mikrofon",
+    "wake.refreshDevices": "Värskenda mikrofone",
     "wake.defaultDevice": "Süsteemi vaikesisend",
     "wake.deviceNumber": "Sisend {number}",
     "wake.missingDevice": "Sisend puudub: {id} (kasutatakse süsteemi vaikesisendit)",

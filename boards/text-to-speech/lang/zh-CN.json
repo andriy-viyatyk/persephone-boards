@@ -2,6 +2,8 @@
   "messages": {
     "title": "文本转语音",
     "notice": "使用 Supertonic 3 进行本地语音合成。",
+    "engine.title": "语音引擎",
+    "engine.detail": "存储在此计算机上的 Supertonic 3 运行时和语音模型。",
     "retry": "重试安装",
     "cancel": "取消",
     "delete": "删除",

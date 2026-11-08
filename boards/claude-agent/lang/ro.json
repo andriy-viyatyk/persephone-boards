@@ -43,6 +43,7 @@
     "wake.thresholdHint": "Un prag mai ridicat este mai strict.",
     "wake.silence": "Limită de timp pentru liniște (secunde)",
     "wake.microphone": "Microfon",
+    "wake.refreshDevices": "Reîmprospătați microfoanele",
     "wake.defaultDevice": "Intrare implicită a sistemului",
     "wake.deviceNumber": "Intrare {number}",
     "wake.missingDevice": "Intrare lipsă: {id} (se folosește intrarea implicită a sistemului)",

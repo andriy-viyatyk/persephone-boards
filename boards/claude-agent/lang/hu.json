@@ -43,6 +43,7 @@
     "wake.thresholdHint": "A magasabb küszöbérték szigorúbb.",
     "wake.silence": "Csend időkorlátja (másodperc)",
     "wake.microphone": "Mikrofon",
+    "wake.refreshDevices": "Mikrofonok frissítése",
     "wake.defaultDevice": "Rendszer alapértelmezett bemenete",
     "wake.deviceNumber": "Bemenet: {number}",
     "wake.missingDevice": "Hiányzó bemenet: {id} (rendszer alapértelmezettje használatban)",

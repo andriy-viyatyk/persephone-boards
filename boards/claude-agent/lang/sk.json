@@ -43,6 +43,7 @@
     "wake.thresholdHint": "Vyšší prah je prísnejší.",
     "wake.silence": "Časový limit ticha (sekundy)",
     "wake.microphone": "Mikrofón",
+    "wake.refreshDevices": "Obnoviť mikrofóny",
     "wake.defaultDevice": "Predvolený systémový vstup",
     "wake.deviceNumber": "Vstup {number}",
     "wake.missingDevice": "Chýba vstup: {id} (používa sa predvolený systémový vstup)",

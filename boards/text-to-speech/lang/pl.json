@@ -2,6 +2,8 @@
   "messages": {
     "title": "Tekst na mowę",
     "notice": "Lokalna synteza mowy z Supertonic 3.",
+    "engine.title": "Silnik mowy",
+    "engine.detail": "Środowisko uruchomieniowe i model głosu Supertonic 3, zapisane na tym komputerze.",
     "retry": "Ponów instalację",
     "cancel": "Anuluj",
     "delete": "Usuń",

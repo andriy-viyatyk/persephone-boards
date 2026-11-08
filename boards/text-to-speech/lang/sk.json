@@ -2,6 +2,8 @@
   "messages": {
     "title": "Text na reč",
     "notice": "Lokálna syntéza reči pomocou Supertonic 3.",
+    "engine.title": "Rečový engine",
+    "engine.detail": "Runtime a hlasový model Supertonic 3 uložené v tomto počítači.",
     "retry": "Skúsiť inštaláciu znova",
     "cancel": "Zrušiť",
     "delete": "Odstrániť",

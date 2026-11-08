@@ -74,7 +74,7 @@
     "engine": "Silnik",
     "providerUnavailable": "Ten silnik jest niedostępny.",
     "codex.notFound": "Zainstaluj Codex lub ustaw ścieżkę do pliku wykonywalnego w ustawieniach tablicy.",
-    "codex.versionUnsupported": "Ta wersja Codex app-server nie jest obsługiwana. Zainstaluj Codex CLI 0.163.0.",
+    "codex.versionUnsupported": "Ta wersja Codex app-server jest za stara. Zainstaluj Codex CLI 0.163.0 lub nowszy.",
     "codex.mode.auto": "Auto",
     "codex.mode.auto.desc": "Korzysta z dostępu do zapisu w obszarze roboczym i pyta przed ograniczonymi działaniami",
     "codex.mode.full": "Pełny dostęp",

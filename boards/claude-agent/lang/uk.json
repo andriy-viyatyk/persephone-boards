@@ -74,7 +74,7 @@
     "engine": "Рушій",
     "providerUnavailable": "Цей рушій недоступний.",
     "codex.notFound": "Установіть Codex або вкажіть шлях до його виконуваного файла в параметрах дошки.",
-    "codex.versionUnsupported": "Ця версія Codex app-server не підтримується. Установіть Codex CLI 0.163.0.",
+    "codex.versionUnsupported": "Ця версія Codex app-server занадто стара. Установіть Codex CLI 0.163.0 або новішу.",
     "codex.mode.auto": "Автоматичний",
     "codex.mode.auto.desc": "Дозволяє запис у робочу область і запитує перед обмеженими діями",
     "codex.mode.full": "Повний доступ",

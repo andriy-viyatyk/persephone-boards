@@ -74,7 +74,7 @@
     "engine": "Dzinējs",
     "providerUnavailable": "Šis dzinējs nav pieejams.",
     "codex.notFound": "Instalējiet Codex vai tāfeles iestatījumos norādiet izpildāmā faila ceļu.",
-    "codex.versionUnsupported": "Šī Codex app-server versija netiek atbalstīta. Instalējiet Codex CLI 0.163.0.",
+    "codex.versionUnsupported": "Šī Codex app-server versija ir pārāk veca. Instalējiet Codex CLI 0.163.0 vai jaunāku.",
     "codex.mode.auto": "Auto",
     "codex.mode.auto.desc": "Izmanto darbvietas rakstīšanas piekļuvi un pirms ierobežotām darbībām jautā",
     "codex.mode.full": "Pilna piekļuve",

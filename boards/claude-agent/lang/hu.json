@@ -74,7 +74,7 @@
     "engine": "Motor",
     "providerUnavailable": "Ez a motor nem érhető el.",
     "codex.notFound": "Telepítsd a Codexet, vagy add meg a futtatható fájl elérési útját a tábla beállításaiban.",
-    "codex.versionUnsupported": "Ez a Codex app-server-verzió nem támogatott. Telepítsd a Codex CLI 0.163.0 verzióját.",
+    "codex.versionUnsupported": "Ez a Codex app-server-verzió túl régi. Telepítsd a Codex CLI 0.163.0 vagy újabb verzióját.",
     "codex.mode.auto": "Automatikus",
     "codex.mode.auto.desc": "Munkaterületi írási hozzáférést használ, és engedélyt kér a korlátozott műveletekhez",
     "codex.mode.full": "Teljes hozzáférés",

@@ -74,7 +74,7 @@
     "engine": "Рухавік",
     "providerUnavailable": "Гэты рухавік недаступны.",
     "codex.notFound": "Усталюйце Codex або задайце шлях да яго выканальнага файла ў параметрах дошкі.",
-    "codex.versionUnsupported": "Гэта версія Codex app-server не падтрымліваецца. Усталюйце Codex CLI 0.163.0.",
+    "codex.versionUnsupported": "Гэта версія Codex app-server занадта старая. Усталюйце Codex CLI 0.163.0 або навейшы.",
     "codex.mode.auto": "Аўтаматычны",
     "codex.mode.auto.desc": "Дазваляе запіс у працоўную вобласць і пытаецца перад забароненымі дзеяннямі",
     "codex.mode.full": "Поўны доступ",

@@ -74,7 +74,7 @@
     "engine": "エンジン",
     "providerUnavailable": "このエンジンは利用できません。",
     "codex.notFound": "Codexをインストールするか、ボードの設定で実行ファイルのパスを指定してください。",
-    "codex.versionUnsupported": "このCodex app-serverのバージョンには対応していません。Codex CLI 0.163.0をインストールしてください。",
+    "codex.versionUnsupported": "このCodex app-serverのバージョンは古すぎます。Codex CLI 0.163.0以降をインストールしてください。",
     "codex.mode.auto": "自動",
     "codex.mode.auto.desc": "ワークスペースへの書き込みを許可し、制限された操作の前に確認します",
     "codex.mode.full": "フルアクセス",

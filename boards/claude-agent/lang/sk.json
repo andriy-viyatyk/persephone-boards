@@ -74,7 +74,7 @@
     "engine": "Engine",
     "providerUnavailable": "Tento engine nie je dostupný.",
     "codex.notFound": "Nainštalujte Codex alebo nastavte cestu k spustiteľnému súboru v nastaveniach dosky.",
-    "codex.versionUnsupported": "Táto verzia Codex app-servera nie je podporovaná. Nainštalujte Codex CLI 0.163.0.",
+    "codex.versionUnsupported": "Táto verzia Codex app-servera je príliš stará. Nainštalujte Codex CLI 0.163.0 alebo novší.",
     "codex.mode.auto": "Automatický",
     "codex.mode.auto.desc": "Používa prístup na zápis do pracovného priestoru a pred obmedzenými akciami sa opýta",
     "codex.mode.full": "Úplný prístup",

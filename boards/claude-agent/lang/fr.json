@@ -74,7 +74,7 @@
     "engine": "Moteur",
     "providerUnavailable": "Ce moteur n’est pas disponible.",
     "codex.notFound": "Installez Codex ou indiquez le chemin de son exécutable dans les paramètres du tableau.",
-    "codex.versionUnsupported": "Cette version du serveur Codex app-server n’est pas prise en charge. Installez Codex CLI 0.163.0.",
+    "codex.versionUnsupported": "Cette version du serveur Codex app-server est trop ancienne. Installez Codex CLI 0.163.0 ou version ultérieure.",
     "codex.mode.auto": "Automatique",
     "codex.mode.auto.desc": "Utilise l’accès en écriture à l’espace de travail et demande avant toute action restreinte",
     "codex.mode.full": "Accès complet",

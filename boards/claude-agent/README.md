@@ -55,7 +55,7 @@ Agent Chat needs microphone permission for voice input. After updating an instal
 
 ## Codex engine
 
-Use the **Engine** chip on a new-session view to select Claude or Codex. Model choices are grouped by engine, and the selected provider is saved with the restorable page session. Saved sessions retain their owning provider for listing, history, rename, delete, and resume. Codex requires Codex CLI 0.163.0 and runs one `codex app-server --stdio` process per live session. It uses Codex's stored threads for history and resume and exposes model, effort, permission, token, and context controls. Transcript following, cost, rate limits, slash commands, MCP management, and subagent panels remain capability-gated and unavailable for Codex.
+Use the **Engine** chip on a new-session view to select Claude or Codex. Model choices are grouped by engine, and the selected provider is saved with the restorable page session. Saved sessions retain their owning provider for listing, history, rename, delete, and resume. Codex requires Codex CLI 0.163.0 or newer and runs one `codex app-server --stdio` process per live session. It uses Codex's stored threads for history and resume and exposes model, effort, permission, token, and context controls. Transcript following, cost, rate limits, slash commands, MCP management, and subagent panels remain capability-gated and unavailable for Codex.
 
 The Instructions editor uses separate files for each provider: `%LOCALAPPDATA%\Persephone\board-data\claude-agent\instructions.md` remains Claude's existing file, and Codex uses the sibling `instructions-codex.md` file. Claude's default instructions and composed prompt remain unchanged.
 

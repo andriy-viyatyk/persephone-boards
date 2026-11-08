@@ -74,7 +74,7 @@
     "engine": "Motor",
     "providerUnavailable": "Acest motor nu este disponibil.",
     "codex.notFound": "Instalați Codex sau setați calea executabilului în setările panoului.",
-    "codex.versionUnsupported": "Această versiune Codex app-server nu este acceptată. Instalați Codex CLI 0.163.0.",
+    "codex.versionUnsupported": "Această versiune Codex app-server este prea veche. Instalați Codex CLI 0.163.0 sau mai nouă.",
     "codex.mode.auto": "Automat",
     "codex.mode.auto.desc": "Utilizează accesul de scriere în spațiul de lucru și solicită confirmarea înaintea acțiunilor restricționate",
     "codex.mode.full": "Acces complet",

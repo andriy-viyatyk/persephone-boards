@@ -4,7 +4,7 @@
   "description": "A resumable agent session provider and chat board for the installed Claude and Codex CLIs.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "minAppVersion": "5.0.18",
   "minBridgeVersion": "1.51.0",
   "permissions": {
@@ -40,6 +40,6 @@
     { "id": "codex-executable", "type": "string", "default": "", "label": "Codex executable", "description": "Optional absolute path to the installed codex executable. Leave empty to resolve it from PATH." },
     { "id": "codex-default-model", "type": "string", "default": "", "label": "Codex default model", "description": "Optional Codex model id. Empty uses the default from Codex model/list." },
     { "id": "codex-default-effort", "type": "string", "default": "", "label": "Codex default effort", "description": "Optional reasoning effort supported by the selected Codex model. Empty uses that model's default." },
-    { "id": "cross-board-permission-ceiling", "type": "enum", "options": ["read-only", "ask", "auto-edit", "full-auto"], "default": "read-only", "label": "Cross-board permission ceiling", "description": "Maximum permission mode for every consumer board." }
+    { "id": "cross-board-permission-ceiling", "type": "enum", "options": ["read-only", "ask", "auto-edit", "full-auto"], "default": "read-only", "label": "Cross-board permission ceiling", "description": "Maximum permission mode for every consumer board. Persephone's own MCP tools are exempt: they are pre-approved for every session, so this ceiling gates native tools such as shell commands and file writes, not Persephone tool calls." }
   ]
 }

@@ -74,7 +74,7 @@
     "engine": "Mecanismo",
     "providerUnavailable": "Este mecanismo não está disponível.",
     "codex.notFound": "Instale o Codex ou defina o caminho do executável nas configurações do quadro.",
-    "codex.versionUnsupported": "Esta versão do app-server do Codex não é compatível. Instale o Codex CLI 0.163.0.",
+    "codex.versionUnsupported": "Esta versão do app-server do Codex é muito antiga. Instale o Codex CLI 0.163.0 ou mais recente.",
     "codex.mode.auto": "Automático",
     "codex.mode.auto.desc": "Usa acesso de gravação ao espaço de trabalho e pede confirmação antes de ações restritas",
     "codex.mode.full": "Acesso total",

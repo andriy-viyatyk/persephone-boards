@@ -540,7 +540,14 @@ function sessionOptions(session) {
       ...(session.endpoint ? { persephone: { type: "http", url: session.endpoint.url, headers: session.endpoint.headers } } : {}),
       ...(session.groupEndpoint ? { agent_chat: { type: "http", url: session.groupEndpoint.url, headers: { Authorization: `Bearer ${session.groupEndpoint.token}` } } } : {}),
     } } : {}),
-    ...(session.endpoint && session.crossBoard && session.mode === "full-auto" ? { allowedTools: ["mcp__persephone__*"] } : {}),
+    // Persephone's own MCP endpoint is pre-approved for every session that gets one (BT-095). It is
+    // private, per-session and token-scoped — this board issues it and revokes it — so an approval
+    // prompt for it asks the user to re-consent to the surface they already opened the session on.
+    // Previously only a cross-board full-auto session skipped the prompt, which is backwards: a LOCAL
+    // page session, including an unattended wake session, prompted on every speech or page call.
+    // NOTE: this also lifts those prompts for a cross-board caller below the ceiling, so the
+    // cross-board-permission-ceiling no longer gates Persephone MCP tools — only native tools.
+    ...(session.endpoint ? { allowedTools: ["mcp__persephone__*"] } : {}),
     canUseTool: (name, input, opts) => requestApproval(session, name, input, opts),
     hooks: {
       PreToolUse: [{ hooks: [async (input) => {

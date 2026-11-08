@@ -74,7 +74,7 @@
     "engine": "엔진",
     "providerUnavailable": "이 엔진은 사용할 수 없습니다.",
     "codex.notFound": "Codex를 설치하거나 보드 설정에서 실행 파일 경로를 지정하세요.",
-    "codex.versionUnsupported": "이 Codex app-server 버전은 지원되지 않습니다. Codex CLI 0.163.0을 설치하세요.",
+    "codex.versionUnsupported": "이 Codex app-server 버전은 너무 오래되었습니다. Codex CLI 0.163.0 이상을 설치하세요.",
     "codex.mode.auto": "자동",
     "codex.mode.auto.desc": "작업 영역 쓰기를 허용하고 제한된 작업 전에 확인합니다",
     "codex.mode.full": "전체 액세스",

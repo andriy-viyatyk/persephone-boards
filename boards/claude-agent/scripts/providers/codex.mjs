@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { boundedString, summarizeToolInput } from "../agent-session-protocol.mjs";
 
-const VERSION = "0.163.0";
+const MIN_VERSION = "0.163.0";
 const STARTUP_TIMEOUT_MS = 15000;
 const RPC_TIMEOUT_MS = 60000;
 const MODEL_CACHE_MS = 5 * 60 * 1000;
@@ -29,6 +29,16 @@ let availabilityCache = { at: 0, value: null };
 const settingIds = ["codex-executable", "codex-default-model", "codex-default-effort"];
 
 function providerError(message, code = "provider-unavailable") { return Object.assign(new Error(message), { code }); }
+// Numeric dot-separated compare; a prerelease suffix is dropped, so 0.163.0-rc1 counts as 0.163.0.
+function compareVersions(left, right) {
+  const parts = (value) => String(value).split("-")[0].split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const a = parts(left), b = parts(right);
+  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+    const one = a[index] || 0, two = b[index] || 0;
+    if (one !== two) return one < two ? -1 : 1;
+  }
+  return 0;
+}
 async function refreshSettings() {
   const next = {};
   await Promise.all(settingIds.map(async (id) => { next[id] = await persephone.settings.get(id); }));
@@ -63,7 +73,7 @@ function runVersion(executable) {
       if (code !== 0) return reject(providerError(`Codex version check failed: ${stderr.trim() || `exit ${code}`}`));
       const match = /codex-cli\s+(\S+)/i.exec(stdout.trim());
       if (!match) return reject(providerError("Codex returned an unrecognized version string."));
-      if (match[1] !== VERSION) return reject(providerError(`Codex ${VERSION} is required for the generated app-server protocol; installed version is ${match[1]}.`, "provider-version-unsupported"));
+      if (compareVersions(match[1], MIN_VERSION) < 0) return reject(providerError(`Codex ${MIN_VERSION} or newer is required for the generated app-server protocol; installed version is ${match[1]}.`, "provider-version-unsupported"));
       resolve(match[1]);
     });
   });
@@ -78,7 +88,11 @@ class JsonRpcProcess {
   }
   async start() {
     const args = ["app-server", "--stdio"];
-    if (this.endpoint) args.push("-c", `mcp_servers.persephone.url=${JSON.stringify(this.endpoint.url)}`, "-c", "mcp_servers.persephone.bearer_token_env_var=PERSEPHONE_MCP_TOKEN");
+    // default_tools_approval_mode matches what the group endpoint below already sets for agent_chat
+    // (BT-095): Persephone's endpoint is private, per-session and token-scoped, so Codex prompting
+    // for it made an unattended wake session unusable — every speech or page call raised a dialog,
+    // and the only lever the page offered was Full access, which also drops shell and file approvals.
+    if (this.endpoint) args.push("-c", `mcp_servers.persephone.url=${JSON.stringify(this.endpoint.url)}`, "-c", "mcp_servers.persephone.bearer_token_env_var=PERSEPHONE_MCP_TOKEN", "-c", "mcp_servers.persephone.default_tools_approval_mode=\"approve\"");
     const env = { ...process.env };
     delete env.PERSEPHONE_MCP_TOKEN;
     if (this.endpoint && this.envToken) env.PERSEPHONE_MCP_TOKEN = this.envToken;
@@ -469,7 +483,7 @@ function createCodexProvider(serviceHost) {
     acceptsMode(mode) { return Object.values(MODE_IDS).includes(mode); },
     sessionStatus,
     async dispatchSession(session, request) {
-      if (request.type === "interrupt") { for (const id of [...session.approvals.keys()]) host.settleApproval(session, id, { decision: "deny", message: "Turn was interrupted." }); for (const steer of session.heldSteers.splice(0)) await sendSteerState(session, steer.requestId, "cancelled"); await session.rpc.request("turn/interrupt", { threadId: session.id, ...(session.turnId ? { turnId: session.turnId } : {}) }).catch(() => {}); return; }
+      if (request.type === "interrupt") { for (const id of [...session.approvals.keys()]) host.settleApproval(session, id, { decision: "deny", message: "Turn was interrupted." }); for (const steer of session.heldSteers.splice(0)) await sendSteerState(session, steer.requestId, "cancelled"); if (session.turnId) await session.rpc.request("turn/interrupt", { threadId: session.id, turnId: session.turnId }).catch(() => {}); return; }
       if (request.type === "approve" || request.type === "approval-response") { host.approve(session, request); return; }
       if (request.type === "close") { await host.closeSession(session, "closed", true, true); return; }
       if (request.type === "send") {
@@ -502,4 +516,4 @@ function createCodexProvider(serviceHost) {
   return adapter;
 }
 
-export { createCodexProvider, VERSION as CODEX_PROTOCOL_VERSION };
+export { createCodexProvider, MIN_VERSION as CODEX_MIN_VERSION };

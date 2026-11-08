@@ -1,3 +1,8 @@
+## 1.4.1
+- The Codex engine now accepts Codex CLI 0.163.0 **or newer** instead of exactly 0.163.0, so updating the Codex CLI no longer greys out the engine.
+- Agents no longer ask for confirmation before using Persephone's own tools, so a voice session can speak and open pages without a dialog each time. Shell commands and file changes still ask as before.
+- Fixed: interrupting a Codex session when no turn was running sent an invalid request that failed silently.
+
 ## 1.4.0
 - Added Wake mode for voice requests to a marked session.
 - The wake session gets built-in voice assistant instructions, shown as a collapsed item in the chat, and they are added again after `/compact`.

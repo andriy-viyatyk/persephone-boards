@@ -74,7 +74,7 @@
     "engine": "Mootor",
     "providerUnavailable": "See mootor pole saadaval.",
     "codex.notFound": "Installige Codex või määrake selle käivitatava faili tee tahvli seadetes.",
-    "codex.versionUnsupported": "See Codexi app-serveri versioon pole toetatud. Installige Codex CLI 0.163.0.",
+    "codex.versionUnsupported": "See Codexi app-serveri versioon on liiga vana. Installige Codex CLI 0.163.0 või uuem.",
     "codex.mode.auto": "Automaatne",
     "codex.mode.auto.desc": "Kasutab tööruumis kirjutamise õigust ja küsib piiratud toiminguteks luba",
     "codex.mode.full": "Täielik juurdepääs",

@@ -74,7 +74,7 @@
     "engine": "Engine",
     "providerUnavailable": "Diese Engine ist nicht verfügbar.",
     "codex.notFound": "Installieren Sie Codex oder legen Sie den Pfad zur ausführbaren Datei in den Board-Einstellungen fest.",
-    "codex.versionUnsupported": "Diese Codex-app-server-Version wird nicht unterstützt. Installieren Sie Codex CLI 0.163.0.",
+    "codex.versionUnsupported": "Diese Codex-app-server-Version ist zu alt. Installieren Sie Codex CLI 0.163.0 oder neuer.",
     "codex.mode.auto": "Automatisch",
     "codex.mode.auto.desc": "Erlaubt Schreibzugriff im Arbeitsbereich und fragt vor eingeschränkten Aktionen nach",
     "codex.mode.full": "Vollzugriff",

@@ -28,12 +28,26 @@ Standalone provider board; it is not a custom editor and has no file association
 - `scripts/sdk-install.mjs` downloads SDK 0.3.302 only after a local consent message and verifies both the archive SRI and the SDK entrypoint SHA-256. Do not vendor SDK files or add a package manager/build step.
 - `scripts/claude-executable.mjs` resolves only the installed CLI. The SDK process spawn hook always launches that resolved executable.
 
+Persephone's own MCP endpoint is **pre-approved for every session that gets one** (BT-095): Codex passes
+`mcp_servers.persephone.default_tools_approval_mode="approve"`, Claude passes
+`allowedTools: ["mcp__persephone__*"]`. The endpoint is private, per-session and token-scoped — this board
+issues and revokes it — so prompting for it re-asks consent for the surface the session was opened on, and
+an unattended wake session could not speak without a dialog. Before this, only a cross-board full-auto
+session skipped the prompt while local page sessions did not, which is backwards. **Consequence to keep in
+mind:** `cross-board-permission-ceiling` therefore gates native tools only, not Persephone MCP calls — and
+that surface includes `execute_script`. Re-add `&& !session.crossBoard` in both providers to narrow it.
+
+The page deliberately does NOT persist the chosen permission mode (`app.js:516`): every new chat starts in
+Auto and `rememberSession()` keeps only `{ id, provider, cwd }`. Restoring an elevated mode would bring a
+voice-triggered session back with approvals disabled. If that ever changes, scope it to the marked wake
+session rather than every chat.
+
 Claude local chat sessions retain their existing Claude Code mode behavior. Codex local sessions use the capability-described Auto, Full access, and Read only modes; Auto is `on-request` plus `workspace-write`. Cross-board contract modes and `cross-board-permission-ceiling` apply to both providers and must never be broadened by native policy.
 
 Claude and Codex both ignore changed system/developer instructions on resume in model-visible history; the
 page-level prompt block handles wake transitions without changing their open or resume protocols.
 
-Codex is version-gated to CLI 0.163.0 because its app-server protocol is experimental. Start one `codex app-server --stdio` child per live session with the private MCP endpoint passed through `-c`; keep its bearer token only in the child's environment. The shared discovery process has no MCP configuration or token and is stopped after idle time. Codex supports its stored-thread list, paged history, rename, delete, and resume. It does not support transcript following, cost, rate limits, subagent panels, slash commands, or the MCP panel.
+Codex is version-gated to CLI 0.163.0 **or newer** because its app-server protocol is experimental; the gate is a minimum, not an exact match, so a CLI update does not disable the engine. Verified against 0.167.0 from its own `codex app-server generate-json-schema` output: every request, parameter, response field, notification payload and approval decision this provider uses is present and unchanged. Raise `MIN_VERSION` only when the provider starts depending on something a newer CLI introduced. Start one `codex app-server --stdio` child per live session with the private MCP endpoint passed through `-c`; keep its bearer token only in the child's environment. The shared discovery process has no MCP configuration or token and is stopped after idle time. Codex supports its stored-thread list, paged history, rename, delete, and resume. It does not support transcript following, cost, rate limits, subagent panels, slash commands, or the MCP panel.
 
 The service owns `instructions.md` for Claude and `instructions-codex.md` for Codex under the existing board-data directory. Preserve Claude's existing default text and file contents; compose environment, provider instructions, and caller instructions in the same order and with the same joiner. Do not add instruction settings to the manifest.
 

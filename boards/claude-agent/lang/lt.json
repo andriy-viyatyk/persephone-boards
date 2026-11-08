@@ -74,7 +74,7 @@
     "engine": "Variklis",
     "providerUnavailable": "Šis variklis nepasiekiamas.",
     "codex.notFound": "Įdiekite Codex arba lentos parametruose nurodykite vykdomojo failo kelią.",
-    "codex.versionUnsupported": "Ši Codex app-server versija nepalaikoma. Įdiekite Codex CLI 0.163.0.",
+    "codex.versionUnsupported": "Ši Codex app-server versija per sena. Įdiekite Codex CLI 0.163.0 arba naujesnę.",
     "codex.mode.auto": "Auto",
     "codex.mode.auto.desc": "Naudoja darbo srities rašymo prieigą ir klausia prieš apribotus veiksmus",
     "codex.mode.full": "Visa prieiga",

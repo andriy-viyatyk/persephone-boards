@@ -74,7 +74,7 @@
     "engine": "引擎",
     "providerUnavailable": "此引擎不可用。",
     "codex.notFound": "请安装 Codex，或在面板设置中指定其可执行文件路径。",
-    "codex.versionUnsupported": "不支持此 Codex app-server 版本。请安装 Codex CLI 0.163.0。",
+    "codex.versionUnsupported": "此 Codex app-server 版本过旧。请安装 Codex CLI 0.163.0 或更高版本。",
     "codex.mode.auto": "自动",
     "codex.mode.auto.desc": "允许工作区写入，并在受限操作前请求确认",
     "codex.mode.full": "完全访问",

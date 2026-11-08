@@ -39,7 +39,7 @@
     "live.threshold": "Umbral",
     "live.start": "Empezar a escuchar",
     "live.stop": "Dejar de escuchar",
-    "live.score": "Mejor puntuación: {score}",
+    "live.score": "Mejor puntuación {score} · nivel {level} · voz {speech}",
     "privacy.note": "El audio se procesa localmente. Solo se guardan las representaciones vectoriales y los metadatos de frases y personas.",
     "microphone.default": "Micrófono predeterminado",
     "microphone.refresh": "Actualizar micrófonos",

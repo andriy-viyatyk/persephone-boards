@@ -39,7 +39,7 @@
     "live.threshold": "임계값",
     "live.start": "듣기 시작",
     "live.stop": "듣기 중지",
-    "live.score": "최고 점수 {score}",
+    "live.score": "최고 점수 {score} · 레벨 {level} · 음성 {speech}",
     "privacy.note": "오디오는 로컬에서 처리됩니다. 임베딩과 문구 및 사람 메타데이터만 저장됩니다.",
     "microphone.default": "기본 마이크",
     "microphone.refresh": "마이크 새로 고침",

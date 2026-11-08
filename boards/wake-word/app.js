@@ -303,7 +303,13 @@
       updateControls();
       setStatus("status.starting");
       current.diagnostics = await openChannel({ type: "diagnostics" }, message => {
-        if (message?.type === "diagnostic") element("live-score").textContent = t("live.score", { score: message.score.toFixed(3) });
+        if (message?.type === "diagnostic") {
+          element("live-score").textContent = t("live.score", {
+            score: message.score.toFixed(3),
+            level: Number(message.rms ?? 0).toFixed(4),
+            speech: Number(message.speech ?? 0).toFixed(2),
+          });
+        }
       });
       if (activity !== current || pageClosed) {
         closeChannel(current.diagnostics);

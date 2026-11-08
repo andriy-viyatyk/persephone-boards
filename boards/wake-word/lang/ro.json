@@ -39,7 +39,7 @@
     "live.threshold": "Prag",
     "live.start": "Începeți ascultarea",
     "live.stop": "Opriți ascultarea",
-    "live.score": "Cel mai bun scor: {score}",
+    "live.score": "Cel mai bun scor {score} · nivel {level} · vorbire {speech}",
     "privacy.note": "Audio este procesat local. Se salvează doar vectorii și metadatele expresiilor și persoanelor.",
     "microphone.default": "Microfon implicit",
     "microphone.refresh": "Reîmprospătați microfoanele",

@@ -39,7 +39,7 @@
     "live.threshold": "Soglia",
     "live.start": "Avvia ascolto",
     "live.stop": "Interrompi ascolto",
-    "live.score": "Punteggio migliore: {score}",
+    "live.score": "Punteggio migliore {score} · livello {level} · voce {speech}",
     "privacy.note": "L’audio viene elaborato localmente. Vengono salvati solo gli embedding e i metadati di frasi e persone.",
     "microphone.default": "Microfono predefinito",
     "microphone.refresh": "Aggiorna microfoni",

@@ -39,7 +39,7 @@
     "live.threshold": "Prah",
     "live.start": "Spustiť počúvanie",
     "live.stop": "Zastaviť počúvanie",
-    "live.score": "Najlepšie skóre: {score}",
+    "live.score": "Najlepšie skóre {score} · úroveň {level} · reč {speech}",
     "privacy.note": "Zvuk sa spracúva lokálne. Ukladajú sa iba vektory a metadáta fráz a osôb.",
     "microphone.default": "Predvolený mikrofón",
     "microphone.refresh": "Obnoviť mikrofóny",

@@ -4,7 +4,7 @@
   "description": "Local enrollment-based wake and stop phrase detection.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "minAppVersion": "5.0.18",
   "minBridgeVersion": "1.51.0",
   "permissions": {

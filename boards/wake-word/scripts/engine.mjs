@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const RUNTIME = path.join(ROOT, "vendor", "onnxruntime-web");
 const MODEL = path.join(ROOT, "model", "speech-embedding.onnx");
+const VAD_MODEL = path.join(ROOT, "model", "silero-vad.onnx");
 const FRAME = 400, HOP = 160, FFT = 512, BANDS = 32, RATE = 16000;
 const mel = (hz) => 1127 * Math.log(1 + hz / 700);
 const edges = Array.from({ length: BANDS + 2 }, (_, i) => mel(60) + i * (mel(3800) - mel(60)) / (BANDS + 1));
@@ -14,9 +15,12 @@ const weights = Array.from({ length: BANDS }, (_, b) => Float32Array.from({ leng
 }));
 const hann = Float32Array.from({ length: FRAME }, (_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / FRAME));
 let sessionPromise;
+let runtimePromise;
+let vadPromise;
 
-async function session() {
-  if (!sessionPromise) sessionPromise = (async () => {
+// Both models share one configured ONNX Runtime import; configuring env.wasm twice would race.
+async function runtime() {
+  if (!runtimePromise) runtimePromise = (async () => {
     const ort = await import(pathToFileURL(path.join(RUNTIME, "dist", "ort.node.min.mjs")));
     ort.env.wasm.numThreads = 1;
     ort.env.wasm.proxy = false;
@@ -24,11 +28,49 @@ async function session() {
       mjs: pathToFileURL(path.join(RUNTIME, "dist", "ort-wasm-simd-threaded.mjs")).href,
       wasm: pathToFileURL(path.join(RUNTIME, "dist", "ort-wasm-simd-threaded.wasm")).href,
     };
-    const model = await import("node:fs/promises").then(({ readFile }) => readFile(MODEL));
-    const instance = await ort.InferenceSession.create(model, { executionProviders: ["wasm"], intraOpNumThreads: 1, interOpNumThreads: 1, graphOptimizationLevel: "all" });
-    return { ort, instance };
+    return ort;
   })();
+  return runtimePromise;
+}
+
+async function loadSession(file) {
+  const ort = await runtime();
+  const model = await import("node:fs/promises").then(({ readFile }) => readFile(file));
+  const instance = await ort.InferenceSession.create(model, { executionProviders: ["wasm"], intraOpNumThreads: 1, interOpNumThreads: 1, graphOptimizationLevel: "all" });
+  return { ort, instance };
+}
+
+async function session() {
+  if (!sessionPromise) sessionPromise = loadSession(MODEL);
   return sessionPromise;
+}
+
+// Silero VAD v6 @ 16 kHz: a 512-sample frame PREFIXED with the previous 64 samples, a carried
+// [2, 1, 128] LSTM state, and the sample rate; it returns the speech probability and the next state.
+//
+// The 64-sample context is not optional and not padding. The ONNX graph has a dynamic input axis, so
+// feeding a bare 512-sample frame RUNS AND RETURNS PLAUSIBLE NUMBERS — just wrong ones: measured on a
+// 4.33 s real-speech WAV, bare frames peaked at p=0.269 and never once crossed 0.5, while the same
+// audio with context peaked at 1.000 and scored >=0.5 in 97 of 135 frames. Dropping it would silently
+// wedge the gate shut and the wake word would simply never fire.
+export const VAD_FRAME_SAMPLES = 512;
+const VAD_CONTEXT_SAMPLES = 64;
+export function createVadState() { return { lstm: new Float32Array(2 * 128), context: new Float32Array(VAD_CONTEXT_SAMPLES) }; }
+export async function vadProbability(vad, frame) {
+  if (!vadPromise) vadPromise = loadSession(VAD_MODEL);
+  const { ort, instance } = await vadPromise;
+  const input = new Float32Array(VAD_CONTEXT_SAMPLES + VAD_FRAME_SAMPLES);
+  input.set(vad.context);
+  input.set(frame, VAD_CONTEXT_SAMPLES);
+  const out = await instance.run({
+    input: new ort.Tensor("float32", input, [1, input.length]),
+    state: new ort.Tensor("float32", vad.lstm, [2, 1, 128]),
+    sr: new ort.Tensor("int64", BigInt64Array.from([16000n]), []),
+  });
+  return {
+    probability: Number(out.output.data[0]),
+    state: { lstm: Float32Array.from(out.stateN.data), context: Float32Array.from(frame.subarray(VAD_FRAME_SAMPLES - VAD_CONTEXT_SAMPLES)) },
+  };
 }
 
 function makeFrame(samples, offset = 0) {

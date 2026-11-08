@@ -39,7 +39,7 @@
     "live.threshold": "阈值",
     "live.start": "开始聆听",
     "live.stop": "停止聆听",
-    "live.score": "最高分：{score}",
+    "live.score": "最佳得分 {score} · 电平 {level} · 语音 {speech}",
     "privacy.note": "音频在本地处理。仅保存嵌入向量以及短语和人员元数据。",
     "microphone.default": "默认麦克风",
     "microphone.refresh": "刷新麦克风",

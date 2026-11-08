@@ -39,7 +39,7 @@
     "live.threshold": "Threshold",
     "live.start": "Start listening",
     "live.stop": "Stop listening",
-    "live.score": "Best score {score}",
+    "live.score": "Best score {score} · level {level} · speech {speech}",
     "privacy.note": "Audio is processed locally. Only embeddings and phrase/person metadata are saved.",
     "microphone.default": "Default microphone",
     "microphone.refresh": "Refresh microphones",

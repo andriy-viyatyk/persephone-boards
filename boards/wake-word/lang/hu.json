@@ -39,7 +39,7 @@
     "live.threshold": "Küszöbérték",
     "live.start": "Figyelés indítása",
     "live.stop": "Figyelés leállítása",
-    "live.score": "Legjobb pontszám: {score}",
+    "live.score": "Legjobb pontszám {score} · szint {level} · beszéd {speech}",
     "privacy.note": "A hang feldolgozása helyben történik. Csak a beágyazások, valamint a kifejezések és személyek metaadatai kerülnek mentésre.",
     "microphone.default": "Alapértelmezett mikrofon",
     "microphone.refresh": "Mikrofonok frissítése",

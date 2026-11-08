@@ -3,8 +3,9 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { add, list, remove, templates } from "./enrollments.mjs";
 import {
-  StreamingFrontend, TEMPLATE_VERSION, embed, encodeTemplate, matchWindow, pcmToFloat, phraseStartSample,
-  sampleDistance, similarity, subsequenceDistance,
+  StreamingFrontend, TEMPLATE_VERSION, VAD_FRAME_SAMPLES, createVadState, embed, encodeTemplate,
+  matchWindow, pcmToFloat, phraseStartSample, sampleDistance, similarity, subsequenceDistance,
+  vadProbability,
 } from "./engine.mjs";
 
 const MODEL = fileURLToPath(new URL("../model/speech-embedding.onnx", import.meta.url));
@@ -15,8 +16,39 @@ const REFRACTORY_MS = 1500;
 // Level gate (as in BT-083): match only while there is speech-level sound. Quiet audio (room or fan
 // noise) is never compared with the samples, and a pause longer than the hold clears the match
 // history, so a phrase is matched within one stretch of sound. Without it, noise alone could match.
+//
+// GATE_RMS alone is an ABSOLUTE floor and only holds when ambient noise sits below it. On a machine
+// whose fan reaches it the gate latches open — one window above the floor holds it open for
+// GATE_HOLD_MS, the history below is only ever cleared when the gate CLOSES, and subsequence DTW
+// then scores an unbounded stretch of noise until something crosses the caller's threshold; the
+// refractory becomes the only rate limit (BT-091). So the bar also rises with measured noise, the
+// same rule acceptClip() already applies to enrollment: a fixed floor cannot work for a fan that
+// changes speed. The floor is a low percentile so that speech, a minority of windows, does not
+// raise the bar against itself.
+//
+// GATE_NOISE_FACTOR is 3.5 rather than the 2.4 acceptClip() uses, measured on a loud-fan laptop:
+// over 10 s of that fan (p20 0.00438, max 0.0127) a 2.4 factor still left 1.24% of windows above
+// the bar — about six openings per 10 s, each latching for GATE_HOLD_MS — while 3.0 and above left
+// none. 3.5 keeps roughly 20% margin over that fan's peak and still sits well under speech at a
+// laptop microphone. acceptClip() can be stricter because it judges a whole deliberate recording;
+// this gate must survive a continuous stream. Lower it if a quiet speaker stops opening the gate:
+// the board's live readout shows the current level against the gate.
+//
+// BT-094: the level gate above answers "is there sound?", which is the wrong question — typing and a
+// finger tapping the table are genuinely loud, open it correctly, and then match, because
+// speech_embedding has no not-speech output and subsequenceDistance searches a rolling history for
+// the BEST alignment. Worse, each transient re-arms GATE_HOLD_MS, so a burst of unrelated taps never
+// lets the gate close and the history stitches them into one pseudo-utterance. Silero VAD answers
+// the right question instead and is the primary gate; the level gate below is now only the fallback
+// for when the VAD model cannot be loaded. Hysteresis matches speech-to-text's live transcription.
+const VAD_SPEECH_ON = 0.5;
+const VAD_SPEECH_OFF = 0.35;
 const GATE_RMS = 0.006;
 const GATE_HOLD_MS = 400;
+const GATE_NOISE_FACTOR = 3.5;
+const GATE_NOISE_PERCENTILE = 0.2;
+const GATE_NOISE_WINDOW_MS = 5000;
+const GATE_NOISE_MIN_WINDOWS = 20;
 
 // A microphone hit waits 300 + 400 + 200 ms after its detection audio time, measured on a
 // monotonic wall clock from receipt of the microphone chunk containing that time, accounting
@@ -154,8 +186,49 @@ function resetSpotter(session) {
   session.history = [];
   session.sampleEnds = [];
   session.gateUntil = -Infinity;
+  session.levels = [];
+  session.vadPending = new Float32Array(0);
+  session.vadState = createVadState();
+  session.speech = false;
+  session.speechProbability = 0;
   session.segmentTime = null;
   session.nextTime = null;
+}
+
+// Returns whether the audio so far is speech. Buffers to Silero's fixed frame size and keeps the
+// carried LSTM state per capture session. A VAD failure is reported once and then degrades to the
+// adaptive level gate rather than taking the board's detection offline.
+async function updateSpeech(session, samples, message) {
+  if (session.vadFailed) return session.rms > session.gate;
+  const joined = new Float32Array(session.vadPending.length + samples.length);
+  joined.set(session.vadPending);
+  joined.set(samples, session.vadPending.length);
+  let offset = 0;
+  try {
+    while (joined.length - offset >= VAD_FRAME_SAMPLES) {
+      const { probability, state } = await vadProbability(session.vadState, joined.subarray(offset, offset + VAD_FRAME_SAMPLES));
+      if (session.closed || message.epoch !== currentEpoch) return false;
+      session.vadState = state;
+      session.speechProbability = probability;
+      session.speech = probability >= (session.speech ? VAD_SPEECH_OFF : VAD_SPEECH_ON);
+      offset += VAD_FRAME_SAMPLES;
+    }
+  } catch (error) {
+    session.vadFailed = true;
+    console.error("[wake-word] Silero VAD unavailable; falling back to the level gate:", error?.message || error);
+    return session.rms > session.gate;
+  }
+  session.vadPending = joined.slice(offset);
+  return session.speech;
+}
+
+// The noise floor of the last GATE_NOISE_WINDOW_MS, as a low percentile of chunk RMS. Until enough
+// audio has arrived to estimate it, the absolute floor stands on its own.
+function gateLevel(session) {
+  if (session.levels.length < GATE_NOISE_MIN_WINDOWS) return GATE_RMS;
+  const sorted = session.levels.map(level => level.rms).sort((a, b) => a - b);
+  const noise = sorted[Math.floor((sorted.length - 1) * GATE_NOISE_PERCENTILE)] || 0;
+  return Math.max(GATE_RMS, noise * GATE_NOISE_FACTOR);
 }
 
 function resetEpoch(epoch) {
@@ -312,10 +385,24 @@ async function processChunk(session, message, receivedAt) {
   const windows = session.frontend.takeReady();
   let energy = 0;
   for (const sample of samples) energy += sample * sample;
-  if (Math.sqrt(energy / samples.length) > GATE_RMS) session.gateUntil = session.nextTime + GATE_HOLD_MS;
+  const rms = Math.sqrt(energy / samples.length);
+  session.levels.push({ timeMs: message.timeMs, rms });
+  const oldest = message.timeMs - GATE_NOISE_WINDOW_MS;
+  while (session.levels.length && session.levels[0].timeMs < oldest) session.levels.shift();
+  session.gate = gateLevel(session);
+  session.rms = rms;
+  const speaking = await updateSpeech(session, samples, message);
+  if (session.closed || message.epoch !== currentEpoch) return;
+  if (speaking) session.gateUntil = session.nextTime + GATE_HOLD_MS;
   if (!(session.gateUntil > message.timeMs)) {
     session.history = [];
     session.sampleEnds = [];
+    // Report while the gate is SHUT too, throttled: a silent readout is useless precisely when
+    // someone is asking why nothing triggers (or why something does). Score is 0 — nothing matched.
+    if (message.timeMs - (session.lastDiagnostic ?? -Infinity) >= 100) {
+      session.lastDiagnostic = message.timeMs;
+      sendDiagnostic(session, 0, message.timeMs);
+    }
     return;
   }
   for (const window of windows) {
@@ -334,7 +421,11 @@ async function processChunk(session, message, receivedAt) {
       if (![...session.subscribers].some(subscriber => subscriber.spot && subscriber.phrases.has(sample.phrase))) continue;
       const history = matchWindow(sample.embeddings, session.history);
       const match = subsequenceDistance(sample.embeddings, history);
-      const key = JSON.stringify([sample.phrase, sample.kind, sample.person]);
+      // Keyed WITHOUT person (BT-093): one utterance legitimately matches every person enrolled for
+      // the phrase, so emitting one detection each made a shared wake word fire N times. The best
+      // scoring person wins and rides along on the hit, which keeps `person` meaningful for the
+      // caller (Agent Chat labels the request with it) while the phrase is reported once.
+      const key = JSON.stringify([sample.phrase, sample.kind]);
       if (!matches.has(key) || match.distance < matches.get(key).distance) {
         matches.set(key, { sample, distance: match.distance, index: session.history.length - history.length + match.startIndex });
       }
@@ -350,19 +441,22 @@ async function processChunk(session, message, receivedAt) {
       };
       for (const subscriber of [...session.subscribers]) subscriber.hit?.(session.source, hit, receivedAt, message.timeMs);
     }
-    if (diagnostics.size) {
-      const score = Math.max(0, ...[...matches.values()].map(match => similarity(match.distance)));
-      for (const channel of diagnostics) {
-        try {
-          if (!channel.writable) {
-            close(channel, { code: "channel-backpressure", message: "Diagnostics consumer is too slow." });
-          } else {
-            channel.send({ type: "diagnostic", score, time: timeMs });
-          }
-        } catch {
-          close(channel);
-        }
+    session.lastDiagnostic = message.timeMs;
+    sendDiagnostic(session, Math.max(0, ...[...matches.values()].map(match => similarity(match.distance))), timeMs);
+  }
+}
+
+function sendDiagnostic(session, score, timeMs) {
+  if (!diagnostics.size) return;
+  for (const channel of diagnostics) {
+    try {
+      if (!channel.writable) {
+        close(channel, { code: "channel-backpressure", message: "Diagnostics consumer is too slow." });
+      } else {
+        channel.send({ type: "diagnostic", score, time: timeMs, rms: session.rms, gate: session.gate, speech: session.speechProbability });
       }
+    } catch {
+      close(channel);
     }
   }
 }
@@ -462,7 +556,11 @@ async function startListen(operation, open) {
 
 function handleHit(operation, source, hit, receivedAt, chunkTime) {
   if (!operation.active || operation.closed || !operation.phrases.has(hit.phrase) || hit.score < operation.threshold) return;
-  const key = source + ":" + JSON.stringify([hit.phrase, hit.kind, hit.person]);
+  // Also person-free (BT-093): the per-window pick above collapses persons matched in the SAME
+  // window, but the two can land in adjacent windows a few hundred ms apart. A person-keyed
+  // refractory would let the runner-up through; this suppresses it for REFRACTORY_MS. The computer
+  // suppression below already compares phrase only, so this makes identity consistent throughout.
+  const key = source + ":" + JSON.stringify([hit.phrase, hit.kind]);
   const previous = operation.refractory.get(key) ?? -Infinity;
   if (source === "computer") {
     operation.computerHits.push(hit);

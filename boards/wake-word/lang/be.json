@@ -39,7 +39,7 @@
     "live.threshold": "Парог",
     "live.start": "Пачаць слухаць",
     "live.stop": "Спыніць слуханне",
-    "live.score": "Найлепшы бал: {score}",
+    "live.score": "Лепшы вынік {score} · узровень {level} · маўленне {speech}",
     "privacy.note": "Аўдыя апрацоўваецца лакальна. Захоўваюцца толькі эмбедынгі і метаданыя фраз і людзей.",
     "microphone.default": "Мікрафон па змаўчанні",
     "microphone.refresh": "Абнавіць мікрафоны",

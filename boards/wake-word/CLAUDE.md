@@ -6,6 +6,29 @@ and `audio.devices()` for microphone IDs. It does not capture audio itself. Serv
 computerAudio and `uses: audio@1` grants are required. The caller policy allows the private page;
 `same-board-only` rejects every external call and channel. Diagnostics are private to the page.
 
+A phrase is reported **once per utterance**, not once per enrolled person (BT-093): both the per-window
+`matches` map and the `operation.refractory` key omit `person`, so the best-scoring person wins and rides
+along on the hit. Person-free keying is deliberate in both places — one utterance legitimately matches
+every template enrolled for that phrase. The winning `person` is a weak hint, not speaker identification;
+`speech_embedding` is a keyword model. A second speaker within `REFRACTORY_MS` is suppressed.
+
+The detection gate is **Silero VAD** (BT-094), not a level: `updateSpeech()` buffers to 512-sample frames,
+carries the per-session state, and applies 0.5 / 0.35 hysteresis — the same values `speech-to-text` uses.
+Gating on loudness is the wrong question, because typing and a tap on the desk are genuinely loud; they
+opened the old gate, and `speech_embedding` has no not-speech output to stop them matching. **The
+64-sample context prefix in `vadProbability()` is mandatory** — the ONNX graph's input axis is dynamic, so
+a bare 512-sample frame runs and returns plausible but wrong numbers (p peaked at 0.269 on real speech
+versus 1.000 with context), which would wedge the gate shut instead of open. Re-verify both directions on
+any model upgrade, with real speech: synthetic audio is rejected by Silero and cannot test the positive
+path.
+
+The adaptive level gate (BT-091) survives only as the fallback when the VAD model will not load:
+`gateLevel()` takes a low percentile of recent chunk RMS and requires `GATE_NOISE_FACTOR` above it, with
+`GATE_RMS` as an absolute floor. Its history behaviour is why both bugs were so severe — the match history
+is cleared only when the gate CLOSES, so anything that holds the gate open lets DTW score an unbounded
+stretch of audio until the refractory becomes the only rate limit. BT-092 proposes making the thresholds
+tunable; until then the board's live readout (`level` / `speech`) is how to check them.
+
 The service shares audio capture and matching work between compatible listeners and enrollment.
 Microphone listening also spots computer audio, even if computer detections are not requested.
 Detection times and conservative start estimates use the audio epoch clock. Gaps reset the
@@ -31,3 +54,13 @@ CC-BY-NC-SA copies. `scripts/engine.mjs` implements Google's 32-band log-mel fro
 embeddings at 80 ms steps and end-anchored subsequence DTW; the default similarity threshold 0.85
 and onset estimate need live calibration. The vendored ONNX Runtime Web WASM backend is offline.
 See `THIRD-PARTY-NOTICES.md` for licenses.
+
+The runtime is vendored as **two** packages: `vendor/onnxruntime-web/` and `vendor/onnxruntime-common/`
+(the companion package `ort.node.min.mjs` imports). The bundle's 6 bare `"onnxruntime-common"`
+specifiers are rewritten to a relative path, because a published board has no `node_modules` to
+resolve them through — `node_modules` is in `.gitignore` **and** in `publish-board.mjs`'s `EXCLUDE`
+set, so a dependency placed there works in dev, never reaches git, and never reaches the release
+ZIP. Keep both packages on the same version and re-apply the rewrite on upgrade; the sha256 of the
+bundle before and after is recorded in `THIRD-PARTY-NOTICES.md`. Verify an upgrade by importing
+`scripts/engine.mjs` and running `logMel` → `embed` outside the app: a working runtime returns a
+96-dimension, L2-normalized vector.

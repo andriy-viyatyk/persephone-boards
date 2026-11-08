@@ -39,7 +39,7 @@
     "live.threshold": "Seuil",
     "live.start": "Démarrer l’écoute",
     "live.stop": "Arrêter l’écoute",
-    "live.score": "Meilleur score : {score}",
+    "live.score": "Meilleur score {score} · niveau {level} · parole {speech}",
     "privacy.note": "L’audio est traité localement. Seuls les vecteurs et les métadonnées des phrases et des personnes sont enregistrés.",
     "microphone.default": "Microphone par défaut",
     "microphone.refresh": "Actualiser les microphones",

@@ -39,7 +39,7 @@
     "live.threshold": "Schwellenwert",
     "live.start": "Zuhören starten",
     "live.stop": "Zuhören beenden",
-    "live.score": "Höchster Wert: {score}",
+    "live.score": "Bester Wert {score} · Pegel {level} · Sprache {speech}",
     "privacy.note": "Audio wird lokal verarbeitet. Gespeichert werden nur Einbettungen sowie Metadaten zu Phrasen und Personen.",
     "microphone.default": "Standardmikrofon",
     "microphone.refresh": "Mikrofone aktualisieren",

@@ -39,7 +39,7 @@
     "live.threshold": "Próg",
     "live.start": "Rozpocznij nasłuchiwanie",
     "live.stop": "Zatrzymaj nasłuchiwanie",
-    "live.score": "Najlepszy wynik: {score}",
+    "live.score": "Najlepszy wynik {score} · poziom {level} · mowa {speech}",
     "privacy.note": "Dźwięk jest przetwarzany lokalnie. Zapisywane są tylko wektory i metadane fraz oraz osób.",
     "microphone.default": "Mikrofon domyślny",
     "microphone.refresh": "Odśwież mikrofony",

@@ -39,7 +39,7 @@
     "live.threshold": "Slieksnis",
     "live.start": "Sākt klausīšanos",
     "live.stop": "Pārtraukt klausīšanos",
-    "live.score": "Labākais rezultāts: {score}",
+    "live.score": "Labākais rezultāts {score} · līmenis {level} · runa {speech}",
     "privacy.note": "Audio tiek apstrādāts lokāli. Tiek saglabāti tikai iegulumi un frāžu un personu metadati.",
     "microphone.default": "Noklusējuma mikrofons",
     "microphone.refresh": "Atsvaidzināt mikrofonus",

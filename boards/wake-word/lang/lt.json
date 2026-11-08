@@ -39,7 +39,7 @@
     "live.threshold": "Riba",
     "live.start": "Pradėti klausytis",
     "live.stop": "Baigti klausytis",
-    "live.score": "Geriausias įvertis: {score}",
+    "live.score": "Geriausias rezultatas {score} · lygis {level} · kalba {speech}",
     "privacy.note": "Garsas apdorojamas vietoje. Išsaugomi tik vektoriai ir frazių bei asmenų metaduomenys.",
     "microphone.default": "Numatytasis mikrofonas",
     "microphone.refresh": "Atnaujinti mikrofonus",

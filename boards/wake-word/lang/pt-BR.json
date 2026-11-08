@@ -39,7 +39,7 @@
     "live.threshold": "Limite",
     "live.start": "Começar a ouvir",
     "live.stop": "Parar de ouvir",
-    "live.score": "Melhor pontuação: {score}",
+    "live.score": "Melhor pontuação {score} · nível {level} · voz {speech}",
     "privacy.note": "O áudio é processado localmente. Apenas embeddings e metadados das frases e pessoas são salvos.",
     "microphone.default": "Microfone padrão",
     "microphone.refresh": "Atualizar microfones",

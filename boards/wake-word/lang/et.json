@@ -39,7 +39,7 @@
     "live.threshold": "Lävend",
     "live.start": "Alusta kuulamist",
     "live.stop": "Lõpeta kuulamine",
-    "live.score": "Parim tulemus: {score}",
+    "live.score": "Parim tulemus {score} · tase {level} · kõne {speech}",
     "privacy.note": "Heli töödeldakse kohapeal. Salvestatakse ainult vektorid ning fraaside ja inimeste metaandmed.",
     "microphone.default": "Vaikemikrofon",
     "microphone.refresh": "Värskenda mikrofone",

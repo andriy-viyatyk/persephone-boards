@@ -39,7 +39,7 @@
     "live.threshold": "しきい値",
     "live.start": "聞き取りを開始",
     "live.stop": "聞き取りを停止",
-    "live.score": "最高スコア: {score}",
+    "live.score": "最高スコア {score} · レベル {level} · 音声 {speech}",
     "privacy.note": "音声はローカルで処理されます。保存されるのは埋め込み表現とフレーズ・人物のメタデータのみです。",
     "microphone.default": "既定のマイク",
     "microphone.refresh": "マイクを更新",

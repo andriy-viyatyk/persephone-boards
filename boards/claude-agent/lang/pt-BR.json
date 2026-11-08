@@ -20,7 +20,7 @@
     "wake.message.chooseSession": "Escolha uma sessão de ativação disponível no menu dela.",
     "wake.message.providers": "Ative Audio, Wake Word e Text to Speech e conceda acesso.",
     "wake.message.localWake": "É necessário um provedor local de Wake Word.",
-    "wake.message.enrollments": "Cadastre as palavras de ativação e parada nas configurações de palavras de ativação.",
+    "wake.message.enrollments": "Cadastre uma palavra de ativação nas configurações de palavras de ativação.",
     "wake.message.transcriptionProvider": "Instale e ative um provedor de Speech to Text.",
     "wake.message.localTranscription": "É necessário um provedor local de Speech to Text.",
     "wake.message.transcriptionLimit": "O provedor de transcrição não informou um limite de áudio válido.",

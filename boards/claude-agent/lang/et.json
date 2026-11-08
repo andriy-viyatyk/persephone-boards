@@ -20,7 +20,7 @@
     "wake.message.chooseSession": "Vali seansimenüüst saadaolev äratuseanss.",
     "wake.message.providers": "Luba Audio, Wake Word ja Text to Speech ning anna neile juurdepääs.",
     "wake.message.localWake": "Vaja on kohalikku Wake Wordi teenusepakkujat.",
-    "wake.message.enrollments": "Õpeta äratus- ja lõpetamissõnad seadetes Äratussõnad.",
+    "wake.message.enrollments": "Õpeta äratussõna seadetes Äratussõnad.",
     "wake.message.transcriptionProvider": "Paigalda ja luba Speech to Texti teenusepakkuja.",
     "wake.message.localTranscription": "Vaja on kohalikku Speech to Texti teenusepakkujat.",
     "wake.message.transcriptionLimit": "Transkriptsiooniteenuse pakkuja ei teatanud kehtivat helipiirangut.",

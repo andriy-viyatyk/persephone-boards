@@ -20,7 +20,7 @@
     "wake.message.chooseSession": "Válasszon egy elérhető ébresztési munkamenetet a menüjéből.",
     "wake.message.providers": "Engedélyezze az Audio, Wake Word és Text to Speech szolgáltatásokat, és adjon hozzáférést.",
     "wake.message.localWake": "Helyi Wake Word szolgáltató szükséges.",
-    "wake.message.enrollments": "Tanítsa be az ébresztő- és leállító szavakat az Ébresztőszavak beállításaiban.",
+    "wake.message.enrollments": "Tanítson be egy ébresztőszót az Ébresztőszavak beállításaiban.",
     "wake.message.transcriptionProvider": "Telepítsen és engedélyezzen egy Speech to Text szolgáltatót.",
     "wake.message.localTranscription": "Helyi Speech to Text szolgáltató szükséges.",
     "wake.message.transcriptionLimit": "A beszédátíró szolgáltató nem adott meg érvényes hangkorlátot.",

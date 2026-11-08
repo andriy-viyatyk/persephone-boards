@@ -6,6 +6,12 @@ Standalone provider board; it is not a custom editor and has no file association
 
 ## Runtime design
 
+- Wake mode requires an enrolled **wake** word only; the stop word is optional. A stop word merely cuts a
+  request early, and a request already ends on the silence timeout without one, so the old both-enrolled
+  gate refused a working setup — and declining a stop word is reasonable, since a stop phrase that
+  false-matches mid-sentence truncates the request while silence cannot. `agent-stop` stays in the
+  `wake.listen` request: the provider needs only ONE requested phrase to have enrollments, so a stop word
+  enrolled later starts working without a code change.
 - `wake-assistant.js` owns the page's wake controller, in-memory audio ring and request buffer, channels,
   transcription, stop cut, silence handling and turn lifecycle. `app.js` connects it to the marked session
   and owns the Wake words configuration UI. `scripts/service.mjs` owns the private local-only `wake-owner`

@@ -20,7 +20,7 @@
     "wake.message.chooseSession": "Choose an available wake session in its session menu.",
     "wake.message.providers": "Enable Audio, Wake Word and Text to Speech and grant access.",
     "wake.message.localWake": "A local Wake Word provider is required.",
-    "wake.message.enrollments": "Enroll both wake and stop words in Wake words settings.",
+    "wake.message.enrollments": "Enroll a wake word in Wake words settings.",
     "wake.message.transcriptionProvider": "Install and enable a Speech to Text provider.",
     "wake.message.localTranscription": "A local Speech to Text provider is required.",
     "wake.message.transcriptionLimit": "The transcription provider did not advertise a valid audio limit.",

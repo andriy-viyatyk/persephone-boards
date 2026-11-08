@@ -20,7 +20,7 @@
     "wake.message.chooseSession": "Choisissez une session de réveil disponible dans son menu.",
     "wake.message.providers": "Activez Audio, Wake Word et Text to Speech et autorisez leur accès.",
     "wake.message.localWake": "Un fournisseur Wake Word local est nécessaire.",
-    "wake.message.enrollments": "Entraînez les mots de réveil et d’arrêt dans les paramètres Mots de réveil.",
+    "wake.message.enrollments": "Entraînez un mot de réveil dans les paramètres Mots de réveil.",
     "wake.message.transcriptionProvider": "Installez et activez un fournisseur Speech to Text.",
     "wake.message.localTranscription": "Un fournisseur Speech to Text local est nécessaire.",
     "wake.message.transcriptionLimit": "Le fournisseur de transcription n’a pas indiqué de limite audio valide.",

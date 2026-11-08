@@ -20,7 +20,7 @@
     "wake.message.chooseSession": "セッションメニューから利用可能な起動セッションを選択してください。",
     "wake.message.providers": "Audio、Wake Word、Text to Speech を有効にしてアクセスを許可してください。",
     "wake.message.localWake": "ローカルの Wake Word プロバイダーが必要です。",
-    "wake.message.enrollments": "起動ワードの設定で起動ワードと停止ワードの両方を登録してください。",
+    "wake.message.enrollments": "起動ワードの設定で起動ワードを登録してください。",
     "wake.message.transcriptionProvider": "Speech to Text プロバイダーをインストールして有効にしてください。",
     "wake.message.localTranscription": "ローカルの Speech to Text プロバイダーが必要です。",
     "wake.message.transcriptionLimit": "文字起こしプロバイダーから有効な音声上限が通知されませんでした。",

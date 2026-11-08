@@ -190,17 +190,20 @@ window.createWakeAssistant = function createWakeAssistant(options) {
     })));
     if (token !== generation) return;
     if (!audioCapability || !wakeCapability || !speechCapability) throw new Error(message("providers"));
-    const [wakeDescription, wakes, stops, providers] = await Promise.all([
+    const [wakeDescription, wakes, providers] = await Promise.all([
       wakeCapability.describe(),
       wakeCapability.list("agent-wake"),
-      wakeCapability.list("agent-stop"),
       persephone.services.list("speech.transcribe"),
     ]);
     if (token !== generation) return;
     if (!wakeDescription?.local) throw new Error(message("localWake"));
-    if (![
-      wakes, stops
-    ].every((groups) => Array.isArray(groups) && groups.some((group) => group.samples?.length)))
+    // Only the wake word is required. A stop word merely CUTS a request early; without one a request
+    // still ends on the silence timeout (the item.quiet >= item.silenceMs branch below), so demanding
+    // both blocked a setup that works. Not enrolling a stop word is also a reasonable choice: a stop
+    // phrase that false-matches mid-sentence truncates the request, and silence alone cannot.
+    // "agent-stop" stays in the listen request: the service needs only ONE requested phrase to have
+    // enrollments (service.mjs no-enrollments check), so a stop word enrolled later starts working.
+    if (!Array.isArray(wakes) || !wakes.some((group) => group.samples?.length))
       throw new Error(message("enrollments"));
     const selectedProvider = options.selectProvider(providers);
     if (!selectedProvider) throw new Error(message("transcriptionProvider"));

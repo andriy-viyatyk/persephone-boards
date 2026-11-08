@@ -378,6 +378,16 @@ html[data-mode="light"] .msg[data-agent-profile]:not([data-agent-color="none"]) 
   .msg, .activity { max-width: 100%; }
 }
 .wake-status { padding: 4px 12px; }
+/* Only the two states the user must act on are highlighted; the routine ones keep the quiet inline
+   look, so the panel does not shout during normal use and the amber still means something. */
+.wake-status[data-state="error"],
+.wake-status[data-state="occupied"] {
+  padding: 8px 12px;
+  border: 1px solid var(--p-warning);
+  border-left-width: 4px;
+  border-radius: var(--p-radius-sm);
+  background: color-mix(in srgb, var(--p-warning) 14%, transparent);
+}
 .wake-status #wake-request-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .wake-status:empty { display: none; }
 /* The wake session: an accent-outlined badge on its row, and its folder name in the accent colour. */

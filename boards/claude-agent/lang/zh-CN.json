@@ -20,7 +20,7 @@
     "wake.message.chooseSession": "请在会话菜单中选择一个可用的唤醒会话。",
     "wake.message.providers": "启用 Audio、Wake Word 和 Text to Speech，并授予访问权限。",
     "wake.message.localWake": "需要本地 Wake Word 提供程序。",
-    "wake.message.enrollments": "在唤醒词设置中录入唤醒词和停止词。",
+    "wake.message.enrollments": "在唤醒词设置中录入唤醒词。",
     "wake.message.transcriptionProvider": "安装并启用 Speech to Text 提供程序。",
     "wake.message.localTranscription": "需要本地 Speech to Text 提供程序。",
     "wake.message.transcriptionLimit": "转写提供程序未声明有效的音频限制。",

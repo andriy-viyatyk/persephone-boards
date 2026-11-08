@@ -20,7 +20,7 @@
     "wake.message.chooseSession": "세션 메뉴에서 사용 가능한 깨우기 세션을 선택하세요.",
     "wake.message.providers": "Audio, Wake Word, Text to Speech를 활성화하고 액세스 권한을 부여하세요.",
     "wake.message.localWake": "로컬 Wake Word 제공자가 필요합니다.",
-    "wake.message.enrollments": "깨우기 단어 설정에서 깨우기 단어와 중지 단어를 모두 등록하세요.",
+    "wake.message.enrollments": "깨우기 단어 설정에서 깨우기 단어를 등록하세요.",
     "wake.message.transcriptionProvider": "Speech to Text 제공자를 설치하고 활성화하세요.",
     "wake.message.localTranscription": "로컬 Speech to Text 제공자가 필요합니다.",
     "wake.message.transcriptionLimit": "음성 변환 제공자가 올바른 오디오 한도를 알리지 않았습니다.",

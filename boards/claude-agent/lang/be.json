@@ -20,7 +20,7 @@
     "wake.message.chooseSession": "Выберыце даступны сеанс актывацыі ў яго меню.",
     "wake.message.providers": "Уключыце Audio, Wake Word і Text to Speech і дайце ім доступ.",
     "wake.message.localWake": "Патрэбны лакальны пастаўшчык Wake Word.",
-    "wake.message.enrollments": "Зарэгіструйце абодва словы — актывацыі і спынення — у наладах слоў актывацыі.",
+    "wake.message.enrollments": "Зарэгіструйце слова актывацыі ў наладах слоў актывацыі.",
     "wake.message.transcriptionProvider": "Усталюйце і ўключыце пастаўшчык Speech to Text.",
     "wake.message.localTranscription": "Патрэбны лакальны пастаўшчык Speech to Text.",
     "wake.message.transcriptionLimit": "Пастаўшчык распазнавання маўлення не паведаміў дапушчальную мяжу аўдыя.",

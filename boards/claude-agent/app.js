@@ -852,6 +852,9 @@ const wakeAssistant = window.createWakeAssistant({
   render(state, detail, text) {
     $("#wake-status-text").textContent = t(`wake.state.${state}`) + (detail ? `: ${detail}` : "");
     $("#wake-request-text").textContent = text || "";
+    // The state drives the styling: only error and occupied are called out, and they are the same two
+    // that offer Retry, so the highlight and the action always appear together.
+    $("#wake-status").dataset.state = state;
     $("#wake-retry").classList.toggle("hidden", state !== "occupied" && state !== "error");
   },
 });

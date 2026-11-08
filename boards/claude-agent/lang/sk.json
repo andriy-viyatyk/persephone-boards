@@ -20,7 +20,7 @@
     "wake.message.chooseSession": "V ponuke relácie vyberte dostupnú reláciu prebudenia.",
     "wake.message.providers": "Povoľte Audio, Wake Word a Text to Speech a udeľte im prístup.",
     "wake.message.localWake": "Vyžaduje sa lokálny poskytovateľ Wake Word.",
-    "wake.message.enrollments": "V nastaveniach Prebúdzacie slová zaregistrujte prebúdzacie aj zastavovacie slová.",
+    "wake.message.enrollments": "V nastaveniach Prebúdzacie slová zaregistrujte prebúdzacie slovo.",
     "wake.message.transcriptionProvider": "Nainštalujte a povoľte poskytovateľa Speech to Text.",
     "wake.message.localTranscription": "Vyžaduje sa lokálny poskytovateľ Speech to Text.",
     "wake.message.transcriptionLimit": "Poskytovateľ prepisu neoznámil platný limit zvuku.",

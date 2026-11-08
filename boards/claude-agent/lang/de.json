@@ -20,7 +20,7 @@
     "wake.message.chooseSession": "Wählen Sie im Sitzungsmenü eine verfügbare Wake-Sitzung aus.",
     "wake.message.providers": "Aktivieren Sie Audio, Wake Word und Text to Speech und gewähren Sie Zugriff.",
     "wake.message.localWake": "Ein lokaler Wake-Word-Anbieter ist erforderlich.",
-    "wake.message.enrollments": "Trainieren Sie in den Wake-Word-Einstellungen sowohl das Wake- als auch das Stoppwort.",
+    "wake.message.enrollments": "Trainieren Sie in den Wake-Word-Einstellungen ein Wake-Wort.",
     "wake.message.transcriptionProvider": "Installieren und aktivieren Sie einen Speech-to-Text-Anbieter.",
     "wake.message.localTranscription": "Ein lokaler Speech-to-Text-Anbieter ist erforderlich.",
     "wake.message.transcriptionLimit": "Der Transkriptionsanbieter hat kein gültiges Audio-Limit angegeben.",

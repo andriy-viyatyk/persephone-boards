@@ -20,7 +20,7 @@
     "wake.message.chooseSession": "Sesijas izvēlnē izvēlieties pieejamu aktivizēšanas sesiju.",
     "wake.message.providers": "Iespējojiet Audio, Wake Word un Text to Speech un piešķiriet piekļuvi.",
     "wake.message.localWake": "Nepieciešams lokāls Wake Word pakalpojumu sniedzējs.",
-    "wake.message.enrollments": "Aktivizēšanas vārdu iestatījumos reģistrējiet gan aktivizēšanas, gan apturēšanas vārdus.",
+    "wake.message.enrollments": "Aktivizēšanas vārdu iestatījumos reģistrējiet aktivizēšanas vārdu.",
     "wake.message.transcriptionProvider": "Instalējiet un iespējojiet Speech to Text pakalpojumu sniedzēju.",
     "wake.message.localTranscription": "Nepieciešams lokāls Speech to Text pakalpojumu sniedzējs.",
     "wake.message.transcriptionLimit": "Transkripcijas pakalpojumu sniedzējs nenorādīja derīgu audio ierobežojumu.",

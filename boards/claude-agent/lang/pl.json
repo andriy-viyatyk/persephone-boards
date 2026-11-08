@@ -20,7 +20,7 @@
     "wake.message.chooseSession": "Wybierz dostępną sesję wybudzania w jej menu.",
     "wake.message.providers": "Włącz Audio, Wake Word i Text to Speech oraz przyznaj dostęp.",
     "wake.message.localWake": "Wymagany jest lokalny dostawca Wake Word.",
-    "wake.message.enrollments": "Zarejestruj słowa wybudzające i zatrzymujące w ustawieniach Słowa wybudzające.",
+    "wake.message.enrollments": "Zarejestruj słowo wybudzające w ustawieniach Słowa wybudzające.",
     "wake.message.transcriptionProvider": "Zainstaluj i włącz dostawcę Speech to Text.",
     "wake.message.localTranscription": "Wymagany jest lokalny dostawca Speech to Text.",
     "wake.message.transcriptionLimit": "Dostawca transkrypcji nie podał prawidłowego limitu audio.",

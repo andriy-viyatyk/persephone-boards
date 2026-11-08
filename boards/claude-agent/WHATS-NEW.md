@@ -1,3 +1,7 @@
+## 1.4.2
+- A stop word is no longer required for Wake mode. Enrol just a wake word and each request ends after the quiet interval, as it already did. Enrol a stop word only if you also want to end a request by speaking — which is worth skipping if the stop phrase cuts you off mid-sentence.
+- When Wake mode needs attention, the status line is now marked in amber with a border instead of reading like the ordinary status text, so it is not missed.
+
 ## 1.4.1
 - The Codex engine now accepts Codex CLI 0.163.0 **or newer** instead of exactly 0.163.0, so updating the Codex CLI no longer greys out the engine.
 - Agents no longer ask for confirmation before using Persephone's own tools, so a voice session can speak and open pages without a dialog each time. Shell commands and file changes still ask as before.

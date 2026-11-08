@@ -20,7 +20,7 @@
     "wake.message.chooseSession": "Seanso meniu pasirinkite pasiekiamą pažadinimo seansą.",
     "wake.message.providers": "Įjunkite Audio, Wake Word ir Text to Speech ir suteikite prieigą.",
     "wake.message.localWake": "Reikalingas vietinis Wake Word teikėjas.",
-    "wake.message.enrollments": "Nustatymuose „Pažadinimo žodžiai“ įrašykite pažadinimo ir stabdymo žodžius.",
+    "wake.message.enrollments": "Nustatymuose „Pažadinimo žodžiai“ įrašykite pažadinimo žodį.",
     "wake.message.transcriptionProvider": "Įdiekite ir įjunkite Speech to Text teikėją.",
     "wake.message.localTranscription": "Reikalingas vietinis Speech to Text teikėjas.",
     "wake.message.transcriptionLimit": "Transkripcijos teikėjas nenurodė tinkamos garso ribos.",

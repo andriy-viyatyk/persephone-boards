@@ -20,7 +20,7 @@
     "wake.message.chooseSession": "Виберіть доступний сеанс пробудження в меню сеансу.",
     "wake.message.providers": "Увімкніть Audio, Wake Word і Text to Speech та надайте доступ.",
     "wake.message.localWake": "Потрібен локальний постачальник Wake Word.",
-    "wake.message.enrollments": "Запишіть слова пробудження та зупинки в параметрах слів пробудження.",
+    "wake.message.enrollments": "Запишіть слово пробудження в параметрах слів пробудження.",
     "wake.message.transcriptionProvider": "Установіть і ввімкніть постачальника Speech to Text.",
     "wake.message.localTranscription": "Потрібен локальний постачальник Speech to Text.",
     "wake.message.transcriptionLimit": "Постачальник розпізнавання мовлення не вказав допустиме обмеження аудіо.",

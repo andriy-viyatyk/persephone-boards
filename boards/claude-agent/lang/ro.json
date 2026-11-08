@@ -20,7 +20,7 @@
     "wake.message.chooseSession": "Alegeți o sesiune de activare disponibilă din meniul acesteia.",
     "wake.message.providers": "Activați Audio, Wake Word și Text to Speech și acordați accesul.",
     "wake.message.localWake": "Este necesar un furnizor Wake Word local.",
-    "wake.message.enrollments": "Înregistrați cuvintele de activare și oprire în setările Cuvinte de activare.",
+    "wake.message.enrollments": "Înregistrați un cuvânt de activare în setările Cuvinte de activare.",
     "wake.message.transcriptionProvider": "Instalați și activați un furnizor Speech to Text.",
     "wake.message.localTranscription": "Este necesar un furnizor Speech to Text local.",
     "wake.message.transcriptionLimit": "Furnizorul de transcriere nu a anunțat o limită audio validă.",

@@ -1,5 +1,10 @@
 ## 1.4.0
 - Added Wake mode for voice requests to a marked session.
+- The wake session gets built-in voice assistant instructions, shown as a collapsed item in the chat, and they are added again after `/compact`.
+- While a wake request listens, Persephone's own sound is muted so a playing film is not transcribed.
+- Settings and Wake mode preferences are kept across Persephone restarts.
+- Agents can list sessions, send messages to them and read the replies through AI Vision.
+- Wake words tab: sample chips with delete buttons and a more compact settings panel.
 
 ## 1.3.3
 - A **Cancel** button next to the agent's typing dots stops the running turn; it replaces the toolbar's hard-to-find Interrupt button.

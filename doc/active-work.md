@@ -8,7 +8,14 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
+- [ ] BT-091: Wake Word — adaptive noise-floor detection gate (`wake-word` 1.1.1; implemented, awaiting live verification on the loud-fan laptop)
+- [ ] [BT-093: Wake Word — one detection per phrase, best-matching person wins](tasks/BT-093-wake-best-match-wins/README.md) (`wake-word` 1.1.1; implemented, awaiting live verification)
+- [ ] [BT-094: Wake Word — gate detection on speech, not loudness (Silero VAD)](tasks/BT-094-wake-vad-gate/README.md) (`wake-word` 1.1.1; verified live)
+- [ ] [BT-095: Pre-approve Persephone's own MCP endpoint for every agent session](tasks/BT-095-persephone-mcp-preapproval/README.md) (`claude-agent` 1.4.1; implemented, awaiting live verification)
+
 ## Planned
+
+- [ ] [BT-092: Make the Wake Word detection gate tunable from board settings](tasks/BT-092-wake-gate-settings/README.md)
 
 Board work for Persephone's **EPIC-134** (*Live transcription and meeting transcripts*) is finished:
 BT-060 – BT-068 added live segmentation, hour-long live sessions and the language picker to

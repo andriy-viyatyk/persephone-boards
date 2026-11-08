@@ -115,6 +115,14 @@ PATH. The GitHub Action is the normal path; this is only a fallback.
   usual cases).
 - Vendored third-party components carry their own license files inside the board folder
   (e.g. `boards/drawio-viewer/lib/LICENSE`, `VERSION.txt`).
+- **A board must be self-contained — never depend on `node_modules`.** It is both `.gitignore`d
+  and in the publish script's `EXCLUDE` set, so anything resolved through it works on your
+  machine, never reaches the repo, and never reaches the release ZIP — a combination that hides
+  the breakage from every local test. Vendor dependencies as ordinary committed files, and when a
+  vendored bundle imports a companion package by **bare specifier**, rewrite that specifier to a
+  relative path and record the change (see `boards/wake-word/THIRD-PARTY-NOTICES.md`). Before
+  releasing a board with a vendored runtime, load its entry point from a clean checkout
+  **outside** any `node_modules` tree and exercise it once.
 
 ## Task tracking
 

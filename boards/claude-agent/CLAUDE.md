@@ -6,6 +6,16 @@ Standalone provider board; it is not a custom editor and has no file association
 
 ## Runtime design
 
+- With a **live** transcription provider, a wake request ends on **transcription inactivity**, not on
+  microphone level (BT-099): `item.lastOutputAt` is stamped by every `draft` and `segment`, and the request
+  finishes once `silenceMs` passes with no new output **and** no draft pending. The level path survives only
+  for a non-live provider. The level test calls any sound speech, so a loud fan pins `quiet` at 0 and
+  `spoken` at true — the request then never ends on silence, runs to `limitMs`, and the no-speech cancel
+  cannot fire either. The provider commits an utterance on Silero VAD silence (`commitPauseMs` 1200) at a
+  `passIntervalMs` 1000 partial cadence, so a 2 s idle window is well clear of normal speech. The
+  `drafts.size` guard matters: a pending draft means the utterance is still open. Residual risk — if the
+  provider disables partials after slow passes, only commit-boundary segments arrive and a long unbroken
+  sentence could idle past the window.
 - Wake mode requires an enrolled **wake** word only; the stop word is optional. A stop word merely cuts a
   request early, and a request already ends on the silence timeout without one, so the old both-enrolled
   gate refused a working setup — and declining a stop word is reasonable, since a stop phrase that

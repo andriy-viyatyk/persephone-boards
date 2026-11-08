@@ -386,13 +386,24 @@ window.createWakeAssistant = function createWakeAssistant(options) {
         if (item.speechMs >= MIN_SPEECH_MS) item.spoken = true;
         item.quiet = 0;
       } else item.quiet += 100;
-      if (!item.spoken && item.elapsed >= NO_SPEECH_TIMEOUT_MS) {
+      // With a live provider the END of the request is decided by its TRANSCRIPTION, not by level
+      // (BT-099). The level test above calls any sound speech, so a loud fan holds `quiet` at zero and
+      // `spoken` at true: the request then never ends on silence, runs to limitMs, and the no-speech
+      // cancel cannot fire either. Transcription output appears only for real speech -- the provider
+      // commits an utterance on Silero VAD silence, at a ~1 s partial cadence -- so output going idle
+      // means the user stopped talking. `drafts.size` guards the obvious failure: a pending draft means
+      // an utterance is still open, so a slow pass mid-sentence must not look like the end.
+      const noSpeech = item.live ? !item.lastOutputAt : !item.spoken;
+      const ended = item.live
+        ? Boolean(item.lastOutputAt) && !item.drafts.size && Date.now() - item.lastOutputAt >= item.silenceMs
+        : item.spoken && item.quiet >= item.silenceMs;
+      if (noSpeech && item.elapsed >= NO_SPEECH_TIMEOUT_MS) {
         cancelRequest();
         chime("reject");
         render(runningView?.busy ? "running" : "waiting", message("noSpeech"), "");
         return;
       }
-      if (item.spoken && item.quiet >= item.silenceMs) {
+      if (ended) {
         finishAfterHold(item);
         return;
       }
@@ -443,10 +454,12 @@ window.createWakeAssistant = function createWakeAssistant(options) {
     channel.onMessage((message) => {
       if (request !== item || item.channel !== channel) return;
       if (message.type === "segment" && item.live) {
+        item.lastOutputAt = Date.now();
         item.segments.push(message.text || "");
         item.drafts.delete(message.utterance);
         showPreview(item);
       } else if (message.type === "draft" && item.live) {
+        item.lastOutputAt = Date.now();
         item.drafts.set(message.utterance, message.text || "");
         showPreview(item);
       } else if (message.type === "result") {
@@ -559,6 +572,8 @@ window.createWakeAssistant = function createWakeAssistant(options) {
       levels: [],
       segments: [],
       drafts: new Map(),
+      // 0 until the provider returns its first draft or segment; the end-of-request test below reads it.
+      lastOutputAt: 0,
       lease: null,
       unmuted: false
     };

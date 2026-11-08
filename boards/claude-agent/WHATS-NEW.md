@@ -1,3 +1,6 @@
+## 1.4.3
+- A wake request now ends when the speech provider stops producing text, instead of when the microphone goes quiet. On a machine with a loud fan the old test treated the fan as speech, so a request without a stop word never ended on silence and ran until the one-minute limit. The **Silence timeout** setting still sets how long a pause ends the request.
+
 ## 1.4.2
 - A stop word is no longer required for Wake mode. Enrol just a wake word and each request ends after the quiet interval, as it already did. Enrol a stop word only if you also want to end a request by speaking — which is worth skipping if the stop phrase cuts you off mid-sentence.
 - When Wake mode needs attention, the status line is now marked in amber with a border instead of reading like the ordinary status text, so it is not missed.

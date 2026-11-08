@@ -385,16 +385,16 @@
     },
     {
       "id": "claude-agent",
-      "version": "1.4.0",
+      "version": "1.4.2",
       "name": "Agent Chat",
       "description": "A resumable agent session provider and chat board for the installed Claude and Codex CLIs.",
       "standalone": true,
       "minAppVersion": "5.0.18",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/claude-agent-v1.4.0/claude-agent.zip",
-        "size": 323464,
-        "sha256": "da4d44279b866b71a9155f9febcfa255c4aff71b5d0ab06463ce6806c1eea465"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/claude-agent-v1.4.2/claude-agent.zip",
+        "size": 326111,
+        "sha256": "ffcb3a2a04fe5e31b8cdc2aef0ae61a1196592fa76fa501418dfd4fdf282ab3a"
       },
       "localized": {
         "be": {
@@ -1063,16 +1063,16 @@
     },
     {
       "id": "speech-to-text",
-      "version": "1.4.2",
+      "version": "1.4.3",
       "name": "Speech to Text",
       "description": "Local speech transcription powered by whisper.cpp.",
       "standalone": true,
       "minAppVersion": "5.0.18",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/speech-to-text-v1.4.2/speech-to-text.zip",
-        "size": 76015,
-        "sha256": "a550d89ba6ec8da9baec8b437be1185ad018ddde648a0691035e1d0aa1b419f7"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/speech-to-text-v1.4.3/speech-to-text.zip",
+        "size": 79196,
+        "sha256": "49d57ea4e795c942d42bf29e2960bb324246de7db11d4af609815c56218dd422"
       },
       "localized": {
         "be": {
@@ -1673,16 +1673,16 @@
     },
     {
       "id": "wake-word",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "name": "Wake Word",
       "description": "Local enrollment-based wake and stop phrase detection.",
       "standalone": true,
       "minAppVersion": "5.0.18",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/wake-word-v1.1.0/wake-word.zip",
-        "size": 4183410,
-        "sha256": "42100b1b518e16c8ed50741ae1a81f43e2e31fd47b0900e6c62c04daa492fa4c"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/wake-word-v1.1.1/wake-word.zip",
+        "size": 6157402,
+        "sha256": "31aa8a6a709eed2b42f26afffdc5208895ad17262b16a8e5a0e1320c2d5e5d95"
       }
     },
     {

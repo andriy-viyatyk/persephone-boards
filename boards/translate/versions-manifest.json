@@ -3,6 +3,16 @@
   "id": "translate",
   "versions": [
     {
+      "version": "1.0.1",
+      "date": "2026-11-08",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/translate-v1.0.1/translate.zip",
+        "size": 2790225,
+        "sha256": "0fd0c60486b640a24bce3dd5e9167c981407d59dfcf13513e191fe5cedec1867"
+      },
+      "minAppVersion": "5.0.18"
+    },
+    {
       "version": "1.0.0",
       "date": "2026-10-27",
       "archive": {

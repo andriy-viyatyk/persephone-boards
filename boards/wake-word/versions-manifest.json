@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "wake-word",
+  "versions": [
+    {
+      "version": "1.1.0",
+      "date": "2026-11-08",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/wake-word-v1.1.0/wake-word.zip",
+        "size": 4183410,
+        "sha256": "42100b1b518e16c8ed50741ae1a81f43e2e31fd47b0900e6c62c04daa492fa4c"
+      },
+      "minAppVersion": "5.0.18"
+    }
+  ]
+}

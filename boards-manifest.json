@@ -205,7 +205,7 @@
     },
     {
       "id": "cert-viewer",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "name": "Certificate Viewer",
       "description": "Offline, read-only inspection of X.509 certificates, requests, and certificate bundles.",
       "fileMasks": [
@@ -221,12 +221,12 @@
       "editorName": "Certificate Viewer",
       "editorKind": "simple",
       "standalone": false,
-      "minAppVersion": "5.0.10",
+      "minAppVersion": "5.0.18",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/cert-viewer-v1.1.0/cert-viewer.zip",
-        "size": 204986,
-        "sha256": "934d885acd79a7653e57c2e2d6cb32fd45940a97af315852dc5cfddd06e09a85"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/cert-viewer-v1.1.1/cert-viewer.zip",
+        "size": 205151,
+        "sha256": "fab3b8aa70337c79e840caf466519a09bd9c31f471efe4e68fd4e0822f9cb1c4"
       },
       "localized": {
         "be": {
@@ -385,16 +385,16 @@
     },
     {
       "id": "claude-agent",
-      "version": "1.3.3",
+      "version": "1.4.0",
       "name": "Agent Chat",
       "description": "A resumable agent session provider and chat board for the installed Claude and Codex CLIs.",
       "standalone": true,
-      "minAppVersion": "5.0.15",
+      "minAppVersion": "5.0.18",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/claude-agent-v1.3.3/claude-agent.zip",
-        "size": 275183,
-        "sha256": "d35c06389f3b913d02a9e12baf15a1d69ce25bc5409f1a93a66db74ab64631c7"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/claude-agent-v1.4.0/claude-agent.zip",
+        "size": 323464,
+        "sha256": "da4d44279b866b71a9155f9febcfa255c4aff71b5d0ab06463ce6806c1eea465"
       },
       "localized": {
         "be": {
@@ -648,7 +648,7 @@
     },
     {
       "id": "font-viewer",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Font Viewer",
       "description": "Offline, read-only font preview, glyphs, coverage and metadata.",
       "fileMasks": [
@@ -663,9 +663,9 @@
       "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/font-viewer-v1.0.0/font-viewer.zip",
-        "size": 252797,
-        "sha256": "b887cc107862c4ca1b7078f45336b7b54f896c74e9d409d4090052ac64e7c44c"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/font-viewer-v1.0.1/font-viewer.zip",
+        "size": 253411,
+        "sha256": "66114e4bcf5f507ecc35e70383f537e67787f01c817b99b2a256283bff75a849"
       }
     },
     {
@@ -1063,16 +1063,16 @@
     },
     {
       "id": "speech-to-text",
-      "version": "1.4.1",
+      "version": "1.4.2",
       "name": "Speech to Text",
       "description": "Local speech transcription powered by whisper.cpp.",
       "standalone": true,
-      "minAppVersion": "5.0.15",
+      "minAppVersion": "5.0.18",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/speech-to-text-v1.4.1/speech-to-text.zip",
-        "size": 72926,
-        "sha256": "c0ede94672df19581cc0fe9b4352e232e20366132ea803f701a10e5d18112f85"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/speech-to-text-v1.4.2/speech-to-text.zip",
+        "size": 76015,
+        "sha256": "a550d89ba6ec8da9baec8b437be1185ad018ddde648a0691035e1d0aa1b419f7"
       },
       "localized": {
         "be": {
@@ -1238,17 +1238,105 @@
       }
     },
     {
+      "id": "text-to-speech",
+      "version": "1.1.0",
+      "name": "Text to Speech",
+      "description": "Local speech synthesis using Supertonic 3.",
+      "standalone": true,
+      "minAppVersion": "5.0.18",
+      "screenshot": "screenshot.png",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/text-to-speech-v1.1.0/text-to-speech.zip",
+        "size": 52394,
+        "sha256": "7596d4df30604b20ef83337b58fba9cc1ab152f1fd5b4af700dd15eea345c365"
+      },
+      "localized": {
+        "be": {
+          "name": "Тэкст у маўленне",
+          "description": "Лакальны сінтэз маўлення з дапамогай Supertonic 3."
+        },
+        "de": {
+          "name": "Text zu Sprache",
+          "description": "Lokale Sprachsynthese mit Supertonic 3."
+        },
+        "en": {
+          "name": "Text to Speech",
+          "description": "Local speech synthesis using Supertonic 3."
+        },
+        "es": {
+          "name": "Texto a voz",
+          "description": "Síntesis de voz local con Supertonic 3."
+        },
+        "et": {
+          "name": "Tekst kõneks",
+          "description": "Kohalik kõnesüntees Supertonic 3 abil."
+        },
+        "fr": {
+          "name": "Texte en parole",
+          "description": "Synthèse vocale locale avec Supertonic 3."
+        },
+        "hu": {
+          "name": "Szövegfelolvasás",
+          "description": "Helyi beszédszintézis a Supertonic 3-mal."
+        },
+        "it": {
+          "name": "Sintesi vocale",
+          "description": "Sintesi vocale locale con Supertonic 3."
+        },
+        "ja": {
+          "name": "テキスト読み上げ",
+          "description": "Supertonic 3 によるローカル音声合成。"
+        },
+        "ko": {
+          "name": "텍스트 음성 변환",
+          "description": "슈퍼토닉 3을 사용하는 로컬 음성 합성."
+        },
+        "lt": {
+          "name": "Tekstas į kalbą",
+          "description": "Vietinė kalbos sintezė naudojant „Supertonic 3“."
+        },
+        "lv": {
+          "name": "Teksts runā",
+          "description": "Lokāla runas sintēze, izmantojot Supertonic 3."
+        },
+        "pl": {
+          "name": "Tekst na mowę",
+          "description": "Lokalna synteza mowy przy użyciu Supertonic 3."
+        },
+        "pt-BR": {
+          "name": "Texto para fala",
+          "description": "Síntese de fala local usando Supertonic 3."
+        },
+        "ro": {
+          "name": "Text în vorbire",
+          "description": "Sinteză vocală locală cu Supertonic 3."
+        },
+        "sk": {
+          "name": "Text na reč",
+          "description": "Lokálna syntéza reči pomocou Supertonic 3."
+        },
+        "uk": {
+          "name": "Синтез мовлення",
+          "description": "Локальний синтез мовлення Supertonic 3."
+        },
+        "zh-CN": {
+          "name": "文本转语音",
+          "description": "使用 Supertonic 3 进行本地语音合成。"
+        }
+      }
+    },
+    {
       "id": "theme-editor",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "name": "Theme Editor",
       "description": "Create your own Persephone color themes. Pick a background, text and accent color and every other color is derived for you; adjust any derived color, check text contrast, preview live, then save, rename, import or export named themes you can select in Settings.",
       "standalone": true,
-      "minAppVersion": "5.0.10",
+      "minAppVersion": "5.0.18",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/theme-editor-v1.2.0/theme-editor.zip",
-        "size": 104944,
-        "sha256": "16a05312332379fd55b2f298e60d02a9c98c6a2653e74ea8827934d7695dedf3"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/theme-editor-v1.2.1/theme-editor.zip",
+        "size": 105101,
+        "sha256": "01c8280174c51a8f0afa305e5dc5183d36e409b218488e88ee7db0d6b00b6687"
       },
       "localized": {
         "be": {
@@ -1501,16 +1589,16 @@
     },
     {
       "id": "translate",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Translate",
       "description": "Local text and HTML translation with explicit model downloads.",
       "standalone": true,
-      "minAppVersion": "5.0.15",
+      "minAppVersion": "5.0.18",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/translate-v1.0.0/translate.zip",
-        "size": 2786674,
-        "sha256": "f105cd7fa04240f031b08b2568e86710c807e3c8e97f7170056d19ac6295dd36"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/translate-v1.0.1/translate.zip",
+        "size": 2790225,
+        "sha256": "0fd0c60486b640a24bce3dd5e9167c981407d59dfcf13513e191fe5cedec1867"
       },
       "localized": {
         "be": {
@@ -1581,6 +1669,20 @@
           "name": "翻译",
           "description": "在本地翻译文本和 HTML，并由用户明确选择下载模型。"
         }
+      }
+    },
+    {
+      "id": "wake-word",
+      "version": "1.1.0",
+      "name": "Wake Word",
+      "description": "Local enrollment-based wake and stop phrase detection.",
+      "standalone": true,
+      "minAppVersion": "5.0.18",
+      "screenshot": "screenshot.png",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/wake-word-v1.1.0/wake-word.zip",
+        "size": 4183410,
+        "sha256": "42100b1b518e16c8ed50741ae1a81f43e2e31fd47b0900e6c62c04daa492fa4c"
       }
     },
     {

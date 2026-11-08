@@ -13,6 +13,8 @@
     "models.remove": "Remove",
     "models.use": "Use",
     "models.active": "Active model: {model}",
+    "gpu.label": "Graphics device",
+    "gpu.hint": "The graphics device is chosen automatically. When more than one is available, the choice appears here after the first transcription.",
     "models.size": "{size}",
     "models.progress": "{phase}: {loaded} of {total}",
     "models.downloadError": "Download failed: {message}",

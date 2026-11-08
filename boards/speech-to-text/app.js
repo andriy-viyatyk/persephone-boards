@@ -68,6 +68,7 @@ function render(snapshot) {
     list.append(renderAssetRow(model.file, `${t(model.label)} · ${model.file}`, model.bytes, installed, progresses.get(model.file), snapshot.activeModel === model.file));
   }
   $("#active-model").textContent = t("models.active", { model: snapshot.activeModel || t("common.unknown") });
+  renderGpuDevices(snapshot);
   const ready = isReady(snapshot);
   const selectedModel = MODEL_ROWS.find((model) => model.file === snapshot.activeModel);
   $("#setup-summary").textContent = ready
@@ -82,6 +83,26 @@ function render(snapshot) {
   setPhase(state.phase);
   if (snapshot.lastDownload?.phase === "failed") showError(t("models.downloadError", { message: snapshot.lastDownload.error || t("error.generic") }));
 }
+// The device list is only known once whisper-server has started at least once, so until then the row
+// stays hidden and the hint explains why rather than offering an empty or misleading picker.
+function renderGpuDevices(snapshot) {
+  const devices = Array.isArray(snapshot.gpuDevices) ? snapshot.gpuDevices : [];
+  const row = $("#gpu-row"), select = $("#gpu-device"), hint = $("#gpu-hint");
+  row.hidden = devices.length < 2;
+  hint.hidden = devices.length >= 2;
+  if (row.hidden) return;
+  const current = Number.isInteger(snapshot.gpuDevice) ? snapshot.gpuDevice : 0;
+  select.replaceChildren(...devices.map(({ index, name }) => {
+    const option = document.createElement("option");
+    option.value = String(index);
+    option.textContent = `${index} — ${name}`;
+    option.selected = index === current;
+    return option;
+  }));
+}
+$("#gpu-device").addEventListener("change", (event) => {
+  sendManagement({ type: "gpu-device", index: Number(event.target.value) });
+});
 function renderLicenses(files) {
   const root = $("#runtime-licenses"); root.replaceChildren();
   if (!files.length) { const empty = document.createElement("p"); empty.className = "muted"; empty.textContent = t("licenses.empty"); root.append(empty); return; }

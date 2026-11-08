@@ -7,6 +7,9 @@ h1, h2, p { margin-top: 0; }
 h1 { margin-bottom: 2px; font-size: 22px; }
 h2 { margin-bottom: 12px; font-size: 15px; }
 .muted { color: var(--p-text-muted); }
+/* The UA stylesheet's [hidden] rule is display:none, which ANY class rule setting display beats —
+   a styled row with the hidden attribute stays visible. Keep this above the layout rules below. */
+[hidden] { display: none !important; }
 .state-pill { padding: 4px 9px; border: 1px solid var(--p-border); border-radius: 20px; color: var(--p-text-muted); white-space: nowrap; }
 .panel { margin: 14px 0; padding: 0 16px; border: 1px solid var(--p-border); border-radius: var(--p-radius-md, 6px); background: var(--p-panel); }
 .disclosure > summary { position: relative; display: flex; align-items: center; gap: 12px; min-height: 48px; padding-right: 28px; cursor: pointer; font-weight: 600; list-style: none; }
@@ -58,3 +61,5 @@ button.test-button:active:not(:disabled), button.test-button.is-recording { tran
   .disclosure > summary { align-items: flex-start; flex-direction: column; justify-content: center; gap: 2px; padding: 8px 0; }
   .mode-switch { gap: 8px 12px; }
 }
+.gpu-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--p-border); }
+.gpu-row select { flex: 1 1 240px; min-width: 0; }

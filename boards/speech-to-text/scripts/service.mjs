@@ -19,7 +19,14 @@ const MAX_RETRY_LANGUAGES = 3;
 // Claude sets this after the whisper-server comparison in step 5.
 const USE_TRANSLATE_TASK_FOR_SUPPORTED_MODELS = false;
 const SETTING_IDS = ["language-hints", "vocabulary-prompt", "use-gpu", "idle-unload-minutes", "caller-approval-policy"];
+const MAX_GPU_DEVICE = 15;
 const ACTIVE_MODEL_KEY = "speech-to-text.active-model";
+// The device lives in storage beside the active model rather than in a manifest setting: a manifest
+// setting can only be a bare number, and an index means nothing without the name beside it. The names
+// are only knowable once whisper-server has run, so the discovered list is cached here too and the
+// page can offer a real picker on the next start instead of an empty one.
+const GPU_DEVICE_KEY = "speech-to-text.gpu-device";
+const GPU_DEVICES_KEY = "speech-to-text.gpu-devices";
 const DEFAULT_MODEL = MODELS[0].file;
 const root = dataRoot();
 const modelByName = new Map(MODELS.map((model) => [model.file, model]));
@@ -27,7 +34,15 @@ const requests = new Set(), liveRequests = new Set(), queue = [], management = n
 const verifiedModels = new Map();
 let engine = null, engineGeneration = 0, activeRequest = null, engineTask = null;
 let idleTimer = null, stopping = false, queuePump = null, lastUseAt = 0;
-let settings = { gpu: true, idleMinutes: 10, approval: "accept-granted", vocabulary: "", languages: ["app", "en"] };
+let settings = { gpu: true, device: 0, idleMinutes: 10, approval: "accept-granted", vocabulary: "", languages: ["app", "en"] };
+// Vulkan devices whisper-server listed on its last start, as { index, name }. A laptop with switchable
+// graphics enumerates the integrated GPU first, so the -dev default of 0 picks the SLOW one: measured on
+// large-v3-turbo-q5_0, Intel Iris Xe took 6.21 s against 2.17 s on a GTX 1650 for the same 35 s of audio.
+// The list is parsed from the child's stderr purely so the page can show which index is which.
+let gpuDevices = [];
+// Keep the model file first: stopEngine and the asset watcher both recover it with split(":")[0].
+const engineFingerprint = (modelFile) => `${modelFile}:${settings.gpu}:${settings.device}`;
+const clampDevice = (value) => Math.max(0, Math.min(MAX_GPU_DEVICE, Math.trunc(Number(value)) || 0));
 
 const send = async (channel, message) => {
   if (channel.closed) return false;
@@ -80,7 +95,7 @@ const terminal = async (request, message) => {
 const publishManagement = async (extra = {}) => {
   const installed = await assetSnapshot(root).catch(() => ({ runtime: false, models: {}, licenses: [] }));
   const activeModel = await getActiveModel();
-  const snapshot = { type: "snapshot", assets: installed, activeModel, runtimeVersion: RUNTIME.displayVersion, engine: engine ? "running" : "stopped", progress: [...downloads.values()].map(({ asset, phase, loaded, total, error }) => ({ asset, phase, loaded, total, ...(error ? { error } : {}) })), ...extra };
+  const snapshot = { type: "snapshot", assets: installed, activeModel, runtimeVersion: RUNTIME.displayVersion, engine: engine ? "running" : "stopped", gpuDevices, gpuDevice: settings.device, progress: [...downloads.values()].map(({ asset, phase, loaded, total, error }) => ({ asset, phase, loaded, total, ...(error ? { error } : {}) })), ...extra };
   await Promise.all([...management].map((channel) => send(channel, snapshot)));
 };
 async function getActiveModel() {
@@ -128,18 +143,58 @@ async function stopEngine() {
   old.controller?.abort(new Error("Engine configuration changed."));
   await stopProcessTree(old.child, 1400);
 }
+// whisper-server lists its Vulkan devices on stderr before it loads the model. Drain the pipe for the
+// child's whole life — stdio was "ignore" before, and an unread pipe fills and blocks the writer — but
+// only parse the opening lines, so a long-running server cannot grow this buffer.
+function readGpuDevices(child) {
+  if (!child.stderr) return;
+  let head = "";
+  let settle = null;
+  const found = [];
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk) => {
+    if (head.length >= 8192) return;
+    head += chunk;
+    for (const line of head.split("\n")) {
+      const match = /^ggml_vulkan:\s*(\d+)\s*=\s*([^|]+?)\s*(?:\||$)/.exec(line);
+      if (match) {
+        const index = Number(match[1]);
+        if (index <= MAX_GPU_DEVICE && !found.some((device) => device.index === index)) found.push({ index, name: match[2] });
+      }
+    }
+    if (!found.length) return;
+    const next = [...found].sort((a, b) => a.index - b.index);
+    if (JSON.stringify(next) === JSON.stringify(gpuDevices)) return;
+    gpuDevices = next;
+    // stderr arrives in chunks, so the list is seen growing: device 0 alone, then 0 and 1. Settle
+    // before announcing it, or every start logs and republishes once per device.
+    clearTimeout(settle);
+    settle = setTimeout(() => {
+      // console.warn, not console.log: only warn and error are mirrored into the board log, so a
+      // console.log here would have gone nowhere and left the device numbers undiscoverable.
+      console.warn(`[speech-to-text] GPU devices: ${gpuDevices.map(({ index, name }) => `${index} = ${name}`).join("; ")}`);
+      void persephone.storage.set(GPU_DEVICES_KEY, gpuDevices).catch(() => {});
+      void publishManagement();
+    }, 150);
+    settle.unref?.();
+  });
+  child.stderr.on("error", () => {});
+}
 async function startEngine(modelName) {
   const model = modelByName.get(modelName);
   if (!model) throw new Error("The active model is unsupported.");
   const executable = path.join(root, "runtime", RUNTIME.id, "whisper-server.exe");
   const modelPath = path.join(root, "models", model.file);
-  const fingerprint = `${model.file}:${settings.gpu}`;
+  const fingerprint = engineFingerprint(model.file);
   if (engine?.fingerprint === fingerprint && engine.child.exitCode === null && engine.ready) return engine;
   if (engine) await stopEngine();
   const port = await pickPort();
   const args = ["--host", "127.0.0.1", "--port", String(port), "--model", modelPath];
   if (!settings.gpu) args.push("--no-gpu");
-  const child = spawn(executable, args, { windowsHide: true, cwd: path.dirname(executable), stdio: "ignore" });
+  // Always explicit. whisper-server defaults to device 0, which on switchable graphics is the integrated GPU.
+  else args.push("-dev", String(settings.device));
+  const child = spawn(executable, args, { windowsHide: true, cwd: path.dirname(executable), stdio: ["ignore", "ignore", "pipe"] });
+  readGpuDevices(child);
   const record = { child, port, fingerprint, generation: ++engineGeneration, ready: false, controller: null, error: null };
   engine = record;
   child.once("error", (error) => { record.error = error; if (engine === record) engine = null; });
@@ -159,7 +214,7 @@ async function startEngine(modelName) {
 }
 async function ensureEngine(modelName) {
   if (engineTask) await engineTask.catch(() => {});
-  if (engine?.fingerprint === `${modelName}:${settings.gpu}` && engine.ready && engine.child.exitCode === null) return engine;
+  if (engine?.fingerprint === engineFingerprint(modelName) && engine.ready && engine.child.exitCode === null) return engine;
   const task = startEngine(modelName);
   engineTask = task;
   try { return await task; }
@@ -525,7 +580,7 @@ async function pumpQueue() {
         const model = await getActiveModel();
         if (request.terminal || request.signal?.aborted) continue;
         assignController(request);
-        const loading = !engine?.ready || engine.fingerprint !== `${model}:${settings.gpu}`;
+        const loading = !engine?.ready || engine.fingerprint !== engineFingerprint(model);
         if (loading && (!request.live || !request.ended) && !request.preparingSent) {
           request.preparingSent = true;
           if (request.channel) await send(request.channel, { type: "status", state: "preparing" });
@@ -793,6 +848,13 @@ async function managementCommand(channel, message) {
       const previous = await getActiveModel();
       await persephone.storage.set(ACTIVE_MODEL_KEY, message.model);
       if (previous !== message.model && !activeRequest) await stopEngine();
+    } else if (message.type === "gpu-device") {
+      const next = clampDevice(message.index);
+      if (settings.device !== next) {
+        settings.device = next;
+        await persephone.storage.set(GPU_DEVICE_KEY, next);
+        if (!activeRequest) await stopEngine();
+      }
     } else if (message.type === "license") {
       // The page cannot read the runtime folder, so notices travel over the channel; only bundled names are served.
       if (typeof message.file !== "string" || !/^licenses\/[A-Za-z0-9._-]+\.txt$/.test(message.file)) throw new Error("Unknown license notice.");
@@ -816,7 +878,15 @@ function applySetting(id, value) {
 }
 persephone.settings.onChange(({ id, value }) => applySetting(id, value));
 // onChange reports only later edits, so read the stored values once at startup.
-const settingsReady = Promise.all(SETTING_IDS.map(async (id) => applySetting(id, await persephone.settings.get(id)))).catch(() => {});
+const settingsReady = Promise.all([
+  ...SETTING_IDS.map(async (id) => applySetting(id, await persephone.settings.get(id))),
+  // The device and the cached device names are board storage, not settings, so they are read here too.
+  (async () => { settings.device = clampDevice(await persephone.storage.get(GPU_DEVICE_KEY)); })(),
+  (async () => {
+    const stored = await persephone.storage.get(GPU_DEVICES_KEY);
+    if (Array.isArray(stored)) gpuDevices = stored.filter((device) => Number.isInteger(device?.index) && typeof device?.name === "string").slice(0, MAX_GPU_DEVICE + 1);
+  })(),
+].map((task) => Promise.resolve(task).catch(() => {}))).catch(() => {});
 
 persephone.capabilities.handle("speech.transcribe", "transcribeFile", async ([filePath, options], ctx) => {
   if (ctx.caller.kind === "board-page" || ctx.caller.kind === "board-service")

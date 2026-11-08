@@ -8,23 +8,6 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-- [ ] [BT-088: Built-in wake-session instructions](tasks/BT-088-wake-session-instructions/README.md): automatically supply the tested general voice-assistant instructions when the marked session opens or resumes
-
-- [ ] [BT-072: Agent Chat profile management through AI Vision](tasks/BT-072-agent-chat-ai-vision/README.md): expose profile CRUD and provider/model/effort catalogs through `pages[id].editor.app`, backed by the existing service path
-
-Board work for Persephone's **EPIC-137** (*Notebook moves to a published board*). All four are implemented
-and verified through MCP; awaiting the user's hands-on test, then publish `notebook` v1.0.0:
-
-- [ ] [BT-078: Notebook board — scaffold, model, paged card list, CodeMirror, search](tasks/BT-078-notebook-board/README.md)
-- [ ] [BT-079: Categories & Tags secondary view](tasks/BT-079-notebook-nav/README.md)
-- [ ] [BT-080: Markdown preview and av-grid view for JSON array notes](tasks/BT-080-notebook-views/README.md)
-- [ ] [BT-081: Notebook release preparation](tasks/BT-081-notebook-release-prep/README.md)
-
-Board work for Persephone's **EPIC-135** (*Translation service*):
-
-- [ ] [BT-069: Bergamot runtime](tasks/BT-069-bergamot-runtime/README.md): Firefox's translation engine (WASM), model downloads and caching, pivot through English
-- [ ] [BT-070: Translate board v1.0.0](tasks/BT-070-translate-board/README.md): the `text.translate@1` provider, CLD2 language detection, language manager and test panel
-
 ## Planned
 
 Board work for Persephone's **EPIC-134** (*Live transcription and meeting transcripts*) is finished:

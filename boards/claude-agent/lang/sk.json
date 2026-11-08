@@ -1,5 +1,7 @@
 {
   "messages": {
+    "wake.instructionsAdded": "Pokyny hlasového asistenta boli pridané",
+    "wake.instructionsRemoved": "Pokyny hlasového asistenta boli odstránené",
     "wake.mode": "Režim prebudenia",
     "wake.tab": "Prebúdzacie slová",
     "wake.retry": "Skúsiť znova",

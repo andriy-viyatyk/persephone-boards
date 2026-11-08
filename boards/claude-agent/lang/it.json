@@ -1,5 +1,7 @@
 {
   "messages": {
+    "wake.instructionsAdded": "Istruzioni dell’assistente vocale aggiunte",
+    "wake.instructionsRemoved": "Istruzioni dell’assistente vocale rimosse",
     "wake.mode": "Modalità di attivazione",
     "wake.tab": "Parole di attivazione",
     "wake.retry": "Riprova",

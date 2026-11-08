@@ -44,9 +44,9 @@ let current = null;
 function createView(item = {}) {
   const provider = item.provider || current?.provider || state.defaultProvider || "";
   const view = {
-    id: item.id || "", provider, description: state.descriptions.get(provider) || null, cwd: item.cwd || "", title: item.title || "", messages: element("div", "messages hidden"),
+    id: item.id || "", provider, description: state.descriptions.get(provider) || null, cwd: item.cwd || "", title: cleanSessionTitle(item.title), messages: element("div", "messages hidden"),
     channel: null, follow: null, live: false, busy: false, pendingPrompt: "", liveWaiters: [], controls: new Map(), approvals: new Map(),
-    stream: null, lastText: "", thinkingNode: null, tools: new Map(), commandTurn: false, historyToken: 0, steers: new Map(),
+    transcriptEntries: [], historyLoaded: !item.id, historyTask: null, promptTask: null, turnOutcome: null, replyAfterTool: false, turnReply: "", turnStartedAt: "", turnEndedAt: "", turnError: "", stream: null, lastText: "", thinkingNode: null, tools: new Map(), commandTurn: false, historyToken: 0, steers: new Map(),
     footer: null, usage: null, sessionCost: 0, statusText: "", statusBusy: false, error: "",
     draft: "", unread: false, stick: true, scrollTop: 0,
     agents: [], agentsChannel: null, selectedAgentId: "", agentViews: new Map(), groupMain: false, groupMode: false, groupLoading: false, groupProfiles: [], groupParticipants: [], groupMessages: [], readOnlyParticipant: item.participant || null,
@@ -93,7 +93,16 @@ function renderMarkdown(node, text) {
   messageSources.set(node, text || "");
   node.innerHTML = window.DOMPurify.sanitize(window.marked.parse(text || "", { gfm: true, breaks: false }));
 }
+function splitAgentChatInstructions(text) {
+  const value = String(text || "");
+  const match = /^(<agent-chat-instructions(?:\s+[^>]*)?>[\s\S]*?<\/agent-chat-instructions>)\s*/.exec(value);
+  if (!match) return { text: value, block: "", instructions: "" };
+  return { text: value.slice(match[0].length), block: match[1], instructions: /\brevoked="true"/.test(match[1].slice(0, match[1].indexOf(">"))) ? "removed" : "added" };
+}
+const stripAgentChatInstructions = (text) => splitAgentChatInstructions(text).text;
+const cleanSessionTitle = (text) => { const clean = stripAgentChatInstructions(text); return clean.startsWith("<agent-chat-instructions") ? "" : clean; };
 function addUserMessage(view, text, forceScroll = true) {
+  text = stripAgentChatInstructions(text);
   const node = element("div", "msg user", text);
   messageSources.set(node, text);
   return appendMessage(view, node, forceScroll);
@@ -178,7 +187,7 @@ const describeInput = (input) => {
 // While a group is the newest item, other activity lines (thinking, notices) join it so they do not split the run.
 const openToolGroup = (view) => {
   const last = view.messages.lastElementChild;
-  return last?.classList.contains("tool-group") ? last : null;
+  return last?.classList.contains("tool-group") && !last.classList.contains("voice-instructions") ? last : null;
 };
 function addToolGroup(view) {
   const group = element("details", "tool-group");
@@ -186,6 +195,18 @@ function addToolGroup(view) {
   summary.append(element("span", "label"), element("span", "fail"));
   group.append(summary, element("div", "tool-list"));
   return appendMessage(view, group);
+}
+// Use the tool disclosure's markup and styling, but keep this as a separate transcript item.
+function addInstructionDisclosure(view, text) {
+  const parsed = splitAgentChatInstructions(text);
+  if (!parsed.block) return null;
+  const details = element("details", "tool-group activity voice-instructions");
+  const summary = element("summary");
+  summary.append(element("span", "label", t(parsed.instructions === "removed" ? "wake.instructionsRemoved" : "wake.instructionsAdded")));
+  const body = element("div", "tool-list");
+  body.append(element("pre", "", parsed.block));
+  details.append(summary, body);
+  return appendMessage(view, details);
 }
 function updateToolGroup(group) {
   if (!group) return;
@@ -939,14 +960,14 @@ function renderSessionRows() {
         const dotState = view?.channel ? (view.busy ? "live busy" : "live") : "";
         const providerInfo = state.descriptions.get(item.provider || "");
         const engine = providerInfo ? providerInfo.providerLabel || t(providerInfo.providerLabelKey) : "";
-        button.title = [item.title, engine, formatWhenExact(item.updatedAt), t(view?.channel ? (view.busy ? "sessionWorking" : "sessionLive") : "sessionIdle")].filter(Boolean).join("\n");
+        button.title = [cleanSessionTitle(item.title), engine, formatWhenExact(item.updatedAt), t(view?.channel ? (view.busy ? "sessionWorking" : "sessionLive") : "sessionIdle")].filter(Boolean).join("\n");
         const group = state.groupIndex.find((entry) => entry.mainSessionId === item.id);
         const hasParticipants = Boolean(group?.participants.some((participant) => !participant.removed));
         // A connected session also gets a thin ring around the icon, with a light orbiting it while the agent works;
         // both are drawn outside the row's layout, so the row keeps its spacing.
         const marker = element("span", `session-marker ${dotState}`.trim());
         marker.append(engineIcon(providerInfo, dotState, hasParticipants));
-        button.append(marker, element("span", "title", item.title));
+        button.append(marker, element("span", "title", cleanSessionTitle(item.title)));
         if (isWakeSession(item)) button.append(element("span", "wake-badge", t("wake.sessionBadge")));
         button.append(element("span", "when", formatWhen(item.updatedAt)));
         button.addEventListener("click", () => void openStoredSession(item));
@@ -1200,14 +1221,101 @@ async function deleteProfile(id) {
   applyProfileResponse(response, { selectedId: profileEditor.selectedId, render: true });
   return id;
 }
+const sessionSends = new Set();
+function knownSession(id, provider) {
+  if (typeof id !== "string" || !id) throw new Error("sessionId must be a non-empty string.");
+  const matches = [...state.allSessions, ...views].filter((item) => item.id === id && (!provider || item.provider === provider));
+  const providers = new Set(matches.map((item) => item.provider));
+  if (!matches.length) throw new Error(`Session '${id}' is unavailable.`);
+  if (providers.size > 1) throw new Error(`Session '${id}' is ambiguous; specify options.provider.`);
+  return matches[0];
+}
+function sessionTimeout(value) {
+  if (value === undefined) return 300000;
+  if (!Number.isFinite(value) || value < 0) throw new Error("timeoutMs must be a non-negative number.");
+  return value;
+}
+async function waitSession(view, timeout) {
+  const deadline = Date.now() + sessionTimeout(timeout);
+  while (view?.channel && (view.busy || view.wakePending) && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 50));
+  if (view && (view.busy || view.wakePending)) return { status: "timeout", reply: view.turnReply || "" };
+  if (view?.turnError) return { status: "error", reply: view.turnReply || "", error: view.turnError };
+  return { status: "idle", reply: view?.turnReply || "" };
+}
+async function waitTurn(outcome, timeout) {
+  const deadline = Date.now() + timeout;
+  while (!outcome.done && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 50));
+  if (!outcome.done) return { status: "timeout", reply: outcome.reply || "" };
+  return outcome.error ? { status: "error", reply: outcome.reply || "", error: outcome.error } : { status: "idle", reply: outcome.reply || "" };
+}
+async function sendSession(id, text, options = {}) {
+  await prefsRestored;
+  if (!options || typeof options !== "object" || Array.isArray(options)) throw new Error("options must be an object.");
+  if (typeof text !== "string" || !text.trim()) throw new Error("text must be a non-empty string.");
+  if (options.speaker !== undefined && typeof options.speaker !== "string") throw new Error("speaker must be a string.");
+  if (options.wait !== undefined && typeof options.wait !== "boolean") throw new Error("wait must be a boolean.");
+  const timeout = sessionTimeout(options.timeoutMs), item = knownSession(id, options.provider), key = viewKey(id, item.provider);
+  if (sessionSends.has(key)) throw new Error("Another send is already preparing this session.");
+  sessionSends.add(key);
+  let view, outcome;
+  try {
+    view = await resolveWakeSession(item);
+    if (!view) throw new Error(`Could not connect session '${id}'. ${viewFor(id, item.provider)?.error || ""}`);
+    const idle = await waitSession(view, timeout);
+    if (idle.status === "timeout") throw new Error(`Session '${id}' is still busy after ${timeout} ms.`);
+    if (!view.channel) throw new Error(`Session '${id}' is disconnected.`);
+      setViewError(view, ""); view.turnError = ""; view.turnReply = ""; view.wakePending = true;
+    outcome = view.turnOutcome = { done: false, reply: "", error: "" };
+    const speaker = options.speaker?.replace(/[\r\n]+/g, " ").trim();
+    await sendPrompt(view, options.speaker !== undefined ? `[Speaker: ${speaker}]\n${text}` : text);
+    if (view.error) { view.wakePending = false; throw new Error(view.error); }
+    if (view.wakePending) view.busy = true;
+    if (view !== current) { view.unread = true; renderSessions(); }
+  } finally { sessionSends.delete(key); }
+  return options.wait === false ? { status: "sent", reply: "" } : waitTurn(outcome, timeout);
+}
+async function readSessionMessages(id, options = {}) {
+  if (!options || typeof options !== "object" || Array.isArray(options)) throw new Error("options must be an object.");
+  const limit = options.limit === undefined ? 20 : options.limit;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw new Error("limit must be an integer from 1 to 200.");
+  const item = knownSession(id, options.provider);
+  const view = await resolveWakeSession(item, false);
+  if (!view) throw new Error(`Could not read session '${id}'.`);
+  const entries = view.transcriptEntries.slice(-limit).map((entry) => {
+    const short = (value, max) => String(value ?? "").slice(0, max);
+    const result = { role: entry.role, text: short(entry.role === "user" ? stripAgentChatInstructions(entry.text) : entry.text, 4000) };
+    if (entry.role === "user") { const { instructions } = splitAgentChatInstructions(entry.text); if (instructions) result.instructions = instructions; }
+    if (entry.role === "tool") { result.name = short(entry.name, 120); result.args = short(typeof entry.input === "string" ? entry.input : JSON.stringify(entry.input ?? {}), 500); }
+    for (const key of ["timestamp", "startedAt", "endedAt"]) if (entry[key]) result[key] = entry[key];
+    return result;
+  });
+  return entries;
+}
+async function waitSessionIdle(id, timeoutMs) {
+  const item = knownSession(id);
+  return waitSession(viewFor(id, item.provider), timeoutMs);
+}
+function listModelSessions() {
+  const items = new Map();
+  for (const item of [...state.allSessions, ...views]) if (item.id) {
+    const key = viewKey(item.id, item.provider), previous = items.get(key) || {};
+    const view = viewFor(item.id, item.provider);
+    items.set(key, { id: item.id, provider: item.provider, title: cleanSessionTitle(item.title || previous.title || ""), cwd: item.cwd || previous.cwd || "", live: Boolean(view?.channel), busy: Boolean(view?.busy || view?.wakePending), wake: isWakeSession(item) });
+  }
+  return [...items.values()];
+}
 const permissionModes = PROFILE_MODES.map((mode) => ({ ...mode }));
 const profileApp = {
   aiVision: {
-    kind: "AgentChatProfiles",
-    summary: "Manage saved Agent Chat profiles, their message colors, and inspect current provider choices.",
-    overview: "Read profiles, provider catalogs, and valid message color ids, then create, update, duplicate, or immediately delete a profile.",
-    help: "Profile writes use Agent Chat's existing local manage-profiles service and its profiles.json store. create requires name, roleTitle, instructions, and summary; provider, model, effort, permissionMode, and color default to claude, opus, medium, read-only, and no color. color accepts red, orange, yellow, green, teal, blue, purple, pink, or an empty string for none. Joined agents' main-chat messages and join/leave notices use the current profile color, including history. update merges a partial patch into the latest saved profile. Permission presets: read-only permits read-classified tools and denies other actions; ask requests approval for non-read actions; auto-edit allows file writes inside the working directory and requests approval for other non-read actions; full-auto allows all classified actions. Existing participants keep their invite-time profile snapshot.",
+    kind: "AgentChat",
+    summary: "Inspect Agent Chat sessions and transcripts, send messages, and manage agent profiles.",
+    overview: "List sessions, read messages, wait for idle, or send a message to a session. Also manage saved profiles and inspect provider choices.",
+    help: "sessions lists known sessions. messages(sessionId, {provider, limit}) reads transcript entries; waitIdle(sessionId, timeoutMs) waits without connecting. send(sessionId, text, {provider, speaker, wait, timeoutMs}) resumes a session without selecting it, waits for idle, and sends. wait defaults true and timeoutMs defaults 300000. A speaker prefixes [Speaker: name] and a newline. Increase the MCP call timeout for long turns. Profile writes use Agent Chat's existing local manage-profiles service and its profiles.json store. create requires name, roleTitle, instructions, and summary; provider, model, effort, permissionMode, and color default to claude, opus, medium, read-only, and no color. color accepts red, orange, yellow, green, teal, blue, purple, pink, or an empty string for none. Joined agents' main-chat messages and join/leave notices use the current profile color, including history. update merges a partial patch into the latest saved profile. Permission presets: read-only permits read-classified tools and denies other actions; ask requests approval for non-read actions; auto-edit allows file writes inside the working directory and requests approval for other non-read actions; full-auto allows all classified actions. Existing participants keep their invite-time profile snapshot.",
     members: [
+      { name: "sessions", kind: "property", summary: "Known sessions: id, provider, title, cwd, live, busy, wake. Use the id with send, messages, or waitIdle." },
+      { name: "send", kind: "method", signature: "send(sessionId: string, text: string, options?: { provider?: string, speaker?: string, wait?: boolean, timeoutMs?: number })", summary: "Resume without selecting, wait for idle, send, and by default wait for the turn. Returns { status, reply, error? }; wait:false returns { status: sent, reply: empty string } immediately.; default timeout 300000 ms. Speaker adds [Speaker: name] followed by a newline." },
+      { name: "messages", kind: "method", signature: "messages(sessionId: string, options?: { provider?: string, limit?: number })", summary: "Read last transcript entries (default 20, maximum 200), including compact tool calls and available timestamps." },
+      { name: "waitIdle", kind: "method", signature: "waitIdle(sessionId: string, timeoutMs?: number)", summary: "Wait for a known session to become idle without connecting it. Returns { status: idle|timeout|error, reply, error? }; default timeout 300000 ms." },
       { name: "profiles", kind: "property", node: true, indexable: true, summary: "Read-only saved profiles, indexed by zero-based position or stable id." },
       { name: "providers", kind: "property", summary: "Current provider ids, availability, model ids, and each model's supported effort choices." },
       { name: "colors", kind: "property", summary: "Valid color ids: red, orange, yellow, green, teal, blue, purple, pink. The empty string means no color." },
@@ -1217,8 +1325,12 @@ const profileApp = {
       { name: "duplicate", kind: "method", signature: "duplicate(id: string)", summary: "Duplicate a saved profile with the service-generated unique name and id." },
       { name: "delete", kind: "method", signature: "delete(id: string)", summary: "Delete a saved profile and return its id.", caution: "Deletes immediately without a confirmation dialog or undo." },
     ],
-    summarize: () => ({ profiles: state.profiles.length, providers: state.catalog.length }),
+    summarize: () => ({ sessions: listModelSessions().length, profiles: state.profiles.length, providers: state.catalog.length }),
   },
+  get sessions() { return listModelSessions(); },
+  send: sendSession,
+  messages: readSessionMessages,
+  waitIdle: waitSessionIdle,
   get profiles() { return profilesNode; },
   get providers() { return state.catalog.map((provider) => ({ id: provider.provider, available: provider.available !== false, models: (provider.models || []).filter((model) => model.id).map((model) => ({ id: model.id, efforts: [...(model.efforts || [])] })) })); },
   get colors() { return [...PROFILE_COLORS]; },
@@ -1497,7 +1609,7 @@ async function refreshSessions() {
       .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
     sessionsByKey.clear();
     for (const item of state.sessions) sessionsByKey.set(viewKey(item.id, item.provider), item);
-    for (const item of state.sessions) { const view = viewFor(item.id, item.provider); if (view) { view.title = item.title; if (!isLive(view)) { view.model = item.model || view.model; view.effort = item.effort || view.effort; } } }
+    for (const item of state.sessions) { const view = viewFor(item.id, item.provider); if (view) { view.title = cleanSessionTitle(item.title); if (!isLive(view)) { view.model = item.model || view.model; view.effort = item.effort || view.effort; } } }
   } else if (message?.type === "error") showError(`${message.code}: ${message.message}`);
   if (indexResult) for (const group of state.groupIndex) if (!group.provider) group.provider = state.allSessions.find((item) => item.id === group.mainSessionId)?.provider || "";
   for (const view of views) renderParticipantBadges(view);
@@ -1906,6 +2018,10 @@ $("#instructions-reset").addEventListener("click", () => { $("#instructions-text
 // ── Session lifecycle ──────────────────────────────────────────────────────
 // A live view is one whose channel the service has started; panels wait for it.
 function endLive(view) {
+  if (view.turnOutcome && !view.turnOutcome.done) {
+    view.turnError = view.turnError || "Session disconnected before the turn ended.";
+    Object.assign(view.turnOutcome, { done: true, reply: view.turnReply, error: view.turnError });
+  }
   view.live = false;
   for (const resolve of view.liveWaiters.splice(0)) resolve(false);
   for (const [id, pending] of view.controls) { clearTimeout(pending.timer); pending.reject(new Error(t("closed"))); view.controls.delete(id); }
@@ -1970,7 +2086,10 @@ function showView(view) {
 // (a terminal Claude Code, another board) appends to its transcript. Connecting stops it; the board's own
 // channel streams those turns instead.
 function appendEntries(view, entries) {
-  for (const entry of entries || []) {
+  for (const rawEntry of entries || []) {
+    view.transcriptEntries.push({ ...rawEntry });
+    if (rawEntry.role === "user") addInstructionDisclosure(view, rawEntry.text);
+    const entry = rawEntry.role === "user" ? { ...rawEntry, text: stripAgentChatInstructions(rawEntry.text) } : rawEntry;
     const suffix = entry.truncated ? ` ${t("truncated")}` : "";
     if (entry.role === "user" || entry.role === "agent") {
       for (const segment of parseAuthorHeader(entry.text || "")) {
@@ -2146,7 +2265,7 @@ function showNewSession(cwd = "", provider = state.defaultProvider) {
 }
 // A new session is named after the first words of its first message, or the time it started; rename it any time.
 function sessionTitle(text) {
-  const words = (text || "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  const words = stripAgentChatInstructions(text).replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
   let title = "";
   for (const word of words.slice(0, 6)) { if (title && title.length + word.length >= 48) break; title = title ? `${title} ${word}` : word.slice(0, 48); }
   if (title) return title.split(" ").length < words.length ? `${title}…` : title;
@@ -2154,19 +2273,28 @@ function sessionTitle(text) {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 async function loadHistory(view) {
+  if (view.historyLoaded) return true;
+  if (view.historyTask) return view.historyTask;
+  const task = loadHistoryOnce(view);
+  view.historyTask = task;
+  try { return await task; } finally { if (view.historyTask === task) view.historyTask = null; }
+}
+async function loadHistoryOnce(view) {
   if (!capabilities(view).sessionStore) return false;
   const token = ++view.historyToken;
+  let historyError = "";
   setViewStatus(view, t("loadingHistory"), true);
   const channel = await openViewChannel(view, { type: "session-history", sessionId: view.id, cwd: view.cwd });
   await new Promise((resolve) => {
     channel.onMessage((message) => {
       if (token !== view.historyToken) return;
-      if (message.type === "error") { setViewError(view, `${message.code}: ${message.message}`); return; }
+      if (message.type === "error") { historyError = `${message.code}: ${message.message}`; setViewError(view, historyError); return; }
       if (message.type === "history") appendEntries(view, message.entries);
     });
     channel.onClose(resolve);
   });
-  if (token !== view.historyToken) return false;
+  if (token !== view.historyToken || historyError) return false;
+  view.historyLoaded = true;
   setViewStatus(view);
   view.stick = true;
   if (view === current) transcript.scrollTop = transcript.scrollHeight;
@@ -2197,9 +2325,9 @@ async function openStoredSession(item) {
   else await startFollow(view);
 }
 // Prepare a stored view without selecting it in the page.
-async function resolveWakeSession(marker) {
+async function resolveWakeSession(marker, connectLive = true) {
   if (!marker?.id) return null;
-  const item = sessionFor(marker.id, marker.provider);
+  const item = sessionFor(marker.id, marker.provider) || state.allSessions.find((entry) => entry.id === marker.id && (!marker.provider || entry.provider === marker.provider));
   let view = viewFor(marker.id, marker.provider);
   if (!view && !item) return null;
   if (!view) {
@@ -2213,8 +2341,9 @@ async function resolveWakeSession(marker) {
     }
     if (!description?.capabilities?.sessionStore) return null;
     view = createView(item);
-    if (!(await loadHistory(view))) return null;
+    if (!(await loadHistory(view))) { const error = view.error; views.delete(view); viewsByKey.delete(viewKey(view.id, view.provider)); view.messages.remove(); if (error) throw new Error(error); return null; }
   }
+  if (!connectLive) return view;
   if (view.readOnlyParticipant || !(await ensureLive(view))) return null;
   if (view.groupLoading) {
     const deadline = Date.now() + 10000;
@@ -2262,6 +2391,7 @@ async function connect(view) {
   finally { if (view.connectTask === task) view.connectTask = null; }
 }
 async function connectView(view) {
+  await prefsRestored;
   setViewError(view, "");
   const resume = view.id || undefined;
   const cwd = resume ? view.cwd : $("#cwd").value.trim();
@@ -2289,7 +2419,11 @@ async function connectView(view) {
   channel.onMessage((event) => { if (view.channel === channel) handleEvent(view, event); });
   channel.onClose((reason) => {
     if (view.channel !== channel) return;
-    view.channel = null; view.busy = false; view.pendingPrompt = ""; view.groupLoading = false;
+    if (view.busy || view.wakePending) {
+      view.turnError = `Session channel closed: ${reason?.code || "channel-closed"}`;
+      if (view.turnOutcome && !view.turnOutcome.done) Object.assign(view.turnOutcome, { done: true, reply: view.turnReply, error: view.turnError });
+    }
+    view.channel = null; view.busy = false; view.wakePending = false; view.pendingPrompt = ""; view.groupLoading = false;
     wakeAssistant.turnEnded(view);
     // Resuming continues in the mode the session last ran in.
     if (MODES.includes(view.footer?.mode)) view.mode = view.footer.mode;
@@ -2330,21 +2464,25 @@ function handleEvent(view, event) {
       break;
     }
     case "approval-request": endStream(view); view.thinkingNode = null; addApproval(view, event); break;
-    case "compacted": endStream(view); addCompacted(view, event); break;
+    case "compacted": view.transcriptEntries.push({ role: "compacted" }); endStream(view); addCompacted(view, event); break;
     case "compact-summary": addCompactSummary(view, event.text); break;
     case "session-status": view.footer = event; if (view === current) { updateFooter(event, view); renderChips(); setViewStatus(view, event.compacting ? t("compacting") : "", Boolean(event.compacting)); } break;
     case "user-input":
       // Once the agent has a follow-up, its next words answer it: start a new reply bubble below the follow-up.
       if (settleFollowUp(view, event.id, event.state) && event.state === "delivered") { endStream(view); view.lastText = ""; }
       break;
-    case "stream-reset": if (view.stream) { view.stream.node.remove(); view.stream = null; updateTyping(); } break;
-    case "turn-started": settleFollowUp(view, event.id, "delivered"); view.wakePending = false; view.busy = true; setViewStatus(view); updateTyping(); updateControls(); renderSessions(); break;
+    case "stream-reset": view.turnReply = ""; if (view.stream) { view.stream.node.remove(); view.stream = null; updateTyping(); } break;
+    case "turn-started": view.turnStartedAt = new Date().toISOString(); view.turnEndedAt = ""; view.turnReply = ""; view.replyAfterTool = false; view.turnError = ""; if (!view.turnOutcome || view.turnOutcome.done) view.turnOutcome = { done: false, reply: "", error: "" }; settleFollowUp(view, event.id, "delivered"); view.wakePending = false; view.busy = true; setViewStatus(view); updateTyping(); updateControls(); renderSessions(); break;
     case "text-delta":
+      if (view.replyAfterTool) { view.turnReply = ""; view.replyAfterTool = false; }
+      view.turnReply += event.text || "";
+      if (view.turnOutcome) view.turnOutcome.reply = view.turnReply;
       view.thinkingNode = null;
       (view.stream || startStream(view)).text += `${event.text || ""}${event.truncated ? ` ${t("truncated")}` : ""}`;
       renderStream(view);
       break;
     case "text":
+      if (event.text) { view.turnReply = event.text; view.replyAfterTool = false; if (view.turnOutcome) view.turnOutcome.reply = event.text; }
       if (event.synthetic && view.commandTurn) { if (event.text) addCommandOutput(view, event.text); break; }
       if (event.text && !(view.stream?.text.includes(event.text)) && event.text !== view.lastText) addAgentMessage(view, `${event.text}${event.truncated ? ` ${t("truncated")}` : ""}`);
       view.lastText = event.text || view.lastText;
@@ -2355,7 +2493,7 @@ function handleEvent(view, event) {
       if (!view.thinkingNode) view.thinkingNode = addActivity(view, t("thinking"), "", "thinking");
       view.thinkingNode.querySelector("pre").append(document.createTextNode(event.text));
       break;
-    case "tool-call": endStream(view); view.thinkingNode = null; addToolCall(view, event.name, event.input, event.callId); break;
+    case "tool-call": view.replyAfterTool = true; view.transcriptEntries.push({ role: "tool", name: event.name, input: event.input, timestamp: new Date().toISOString() }); endStream(view); view.thinkingNode = null; addToolCall(view, event.name, event.input, event.callId); break;
     case "task": endStream(view); addTaskNotice(view, event.summary, event.detail); break;
     case "tool-result": {
       const node = view.tools.get(event.callId);
@@ -2371,6 +2509,10 @@ function handleEvent(view, event) {
     }
     case "file-change": addActivity(view, `${t("file")} · ${event.kind} — ${event.path}`, event.path); break;
     case "turn-ended": {
+      view.turnEndedAt = new Date().toISOString();
+      if (view.turnReply) view.transcriptEntries.push({ role: "agent", text: view.turnReply, startedAt: view.turnStartedAt, endedAt: view.turnEndedAt });
+      if (event.reason && event.reason !== "completed") view.turnError ||= event.reason;
+      if (view.turnOutcome) Object.assign(view.turnOutcome, { done: true, reply: view.turnReply, error: view.turnError });
       settleFollowUps(view, event.reason === "interrupted" ? "cancelled" : "delivered");
       endStream(view); expireApprovals(view);
       view.busy = false; view.lastText = ""; view.thinkingNode = null; view.commandTurn = false;
@@ -2411,7 +2553,8 @@ function handleEvent(view, event) {
         view.groupParticipants = view.groupParticipants.filter((item) => item.name !== author.name);
         renderParticipantBadges(view); updateControls(); renderSessions();
       }
-      const displayText = event.noticeAction ? t(`group.${event.noticeAction}`, { name: author.name, role: author.roleTitle || author.role }) : event.text || "";
+      if (!event.noticeAction && author.kind === "user") addInstructionDisclosure(view, event.text);
+      const displayText = event.noticeAction ? t(`group.${event.noticeAction}`, { name: author.name, role: author.roleTitle || author.role }) : author.kind === "user" ? stripAgentChatInstructions(event.text) : event.text || "";
       const item = { author, text: event.timelineText || event.text || "" };
       view.groupMessages.push(item);
       const notice = author.kind === "notice";
@@ -2434,6 +2577,8 @@ function handleEvent(view, event) {
       updateTyping(); break;
     }
     case "error":
+      view.turnError = `${event.code}: ${event.message}`;
+      if (view.wakePending && view.turnOutcome) Object.assign(view.turnOutcome, { done: true, reply: view.turnReply, error: view.turnError });
       if (view.wakePending) { view.wakePending = false; view.busy = false; wakeAssistant.turnEnded(view); }
       settleFollowUp(view, event.id, "cancelled");
       setViewError(view, `${event.code}: ${event.message}`);
@@ -2557,25 +2702,46 @@ function expireApprovals(view) {
 }
 
 async function sendPrompt(view, text) {
-  if (view.busy && !view.groupMode && !text.startsWith("/")) { await sendFollowUp(view, text); return; }
-  view.commandTurn = text.startsWith("/");
-  if (view.commandTurn) addCommandMessage(view, text);
-  else if (!view.groupMode) addUserMessage(view, text);
+  const prior = view.promptTask || Promise.resolve();
+  const task = prior.catch(() => {}).then(() => sendPromptNow(view, text));
+  view.promptTask = task;
+  try { return await task; } finally { if (view.promptTask === task) view.promptTask = null; }
+}
+async function sendPromptNow(view, text) {
+  let disclosure = null;
   try {
-    if (!view.commandTurn && view.groupMode) await channelSend(view.channel, { type: "group", action: "user-message", text });
-    else await channelSend(view.channel, { type: "send", id: crypto.randomUUID(), text });
-  }
-  catch (error) { setViewError(view, error.message); }
+    let wireText = await wakePrompt(view, text);
+    // Group transitions must wait for the active turn; a direct send cannot use the group queue.
+    while (view.groupMode && view.busy && wireText !== text && view.channel) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      wireText = await wakePrompt(view, text);
+    }
+    if (!view.channel) throw new Error(t("noLiveSession"));
+    const followUp = view.busy && !view.groupMode && !text.startsWith("/");
+    const command = text.startsWith("/");
+    // A group broadcast is delivered to joined agents too. A transition must go only to the main session.
+    const directGroup = view.groupMode && wireText !== text;
+    if (followUp) { await sendFollowUp(view, text, wireText); return; }
+    view.commandTurn = command;
+    disclosure = addInstructionDisclosure(view, wireText);
+    if (command) addCommandMessage(view, text);
+    else if (!view.groupMode) addUserMessage(view, text);
+    else if (directGroup) { const author = { name: "user", role: "", kind: "user" }; view.groupMessages.push({ author, text }); addGroupMessage(view, text, author); }
+    if (!command && view.groupMode && !directGroup) await channelSend(view.channel, { type: "group", action: "user-message", text: wireText });
+    else await channelSend(view.channel, { type: "send", id: crypto.randomUUID(), text: wireText });
+    view.transcriptEntries.push({ role: "user", text: wireText, timestamp: new Date().toISOString() });
+  } catch (error) { disclosure?.remove(); setViewError(view, error.message); }
 }
 
-// A follow-up typed while the agent works joins the running turn; the provider reports when the agent has it
-// (user-input events). Until then the bubble is dimmed; a cancelled follow-up goes back into the composer.
-async function sendFollowUp(view, text) {
+// Follow-ups are recorded when queued and removed if the provider cancels them.
+async function sendFollowUp(view, text, wireText) {
   const id = crypto.randomUUID();
+  const disclosure = addInstructionDisclosure(view, wireText);
   const node = addUserMessage(view, text);
   node.classList.add("queued"); node.title = t("followUpQueued");
-  view.steers.set(id, { node, text });
-  try { await channelSend(view.channel, { type: "send", id, text, steer: true }); }
+  const entry = { role: "user", text: wireText, timestamp: new Date().toISOString() };
+  view.steers.set(id, { node, text, entry, disclosure });
+  try { await channelSend(view.channel, { type: "send", id, text: wireText, steer: true }); view.transcriptEntries.push(entry); }
   catch (error) { settleFollowUp(view, id, "cancelled"); setViewError(view, error.message); }
 }
 function settleFollowUp(view, id, state) {
@@ -2585,6 +2751,8 @@ function settleFollowUp(view, id, state) {
   view.steers.delete(id);
   if (state !== "cancelled") { steer.node.classList.remove("queued"); steer.node.removeAttribute("title"); return true; }
   steer.node.remove();
+  steer.disclosure?.remove();
+  if (steer.entry) { const index = view.transcriptEntries.indexOf(steer.entry); if (index >= 0) view.transcriptEntries.splice(index, 1); }
   const restored = view === current ? promptText() : view.draft;
   const next = restored.trim() ? `${steer.text}\n\n${restored}` : steer.text;
   if (view === current) setPrompt(next); else view.draft = next;
@@ -3076,6 +3244,47 @@ function commandMenuKey(event) {
   else return false;
   event.preventDefault(); event.stopPropagation();
   return true;
+}
+
+// Cache the shipped text and its version for this page; a failed load can be retried.
+let wakeInstructionsTask = null;
+function loadWakeInstructions() {
+  if (!wakeInstructionsTask) wakeInstructionsTask = (async () => {
+    const response = await fetch("./wake-instructions.md");
+    if (!response.ok) throw new Error(`Could not load wake-instructions.md (${response.status}).`);
+    const text = await response.text(), bytes = new TextEncoder().encode(text);
+    if (bytes.byteLength > 32 * 1024) throw new Error("wake-instructions.md exceeds 32 KiB.");
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+    return { text, version: Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("").slice(0, 16) };
+  })().catch((error) => { wakeInstructionsTask = null; throw error; });
+  return wakeInstructionsTask;
+}
+function lastWakeInstruction(entries) {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i];
+    if (entry.role === "compacted") break;
+    if (entry.role !== "user") continue;
+    const matches = [...String(entry.text || "").matchAll(/<agent-chat-instructions\s+(?:version="([0-9a-f]+)"|(revoked)="true")>[\s\S]*?<\/agent-chat-instructions>/g)];
+    const match = matches.at(-1);
+    if (match) return match[2] ? { revoked: true } : { version: match[1] };
+  }
+  return null;
+}
+async function wakePrompt(view, text) {
+  await prefsRestored;
+  if (view.readOnlyParticipant) return text;
+  if (view.id && !view.historyLoaded && !(await loadHistory(view))) throw new Error(view.error || "Could not load session history.");
+  let previous = lastWakeInstruction(view.transcriptEntries);
+  if (isWakeSession(view)) {
+    const asset = await loadWakeInstructions();
+    // The marker or transcript can change while the asset loads.
+    previous = lastWakeInstruction(view.transcriptEntries);
+    if (isWakeSession(view) && previous?.version !== asset.version) {
+      return `<agent-chat-instructions version="${asset.version}">\nThese instructions apply from now on in this session and replace any earlier agent-chat-instructions.\n\n${asset.text}\n</agent-chat-instructions>\n\n${text}`;
+    }
+  }
+  if (!isWakeSession(view) && previous && !previous.revoked) return `<agent-chat-instructions revoked="true">\nEarlier agent-chat-instructions no longer apply.\n</agent-chat-instructions>\n\n${text}`;
+  return text;
 }
 
 // Session controls go over the live channel and are answered by a control-result with the same id.

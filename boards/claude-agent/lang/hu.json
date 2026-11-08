@@ -1,5 +1,7 @@
 {
   "messages": {
+    "wake.instructionsAdded": "Hangasszisztens-utasítások hozzáadva",
+    "wake.instructionsRemoved": "Hangasszisztens-utasítások eltávolítva",
     "wake.mode": "Ébresztési mód",
     "wake.tab": "Ébresztőszavak",
     "wake.retry": "Újra",

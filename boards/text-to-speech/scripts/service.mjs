@@ -254,7 +254,8 @@ async function speak(text, options = {}, signal, owner = null) {
 persephone.capabilities.handle("speech.synthesize", "speak", async ([text, options], context) => {
   await settingsReady;
   if (policy !== "accept-granted") throw failure("permission-denied", "Caller refused.");
-  return speak(text, options, context.signal);
+  // Agents often pass the language code itself ("en") as the second argument; read it as { lang }.
+  return speak(text, typeof options === "string" ? { lang: options } : options, context.signal);
 });
 
 persephone.capabilities.handle("speech.synthesize", "stop", async (args, context) => {

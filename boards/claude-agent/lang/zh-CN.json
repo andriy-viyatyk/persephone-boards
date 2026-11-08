@@ -1,5 +1,7 @@
 {
   "messages": {
+    "wake.instructionsAdded": "已添加语音助手指令",
+    "wake.instructionsRemoved": "已移除语音助手指令",
     "wake.mode": "唤醒模式",
     "wake.tab": "唤醒词",
     "wake.retry": "重试",

@@ -1,5 +1,7 @@
 {
   "messages": {
+    "wake.instructionsAdded": "Instrucțiunile asistentului vocal au fost adăugate",
+    "wake.instructionsRemoved": "Instrucțiunile asistentului vocal au fost eliminate",
     "wake.mode": "Mod de activare",
     "wake.tab": "Cuvinte de activare",
     "wake.retry": "Încercați din nou",

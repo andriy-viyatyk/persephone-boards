@@ -1,5 +1,7 @@
 {
   "messages": {
+    "wake.instructionsAdded": "Pievienoti balss asistenta norādījumi",
+    "wake.instructionsRemoved": "Noņemti balss asistenta norādījumi",
     "wake.mode": "Aktivizēšanas režīms",
     "wake.tab": "Aktivizēšanas vārdi",
     "wake.retry": "Mēģināt vēlreiz",

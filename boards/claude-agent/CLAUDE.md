@@ -15,8 +15,12 @@ Standalone provider board; it is not a custom editor and has no file association
   a late stop before the sent position requires re-transcription of the cut buffer. Never persist request PCM.
 - Page preferences in `claude-agent:*` localStorage use `wake-mode`, `wake-session` (`{provider,id}`),
   `wake-threshold`, `wake-silence` and `wake-device`. Storage events propagate preferences between pages;
-  only the service lease arbitrates ownership. The sample `wake-instructions.md` is user-copyable and is
-  never automatically injected into sessions.
+  only the service lease arbitrates ownership. `app.js` caches the shipped `wake-instructions.md` and its
+  SHA-256 version, and checks raw transcript user entries after the last compaction before each page prompt.
+  It prepends a versioned apply or revoke block when needed. Show it in a separate collapsed disclosure before
+  the user message, but omit the text from titles and AI Vision output; stored transcripts retain it. Marker changes do not reconnect sessions. Joined agents and cross-board callers
+  do not receive the block. Group-chat transition prompts go directly to the main session to avoid broadcasting
+  the block to joined agents.
 
 - `scripts/agent-session-protocol.mjs` owns v1 validation, bounds, policy classification, and instruction composition.
 - `scripts/service.mjs` owns provider-neutral contract validation, provider catalog/session aggregation, channel lifecycle, policy and approvals, provider-scoped instruction files, MCP endpoint revocation, watcher lifecycle, and child process cleanup. `scripts/providers/claude.mjs` owns Claude SDK/CLI integration, Claude session storage, native event normalization, model/mode metadata, and setup. `scripts/providers/codex.mjs` owns the installed Codex app-server JSON-RPC protocol, Codex thread store, event normalization, and Codex model/mode metadata.
@@ -25,6 +29,9 @@ Standalone provider board; it is not a custom editor and has no file association
 - `scripts/claude-executable.mjs` resolves only the installed CLI. The SDK process spawn hook always launches that resolved executable.
 
 Claude local chat sessions retain their existing Claude Code mode behavior. Codex local sessions use the capability-described Auto, Full access, and Read only modes; Auto is `on-request` plus `workspace-write`. Cross-board contract modes and `cross-board-permission-ceiling` apply to both providers and must never be broadened by native policy.
+
+Claude and Codex both ignore changed system/developer instructions on resume in model-visible history; the
+page-level prompt block handles wake transitions without changing their open or resume protocols.
 
 Codex is version-gated to CLI 0.163.0 because its app-server protocol is experimental. Start one `codex app-server --stdio` child per live session with the private MCP endpoint passed through `-c`; keep its bearer token only in the child's environment. The shared discovery process has no MCP configuration or token and is stopped after idle time. Codex supports its stored-thread list, paged history, rename, delete, and resume. It does not support transcript following, cost, rate limits, subagent panels, slash commands, or the MCP panel.
 
@@ -47,3 +54,7 @@ Keep browser CSP limited to local assets, use Persephone `--p-*` theme tokens, a
 The local page opens the main session with service-owned `groupChat` identity metadata. `scripts/service.mjs` owns the four shipped agent profile defaults, profile validation and CRUD, invite-time participant snapshots, lifecycle, routing queues, local-only group index and participant observers, approval routing, and the shared token-gated loopback MCP endpoint. Profile and group data belong under `%LOCALAPPDATA%/Persephone/board-data/claude-agent/group-chat/`; replace the unreleased `roles.json` with `profiles.json` without migration. Never persist a participant bearer token. Keep every profile field on the participant snapshot so edits or deletion do not change existing participants.
 
 The main session owns the live participant lifetimes, and closing or shutting down it must deny pending participant approvals, revoke endpoints, close observers, and stop child sessions while retaining resumable participant ids. Only user messages, main final replies, explicit `post_message` calls, and a joined agent's final reply from a turn that posted nothing (unless it is `[[pass]]`) enter the shared timeline; an exact repeat of a participant's last post is dropped. Preserve separate provider transcripts and only decorate history at the provider boundary. Participant transcript views read stored history without starting a session; attach the local observer only when both parent and participant are already live. The group index exposes only sidebar fields and must remain local-page-only. Ask-capable approvals resolve through the owning participant's pending approval map; read-only requests remain denied. Keep profile editing, one-click invite, nested read-only participant rows, approval cards, and group icon behavior within this board.
+
+## AI Vision sessions
+
+The exposed `AgentChat` model combines profiles with `sessions`, `send(sessionId, text, options?)`, `messages(sessionId, options?)`, and `waitIdle(sessionId, timeoutMs?)`. Session sends reuse the wake resume path without changing selection or wake marker; they need no opt-in, because an agent can already drive the board through browser automation; this is the direct route. The send options are `provider`, `speaker`, `wait` (default true), and `timeoutMs` (default 300000); messages accepts `provider` and `limit`. Preserve per-session turn/error tracking and unread behavior.

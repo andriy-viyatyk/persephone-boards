@@ -1,5 +1,7 @@
 {
   "messages": {
+    "wake.instructionsAdded": "Voice assistant instructions added",
+    "wake.instructionsRemoved": "Voice assistant instructions removed",
     "wake.mode": "Wake mode",
     "wake.tab": "Wake words",
     "wake.retry": "Retry",

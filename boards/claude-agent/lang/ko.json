@@ -1,5 +1,7 @@
 {
   "messages": {
+    "wake.instructionsAdded": "음성 비서 지침이 추가됨",
+    "wake.instructionsRemoved": "음성 비서 지침이 제거됨",
     "wake.mode": "깨우기 모드",
     "wake.tab": "깨우기 단어",
     "wake.retry": "다시 시도",

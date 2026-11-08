@@ -1,5 +1,7 @@
 {
   "messages": {
+    "wake.instructionsAdded": "Anweisungen für den Sprachassistenten hinzugefügt",
+    "wake.instructionsRemoved": "Anweisungen für den Sprachassistenten entfernt",
     "wake.mode": "Wake-Modus",
     "wake.tab": "Wake-Wörter",
     "wake.retry": "Erneut versuchen",

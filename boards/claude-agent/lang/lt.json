@@ -1,5 +1,7 @@
 {
   "messages": {
+    "wake.instructionsAdded": "Pridėtos balso asistento instrukcijos",
+    "wake.instructionsRemoved": "Pašalintos balso asistento instrukcijos",
     "wake.mode": "Pažadinimo režimas",
     "wake.tab": "Pažadinimo žodžiai",
     "wake.retry": "Bandyti dar kartą",

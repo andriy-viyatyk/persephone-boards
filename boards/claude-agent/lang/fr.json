@@ -1,5 +1,7 @@
 {
   "messages": {
+    "wake.instructionsAdded": "Instructions de l’assistant vocal ajoutées",
+    "wake.instructionsRemoved": "Instructions de l’assistant vocal supprimées",
     "wake.mode": "Mode réveil",
     "wake.tab": "Mots de réveil",
     "wake.retry": "Réessayer",

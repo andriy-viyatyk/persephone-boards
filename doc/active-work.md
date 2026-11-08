@@ -8,6 +8,8 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
+- [ ] [BT-088: Built-in wake-session instructions](tasks/BT-088-wake-session-instructions/README.md): automatically supply the tested general voice-assistant instructions when the marked session opens or resumes
+
 - [ ] [BT-072: Agent Chat profile management through AI Vision](tasks/BT-072-agent-chat-ai-vision/README.md): expose profile CRUD and provider/model/effort catalogs through `pages[id].editor.app`, backed by the existing service path
 
 Board work for Persephone's **EPIC-137** (*Notebook moves to a published board*). All four are implemented

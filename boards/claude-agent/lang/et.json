@@ -1,5 +1,7 @@
 {
   "messages": {
+    "wake.instructionsAdded": "Häälassistendi juhised lisatud",
+    "wake.instructionsRemoved": "Häälassistendi juhised eemaldatud",
     "wake.mode": "Äratusrežiim",
     "wake.tab": "Äratussõnad",
     "wake.retry": "Proovi uuesti",

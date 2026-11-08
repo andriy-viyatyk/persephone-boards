@@ -1,5 +1,7 @@
 {
   "messages": {
+    "wake.instructionsAdded": "Dodano instrukcje asystenta głosowego",
+    "wake.instructionsRemoved": "Usunięto instrukcje asystenta głosowego",
     "wake.mode": "Tryb wybudzania",
     "wake.tab": "Słowa wybudzające",
     "wake.retry": "Ponów próbę",

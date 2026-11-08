@@ -1,5 +1,7 @@
 {
   "messages": {
+    "wake.instructionsAdded": "Інструкцыі галасавога памочніка дададзены",
+    "wake.instructionsRemoved": "Інструкцыі галасавога памочніка выдалены",
     "wake.mode": "Рэжым актывацыі",
     "wake.tab": "Словы актывацыі",
     "wake.retry": "Паўтарыць",

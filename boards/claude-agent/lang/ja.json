@@ -1,5 +1,7 @@
 {
   "messages": {
+    "wake.instructionsAdded": "音声アシスタントの指示を追加しました",
+    "wake.instructionsRemoved": "音声アシスタントの指示を削除しました",
     "wake.mode": "起動モード",
     "wake.tab": "起動ワード",
     "wake.retry": "再試行",

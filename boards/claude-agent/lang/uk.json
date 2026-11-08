@@ -1,5 +1,7 @@
 {
   "messages": {
+    "wake.instructionsAdded": "Інструкції голосового помічника додано",
+    "wake.instructionsRemoved": "Інструкції голосового помічника вилучено",
     "wake.mode": "Режим пробудження",
     "wake.tab": "Слова пробудження",
     "wake.retry": "Повторити",

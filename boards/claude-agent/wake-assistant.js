@@ -10,6 +10,10 @@ const NO_SPEECH_TIMEOUT_MS = 10000;
 const INTERRUPT_WAIT_MS = 10000;
 const SPEECH_IGNORE_MS = 700; // after the wake: its tail and the chime echo are not counted as speech
 const MIN_SPEECH_MS = 300; // speech-level sound needed before silence can end the request
+// While a request listens, Persephone's own playback (a film, a browser tab) is muted with
+// audio.muteApp(). The request starts this long after the newest captured chunk at the moment the mute
+// took effect, so sound still on its way from the speakers is not transcribed as the user.
+const MUTE_SETTLE_MS = 200;
 
 // Whisper invents these on silence or noise. A request whose whole text is one of them is treated as
 // empty: nothing is sent and the reject chime plays. Compared lowercase, letters and spaces only.
@@ -92,6 +96,7 @@ window.createWakeAssistant = function createWakeAssistant(options) {
     const old = request;
     request = null;
     if (!old) return;
+    unmuteApp(old);
     clearTimeout(old.timer);
     old.cancelled = true;
     try {
@@ -101,6 +106,33 @@ window.createWakeAssistant = function createWakeAssistant(options) {
     } catch { /* already closed */ }
     close(old.channel);
     old.chunks = [];
+  }
+
+  // Mute Persephone's playback for a request. Resolves true once the mute is in effect; false when
+  // this Persephone has no muteApp or the call failed (the request then keeps the wake-time start).
+  async function muteApp(item) {
+    if (typeof audio?.muteApp !== "function") return false;
+    try {
+      const lease = await audio.muteApp();
+      if (item.unmuted) {
+        void lease.release().catch(() => undefined);
+        return false;
+      }
+      item.lease = lease;
+      return true;
+    } catch (error) {
+      console.warn("Wake mute failed:", error);
+      return false;
+    }
+  }
+
+  // Release the mute once the request has stopped capturing. Safe to call more than once.
+  function unmuteApp(item) {
+    if (!item || item.unmuted) return;
+    item.unmuted = true;
+    const lease = item.lease;
+    item.lease = null;
+    if (lease) void lease.release().catch((error) => console.warn("Wake unmute failed:", error));
   }
 
   function release() {
@@ -523,10 +555,22 @@ window.createWakeAssistant = function createWakeAssistant(options) {
       speechMs: 0,
       levels: [],
       segments: [],
-      drafts: new Map()
+      drafts: new Map(),
+      lease: null,
+      unmuted: false
     };
-    request = item;
     render("listening", "", "");
+    // Silence Persephone before taking any audio: what played until now (a film's dialogue) is not
+    // the user's request. The user speaks after the wake chime, which plays below.
+    if (await muteApp(item)) {
+      const latest = ring[ring.length - 1];
+      if (latest?.epoch === item.epoch) item.start = Math.max(item.start, chunkEnd(latest) + MUTE_SETTLE_MS);
+    }
+    if (token !== generation) {
+      unmuteApp(item);
+      return;
+    }
+    request = item;
     for (const chunk of ring) {
       if (request !== item || item.ending) break;
       appendAudio(item, chunk);
@@ -544,6 +588,7 @@ window.createWakeAssistant = function createWakeAssistant(options) {
   function finishAfterHold(item) {
     if (request !== item || item.ending) return;
     item.ending = true;
+    unmuteApp(item);
     chime("end");
     item.timer = setTimeout(() => void endTranscription(item), REQUEST_HOLD_BACK_MS);
   }
@@ -578,6 +623,7 @@ window.createWakeAssistant = function createWakeAssistant(options) {
     clearTimeout(item.timer);
     if (!item.ending) chime("end"); // a stop during the silence hold already had its chime
     item.ending = true;
+    unmuteApp(item);
     item.chunks = item.chunks.map((chunk) => {
       const count = Math.max(0, Math.min(
         chunk.data.byteLength / 2,

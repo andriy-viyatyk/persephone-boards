@@ -750,10 +750,40 @@ const folderName = (dir) => (dir || "").replace(/[\\/]+$/, "").split(/[\\/]/).po
 // Windows paths compare case-insensitively and with either slash.
 const folderKey = (dir) => (dir || "").replace(/\//g, "\\").replace(/[\\]+$/, "").toLowerCase();
 
-// Per-viewer UI conveniences only; the board works without them.
+// Board preferences (Wake mode, the wake session, microphone and thresholds, sidebar width...).
+// Boards run in a non-persistent browser session, so localStorage is empty after every Persephone
+// restart. Each preference is also saved in the board's persistent storage (persephone.storage, key
+// "pref:<name>") and copied back into localStorage at load; localStorage stays the synchronous cache
+// that the rest of the board reads.
+const PREF_STORAGE_PREFIX = "pref:";
+const prefsWritten = new Set(); // written since load: newer than the stored copy, never overwritten by restore
+const prefsRestored = (async () => {
+  try {
+    const keys = (await persephone.storage.keys()).filter((key) => key.startsWith(PREF_STORAGE_PREFIX));
+    // First run with persistent preferences: save what this session's localStorage already holds.
+    if (!keys.length) {
+      for (const item of Object.keys(localStorage).filter((key) => key.startsWith("claude-agent:"))) {
+        try { await persephone.storage.set(`${PREF_STORAGE_PREFIX}${item.slice(13)}`, JSON.parse(localStorage.getItem(item))); } catch { /* not JSON */ }
+      }
+      return;
+    }
+    for (const key of keys) {
+      const name = key.slice(PREF_STORAGE_PREFIX.length);
+      const value = await persephone.storage.get(key);
+      if (value === undefined || prefsWritten.has(name)) continue;
+      try { localStorage.setItem(`claude-agent:${name}`, JSON.stringify(value)); } catch { /* storage unavailable */ }
+    }
+  } catch (error) { console.warn("Restoring preferences failed:", error); }
+})();
 const prefs = {
   read(key, fallback) { try { const value = localStorage.getItem(`claude-agent:${key}`); return value === null ? fallback : JSON.parse(value); } catch { return fallback; } },
-  write(key, value) { try { localStorage.setItem(`claude-agent:${key}`, JSON.stringify(value)); } catch { /* storage unavailable */ } },
+  write(key, value) {
+    prefsWritten.add(key);
+    try { localStorage.setItem(`claude-agent:${key}`, JSON.stringify(value)); } catch { /* storage unavailable */ }
+    void prefsRestored
+      .then(() => persephone.storage.set(`${PREF_STORAGE_PREFIX}${key}`, value ?? null))
+      .catch((error) => console.warn(`Saving preference ${key} failed:`, error));
+  },
 };
 const isWakeSession = (item) => {
   const marker = prefs.read("wake-session", null);
@@ -881,7 +911,9 @@ function renderSessionRows() {
     const toggle = element("button", "folder-toggle");
     toggle.type = "button";
     toggle.setAttribute("aria-expanded", String(expanded));
-    toggle.append(element("span", "caret"), element("span", `folder-name${group.cwd ? "" : " no-folder"}`, group.cwd ? folderName(group.cwd) : t("noFolder")));
+    // The folder holding the wake session is drawn in the accent colour, so it is easy to find.
+    const wakeFolder = group.sessions.some(isWakeSession);
+    toggle.append(element("span", "caret"), element("span", `folder-name${group.cwd ? "" : " no-folder"}${wakeFolder ? " wake-folder" : ""}`, group.cwd ? folderName(group.cwd) : t("noFolder")));
     // A collapsed folder still shows that one of its sessions is running.
     const running = group.sessions.map((item) => viewFor(item.id, item.provider)).filter((view) => view?.channel);
     if (running.length && !expanded) toggle.append(element("span", `session-dot live${running.some((view) => view.busy) ? " busy" : ""}`));
@@ -2649,6 +2681,7 @@ async function describeVoiceProvider(provider) {
   return pending;
 }
 async function refreshVoiceProviders() {
+  await prefsRestored; // the saved provider, not the first one found, after a restart
   try {
     const list = await persephone.services.list("speech.transcribe");
     voiceProviders = Array.isArray(list) ? list.filter((item) => item?.provider && item.version === 1) : [];
@@ -3234,6 +3267,13 @@ showNewSession();
 renderSessions();
 void refreshProfileCatalog().catch(() => {});
 void (async () => {
+  // Preferences read while the board loaded came from an empty localStorage after a restart;
+  // apply the restored ones before the session list and Wake mode start.
+  await prefsRestored;
+  applySidebarWidth(prefs.read("sidebar-width", 280));
+  state.commands = prefs.read("commands", state.commands);
+  if (toolbarShape === "fixed") persephone.toolbar.update([{ id: "wake-mode", value: prefs.read("wake-mode", false) }]);
+  renderSessions();
   const saved = (await persephone.state.get())?.session;
   await refreshDescription();
   if (saved?.provider) {

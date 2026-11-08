@@ -380,7 +380,9 @@ html[data-mode="light"] .msg[data-agent-profile]:not([data-agent-color="none"]) 
 .wake-status { padding: 4px 12px; }
 .wake-status #wake-request-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .wake-status:empty { display: none; }
-.wake-badge { font-size: 0.8em; opacity: 0.8; }
+/* The wake session: an accent-outlined badge on its row, and its folder name in the accent colour. */
+.wake-badge { flex: none; font-size: 0.75em; line-height: 1.4; padding: 0 6px; border: 1px solid var(--p-accent); border-radius: 999px; color: var(--p-accent); white-space: nowrap; }
+.folder-toggle .folder-name.wake-folder { color: var(--p-accent); }
 .wake-panel { overflow: auto; }
 /* Wake words settings: one bordered panel, two columns (listening settings | enrollment). */
 .wake-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 20px; margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--p-border); border-radius: var(--p-radius-md, 6px); background: var(--p-bg); }

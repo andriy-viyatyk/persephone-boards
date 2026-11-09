@@ -44,7 +44,7 @@
     "wake.threshold": "Lävi (0–1)",
     "wake.thresholdHint": "Suurem lävi on rangem.",
     "wake.silence": "Vaikuse ajalõpp (sekundites)",
-    "wake.microphone": "Mikrofon",
+    "wake.microphone": "Mikrofon (Wake ja dikteerimine)",
     "wake.refreshDevices": "Värskenda mikrofone",
     "wake.defaultDevice": "Süsteemi vaikesisend",
     "wake.deviceNumber": "Sisend {number}",

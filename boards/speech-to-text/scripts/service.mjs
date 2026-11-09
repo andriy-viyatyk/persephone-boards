@@ -1,5 +1,6 @@
 "use strict";
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 import { mkdir, open as openFile, readFile, rm, stat } from "node:fs/promises";
 import path from "node:path";
@@ -10,6 +11,7 @@ import { decodeWav } from "./wav-file.mjs";
 
 // Queue pressure is shared by all live channels using the single whisper-server.
 const MAX_AUDIO_MS = 300000;
+const MAX_DEBUG_BYTES = 1920000;
 const MAX_WAV_BYTES = 33554432;
 const LIVE_QUEUE_TUNING = {
   draftPartialSkipMs: 60000, // Skip draft and partial inference when queued commits reach one minute.
@@ -30,7 +32,9 @@ const GPU_DEVICES_KEY = "speech-to-text.gpu-devices";
 const DEFAULT_MODEL = MODELS[0].file;
 const root = dataRoot();
 const modelByName = new Map(MODELS.map((model) => [model.file, model]));
-const requests = new Set(), liveRequests = new Set(), queue = [], management = new Set(), downloads = new Map();
+const requests = new Set(), liveRequests = new Set(), queue = [], management = new Set(), debugChannels = new Set(), debugVisible = new Set(), debugPending = new Map(), downloads = new Map();
+let debugArmed = null;
+const debugStateTimer = setInterval(() => { if (debugChannels.size) publishDebugState(); }, 1000);
 const verifiedModels = new Map();
 let engine = null, engineGeneration = 0, activeRequest = null, engineTask = null;
 let idleTimer = null, stopping = false, queuePump = null, lastUseAt = 0;
@@ -75,6 +79,7 @@ const liveDone = (request) => { if (!request.pending) for (const resolve of requ
 const terminal = async (request, message) => {
   if (request.terminal) return;
   request.terminal = true;
+  endDebugTap(request, message.type === "error" ? "request-failed" : "request-ended", message.type === "error");
   request.chunks.length = 0;
   requests.delete(request);
   liveRequests.delete(request);
@@ -92,6 +97,94 @@ const terminal = async (request, message) => {
   liveDone(request);
   if (engine && !activeRequest && queue.length === 0) scheduleIdleStop();
 };
+function publishDebugState() {
+  const requests = [...requestsSet()].filter((request) => !request.sink && !request.terminal && !request.ended).slice(-64).map((request) => ({
+    id: request.debugId, live: request.live, elapsedMs: Math.max(0, Date.now() - request.startedAt), tapped: Boolean(request.debugTap),
+  }));
+  for (const channel of debugChannels) {
+    try {
+      if (channel.closed || !channel.writable || !debugVisible.has(channel)) continue;
+      if (debugPending.has(channel)) { channel.send(debugPending.get(channel)); debugPending.delete(channel); }
+      channel.send({ type: "state", armed: debugArmed === channel, requests });
+    }
+    catch { closeDebugChannel(channel); }
+  }
+}
+function* requestsSet() { yield* requests; }
+function closeDebugChannel(channel) {
+  debugChannels.delete(channel);
+  debugVisible.delete(channel);
+  debugPending.delete(channel);
+  if (debugArmed === channel) debugArmed = null;
+  for (const request of requests) if (request.debugTap === channel) endDebugTap(request, "panel-closed", true);
+  publishDebugState();
+}
+function endDebugTap(request, reason, incomplete) {
+  const channel = request.debugTap;
+  if (!channel) return;
+  request.debugTap = null;
+  const ended = { type: "tap-ended", id: request.debugId, reason, incomplete };
+  try { if (!channel.closed && channel.writable) channel.send(ended); else if (!channel.closed) debugPending.set(channel, ended); }
+  catch { if (!channel.closed) debugPending.set(channel, ended); }
+  publishDebugState();
+}
+function attachDebugTap(request, channel, partial = false) {
+  if (!channel || channel.closed || request.debugTap || request.terminal) return false;
+  request.debugTap = channel;
+  request.debugTapPartial = partial;
+  request.debugBytes = 0;
+  try {
+    if (!channel.writable) throw new Error("debug channel backpressure");
+    channel.send({ type: "tap-started", id: request.debugId, partial, label: "source/device/processing unknown" });
+    publishDebugState();
+    return true;
+  } catch {
+    request.debugTap = null;
+    return false;
+  }
+}
+function tapAcceptedAudio(request, bytes) {
+  const channel = request.debugTap;
+  if (!channel || channel.closed) return;
+  const acceptedLength = Math.min(bytes.byteLength, MAX_DEBUG_BYTES - request.debugBytes);
+  if (acceptedLength <= 0) return endDebugTap(request, "limit", true);
+  try {
+    if (!channel.writable) return endDebugTap(request, "backpressure", true);
+    const accepted = bytes.subarray(0, acceptedLength);
+    channel.send({ type: "pcm", id: request.debugId, data: Uint8Array.from(accepted).buffer });
+    request.debugBytes += acceptedLength;
+    if (request.debugBytes >= MAX_DEBUG_BYTES) endDebugTap(request, "limit", true);
+  } catch { endDebugTap(request, "backpressure", true); }
+}
+function debugCommand(channel, message) {
+  try {
+    if (message?.type === "visibility") {
+      if (message.visible === true) { debugVisible.add(channel); publishDebugState(); }
+      else debugVisible.delete(channel);
+    } else if (message?.type === "arm") {
+      if (debugArmed && debugArmed !== channel) throw new Error("Another debug panel is armed.");
+      for (const request of requests) if (request.debugTap === channel) endDebugTap(request, "rearmed", true);
+      debugArmed = channel;
+    } else if (message?.type === "select" && typeof message.id === "string") {
+      debugArmed = null;
+      const request = [...requests].find((item) => item.debugId === message.id && !item.terminal && !item.ended && !item.sink);
+      if (!request || !attachDebugTap(request, channel, true)) throw new Error("That transcription is no longer available.");
+    } else if (message?.type === "stop") {
+      if (debugArmed === channel) debugArmed = null;
+      for (const request of requests) if (request.debugTap === channel) endDebugTap(request, "stopped", true);
+    } else if (message?.type === "limit") {
+      if (debugArmed === channel) debugArmed = null;
+      for (const request of requests) if (request.debugTap === channel) endDebugTap(request, "limit", true);
+    } else if (message?.type === "clear") {
+      if (debugArmed === channel) debugArmed = null;
+      for (const request of requests) if (request.debugTap === channel) endDebugTap(request, "cleared", true);
+      try { if (channel.writable) channel.send({ type: "cleared" }); } catch { /* closed */ }
+    }
+    publishDebugState();
+  } catch (error) {
+    try { if (channel.writable) channel.send({ type: "debug-error", message: error.message }); } catch { /* closed */ }
+  }
+}
 const publishManagement = async (extra = {}) => {
   const installed = await assetSnapshot(root).catch(() => ({ runtime: false, models: {}, licenses: [] }));
   const activeModel = await getActiveModel();
@@ -679,11 +772,14 @@ async function transcribeWavFile(filePath, options, signal) {
 function startTranscription(channel, open, early = []) {
   clearTimeout(idleTimer);
   const live = open.live === true;
-  const request = { channel, live, translate: open.translate === true, chunks: [], bytes: 0, totalSamples: 0, languages: Array.isArray(open.languages) ? open.languages.slice(0, 32) : [], prompt: typeof open.prompt === "string" ? open.prompt.slice(0, 4000) : "", terminal: false, controller: null, endedAt: 0, startedAt: Date.now(), ended: false, pending: 0, waiters: [], committedText: "", promptTail: "", lastCommittedLanguage: "", committedInWindow: [], hypotheses: [], slowPasses: 0, partialMode: true, partialPending: false, finishedIds: new Set(), committedSampleEnd: 0, scheduledCommitEnd: 0, lastUtterance: 0, warmup: null, draftVersions: new Map(), draftsInvalid: false, latchedLanguage: null, preparingSent: false, stream: null, backlogError: null };
+  const request = { channel, live, debugId: randomBytes(12).toString("hex"), translate: open.translate === true, chunks: [], bytes: 0, totalSamples: 0, languages: Array.isArray(open.languages) ? open.languages.slice(0, 32) : [], prompt: typeof open.prompt === "string" ? open.prompt.slice(0, 4000) : "", terminal: false, controller: null, endedAt: 0, startedAt: Date.now(), ended: false, pending: 0, waiters: [], committedText: "", promptTail: "", lastCommittedLanguage: "", committedInWindow: [], hypotheses: [], slowPasses: 0, partialMode: true, partialPending: false, finishedIds: new Set(), committedSampleEnd: 0, scheduledCommitEnd: 0, lastUtterance: 0, warmup: null, draftVersions: new Map(), draftsInvalid: false, latchedLanguage: null, preparingSent: false, stream: null, backlogError: null };
   requests.add(request);
+  if (debugArmed) { attachDebugTap(request, debugArmed, false); debugArmed = null; }
+  publishDebugState();
   const stopRequest = () => {
     if (request.terminal) return;
     request.terminal = true;
+    endDebugTap(request, "request-closed", true);
     request.chunks.length = 0;
     requests.delete(request);
     liveRequests.delete(request);
@@ -749,12 +845,14 @@ function startTranscription(channel, open, early = []) {
         if (!request.stream) return void terminal(request, { type: "error", code: "engine-failed", message: "Live audio stream was not ready." });
         try {
           request.stream.append(bytes);
+          tapAcceptedAudio(request, bytes);
           if (!request.pending) request.stream.trimIdle();
         } catch { request.draftsInvalid = true; }
-      } else request.chunks.push(bytes);
+      } else { request.chunks.push(bytes); tapAcceptedAudio(request, bytes); }
     } else if (message.type === "end") {
       request.ended = true;
       request.endedAt = Date.now();
+      endDebugTap(request, "request-ended", false);
       if (!live) enqueueJob(request, "final", { start: 0, end: request.totalSamples });
       else {
         await send(channel, { type: "status", state: "transcribing" });
@@ -915,6 +1013,15 @@ persephone.service.onChannel(async (channel, open, info) => {
     await publishManagement();
     return;
   }
+  if (open?.type === "audio-debug") {
+    if (crossBoard) return refuse(channel);
+    debugChannels.add(channel);
+    channel.onClose(() => closeDebugChannel(channel));
+    stopEarly();
+    channel.onMessage((message) => debugCommand(channel, message));
+    for (const message of early) debugCommand(channel, message);
+    return;
+  }
   if (open?.type === "describe") {
     await send(channel, { type: "description", engine: "whisper.cpp", model: await getActiveModel(), languages: "auto", local: true, maxAudioMs: MAX_AUDIO_MS, features: ["live", "translate"] });
     close(channel);
@@ -930,6 +1037,9 @@ persephone.service.onChannel(async (channel, open, info) => {
 
 persephone.service.onShutdown(async () => {
   stopping = true;
+  clearInterval(debugStateTimer);
+  debugArmed = null;
+  for (const channel of [...debugChannels]) closeDebugChannel(channel);
   clearTimeout(idleTimer);
   for (const download of downloads.values()) download.controller.abort(new Error("Service is shutting down."));
   const streams = [];

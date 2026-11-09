@@ -1,5 +1,6 @@
 ## 1.5.0
 - Configure and review wake phrase enrollment in the Wake Word board.
+- Use the shared Persephone microphone and device selection for dictation and Wake mode.
 
 ## 1.4.3
 - A wake request now ends when the speech provider stops producing text, instead of when the microphone goes quiet. On a machine with a loud fan the old test treated the fan as speech, so a request without a stop word never ended on silence and ran until the one-minute limit. The **Silence timeout** setting still sets how long a pause ends the request.

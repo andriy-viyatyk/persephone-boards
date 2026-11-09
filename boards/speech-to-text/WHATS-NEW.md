@@ -1,3 +1,6 @@
+## 1.5.0
+- Use Persephone's shared microphone processing and add a temporary accepted-audio debug panel.
+
 ## 1.4.3
 - Added a **Graphics device** picker under Engine and models. On a laptop with both an integrated and a discrete graphics card, transcription previously always ran on the integrated one, because that is the first device the graphics backend lists. Choosing the discrete card was about three times faster in testing.
 - The picker appears once more than one device has been detected, which happens after the first transcription, and lists each card by name.

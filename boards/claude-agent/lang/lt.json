@@ -44,7 +44,7 @@
     "wake.threshold": "Riba (0–1)",
     "wake.thresholdHint": "Didesnė riba yra griežtesnė.",
     "wake.silence": "Tylos skirtasis laikas (sekundės)",
-    "wake.microphone": "Mikrofonas",
+    "wake.microphone": "Mikrofonas („Wake“ ir diktavimas)",
     "wake.refreshDevices": "Atnaujinti mikrofonus",
     "wake.defaultDevice": "Numatytoji sistemos įvestis",
     "wake.deviceNumber": "Įvestis {number}",

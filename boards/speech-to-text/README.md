@@ -18,7 +18,15 @@ The runtime and model weights are stored in `%LOCALAPPDATA%\Persephone\board-dat
 
 ## Privacy and licenses
 
-Audio stays on this computer and is sent only to the local whisper.cpp server. Nothing is uploaded. The Whisper model is licensed by OpenAI under MIT. whisper.cpp is licensed by the ggml authors under MIT; runtime notices are shown in the board after installation. Users download model weights directly from Hugging Face; Persephone and persephone-boards do not host model weights.
+Audio stays on this computer and is sent only to the local whisper.cpp server. Nothing is uploaded. An explicitly armed Audio debug tap can include audio from another trusted client; its in-memory copy is limited to 60 seconds and is never saved or logged. The Whisper model is licensed by OpenAI under MIT. whisper.cpp is licensed by the ggml authors under MIT; runtime notices are shown in the board after installation. Users download model weights directly from Hugging Face; Persephone and persephone-boards do not host model weights.
+
+The microphone picker uses `audio.devices()` and capture uses Persephone's `audio@1` default processing, which follows the host's **Microphone Audio** cleaning setting. If a selected device disappears, the page shows that it is falling back to the system default. The capability does not report whether cleaning is enabled or whether its pipeline fell back.
+
+## Audio debug
+
+Expand **Audio debug** and click **Record** to arm the next accepted streaming transcription. This includes requests sent by another trusted client. To inspect an active request, select its temporary identifier and attach; only later audio is captured. Concurrent requests remain separate. Source, device and processing are unknown because the transcription contract carries no such metadata; file transcription is not tapped.
+
+The panel displays and plays the provider-accepted mono 16 kHz PCM samples. It keeps at most 60 seconds in page memory, creates no file and never writes audio to storage or logs. Clear and page close release the buffer. Stop, request completion, channel failure or delivery pressure marks a partial recording incomplete. At the 60-second cap only the debug tap stops; transcription continues.
 
 ## Settings
 

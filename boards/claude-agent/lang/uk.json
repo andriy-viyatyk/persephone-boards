@@ -44,7 +44,7 @@
     "wake.threshold": "Поріг (0–1)",
     "wake.thresholdHint": "Вищий поріг означає суворішу перевірку.",
     "wake.silence": "Час очікування тиші (секунди)",
-    "wake.microphone": "Мікрофон",
+    "wake.microphone": "Мікрофон (Wake і диктування)",
     "wake.refreshDevices": "Оновити мікрофони",
     "wake.defaultDevice": "Типовий системний вхід",
     "wake.deviceNumber": "Вхід {number}",

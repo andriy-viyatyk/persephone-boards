@@ -4,9 +4,10 @@
   "description": "Local speech transcription powered by whisper.cpp.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.4.3",
+  "version": "1.5.0",
   "minAppVersion": "5.0.18",
-  "minBridgeVersion": "1.50.0",
+  "minBridgeVersion": "1.51.0",
+  "uses": [{ "id": "audio", "version": 1 }],
   "permissions": {
     "execute": false,
     "service": true,

@@ -44,7 +44,7 @@
     "wake.threshold": "阈值 (0–1)",
     "wake.thresholdHint": "阈值越高，判定越严格。",
     "wake.silence": "静音超时 (秒)",
-    "wake.microphone": "麦克风",
+    "wake.microphone": "麦克风（唤醒和听写）",
     "wake.refreshDevices": "刷新麦克风",
     "wake.defaultDevice": "系统默认输入",
     "wake.deviceNumber": "输入 {number}",

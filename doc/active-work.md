@@ -8,6 +8,8 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
+- [ ] [BT-101: Speech to Text and Agent Chat — always use cleaned Persephone audio; audio debug panel](tasks/BT-101-stt-audio-debug/README.md)
+
 - [ ] [BT-100: Wake Word — centralize enrollment and review the crop before adding it](tasks/BT-100-wake-enroll-review/README.md)
 
 - [ ] BT-091: Wake Word — adaptive noise-floor detection gate (`wake-word` 1.1.1; implemented, awaiting live verification on the loud-fan laptop)

@@ -44,7 +44,7 @@
     "wake.threshold": "Limite (0–1)",
     "wake.thresholdHint": "Um limite mais alto é mais rigoroso.",
     "wake.silence": "Tempo limite de silêncio (segundos)",
-    "wake.microphone": "Microfone",
+    "wake.microphone": "Microfone (Wake e ditado)",
     "wake.refreshDevices": "Atualizar microfones",
     "wake.defaultDevice": "Entrada padrão do sistema",
     "wake.deviceNumber": "Entrada {number}",

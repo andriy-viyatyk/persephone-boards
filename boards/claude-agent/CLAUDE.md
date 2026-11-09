@@ -31,6 +31,7 @@ Standalone provider board; it is not a custom editor and has no file association
   a late stop before the sent position requires re-transcription of the cut buffer. Never persist request PCM.
 - Page preferences in `claude-agent:*` localStorage use `wake-mode`, `wake-session` (`{provider,id}`),
   `wake-threshold`, `wake-silence` and `wake-device`. Storage events propagate preferences between pages;
+  ordinary dictation and Wake mode both use `wake-device`, validated against `audio.devices()` and captured through `audio@1` with default host processing. Do not add a separate dictation-device setting or use page `getUserMedia`.
   only the service lease arbitrates ownership. `app.js` caches the shipped `wake-instructions.md` and its
   SHA-256 version, and checks raw transcript user entries after the last compaction before each page prompt.
   It prepends a versioned apply or revoke block when needed. Show it in a separate collapsed disclosure before

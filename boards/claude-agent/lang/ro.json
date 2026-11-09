@@ -44,7 +44,7 @@
     "wake.threshold": "Prag (0–1)",
     "wake.thresholdHint": "Un prag mai ridicat este mai strict.",
     "wake.silence": "Limită de timp pentru liniște (secunde)",
-    "wake.microphone": "Microfon",
+    "wake.microphone": "Microfon (Wake și dictare)",
     "wake.refreshDevices": "Reîmprospătați microfoanele",
     "wake.defaultDevice": "Intrare implicită a sistemului",
     "wake.deviceNumber": "Intrare {number}",

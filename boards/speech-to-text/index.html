@@ -46,6 +46,27 @@
       <p id="result-meta" class="muted"></p>
       <p class="privacy-note" data-i18n="privacy.local"></p>
     </section>
+    <details id="audio-debug-panel" class="panel disclosure">
+      <summary><span data-i18n="debug.title"></span><span id="debug-summary" class="muted" data-i18n="debug.idle"></span></summary>
+      <div class="disclosure-body debug-body">
+        <p data-i18n="debug.explain"></p>
+        <p class="muted" data-i18n="debug.privacy"></p>
+        <div class="debug-controls">
+          <button id="debug-record" class="primary" type="button" data-i18n="debug.record"></button>
+          <button id="debug-stop" type="button" data-i18n="debug.stop" disabled></button>
+          <label class="debug-request"><span data-i18n="debug.select"></span><select id="debug-requests"><option value="" data-i18n="debug.noRequests"></option></select></label>
+          <button id="debug-attach" type="button" data-i18n="debug.attach" disabled></button>
+          <button id="debug-clear" type="button" data-i18n="debug.clear"></button>
+          <button id="debug-play" type="button" data-i18n="debug.play" disabled></button>
+          <button id="debug-play-stop" type="button" data-i18n="debug.playStop" disabled></button>
+        </div>
+        <p id="debug-status" role="status" aria-live="polite" class="muted" data-i18n="debug.disconnected"></p>
+        <p id="debug-duration" class="muted">0:00 / 0:00</p>
+        <canvas id="debug-waveform" height="54" role="img" data-i18n-aria-label="debug.waveformLabel"></canvas>
+        <canvas id="debug-spectrogram" height="180" role="img" data-i18n-aria-label="debug.spectrogramLabel"></canvas>
+        <label class="debug-seek"><span data-i18n="debug.seek"></span><input id="debug-seek" type="range" min="0" max="1000" value="0" step="1" disabled></label>
+      </div>
+    </details>
     <details id="license-panel" class="panel disclosure">
       <summary><span data-i18n="licenses.title"></span></summary>
       <div class="disclosure-body license-body">
@@ -56,6 +77,7 @@
     </details>
   </main>
   <script src="./i18n.js"></script>
+  <script src="./audio-debug.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

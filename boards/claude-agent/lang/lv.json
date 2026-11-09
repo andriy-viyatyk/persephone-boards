@@ -44,7 +44,7 @@
     "wake.threshold": "Slieksnis (0–1)",
     "wake.thresholdHint": "Lielāks slieksnis ir stingrāks.",
     "wake.silence": "Klusuma taimauts (sekundes)",
-    "wake.microphone": "Mikrofons",
+    "wake.microphone": "Mikrofons (Wake un diktēšana)",
     "wake.refreshDevices": "Atsvaidzināt mikrofonus",
     "wake.defaultDevice": "Sistēmas noklusējuma ievade",
     "wake.deviceNumber": "Ievade {number}",

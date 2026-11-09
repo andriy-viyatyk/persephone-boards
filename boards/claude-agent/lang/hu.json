@@ -44,7 +44,7 @@
     "wake.threshold": "Küszöbérték (0–1)",
     "wake.thresholdHint": "A magasabb küszöbérték szigorúbb.",
     "wake.silence": "Csend időkorlátja (másodperc)",
-    "wake.microphone": "Mikrofon",
+    "wake.microphone": "Mikrofon (Wake és diktálás)",
     "wake.refreshDevices": "Mikrofonok frissítése",
     "wake.defaultDevice": "Rendszer alapértelmezett bemenete",
     "wake.deviceNumber": "Bemenet: {number}",

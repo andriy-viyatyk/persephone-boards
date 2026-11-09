@@ -33,6 +33,8 @@ and echo cancellation is imperfect. Similar voices in a film and the room may su
 room, device and threshold yourself; TV suppression is not guaranteed.
 
 The audio is never stored: request audio is held in memory and discarded after completion or cancellation.
+
+Ordinary voice dictation uses the same microphone selected for Wake mode in **Configure → Wake words**. Both paths capture through Persephone's shared `audio@1` service with default processing, which follows the host's **Microphone Audio** cleaning setting. If the saved device is no longer available, dictation visibly falls back to the system default. The board cannot tell whether host cleaning is enabled or whether the host used a fallback.
 Wake Word stores enrollment embeddings rather than recordings. Text and session history follow the normal
 agent and CLI behavior. On the next prompt in the marked session, the board adds the shipped
 [wake instructions](wake-instructions.md) to the conversation. The board sends a removal notice on the next

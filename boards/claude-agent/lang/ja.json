@@ -44,7 +44,7 @@
     "wake.threshold": "しきい値 (0～1)",
     "wake.thresholdHint": "しきい値が高いほど判定が厳しくなります。",
     "wake.silence": "無音タイムアウト (秒)",
-    "wake.microphone": "マイク",
+    "wake.microphone": "マイク（Wake・音声入力）",
     "wake.refreshDevices": "マイクを更新",
     "wake.defaultDevice": "システムの既定の入力",
     "wake.deviceNumber": "入力 {number}",

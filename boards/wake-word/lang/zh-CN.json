@@ -55,6 +55,23 @@
     "quality.short": "已拒绝：语音过短。",
     "quality.noise": "已拒绝：声音削波或音量过低。",
     "manifest.settings.caller-approval-policy.label": "调用方批准策略",
-    "manifest.settings.caller-approval-policy.description": "接受已授权的 speech.wake v1 调用方，或仅接受此面板页面。"
+    "manifest.settings.caller-approval-policy.description": "接受已授权的 speech.wake v1 调用方，或仅接受此面板页面。",
+    "samples.duration": "约 {seconds} 秒",
+    "samples.durationUnknown": "时长不可用",
+    "review.title": "检查录音",
+    "review.waveform": "波形",
+    "review.spectrogram": "频谱图，0–8 kHz",
+    "review.start": "选区起点",
+    "review.end": "选区终点",
+    "review.length": "已选择：{seconds} 秒",
+    "review.playSelection": "播放选区",
+    "review.playAll": "播放全部",
+    "review.add": "添加",
+    "review.cancel": "取消",
+    "review.saving": "正在添加…",
+    "review.timeout": "检查超时；请重新录音。",
+    "review.invalid": "请选择录音中的有效范围。",
+    "review.playError": "播放失败。",
+    "review.busy": "Wake Word 正在使用中。请完成当前操作后重试。"
   }
 }

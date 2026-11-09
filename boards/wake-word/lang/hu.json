@@ -55,6 +55,23 @@
     "quality.short": "Elutasítva: túl rövid beszéd.",
     "quality.noise": "Elutasítva: torz vagy nagyon halk hang.",
     "manifest.settings.caller-approval-policy.label": "Hívó jóváhagyási szabályzata",
-    "manifest.settings.caller-approval-policy.description": "Az engedélyezett speech.wake v1 hívók vagy csak ennek a táblának az oldalai fogadhatók el."
+    "manifest.settings.caller-approval-policy.description": "Az engedélyezett speech.wake v1 hívók vagy csak ennek a táblának az oldalai fogadhatók el.",
+    "samples.duration": "körülbelül {seconds} mp",
+    "samples.durationUnknown": "A hossz nem érhető el",
+    "review.title": "Felvétel ellenőrzése",
+    "review.waveform": "Hullámforma",
+    "review.spectrogram": "Spektrogram, 0–8 kHz",
+    "review.start": "Kijelölés kezdete",
+    "review.end": "Kijelölés vége",
+    "review.length": "Kijelölve: {seconds} mp",
+    "review.playSelection": "Kijelölés lejátszása",
+    "review.playAll": "Összes lejátszása",
+    "review.add": "Hozzáadás",
+    "review.cancel": "Mégse",
+    "review.saving": "Hozzáadás…",
+    "review.timeout": "Az ellenőrzés ideje lejárt; készíts új felvételt.",
+    "review.invalid": "Válassz érvényes szakaszt a felvételen belül.",
+    "review.playError": "A lejátszás sikertelen.",
+    "review.busy": "A Wake Word foglalt. Fejezd be az aktuális műveletet, és próbáld újra."
   }
 }

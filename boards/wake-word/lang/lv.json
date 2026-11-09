@@ -55,6 +55,23 @@
     "quality.short": "Noraidīts: pārāk maz runas.",
     "quality.noise": "Noraidīts: skaņa ir aprauta vai ļoti klusa.",
     "manifest.settings.caller-approval-policy.label": "Zvanītāja apstiprināšanas politika",
-    "manifest.settings.caller-approval-policy.description": "Pieņemt atļautos speech.wake v1 zvanītājus vai tikai šīs tāfeles lapas."
+    "manifest.settings.caller-approval-policy.description": "Pieņemt atļautos speech.wake v1 zvanītājus vai tikai šīs tāfeles lapas.",
+    "samples.duration": "aptuveni {seconds} s",
+    "samples.durationUnknown": "Ilgums nav pieejams",
+    "review.title": "Pārskatīt ierakstu",
+    "review.waveform": "Viļņforma",
+    "review.spectrogram": "Spektrogramma, 0–8 kHz",
+    "review.start": "Atlases sākums",
+    "review.end": "Atlases beigas",
+    "review.length": "Atlasīts: {seconds} s",
+    "review.playSelection": "Atskaņot atlasi",
+    "review.playAll": "Atskaņot visu",
+    "review.add": "Pievienot",
+    "review.cancel": "Atcelt",
+    "review.saving": "Pievieno…",
+    "review.timeout": "Pārskatīšanas laiks beidzies; ierakstiet vēlreiz.",
+    "review.invalid": "Izvēlieties derīgu ieraksta daļu.",
+    "review.playError": "Atskaņošana neizdevās.",
+    "review.busy": "Wake Word ir aizņemts. Pabeidziet pašreizējo darbību un mēģiniet vēlreiz."
   }
 }

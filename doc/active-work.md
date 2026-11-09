@@ -8,6 +8,8 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
+- [ ] [BT-100: Wake Word — centralize enrollment and review the crop before adding it](tasks/BT-100-wake-enroll-review/README.md)
+
 - [ ] BT-091: Wake Word — adaptive noise-floor detection gate (`wake-word` 1.1.1; implemented, awaiting live verification on the loud-fan laptop)
 - [ ] [BT-093: Wake Word — one detection per phrase, best-matching person wins](tasks/BT-093-wake-best-match-wins/README.md) (`wake-word` 1.1.1; implemented, awaiting live verification)
 - [ ] [BT-094: Wake Word — gate detection on speech, not loudness (Silero VAD)](tasks/BT-094-wake-vad-gate/README.md) (`wake-word` 1.1.1; verified live)

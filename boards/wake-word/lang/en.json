@@ -55,6 +55,23 @@
     "quality.short": "Rejected: too little speech.",
     "quality.noise": "Rejected: clipping or very low level.",
     "manifest.settings.caller-approval-policy.label": "Caller approval policy",
-    "manifest.settings.caller-approval-policy.description": "Accept granted speech.wake v1 callers, or only this board page."
+    "manifest.settings.caller-approval-policy.description": "Accept granted speech.wake v1 callers, or only this board page.",
+    "samples.duration": "about {seconds} s",
+    "samples.durationUnknown": "Length unavailable",
+    "review.title": "Review enrollment",
+    "review.waveform": "Waveform",
+    "review.spectrogram": "Spectrogram, 0–8 kHz",
+    "review.start": "Selection start",
+    "review.end": "Selection end",
+    "review.length": "Selected: {seconds} s",
+    "review.playSelection": "Play selection",
+    "review.playAll": "Play all",
+    "review.add": "Add",
+    "review.cancel": "Cancel",
+    "review.saving": "Adding…",
+    "review.timeout": "Review timed out; record again.",
+    "review.invalid": "Choose a valid selection within the recording.",
+    "review.playError": "Playback failed.",
+    "review.busy": "Wake Word is busy. Finish its current activity and try again."
   }
 }

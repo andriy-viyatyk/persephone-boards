@@ -741,6 +741,7 @@ window.createWakeAssistant = function createWakeAssistant(options) {
     render("off", "", "");
   }
   return {
-    setEnabled, dispose, refresh: () => render(), cancelListeningRequest, turnEnded
+    setEnabled, dispose, refresh: () => render(), cancelListeningRequest, turnEnded,
+    wakeProvider: () => listener ? wake?.provider?.provider || null : null
   };
 };

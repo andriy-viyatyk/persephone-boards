@@ -4,7 +4,7 @@
   "description": "Local enrollment-based wake and stop phrase detection.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "minAppVersion": "5.0.18",
   "minBridgeVersion": "1.51.0",
   "permissions": {
@@ -35,6 +35,9 @@
       "enroll": { "kind": "channel", "summary": "Enroll a phrase from the microphone.", "args": [{ "name": "open", "type": "{ phrase: string; kind: string; person: string; deviceId?: string; echoCancel?: boolean }" }], "agent": false, "timeoutMs": 15000 },
       "listen": { "kind": "channel", "summary": "Listen for enrolled phrases.", "args": [{ "name": "open", "type": "{ phrases: string[]; sources: string[]; deviceId?: string; threshold?: number; echoCancel?: boolean }" }], "agent": false, "timeoutMs": 15000 }
     }
+  }, {
+    "id": "persephone.wake-configure", "version": 1, "title": "Configure Wake Word",
+    "methods": { "open": { "kind": "open", "summary": "Open Wake Word configuration.", "args": [{ "name": "payload", "type": "{ phrase: string; kind: string }" }], "returns": "null", "agent": false } }
   }],
   "serviceInterfaces": [{ "id": "speech.wake", "version": 1, "title": "Speech Wake" }],
   "languages": { "folder": "lang", "default": "en" },

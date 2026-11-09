@@ -58,7 +58,7 @@ async function readState(signal) {
   return state;
 }
 
-export function list(phrase) {
+export function list(phrase, { privateDetails = false } = {}) {
   return serialized(async () => {
     const state = await readState();
     const groups = new Map();
@@ -76,6 +76,9 @@ export function list(phrase) {
         frontendVersion: sample.frontendVersion ?? null,
         echoCancel: sample.echoCancel,
         legacyCapture: sample.legacyCapture === true,
+        ...(privateDetails ? { duration: sample.frontendVersion === 2 && Array.isArray(sample.embeddings)
+          && sample.embeddings.length >= 2 && sample.embeddings.length <= 33
+          ? (sample.embeddings.length - 2) * 0.08 : null } : {}),
       });
     }
     return [...groups.values()];

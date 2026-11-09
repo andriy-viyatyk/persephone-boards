@@ -2,7 +2,7 @@
 
 This service board implements `speech.wake@1`; the normative contract is
 `guides.agents["speech-wake"]`. The page uses private service channels for the same operations,
-and `audio.devices()` for microphone IDs. It does not capture audio itself. Service, microphone,
+and `audio.devices()` for microphone IDs. It does not capture audio itself; the service sends the page a transient clip for review and in-memory playback. Service, microphone,
 computerAudio and `uses: audio@1` grants are required. The caller policy allows the private page;
 `same-board-only` rejects every external call and channel. Diagnostics are private to the page.
 
@@ -64,3 +64,5 @@ ZIP. Keep both packages on the same version and re-apply the rewrite on upgrade;
 bundle before and after is recorded in `THIRD-PARTY-NOTICES.md`. Verify an upgrade by importing
 `scripts/engine.mjs` and running `logMel` → `embed` outside the app: a working runtime returns a
 96-dimension, L2-normalized vector.
+
+BT-100: The private page reviews a VAD-suggested crop before committing; public enrollment remains automatic. PCM is transient and must never enter logs or storage. The page exposes `persephone.wake-configure@1` for provider-bound Agent Chat configuration. Existing sample durations are approximate, derived only from current-version embedding counts. Playback uses the shared audio capture stream; host cleaning can be disabled or fall back.

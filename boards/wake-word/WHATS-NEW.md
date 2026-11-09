@@ -1,3 +1,6 @@
+## 1.2.0
+- Review and play wake phrase recordings before adding them; automatic crops use speech detection and existing samples show an approximate length.
+
 ## 1.1.1
 - Fixed: enrolling a wake word failed with `Cannot find package 'onnxruntime-common'`. The speech runtime was missing a required file, so no enrollment or listening could work on an installed board.
 - Fixed: on a machine with a loud fan the detector triggered every few seconds with nobody speaking. The sound gate now follows the room's noise level instead of a fixed one.

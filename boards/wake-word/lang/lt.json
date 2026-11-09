@@ -55,6 +55,23 @@
     "quality.short": "Atmesta: per mažai kalbos.",
     "quality.noise": "Atmesta: garsas iškraipytas arba labai tylus.",
     "manifest.settings.caller-approval-policy.label": "Skambinančiojo patvirtinimo taisyklė",
-    "manifest.settings.caller-approval-policy.description": "Priimti patvirtintus speech.wake v1 skambinančiuosius arba tik šios lentos puslapius."
+    "manifest.settings.caller-approval-policy.description": "Priimti patvirtintus speech.wake v1 skambinančiuosius arba tik šios lentos puslapius.",
+    "samples.duration": "apie {seconds} sek.",
+    "samples.durationUnknown": "Trukmė nežinoma",
+    "review.title": "Peržiūrėti įrašą",
+    "review.waveform": "Bangos forma",
+    "review.spectrogram": "Spektrograma, 0–8 kHz",
+    "review.start": "Pasirinkimo pradžia",
+    "review.end": "Pasirinkimo pabaiga",
+    "review.length": "Pasirinkta: {seconds} s",
+    "review.playSelection": "Groti pasirinkimą",
+    "review.playAll": "Groti viską",
+    "review.add": "Pridėti",
+    "review.cancel": "Atšaukti",
+    "review.saving": "Pridedama…",
+    "review.timeout": "Peržiūros laikas baigėsi; įrašykite dar kartą.",
+    "review.invalid": "Pasirinkite tinkamą įrašo dalį.",
+    "review.playError": "Atkurti nepavyko.",
+    "review.busy": "Wake Word užimtas. Užbaikite dabartinį veiksmą ir bandykite dar kartą."
   }
 }

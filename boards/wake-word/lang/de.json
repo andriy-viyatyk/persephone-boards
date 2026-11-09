@@ -55,6 +55,23 @@
     "quality.short": "Abgelehnt: zu wenig Sprache.",
     "quality.noise": "Abgelehnt: Übersteuerung oder sehr niedriger Pegel.",
     "manifest.settings.caller-approval-policy.label": "Richtlinie zur Anruferfreigabe",
-    "manifest.settings.caller-approval-policy.description": "Freigegebene speech.wake-v1-Aufrufer oder nur Seiten dieses Boards akzeptieren."
+    "manifest.settings.caller-approval-policy.description": "Freigegebene speech.wake-v1-Aufrufer oder nur Seiten dieses Boards akzeptieren.",
+    "samples.duration": "ca. {seconds} s",
+    "samples.durationUnknown": "Länge nicht verfügbar",
+    "review.title": "Aufnahme überprüfen",
+    "review.waveform": "Wellenform",
+    "review.spectrogram": "Spektrogramm, 0–8 kHz",
+    "review.start": "Auswahlbeginn",
+    "review.end": "Auswahlende",
+    "review.length": "Ausgewählt: {seconds} s",
+    "review.playSelection": "Auswahl abspielen",
+    "review.playAll": "Alles abspielen",
+    "review.add": "Hinzufügen",
+    "review.cancel": "Abbrechen",
+    "review.saving": "Wird hinzugefügt…",
+    "review.timeout": "Überprüfung abgelaufen; erneut aufnehmen.",
+    "review.invalid": "Wählen Sie einen gültigen Ausschnitt der Aufnahme.",
+    "review.playError": "Wiedergabe fehlgeschlagen.",
+    "review.busy": "Wake Word ist beschäftigt. Beenden Sie die aktuelle Aktion und versuchen Sie es erneut."
   }
 }

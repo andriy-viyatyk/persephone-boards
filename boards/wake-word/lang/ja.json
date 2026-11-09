@@ -55,6 +55,23 @@
     "quality.short": "拒否: 音声が短すぎます。",
     "quality.noise": "拒否: 音割れ、または音量が非常に小さい状態です。",
     "manifest.settings.caller-approval-policy.label": "呼び出しの承認ポリシー",
-    "manifest.settings.caller-approval-policy.description": "許可された speech.wake v1 の呼び出し元、またはこのボードのページのみを受け入れます。"
+    "manifest.settings.caller-approval-policy.description": "許可された speech.wake v1 の呼び出し元、またはこのボードのページのみを受け入れます。",
+    "samples.duration": "約 {seconds} 秒",
+    "samples.durationUnknown": "長さは不明です",
+    "review.title": "登録内容を確認",
+    "review.waveform": "波形",
+    "review.spectrogram": "スペクトログラム、0～8 kHz",
+    "review.start": "選択範囲の開始",
+    "review.end": "選択範囲の終了",
+    "review.length": "選択範囲: {seconds} 秒",
+    "review.playSelection": "選択範囲を再生",
+    "review.playAll": "すべて再生",
+    "review.add": "追加",
+    "review.cancel": "キャンセル",
+    "review.saving": "追加中…",
+    "review.timeout": "確認がタイムアウトしました。もう一度録音してください。",
+    "review.invalid": "録音内の有効な範囲を選択してください。",
+    "review.playError": "再生できませんでした。",
+    "review.busy": "Wake Word は使用中です。現在の操作を終えてから再試行してください。"
   }
 }

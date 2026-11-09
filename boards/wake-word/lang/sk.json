@@ -55,6 +55,23 @@
     "quality.short": "Odmietnuté: príliš krátka reč.",
     "quality.noise": "Odmietnuté: skreslený zvuk alebo veľmi nízka úroveň.",
     "manifest.settings.caller-approval-policy.label": "Politika schvaľovania volajúcich",
-    "manifest.settings.caller-approval-policy.description": "Prijímať schválených volajúcich speech.wake v1 alebo iba stránky tejto tabule."
+    "manifest.settings.caller-approval-policy.description": "Prijímať schválených volajúcich speech.wake v1 alebo iba stránky tejto tabule.",
+    "samples.duration": "približne {seconds} s",
+    "samples.durationUnknown": "Dĺžka nie je dostupná",
+    "review.title": "Skontrolovať nahrávku",
+    "review.waveform": "Priebeh vlny",
+    "review.spectrogram": "Spektrogram, 0–8 kHz",
+    "review.start": "Začiatok výberu",
+    "review.end": "Koniec výberu",
+    "review.length": "Vybrané: {seconds} s",
+    "review.playSelection": "Prehrať výber",
+    "review.playAll": "Prehrať všetko",
+    "review.add": "Pridať",
+    "review.cancel": "Zrušiť",
+    "review.saving": "Pridáva sa…",
+    "review.timeout": "Čas kontroly uplynul; nahrajte znova.",
+    "review.invalid": "Vyberte platnú časť nahrávky.",
+    "review.playError": "Prehrávanie zlyhalo.",
+    "review.busy": "Wake Word je zaneprázdnený. Dokončite aktuálnu činnosť a skúste znova."
   }
 }

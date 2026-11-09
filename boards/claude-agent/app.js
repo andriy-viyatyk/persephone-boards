@@ -1673,8 +1673,6 @@ function updateControls() {
 let configTab = "instructions";
 let configGeneration = 0;
 const instructionsEditor = { provider: "", saved: "", defaultText: "" };
-let wakeEnrollment = null;
-let wakeEnrollmentGeneration = 0;
 let wakeSettings = null;
 
 function readWakeSettings() {
@@ -1728,14 +1726,6 @@ function saveWakeSettings() {
   return true;
 }
 
-async function wakeCapability() {
-  const wake = await persephone.getCapability("speech.wake", {
-    version: 1
-  });
-  if (!wake || !(await wake.describe()).local) throw new Error(t("wake.providerUnavailable"));
-  return wake;
-}
-
 function wakeError(error) {
   $("#wake-enroll-status").textContent = error?.message || t("error");
 }
@@ -1777,187 +1767,43 @@ async function refreshWakeDevices() {
   }
 }
 
-// Person suggestions: a themed dropdown (the native datalist popup cannot be styled).
-let wakePeople = [];
-let wakeSuggestionIndex = -1;
-
-function wakeSuggestionItems() {
-  return [...$("#wake-people").children];
-}
-
-function hideWakeSuggestions() {
-  $("#wake-people").classList.add("hidden");
-  $("#wake-person").setAttribute("aria-expanded", "false");
-  wakeSuggestionIndex = -1;
-}
-
-function highlightWakeSuggestion(index) {
-  const items = wakeSuggestionItems();
-  wakeSuggestionIndex = items.length ? (index + items.length) % items.length : -1;
-  items.forEach((item, i) => item.classList.toggle("active", i === wakeSuggestionIndex));
-  items[wakeSuggestionIndex]?.scrollIntoView({ block: "nearest" });
-}
-
-function pickWakeSuggestion(person) {
-  $("#wake-person").value = person;
-  hideWakeSuggestions();
-}
-
-function showWakeSuggestions() {
-  const input = $("#wake-person"), list = $("#wake-people");
-  const query = input.value.trim().toLowerCase();
-  const matches = wakePeople.filter((person) => person.toLowerCase().includes(query) && person !== input.value.trim());
-  list.replaceChildren(...matches.map((person) => {
-    const item = element("div", "wake-suggestion", person);
-    item.setAttribute("role", "option");
-    // pointerdown keeps focus in the input, so the list is not closed by blur first.
-    item.addEventListener("pointerdown", (event) => { event.preventDefault(); pickWakeSuggestion(person); });
-    return item;
-  }));
-  wakeSuggestionIndex = -1;
-  list.classList.toggle("hidden", !matches.length);
-  input.setAttribute("aria-expanded", String(Boolean(matches.length)));
-}
-
-$("#wake-person").addEventListener("focus", showWakeSuggestions);
-$("#wake-person").addEventListener("input", showWakeSuggestions);
-$("#wake-person").addEventListener("blur", hideWakeSuggestions);
-$("#wake-person").addEventListener("keydown", (event) => {
-  const open = !$("#wake-people").classList.contains("hidden");
-  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-    event.preventDefault();
-    if (!open) showWakeSuggestions();
-    highlightWakeSuggestion(wakeSuggestionIndex + (event.key === "ArrowDown" ? 1 : -1));
-  } else if (event.key === "Enter" && open && wakeSuggestionIndex >= 0) {
-    event.preventDefault();
-    pickWakeSuggestion(wakeSuggestionItems()[wakeSuggestionIndex].textContent);
-  } else if (event.key === "Escape" && open) {
-    // Close only the list, not the Configure dialog.
-    event.preventDefault();
-    event.stopPropagation();
-    hideWakeSuggestions();
-  }
-});
-
-async function refreshWakeSamples() {
+let wakeConfigurePending = false;
+let wakeConfigureAway = false;
+async function configureWakeWord() {
+  const status = $("#wake-enroll-status");
+  status.textContent = "";
   try {
-    const wake = await wakeCapability();
-    const groups = (await Promise.all([
-      wake.list("agent-wake"), wake.list("agent-stop")
-    ])).flat();
-    // The Person field suggests everyone who already has samples.
-    wakePeople = [...new Set(groups.map((group) => group.person).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    const host = $("#wake-samples");
-    host.replaceChildren();
-    if (!groups.length) host.textContent = t("wake.noSamples");
-    for (const group of groups) {
-      const row = element("div", "wake-sample");
-      row.append(element("strong", "", `${group.phrase} · ${group.person} · ${group.kind}`));
-      const chips = element("div", "wake-chips");
-      row.append(chips);
-      group.samples.forEach((sample, index) => {
-        const provenance = sample.legacyCapture ? t("wake.legacy")
-          : sample.echoCancel === true ? t("wake.echoOn")
-          : sample.echoCancel === false ? t("wake.echoOff") : t("wake.echoUnknown");
-        // A chip shows the sample; only its "x" button deletes it.
-        const chip = element("span", "wake-chip");
-        chip.title = `${sample.createdAt || ""} · ${sample.sampleId}`;
-        chip.append(element("span", "", `${index + 1}. ${provenance}`));
-        const button = element("button", "wake-chip-remove");
-        button.type = "button";
-        button.title = t("delete");
-        button.setAttribute("aria-label", t("delete"));
-        button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 7 7 17M7 7l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>';
-        chip.append(button);
-        chips.append(chip);
-        button.addEventListener("click", () => void (async () => {
-          try {
-            await wake.delete({
-              phrase: group.phrase, sampleId: sample.sampleId
-            });
-            await refreshWakeSamples();
-          } catch (error) {
-            wakeError(error);
-          }
-        })());
-      });
-      host.append(row);
+    const wake = await persephone.getCapability("speech.wake", { version: 1 });
+    const provider = wakeAssistant.wakeProvider() || wake?.provider?.provider;
+    if (!provider) { status.textContent = t("wake.configureUnavailable"); return; }
+    const candidates = await persephone.capabilities.providers("persephone.wake-configure");
+    if (!candidates.some(candidate => candidate.version === 1 && candidate.provider === provider)) {
+      status.textContent = t("wake.configureUnavailable"); return;
     }
+    const configure = await persephone.getCapability("persephone.wake-configure", { version: 1, provider });
+    if (!configure) { status.textContent = t("wake.configureUnavailable"); return; }
+    wakeConfigurePending = true;
+    wakeConfigureAway = false;
+    await configure.open({ phrase: "agent-wake", kind: "wake" });
   } catch (error) {
-    wakeError(error);
-  }
-}
-
-function cancelWakeEnrollment() {
-  ++wakeEnrollmentGeneration;
-  if (wakeEnrollment) {
-    try {
-      wakeEnrollment.close();
-    } catch { /* already closed */ }
-    wakeEnrollment = null;
-  }
-  $("#wake-enroll").disabled = false;
-}
-
-async function enrollWakeWord() {
-  const person = $("#wake-person").value.trim();
-  if (!person) {
-    $("#wake-enroll-status").textContent = t("wake.personRequired");
-    return;
-  }
-  const token = ++wakeEnrollmentGeneration;
-  $("#wake-enroll").disabled = true;
-  $("#wake-enroll-status").textContent = t("wake.recording");
-  try {
-    const wake = await wakeCapability();
-    if (token !== wakeEnrollmentGeneration) return;
-    const kind = $("#wake-kind").value;
-    const select = $("#wake-device");
-    const deviceId = select.selectedOptions[0]?.dataset.missing ? "" : select.value;
-    const channel = await wake.enroll({
-      phrase: `agent-${kind}`, kind, person, ...(deviceId ? {
-        deviceId
-      } : {}), echoCancel: true
-    });
-    if (token !== wakeEnrollmentGeneration) {
-      channel.close();
-      return;
-    }
-    wakeEnrollment = channel;
-    let finished = false;
-    channel.onMessage((message) => {
-      if (token !== wakeEnrollmentGeneration) return;
-      if (message.type === "error") {
-        finished = true;
-        wakeError(new Error(message.message || message.code));
-      }
-      if (message.type === "enrolled") {
-        finished = true;
-        $("#wake-enroll-status").textContent = message.quality.accepted ? t("wake.accepted", {
-          match: message.match == null ? t("wake.firstSample") : `${Math.round(message.match * 100)}%`
-        }) : t("wake.rejected", {
-          reason: message.quality.reason || "unknown"
-        });
-        void refreshWakeSamples();
-      }
-    });
-    channel.onClose((reason) => {
-      if (token !== wakeEnrollmentGeneration) return;
-      wakeEnrollment = null;
-      $("#wake-enroll").disabled = false;
-      if (!finished) wakeError(new Error(reason?.message || t("wake.channelClosed")));
-    });
-  } catch (error) {
-    if (token === wakeEnrollmentGeneration) {
-      $("#wake-enroll").disabled = false;
-      wakeError(error);
-    }
+    wakeConfigurePending = false;
+    status.textContent = error?.message?.includes("wake-configure-busy") ? t("wake.configureBusy")
+      : ["no-handler", "untrusted", "permission-denied"].includes(error?.code) ? t("wake.configureUnavailable") : t("wake.configureFailed");
   }
 }
 $("#wake-devices-refresh").setAttribute("aria-label", t("wake.refreshDevices"));
 $("#wake-devices-refresh").addEventListener("click", () => void refreshWakeDevices());
-$("#wake-enroll").addEventListener("click", () => void enrollWakeWord());
-window.addEventListener("unload", cancelWakeEnrollment);
+$("#wake-configure").addEventListener("click", () => void configureWakeWord());
+function refreshWakeOnReturn() {
+  if (wakeConfigurePending) {
+    wakeConfigurePending = false;
+    if (prefs.read("wake-mode", false)) void wakeAssistant.setEnabled(true);
+  }
+}
+persephone.page.onVisibilityChange(visible => {
+  if (!visible && wakeConfigurePending) wakeConfigureAway = true;
+  if (visible && wakeConfigureAway) { wakeConfigureAway = false; refreshWakeOnReturn(); }
+});
 function instructionsDirty() { return $("#instructions-text").value !== instructionsEditor.saved; }
 function updateConfigSave() { $("#config-save").disabled = configTab === "instructions" ? $("#instructions-text").disabled : configTab === "profiles" && !profileEditor.records.some((record) => record.dirty); }
 function setConfigTab(tab) {
@@ -1983,7 +1829,7 @@ async function openConfig(tab) {
   profileEditor = { records: state.profiles.map((profile) => makeProfileRecord(profile)), expanded: new Set() };
   renderProfileEditor(); setConfigTab(tab); loadWakeSettings();
   $("#config-dialog").showModal();
-  void refreshWakeDevices(); void refreshWakeSamples();
+  void refreshWakeDevices();
   let message;
   try { ({ message } = await discovery({ type: "instructions", ...(provider ? { provider } : {}), action: "get" })); } catch { /* other settings remain available */ }
   if (generation !== configGeneration || !$("#config-dialog").open) return;
@@ -2008,7 +1854,6 @@ async function closeConfig() {
   const instructionsChoice = await unsavedChoice(instructionsDirty(), "instructionsUnsavedTitle"); if (instructionsChoice === "stay") return;
   if (instructionsChoice === "save" && !(await saveInstructions())) return;
   if (wakeSettingsDirty()) { const choice = await unsavedChoice(true); if (choice === "stay") return; if (choice === "save" && !saveWakeSettings()) return; }
-  cancelWakeEnrollment();
   ++configGeneration;
   $("#config-dialog").close();
 }

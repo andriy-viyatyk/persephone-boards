@@ -55,6 +55,23 @@
     "quality.short": "Respinsă: prea puțină vorbire.",
     "quality.noise": "Respinsă: sunet distorsionat sau nivel foarte scăzut.",
     "manifest.settings.caller-approval-policy.label": "Politica de aprobare a apelanților",
-    "manifest.settings.caller-approval-policy.description": "Acceptați apelanții autorizați speech.wake v1 sau doar paginile acestui panou."
+    "manifest.settings.caller-approval-policy.description": "Acceptați apelanții autorizați speech.wake v1 sau doar paginile acestui panou.",
+    "samples.duration": "aproximativ {seconds} s",
+    "samples.durationUnknown": "Durată indisponibilă",
+    "review.title": "Verifică înregistrarea",
+    "review.waveform": "Forma de undă",
+    "review.spectrogram": "Spectrogramă, 0–8 kHz",
+    "review.start": "Începutul selecției",
+    "review.end": "Sfârșitul selecției",
+    "review.length": "Selectat: {seconds} s",
+    "review.playSelection": "Redă selecția",
+    "review.playAll": "Redă tot",
+    "review.add": "Adaugă",
+    "review.cancel": "Anulează",
+    "review.saving": "Se adaugă…",
+    "review.timeout": "Timpul de verificare a expirat; înregistrează din nou.",
+    "review.invalid": "Alege o selecție validă din înregistrare.",
+    "review.playError": "Redarea a eșuat.",
+    "review.busy": "Wake Word este ocupat. Termină activitatea curentă și încearcă din nou."
   }
 }

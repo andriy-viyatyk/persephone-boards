@@ -24,7 +24,7 @@ Standalone provider board; it is not a custom editor and has no file association
   enrolled later starts working without a code change.
 - `wake-assistant.js` owns the page's wake controller, in-memory audio ring and request buffer, channels,
   transcription, stop cut, silence handling and turn lifecycle. `app.js` connects it to the marked session
-  and owns the Wake words configuration UI. `scripts/service.mjs` owns the private local-only `wake-owner`
+  and owns the listening settings and provider-bound Configure Wake Word route. The Wake Word board owns enrollment, transient review and playback; it shows approximate sample lengths and stores only embeddings and metadata. `scripts/service.mjs` owns the private local-only `wake-owner`
   lease channel; one page owns it until close, loss of trust or service exit.
 - Tune the commented constants at the top of `wake-assistant.js` together: pre-roll, request hold-back,
   maximum request, default silence, no-speech timeout and interrupt wait. The hold-back is not a guarantee;

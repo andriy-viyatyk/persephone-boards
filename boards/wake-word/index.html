@@ -42,6 +42,20 @@
     </div>
     <footer data-i18n="privacy.note"></footer>
   </main>
-  <script src="./i18n.js"></script><script src="./app.js"></script>
+  <dialog id="review-dialog" aria-labelledby="review-title">
+    <h2 id="review-title" data-i18n="review.title"></h2>
+    <p data-i18n="review.waveform"></p>
+    <div id="review-visual" class="review-visual">
+      <canvas id="review-waveform" aria-hidden="true"></canvas>
+      <canvas id="review-spectrogram" aria-hidden="true"></canvas>
+      <button type="button" id="review-start" class="review-handle" role="slider"></button>
+      <button type="button" id="review-end" class="review-handle" role="slider"></button>
+    </div>
+    <div id="review-times" class="review-times" aria-hidden="true"></div>
+    <p data-i18n="review.spectrogram"></p>
+    <p id="review-length"></p><p id="review-error" role="alert"></p>
+    <div class="actions"><button id="review-play-selection" type="button" data-i18n="review.playSelection"></button><button id="review-play-all" type="button" data-i18n="review.playAll"></button><button id="review-add" class="primary" type="button" data-i18n="review.add"></button><button id="review-cancel" type="button" data-i18n="review.cancel"></button></div>
+  </dialog>
+  <script src="./i18n.js"></script><script src="./spectrogram.js"></script><script src="./review.js"></script><script src="./app.js"></script>
 </body>
 </html>

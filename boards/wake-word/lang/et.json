@@ -55,6 +55,23 @@
     "quality.short": "Tagasi lükatud: kõnet on liiga vähe.",
     "quality.noise": "Tagasi lükatud: heli on kärbitud või väga vaikne.",
     "manifest.settings.caller-approval-policy.label": "Helistaja heakskiitmise reegel",
-    "manifest.settings.caller-approval-policy.description": "Luba speech.wake v1 heakskiidetud helistajad või ainult selle tahvli lehed."
+    "manifest.settings.caller-approval-policy.description": "Luba speech.wake v1 heakskiidetud helistajad või ainult selle tahvli lehed.",
+    "samples.duration": "umbes {seconds} s",
+    "samples.durationUnknown": "Pikkus pole saadaval",
+    "review.title": "Salvestuse ülevaatus",
+    "review.waveform": "Lainekuju",
+    "review.spectrogram": "Spektrogramm, 0–8 kHz",
+    "review.start": "Valiku algus",
+    "review.end": "Valiku lõpp",
+    "review.length": "Valitud: {seconds} s",
+    "review.playSelection": "Esita valik",
+    "review.playAll": "Esita kõik",
+    "review.add": "Lisa",
+    "review.cancel": "Loobu",
+    "review.saving": "Lisamine…",
+    "review.timeout": "Ülevaatuse aeg lõppes; salvesta uuesti.",
+    "review.invalid": "Vali salvestisest sobiv lõik.",
+    "review.playError": "Esitamine ebaõnnestus.",
+    "review.busy": "Wake Word on hõivatud. Lõpeta praegune tegevus ja proovi uuesti."
   }
 }

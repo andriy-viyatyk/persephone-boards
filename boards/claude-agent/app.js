@@ -2051,10 +2051,12 @@ async function showAgentTranscript(view, agentId) {
   }
   let child = view.agentViews.get(agentId);
   if (!child) {
-    child = { id: agentId, messages: element("div", "messages hidden"), tools: new Map(), scrollTop: null, follow: null };
+    // appendEntries() records into transcriptEntries and groupMessages as well as the DOM; without them the
+    // first history batch threw inside the channel listener and the subagent view stayed empty.
+    child = { id: agentId, messages: element("div", "messages hidden"), tools: new Map(), transcriptEntries: [], groupMessages: [], scrollTop: null, follow: null };
     $("#views").append(child.messages); view.agentViews.set(agentId, child);
   }
-  child.messages.replaceChildren(); child.tools.clear();
+  child.messages.replaceChildren(); child.tools.clear(); child.transcriptEntries = []; child.groupMessages = [];
   view.selectedAgentId = agentId;
   child.messages.classList.remove("hidden");
   $("#readonly-hint").classList.remove("hidden");

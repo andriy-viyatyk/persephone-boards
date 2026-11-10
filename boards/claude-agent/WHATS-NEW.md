@@ -3,6 +3,7 @@
 - Use the shared Persephone microphone and device selection for dictation and Wake mode.
 - Wake mode keeps a short in-memory event log (detections, why a request ended, transcription timing) that an agent can read through ai-vision to diagnose a cut-off request.
 - The Wake mode status line now appears only in the wake session, which the sidebar already marks with its badge and folder colour. Other chats show it only when Wake mode needs attention.
+- Selecting a subagent in the **Agents** panel shows its conversation again; it had been opening empty.
 
 ## 1.4.3
 - A wake request now ends when the speech provider stops producing text, instead of when the microphone goes quiet. On a machine with a loud fan the old test treated the fan as speech, so a request without a stop word never ended on silence and ran until the one-minute limit. The **Silence timeout** setting still sets how long a pause ends the request.

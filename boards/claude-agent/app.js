@@ -810,6 +810,14 @@ const isWakeSession = (item) => {
   const marker = prefs.read("wake-session", null);
   return Boolean(item?.id && marker?.id === item.id && marker.provider === item.provider);
 };
+// The routine wake states belong to the marked wake session (its badge and accent folder already show
+// where it is), so they are shown only while that session is open. Error and occupied still need the
+// user's action, possibly before any session is marked, so they show on every session.
+let wakeStatusState = "off";
+function syncWakeStatusVisibility() {
+  const attention = wakeStatusState === "error" || wakeStatusState === "occupied";
+  $("#wake-status").classList.toggle("hidden", !attention && !isWakeSession(current));
+}
 const wakeAssistant = window.createWakeAssistant({
   preferences: prefs,
   message: (key) => t(`wake.message.${key}`),
@@ -850,12 +858,14 @@ const wakeAssistant = window.createWakeAssistant({
     }
   },
   render(state, detail, text) {
+    wakeStatusState = state;
     $("#wake-status-text").textContent = t(`wake.state.${state}`) + (detail ? `: ${detail}` : "");
     $("#wake-request-text").textContent = text || "";
     // The state drives the styling: only error and occupied are called out, and they are the same two
     // that offer Retry, so the highlight and the action always appear together.
     $("#wake-status").dataset.state = state;
     $("#wake-retry").classList.toggle("hidden", state !== "occupied" && state !== "error");
+    syncWakeStatusVisibility();
   },
 });
 $("#wake-retry").addEventListener("click", () => void wakeAssistant.setEnabled(prefs.read("wake-mode", false)));
@@ -903,6 +913,7 @@ function renderSessions() {
   const list = $("#session-list");
   const hadFocus = list.contains(document.activeElement);
   renderSessionRows();
+  syncWakeStatusVisibility();
   if (hadFocus && !list.contains(document.activeElement)) list.querySelector(".session-item.active")?.focus({ preventScroll: true });
 }
 function renderSessionRows() {

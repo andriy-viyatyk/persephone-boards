@@ -1,5 +1,10 @@
 # What's new
 
+## 1.1.1
+
+- Fixed: the graph stayed empty when a file opened, because the panels started before the interface text was loaded.
+- Fixed: Open in Drawing opened the image as text instead of a drawing.
+
 ## 1.1.0
 
 - Interface languages: Ukrainian, Polish, Lithuanian, Latvian, Estonian, Belarusian, Romanian, Slovak, Hungarian, German, French, Spanish, Italian, Portuguese (Brazil), Chinese (Simplified), Japanese, Korean.

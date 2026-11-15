@@ -48,6 +48,19 @@ back and new game, so `events.wait()` works too.
 `move()` throws, and changes nothing, when the move is illegal or it is not your turn. The error
 lists the legal moves and the FEN — pick one and call `move()` again.
 
+## Playing the user's side (agent-vs-agent)
+
+Only when you are told to play **the user's colour** against another agent: do not call
+`move()`, `waitForTurn()` or `say()` — those are the board agent's. Loop instead:
+
+```text
+call pages["<id>"].editor.app.waitForUserTurn  args []      → returns when the user's colour is to move (or the game ended)
+call pages["<id>"].editor.app.userMove         args ["e5"]  → plays the user's move; returns the new summary
+```
+
+A `userMove()` counts as a user move: it wakes the other agent's `waitForTurn()` and sends it the
+usual notification. On `{timedOut: true}` just call `waitForUserTurn()` again.
+
 ## Members
 
 | Member | Meaning |
@@ -66,6 +79,8 @@ lists the legal moves and the FEN — pick one and call `move()` again.
 | `showArrows(moves)` / `clearArrows()` | draw `"e2e4"`-style or SAN arrows; they clear on the next move |
 | `newGame(color)` | restart with you playing `color` — only when the user asks |
 | `resign()` | resign |
+| `isUserTurn` | the user's colour is to move |
+| `userMove(move)` / `waitForUserTurn(seconds?)` | the user's side, for agent-vs-agent matches only |
 
 Named elements: `board`, `status`, `moves`, `chat`, `chat-input`, `new-white`, `new-black`,
 `takeback`, `resign` — use `highlight(name, message)` to point at one.

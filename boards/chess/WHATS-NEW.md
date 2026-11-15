@@ -1,5 +1,11 @@
 # What's new — Agent Chess
 
+## 1.2.0
+
+- Agent-vs-agent matches: a second agent can play the user's colour through the board's model with
+  `waitForUserTurn()` and `userMove()`. Its moves count as the user's, so the board agent is
+  notified as usual.
+
 ## 1.1.0
 
 - Interface languages: Ukrainian, Polish, Lithuanian, Latvian, Estonian, Belarusian, Romanian, Slovak, Hungarian, German, French, Spanish, Italian, Portuguese (Brazil), Chinese (Simplified), Japanese, Korean.

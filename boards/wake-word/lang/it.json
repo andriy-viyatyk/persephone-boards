@@ -55,6 +55,23 @@
     "quality.short": "Rifiutato: parlato troppo breve.",
     "quality.noise": "Rifiutato: audio tagliato o livello molto basso.",
     "manifest.settings.caller-approval-policy.label": "Regola di approvazione dei chiamanti",
-    "manifest.settings.caller-approval-policy.description": "Accetta i chiamanti autorizzati speech.wake v1 oppure solo le pagine di questa bacheca."
+    "manifest.settings.caller-approval-policy.description": "Accetta i chiamanti autorizzati speech.wake v1 oppure solo le pagine di questa bacheca.",
+    "samples.duration": "circa {seconds} s",
+    "samples.durationUnknown": "Durata non disponibile",
+    "review.title": "Controlla registrazione",
+    "review.waveform": "Forma d’onda",
+    "review.spectrogram": "Spettrogramma, 0–8 kHz",
+    "review.start": "Inizio selezione",
+    "review.end": "Fine selezione",
+    "review.length": "Selezionati: {seconds} s",
+    "review.playSelection": "Riproduci selezione",
+    "review.playAll": "Riproduci tutto",
+    "review.add": "Aggiungi",
+    "review.cancel": "Annulla",
+    "review.saving": "Aggiunta…",
+    "review.timeout": "Tempo di revisione scaduto; registra di nuovo.",
+    "review.invalid": "Scegli una selezione valida nella registrazione.",
+    "review.playError": "Riproduzione non riuscita.",
+    "review.busy": "Wake Word è occupato. Termina l’attività corrente e riprova."
   }
 }

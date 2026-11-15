@@ -10,7 +10,7 @@ const MODEL_ROWS = [
 ];
 const RUNTIME_BYTES = 19958389;
 const $ = (selector) => document.querySelector(selector);
-const state = { channel: null, snapshot: null, capture: null, chunksQueued: Promise.resolve(), settings: {}, phase: "idle", setupInitialized: false, committed: [], drafts: new Map() };
+const state = { channel: null, snapshot: null, capture: null, settings: {}, phase: "idle", setupInitialized: false, committed: [], drafts: new Map(), audio: null };
 const formatBytes = (bytes) => `${Number(bytes).toLocaleString()} bytes (${(bytes / 1_000_000).toFixed(1)} MB)`;
 const formatTime = (ms) => `${(ms / 1000).toFixed(1)} s`;
 const isReady = (snapshot) => Boolean(snapshot?.assets?.runtime && snapshot.assets.models?.[snapshot.activeModel] === true);
@@ -18,6 +18,8 @@ const selectedMode = () => document.querySelector('input[name="test-mode"]:check
 const showError = (message) => { $("#error").textContent = message; $("#error").hidden = !message; };
 function setPhase(phase) {
   state.phase = phase;
+  window.sttRecordingActive = phase !== "idle";
+  window.AudioDebug?.refresh();
   const busy = phase === "preparing" || phase === "finishing";
   const recording = phase === "recording";
   const ready = isReady(state.snapshot);
@@ -152,39 +154,42 @@ async function reconnectManagement(attempt = 1) {
 }
 async function refreshMicrophones() {
   const select = $("#microphones"), previous = select.value;
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  const microphones = devices.filter((device) => device.kind === "audioinput");
+  state.audio ||= await persephone.getCapability("audio", { version: 1 });
+  if (!state.audio) throw new Error(t("error.generic"));
+  const microphones = await state.audio.devices();
   select.replaceChildren();
+  const fallback = document.createElement("option"); fallback.value = ""; fallback.textContent = t("recorder.defaultDevice"); select.append(fallback);
   for (const [index, device] of microphones.entries()) {
+    if (!device.deviceId) continue;
     const option = document.createElement("option"); option.value = device.deviceId; option.textContent = device.label || t("recorder.microphoneNumber", { number: index + 1 }); select.append(option);
   }
   if (previous && microphones.some((device) => device.deviceId === previous)) select.value = previous;
-  if (!microphones.length) { const option = document.createElement("option"); option.textContent = t("recorder.noDevices"); select.append(option); }
+  if (!microphones.length) { fallback.textContent = t("recorder.defaultFallback"); }
 }
 function setRecorderStatus(text) { $("#recording-status").textContent = text; }
 function stopCaptureTracks(capture) {
-  capture?.node?.port.close();
-  capture?.source?.disconnect();
-  capture?.node?.disconnect();
-  capture?.stream?.getTracks().forEach((track) => track.stop());
-  capture?.context?.close().catch(() => {});
+  capture?.input?.close();
   $("#level").style.width = "0%";
 }
-function pcmBuffer(samples) {
-  const buffer = new ArrayBuffer(samples.length * 2), view = new DataView(buffer);
-  for (let i = 0; i < samples.length; i++) {
-    const value = Math.max(-1, Math.min(1, samples[i]));
-    view.setInt16(i * 2, value < 0 ? value * 0x8000 : value * 0x7fff, true);
+$("#microphones").addEventListener("focus", () => { void refreshMicrophones().catch((error) => showError(error.message || t("error.generic"))); });
+window.addEventListener("focus", () => { void refreshMicrophones().catch(() => {}); });
+function queuePcm(data, channel, capture = state.capture) {
+  if (!data?.byteLength) return;
+  if (capture.queueCount >= 32) {
+    showError(t("error.generic"));
+    if (capture && state.capture === capture) void cancelRecording();
+    return;
   }
-  return buffer;
-}
-function queuePcm(samples, channel) {
-  if (!samples.length) return;
-  const data = pcmBuffer(samples);
-  state.chunksQueued = state.chunksQueued.then(async () => {
-    if (!channel.writable) await channel.whenWritable();
-    channel.send({ type: "audio", data });
+  capture.queueCount++;
+  capture.queue = capture.queue.then(async () => {
+    try {
+      if (capture?.ended && !capture.stopping) return;
+      if (!channel.writable) await channel.whenWritable();
+      if (!capture?.ended || capture.stopping) channel.send({ type: "audio", data });
+    }
+    finally { capture.queueCount = Math.max(0, capture.queueCount - 1); }
   });
+  capture.queue.catch((error) => { showError(error.message || t("error.generic")); if (state.capture === capture) void cancelRecording(); });
 }
 function renderTranscript() {
   $("#committed-text").textContent = state.committed.join(" ");
@@ -197,6 +202,7 @@ function clearTranscript() {
   $("#result-meta").textContent = "";
 }
 async function startRecording() {
+  window.AudioDebug?.stopPlayback();
   showError("");
   const snapshot = state.snapshot;
   if (!snapshot?.assets?.runtime || !snapshot.assets.models?.[snapshot.activeModel]) {
@@ -205,47 +211,64 @@ async function startRecording() {
   setPhase("preparing");
   clearTranscript();
   setRecorderStatus(t("recorder.preparing"));
-  let stream;
+  let input, deviceFallback = false;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: { ...($("#microphones").value ? { deviceId: { exact: $("#microphones").value } } : {}), channelCount: 1, echoCancellation: true, noiseSuppression: true } });
-    await refreshMicrophones();
+    state.audio ||= await persephone.getCapability("audio", { version: 1 });
+    if (!state.audio) throw new Error(t("error.generic"));
+    const devices = await state.audio.devices();
+    const chosen = $("#microphones").value;
+    const deviceId = chosen && devices.some((device) => device.deviceId === chosen) ? chosen : "";
+    deviceFallback = Boolean(chosen && !deviceId);
+    if (deviceFallback) { await refreshMicrophones(); setRecorderStatus(t("recorder.defaultFallback")); }
+    try { input = await state.audio.capture({ source: "microphone", echoCancel: true, ...(deviceId ? { deviceId } : {}) }); }
+    catch (error) {
+      if (!deviceId) throw error;
+      deviceFallback = true;
+      await refreshMicrophones();
+      setRecorderStatus(t("recorder.defaultFallback"));
+      input = await state.audio.capture({ source: "microphone", echoCancel: true });
+    }
   } catch (error) { showError(`${t("recorder.permission")} ${error.message || ""}`); setRecorderStatus(t("recorder.idle")); setPhase("idle"); return; }
-  let context, source, node, channel;
-  try {
-    context = await createAudioContext();
-    source = context.createMediaStreamSource(stream);
-    node = new AudioWorkletNode(context, "speech-capture", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
-  } catch (error) {
-    stream.getTracks().forEach((track) => track.stop());
-    context?.close().catch(() => {});
-    showError(error.message || t("error.generic")); setRecorderStatus(t("recorder.idle")); setPhase("idle");
-    return;
-  }
-  const mute = context.createGain(); mute.gain.value = 0;
-  source.connect(node); node.connect(mute); mute.connect(context.destination);
+  const capture = { input, channel: null, sentSamples: 0, ended: false, startup: [], deviceFallback, queue: Promise.resolve(), queueCount: 0 };
+  state.capture = capture;
+  window.AudioDebug?.beginLocal();
+  const handleAudio = ({ type, sampleRate, data }) => {
+    if (state.capture !== capture || capture.ended) return;
+    if (type !== "chunk" || sampleRate !== 16000 || !(data instanceof ArrayBuffer) || !data.byteLength || data.byteLength % 2) { void cancelRecording(); showError(t("error.generic")); return; }
+    capture.sentSamples += data.byteLength / 2;
+    if (capture.sentSamples > 16000 * 300) { showError(t("recorder.tooLong")); void cancelRecording(); return; }
+    const view = new DataView(data); let squares = 0;
+    for (let i = 0; i < data.byteLength; i += 2) { const sample = view.getInt16(i, true) / 32768; squares += sample * sample; }
+    $("#level").style.width = `${Math.min(100, Math.sqrt(squares / (data.byteLength / 2)) * 260)}%`;
+    window.AudioDebug?.pushLocal(data);
+    if (!capture.channel) {
+      if (capture.startup.length >= 32) { showError(t("error.generic")); void cancelRecording(); return; }
+      capture.startup.push(data.slice(0));
+    } else queuePcm(data, capture.channel, capture);
+  };
+  input.onMessage(handleAudio);
+  input.onClose((reason) => { if (state.capture === capture && !capture.ended) { showError(reason?.message || t("error.generic")); try { capture.channel?.send({ type: "cancel" }); } catch { /* request may already be closed */ } finishCapture(capture); } });
   const open = {
     type: "transcribe",
     format: { encoding: "pcm-s16le", sampleRate: 16000, channels: 1 },
     prompt: state.settings["vocabulary-prompt"] || "",
     ...(selectedMode() === "live" ? { live: true } : {}),
   };
+  let channel;
   try { channel = await persephone.service.openChannel(open); }
   catch (error) {
-    node.port.close(); source.disconnect(); node.disconnect(); stream.getTracks().forEach((track) => track.stop()); context.close().catch(() => {});
+    finishCapture(capture);
     showError(error.message || t("error.generic")); setRecorderStatus(t("recorder.idle")); setPhase("idle");
     return;
   }
-  const capture = { stream, context, source, node, channel, sentSamples: 0, sourceBase: 0, sourceSamples: new Float32Array(0), nextSource: 0, pending: [], ended: false };
-  state.capture = capture; state.chunksQueued = Promise.resolve();
+  capture.channel = channel;
+  for (const data of capture.startup.splice(0)) queuePcm(data, channel, capture);
+  if (state.capture !== capture || capture.ended) { try { channel.send({ type: "cancel" }); } catch { /* channel may already be closed */ } return; }
   setPhase("recording");
   setRecorderStatus(t("recorder.listening"));
-  node.port.onmessage = ({ data }) => {
-    if (data.type === "level") $("#level").style.width = `${Math.min(100, data.value * 260)}%`;
-    if (data.type === "samples" && state.capture === capture && !capture.ended) consumeSamples(capture, data.data);
-  };
   channel.onMessage((message) => {
     if (message.type === "status") {
-      const text = message.state === "listening" ? t("recorder.listening") : message.state === "preparing" ? t("recorder.preparing") : t("recorder.transcribing");
+      const text = message.state === "listening" ? capture.deviceFallback ? t("recorder.defaultFallback") : t("recorder.listening") : message.state === "preparing" ? t("recorder.preparing") : t("recorder.transcribing");
       setRecorderStatus(text);
       if (message.state === "transcribing" && state.phase === "recording") setPhase("finishing");
     } else if (message.type === "draft") {
@@ -271,65 +294,17 @@ async function startRecording() {
     finishCapture(capture);
   });
 }
-async function createAudioContext() {
-  let preferred;
-  try {
-    preferred = new AudioContext({ sampleRate: 16000 });
-    await preferred.audioWorklet.addModule("./audio-capture-worklet.js");
-    return preferred;
-  } catch {
-    preferred?.close().catch(() => {});
-    const context = new AudioContext();
-    try {
-      await context.audioWorklet.addModule("./audio-capture-worklet.js");
-      return context;
-    } catch (error) {
-      context.close().catch(() => {});
-      throw error;
-    }
-  }
-}
-function consumeSamples(capture, samples) {
-  const rate = capture.context.sampleRate / 16000;
-  const output = [];
-  const merged = new Float32Array(capture.sourceSamples.length + samples.length);
-  merged.set(capture.sourceSamples);
-  merged.set(samples, capture.sourceSamples.length);
-  capture.sourceSamples = merged;
-  const end = capture.sourceBase + merged.length;
-  while (capture.nextSource + 1 < end) {
-    const left = Math.floor(capture.nextSource), fraction = capture.nextSource - left;
-    const offset = left - capture.sourceBase;
-    output.push(merged[offset] * (1 - fraction) + merged[offset + 1] * fraction);
-    capture.nextSource += rate;
-  }
-  const discard = Math.max(0, Math.floor(capture.nextSource) - capture.sourceBase);
-  if (discard) {
-    capture.sourceSamples = merged.slice(discard);
-    capture.sourceBase += discard;
-  }
-  capture.sentSamples += output.length;
-  if (capture.sentSamples / 16000 * 1000 > 300000) { showError(t("recorder.tooLong")); void cancelRecording(); return; }
-  capture.pending.push(...output);
-  while (capture.pending.length >= 3200) queuePcm(capture.pending.splice(0, 3200), capture.channel);
-}
 async function stopRecording() {
   const capture = state.capture;
   if (!capture || state.phase !== "recording") return;
   setPhase("finishing");
   capture.ended = true;
-  // Flush an output sample whose next interpolation point fell beyond the last input frame.
-  if (capture.nextSource < capture.sourceBase + capture.sourceSamples.length) {
-    capture.pending.push(capture.sourceSamples[capture.sourceSamples.length - 1] || 0);
-    capture.sentSamples++;
-  }
-  if (capture.pending.length) queuePcm(capture.pending.splice(0), capture.channel);
-  capture.node.port.close();
-  capture.stream.getTracks().forEach((track) => track.stop());
-  capture.context.close().catch(() => {});
+  capture.stopping = true;
+  capture.input.close();
+  window.AudioDebug?.endLocal();
   $("#level").style.width = "0%";
   setRecorderStatus(t("recorder.transcribing"));
-  try { await state.chunksQueued; capture.channel.send({ type: "end" }); }
+  try { await capture.queue; capture.channel.send({ type: "end" }); }
   catch (error) { showError(error.message || t("error.generic")); finishCapture(capture); }
 }
 async function cancelRecording() {
@@ -343,6 +318,7 @@ async function cancelRecording() {
 function finishCapture(capture) {
   if (state.capture !== capture) return;
   capture.ended = true;
+  window.AudioDebug?.endLocal();
   stopCaptureTracks(capture);
   state.capture = null;
   if (state.phase !== "idle") setPhase("idle");
@@ -352,11 +328,10 @@ $("#test-button").addEventListener("click", () => {
   if (state.phase === "idle") void startRecording().catch((error) => { showError(error.message || t("error.generic")); setPhase("idle"); });
   else if (state.phase === "recording") void stopRecording();
 });
-navigator.mediaDevices?.addEventListener?.("devicechange", () => { void refreshMicrophones(); });
-
 (async () => {
   state.settings = Object.fromEntries(await Promise.all(["language-hints", "vocabulary-prompt"].map(async (id) => [id, await persephone.settings.get(id)])));
   persephone.settings.onChange(({ id, value }) => { state.settings[id] = value; });
   await openManagement();
-  await refreshMicrophones().catch((error) => showError(error.message));
+  await refreshMicrophones();
+  await window.AudioDebug.connect();
 })().catch((error) => showError(error.message || t("error.generic")));

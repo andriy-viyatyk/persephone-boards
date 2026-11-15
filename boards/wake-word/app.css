@@ -49,6 +49,16 @@ button.primary { background: var(--p-accent); color: var(--p-accent-text); borde
 .chip .remove-button:hover { background: var(--p-bg-dark); }
 .remove-button svg { width: 12px; height: 12px; }
 
-#error { color: var(--p-error, #c22); border: 1px solid currentColor; padding: 4px 8px; border-radius: 4px; }
+#error { color: var(--p-error); border: 1px solid currentColor; padding: 4px 8px; border-radius: 4px; }
+dialog { width: min(760px, 95vw); max-height: 95vh; overflow: auto; border: 1px solid var(--p-border); border-radius: 6px; background: var(--p-panel); color: var(--p-text); padding: 16px; }
+dialog::backdrop { background: color-mix(in srgb, var(--p-bg) 75%, transparent); }
+#review-dialog { display: none; }
+#review-dialog[open] { display: grid; gap: 8px; }
+.review-visual { position: relative; touch-action: none; }
+.review-visual canvas { display: block; width: 100%; height: 100px; }
+.review-handle { position: absolute; top: 0; bottom: 0; height: 100%; width: 14px; padding: 0; transform: translateX(-50%); border: 2px solid var(--p-accent); background: color-mix(in srgb, var(--p-accent) 35%, transparent); cursor: ew-resize; touch-action: none; }
+.review-handle:focus-visible { outline: 2px solid var(--p-text); z-index: 2; }
+.review-times { display: flex; justify-content: space-between; color: var(--p-text-muted); }
+#review-error { color: var(--p-error); }
 footer { font-size: 12px; padding: 0 4px; }
 @media (max-width: 760px) { .columns { grid-template-columns: minmax(0, 1fr) minmax(200px, 240px); } .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

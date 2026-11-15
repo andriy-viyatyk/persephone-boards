@@ -101,14 +101,10 @@
             </div>
           </div>
           <div class="wake-column">
-            <div class="wake-pair">
-              <div class="wake-field wake-person-field"><label for="wake-person" data-i18n="wake.person"></label><input id="wake-person" type="text" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="wake-people" aria-expanded="false"><div id="wake-people" class="wake-suggestions hidden" role="listbox"></div></div>
-              <label class="wake-field"><span data-i18n="wake.kind"></span><select id="wake-kind"><option value="wake" data-i18n="wake.wake"></option><option value="stop" data-i18n="wake.stop"></option></select></label>
-            </div>
-            <div class="wake-row wake-enroll-row"><p id="wake-enroll-status" class="wake-hint" role="status"></p><button id="wake-enroll" class="primary" type="button" data-i18n="wake.enroll"></button></div>
+            <button id="wake-configure" type="button" data-i18n="wake.configure"></button>
+            <p id="wake-enroll-status" class="wake-hint" role="status"></p>
           </div>
         </div>
-        <div id="wake-samples" aria-live="polite"></div>
       </section>
       <div class="actions">
         <button type="button" id="instructions-reset" class="start" data-i18n="resetToDefault"></button>

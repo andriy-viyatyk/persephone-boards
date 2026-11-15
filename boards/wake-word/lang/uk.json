@@ -55,6 +55,23 @@
     "quality.short": "Відхилено: замало мовлення.",
     "quality.noise": "Відхилено: звук обрізано або його рівень дуже низький.",
     "manifest.settings.caller-approval-policy.label": "Правило схвалення викликів",
-    "manifest.settings.caller-approval-policy.description": "Приймати дозволені виклики speech.wake v1 або лише сторінки цієї дошки."
+    "manifest.settings.caller-approval-policy.description": "Приймати дозволені виклики speech.wake v1 або лише сторінки цієї дошки.",
+    "samples.duration": "близько {seconds} с",
+    "samples.durationUnknown": "Тривалість недоступна",
+    "review.title": "Перевірка запису",
+    "review.waveform": "Хвильова форма",
+    "review.spectrogram": "Спектрограма, 0–8 кГц",
+    "review.start": "Початок виділення",
+    "review.end": "Кінець виділення",
+    "review.length": "Виділено: {seconds} с",
+    "review.playSelection": "Відтворити виділення",
+    "review.playAll": "Відтворити все",
+    "review.add": "Додати",
+    "review.cancel": "Скасувати",
+    "review.saving": "Додавання…",
+    "review.timeout": "Час перевірки минув; запишіть знову.",
+    "review.invalid": "Виберіть допустимий фрагмент запису.",
+    "review.playError": "Не вдалося відтворити.",
+    "review.busy": "Wake Word зайнятий. Завершіть поточну дію та спробуйте знову."
   }
 }

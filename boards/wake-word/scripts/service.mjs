@@ -508,6 +508,35 @@ function quality(samples) {
   return { accepted: true, speechStart, speechEnd };
 }
 
+// Analyze the same captured samples with a fresh recurrent state. A failed or silent VAD
+// leaves the already accepted loudness bounds intact.
+async function suggestSpeechBounds(clip, fallback, signal) {
+  let state = createVadState();
+  let speaking = false;
+  let start = null;
+  let end = null;
+  try {
+    for (let offset = 0; offset < clip.length; offset += VAD_FRAME_SAMPLES) {
+      if (signal.aborted) return fallback;
+      const frame = new Float32Array(VAD_FRAME_SAMPLES);
+      frame.set(clip.subarray(offset, offset + VAD_FRAME_SAMPLES));
+      const result = await vadProbability(state, frame);
+      state = result.state;
+      speaking = result.probability >= (speaking ? VAD_SPEECH_OFF : VAD_SPEECH_ON);
+      if (speaking) {
+        if (start === null) start = offset;
+        end = Math.min(offset + VAD_FRAME_SAMPLES, clip.length);
+      }
+    }
+  } catch {
+    return fallback;
+  }
+  return start === null ? fallback : {
+    speechStart: Math.max(0, start - 1600),
+    speechEnd: Math.min(clip.length, end + 1600),
+  };
+}
+
 function makeOperation(channel) {
   const operation = {
     channel, closed: false, controller: new AbortController(), releases: [], timers: new Set(),
@@ -515,7 +544,10 @@ function makeOperation(channel) {
   };
   operations.add(operation);
   channel.onClose(() => cleanup(operation));
-  channel.onMessage(() => terminate(operation, failure("rejected", "Incoming audio and messages are not accepted.")));
+  channel.onMessage(message => {
+    if (operation.onInput) operation.onInput(message);
+    else terminate(operation, failure("rejected", "Incoming audio and messages are not accepted."));
+  });
   return operation;
 }
 
@@ -603,7 +635,7 @@ function handleHit(operation, source, hit, receivedAt, chunkTime) {
   operation.timers.add(timer);
 }
 
-async function startEnroll(operation, open) {
+async function startEnroll(operation, open, ownPage) {
   validateEnroll(open);
   const parts = [];
   let samples = 0;
@@ -626,7 +658,7 @@ async function startEnroll(operation, open) {
       samples += part.length;
       if (samples >= ENROLL_SAMPLES) {
         finishing = true;
-        void finishEnrollment(operation, open, parts, samples).catch(error => terminate(operation, error));
+        void finishEnrollment(operation, open, parts, samples, ownPage).catch(error => terminate(operation, error));
       }
     },
   };
@@ -636,7 +668,48 @@ async function startEnroll(operation, open) {
   if (operation.closed) return;
 }
 
-async function finishEnrollment(operation, open, parts, sampleCount) {
+async function reviewClip(operation, clip, suggested) {
+  const bytes = Buffer.allocUnsafe(clip.length * 2);
+  for (let i = 0; i < clip.length; i++) bytes.writeInt16LE(Math.round(clip[i] * 32768), i * 2);
+  let decide;
+  const decision = new Promise(resolve => { decide = resolve; });
+  let phase = "sending";
+  operation.onInput = message => {
+    if (phase !== "review") {
+      if (phase !== "committing") terminate(operation, failure("rejected", "Unexpected review decision."));
+      return;
+    }
+    if (!message || typeof message !== "object" || Array.isArray(message)) {
+      terminate(operation, failure("rejected", "Invalid review decision."));
+    } else if (message.type === "cancel" && Object.keys(message).length === 1) {
+      phase = "cancelled";
+      decide(null);
+    } else if (message.type === "commit" && Object.keys(message).length === 3
+      && Object.keys(message).every(key => ["type", "speechStart", "speechEnd"].includes(key))
+      && Number.isInteger(message.speechStart) && Number.isInteger(message.speechEnd)
+      && message.speechStart >= 0 && message.speechStart < message.speechEnd && message.speechEnd <= clip.length) {
+      phase = "committing";
+      decide({ speechStart: message.speechStart, speechEnd: message.speechEnd });
+    } else {
+      terminate(operation, failure("invalid-selection", "Invalid review selection."));
+    }
+  };
+  const abort = () => decide(null);
+  operation.controller.signal.addEventListener("abort", abort, { once: true });
+  try {
+    // Install the listener before sending; the ordered channel may reply immediately.
+    if (!await send(operation.channel, { type: "review", sampleRate: 16000, pcm: bytes.toString("base64"), ...suggested })) return null;
+    if (operation.closed) return null;
+    phase = "review";
+    const timer = setTimeout(() => terminate(operation, failure("review-timeout", "Review timed out.")), 120000);
+    operation.timers.add(timer);
+    try { return await decision; } finally { clearTimeout(timer); operation.timers.delete(timer); }
+  } finally {
+    operation.controller.signal.removeEventListener("abort", abort);
+  }
+}
+
+async function finishEnrollment(operation, open, parts, sampleCount, ownPage) {
   for (const release of operation.releases.splice(0)) release();
   const clip = new Float32Array(sampleCount);
   let offset = 0;
@@ -649,7 +722,19 @@ async function finishEnrollment(operation, open, parts, sampleCount) {
   if (!assessed.accepted) {
     await send(operation.channel, { type: "enrolled", sampleId: "", quality: assessed, match: null });
   } else {
-    const embeddings = await encodeTemplate(clip, assessed.speechStart, assessed.speechEnd);
+    let suggested = await suggestSpeechBounds(clip, { speechStart: assessed.speechStart, speechEnd: assessed.speechEnd }, operation.controller.signal);
+    if (operation.closed) return;
+    if (ownPage) {
+      suggested = await reviewClip(operation, clip, suggested);
+      if (operation.closed) return;
+      if (!suggested) { cleanup(operation); close(operation.channel); return; }
+      const selectedQuality = quality(clip.subarray(suggested.speechStart, suggested.speechEnd));
+      if (!selectedQuality.accepted) {
+        await send(operation.channel, { type: "enrolled", sampleId: "", quality: selectedQuality, match: null });
+        cleanup(operation); close(operation.channel); return;
+      }
+    }
+    const embeddings = await encodeTemplate(clip, suggested.speechStart, suggested.speechEnd, operation.controller.signal);
     if (operation.closed) return;
     if (!embeddings.length) {
       await send(operation.channel, { type: "enrolled", sampleId: "", quality: { accepted: false, reason: "short" }, match: null });
@@ -692,7 +777,7 @@ async function handleChannel(operation, open, info) {
     return;
   }
   if (ownPage && open.type === "list" && objectWithKeys(open, ["type", "phrase"]) && validText(open.phrase)) {
-    await send(operation.channel, { type: "enrollments", phrases: await list(open.phrase) });
+    await send(operation.channel, { type: "enrollments", phrases: await list(open.phrase, { privateDetails: true }) });
     cleanup(operation);
     close(operation.channel);
     return;
@@ -710,7 +795,7 @@ async function handleChannel(operation, open, info) {
     throw failure("rejected", "The bundled model or runtime is missing.");
   }
   if (open.type === "listen") return startListen(operation, open);
-  if (open.type === "enroll") return startEnroll(operation, open);
+  if (open.type === "enroll") return startEnroll(operation, open, ownPage);
   throw failure("rejected", "Unsupported operation.");
 }
 

@@ -55,6 +55,23 @@
     "quality.short": "Odrzucono: za mało mowy.",
     "quality.noise": "Odrzucono: dźwięk jest obcięty lub bardzo cichy.",
     "manifest.settings.caller-approval-policy.label": "Zasady zatwierdzania wywołujących",
-    "manifest.settings.caller-approval-policy.description": "Akceptuj zatwierdzonych wywołujących speech.wake v1 lub tylko strony tej tablicy."
+    "manifest.settings.caller-approval-policy.description": "Akceptuj zatwierdzonych wywołujących speech.wake v1 lub tylko strony tej tablicy.",
+    "samples.duration": "około {seconds} s",
+    "samples.durationUnknown": "Długość niedostępna",
+    "review.title": "Sprawdź nagranie",
+    "review.waveform": "Przebieg fali",
+    "review.spectrogram": "Spektrogram, 0–8 kHz",
+    "review.start": "Początek zaznaczenia",
+    "review.end": "Koniec zaznaczenia",
+    "review.length": "Zaznaczono: {seconds} s",
+    "review.playSelection": "Odtwórz zaznaczenie",
+    "review.playAll": "Odtwórz całość",
+    "review.add": "Dodaj",
+    "review.cancel": "Anuluj",
+    "review.saving": "Dodawanie…",
+    "review.timeout": "Czas sprawdzania minął; nagraj ponownie.",
+    "review.invalid": "Wybierz prawidłowy fragment nagrania.",
+    "review.playError": "Odtwarzanie nie powiodło się.",
+    "review.busy": "Wake Word jest zajęty. Zakończ bieżącą czynność i spróbuj ponownie."
   }
 }

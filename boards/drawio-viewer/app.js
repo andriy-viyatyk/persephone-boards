@@ -776,8 +776,8 @@ window.addEventListener("resize", closeSaveMenu);
 // editor — the same "Open in Drawing Editor" affordance the built-in Mermaid/Image/SVG viewers
 // have. We rasterize the page to a PNG data URL (PNG is safe: drawio's foreignObject HTML labels
 // don't reliably render when an SVG is loaded as an <img>, which is how Excalidraw shows embedded
-// images) and hand it to openRawLink with the draw-view target. Persephone converts an image data
-// URL for draw-view into a fresh untitled drawing (it never binds to / overwrites this .drawio).
+// images) and hand it to openRawLink with the "image.edit" capability target. Persephone opens an
+// image data URL for image.edit as a fresh untitled drawing (it never binds to / overwrites this .drawio).
 async function openInDrawing() {
     try {
         const blob = await diagramToPngBlob();
@@ -787,7 +787,7 @@ async function openInDrawing() {
             reader.onerror = () => reject(new Error("Failed to read the diagram image."));
             reader.readAsDataURL(blob);
         });
-        P.openRawLink(dataUrl, { editor: "draw-view" });
+        await P.openRawLink(dataUrl, { editor: "image.edit" });
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
         if (P.notify) P.notify(t("toast.openDrawing.error", {error:message}), "error");

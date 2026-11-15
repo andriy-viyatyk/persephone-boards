@@ -55,6 +55,23 @@
     "quality.short": "Rechazada: muy poco habla.",
     "quality.noise": "Rechazada: sonido recortado o nivel muy bajo.",
     "manifest.settings.caller-approval-policy.label": "Política de aprobación de llamadas",
-    "manifest.settings.caller-approval-policy.description": "Aceptar las llamadas autorizadas de speech.wake v1 o solo las páginas de este tablero."
+    "manifest.settings.caller-approval-policy.description": "Aceptar las llamadas autorizadas de speech.wake v1 o solo las páginas de este tablero.",
+    "samples.duration": "unos {seconds} s",
+    "samples.durationUnknown": "Duración no disponible",
+    "review.title": "Revisar grabación",
+    "review.waveform": "Forma de onda",
+    "review.spectrogram": "Espectrograma, 0–8 kHz",
+    "review.start": "Inicio de selección",
+    "review.end": "Fin de selección",
+    "review.length": "Seleccionado: {seconds} s",
+    "review.playSelection": "Reproducir selección",
+    "review.playAll": "Reproducir todo",
+    "review.add": "Añadir",
+    "review.cancel": "Cancelar",
+    "review.saving": "Añadiendo…",
+    "review.timeout": "Se agotó el tiempo de revisión; vuelve a grabar.",
+    "review.invalid": "Elige una selección válida dentro de la grabación.",
+    "review.playError": "Error de reproducción.",
+    "review.busy": "Wake Word está ocupado. Termina la actividad actual e inténtalo de nuevo."
   }
 }

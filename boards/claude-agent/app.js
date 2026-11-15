@@ -810,6 +810,14 @@ const isWakeSession = (item) => {
   const marker = prefs.read("wake-session", null);
   return Boolean(item?.id && marker?.id === item.id && marker.provider === item.provider);
 };
+// The routine wake states belong to the marked wake session (its badge and accent folder already show
+// where it is), so they are shown only while that session is open. Error and occupied still need the
+// user's action, possibly before any session is marked, so they show on every session.
+let wakeStatusState = "off";
+function syncWakeStatusVisibility() {
+  const attention = wakeStatusState === "error" || wakeStatusState === "occupied";
+  $("#wake-status").classList.toggle("hidden", !attention && !isWakeSession(current));
+}
 const wakeAssistant = window.createWakeAssistant({
   preferences: prefs,
   message: (key) => t(`wake.message.${key}`),
@@ -850,12 +858,14 @@ const wakeAssistant = window.createWakeAssistant({
     }
   },
   render(state, detail, text) {
+    wakeStatusState = state;
     $("#wake-status-text").textContent = t(`wake.state.${state}`) + (detail ? `: ${detail}` : "");
     $("#wake-request-text").textContent = text || "";
     // The state drives the styling: only error and occupied are called out, and they are the same two
     // that offer Retry, so the highlight and the action always appear together.
     $("#wake-status").dataset.state = state;
     $("#wake-retry").classList.toggle("hidden", state !== "occupied" && state !== "error");
+    syncWakeStatusVisibility();
   },
 });
 $("#wake-retry").addEventListener("click", () => void wakeAssistant.setEnabled(prefs.read("wake-mode", false)));
@@ -903,6 +913,7 @@ function renderSessions() {
   const list = $("#session-list");
   const hadFocus = list.contains(document.activeElement);
   renderSessionRows();
+  syncWakeStatusVisibility();
   if (hadFocus && !list.contains(document.activeElement)) list.querySelector(".session-item.active")?.focus({ preventScroll: true });
 }
 function renderSessionRows() {
@@ -1327,6 +1338,7 @@ const profileApp = {
       { name: "update", kind: "method", signature: "update(id: string, patch: object)", summary: "Merge a partial patch into the latest saved profile. id is stable and cannot be changed." },
       { name: "duplicate", kind: "method", signature: "duplicate(id: string)", summary: "Duplicate a saved profile with the service-generated unique name and id." },
       { name: "delete", kind: "method", signature: "delete(id: string)", summary: "Delete a saved profile and return its id.", caution: "Deletes immediately without a confirmation dialog or undo." },
+      { name: "wakeLog", kind: "property", summary: "Debug: the last 300 Wake mode events, oldest first (detections, request start/end with reason, transcription drafts/segments as lengths, level stats every 500 ms, cancels, failures). In memory only." },
     ],
     summarize: () => ({ sessions: listModelSessions().length, profiles: state.profiles.length, providers: state.catalog.length }),
   },
@@ -1338,6 +1350,7 @@ const profileApp = {
   get providers() { return state.catalog.map((provider) => ({ id: provider.provider, available: provider.available !== false, models: (provider.models || []).filter((model) => model.id).map((model) => ({ id: model.id, efforts: [...(model.efforts || [])] })) })); },
   get colors() { return [...PROFILE_COLORS]; },
   get permissionModes() { return permissionModes.map((mode) => ({ ...mode })); },
+  get wakeLog() { return wakeAssistant.log(); },
   create: createProfile,
   update: updateProfile,
   duplicate: duplicateProfile,
@@ -1673,8 +1686,6 @@ function updateControls() {
 let configTab = "instructions";
 let configGeneration = 0;
 const instructionsEditor = { provider: "", saved: "", defaultText: "" };
-let wakeEnrollment = null;
-let wakeEnrollmentGeneration = 0;
 let wakeSettings = null;
 
 function readWakeSettings() {
@@ -1728,14 +1739,6 @@ function saveWakeSettings() {
   return true;
 }
 
-async function wakeCapability() {
-  const wake = await persephone.getCapability("speech.wake", {
-    version: 1
-  });
-  if (!wake || !(await wake.describe()).local) throw new Error(t("wake.providerUnavailable"));
-  return wake;
-}
-
 function wakeError(error) {
   $("#wake-enroll-status").textContent = error?.message || t("error");
 }
@@ -1777,187 +1780,43 @@ async function refreshWakeDevices() {
   }
 }
 
-// Person suggestions: a themed dropdown (the native datalist popup cannot be styled).
-let wakePeople = [];
-let wakeSuggestionIndex = -1;
-
-function wakeSuggestionItems() {
-  return [...$("#wake-people").children];
-}
-
-function hideWakeSuggestions() {
-  $("#wake-people").classList.add("hidden");
-  $("#wake-person").setAttribute("aria-expanded", "false");
-  wakeSuggestionIndex = -1;
-}
-
-function highlightWakeSuggestion(index) {
-  const items = wakeSuggestionItems();
-  wakeSuggestionIndex = items.length ? (index + items.length) % items.length : -1;
-  items.forEach((item, i) => item.classList.toggle("active", i === wakeSuggestionIndex));
-  items[wakeSuggestionIndex]?.scrollIntoView({ block: "nearest" });
-}
-
-function pickWakeSuggestion(person) {
-  $("#wake-person").value = person;
-  hideWakeSuggestions();
-}
-
-function showWakeSuggestions() {
-  const input = $("#wake-person"), list = $("#wake-people");
-  const query = input.value.trim().toLowerCase();
-  const matches = wakePeople.filter((person) => person.toLowerCase().includes(query) && person !== input.value.trim());
-  list.replaceChildren(...matches.map((person) => {
-    const item = element("div", "wake-suggestion", person);
-    item.setAttribute("role", "option");
-    // pointerdown keeps focus in the input, so the list is not closed by blur first.
-    item.addEventListener("pointerdown", (event) => { event.preventDefault(); pickWakeSuggestion(person); });
-    return item;
-  }));
-  wakeSuggestionIndex = -1;
-  list.classList.toggle("hidden", !matches.length);
-  input.setAttribute("aria-expanded", String(Boolean(matches.length)));
-}
-
-$("#wake-person").addEventListener("focus", showWakeSuggestions);
-$("#wake-person").addEventListener("input", showWakeSuggestions);
-$("#wake-person").addEventListener("blur", hideWakeSuggestions);
-$("#wake-person").addEventListener("keydown", (event) => {
-  const open = !$("#wake-people").classList.contains("hidden");
-  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-    event.preventDefault();
-    if (!open) showWakeSuggestions();
-    highlightWakeSuggestion(wakeSuggestionIndex + (event.key === "ArrowDown" ? 1 : -1));
-  } else if (event.key === "Enter" && open && wakeSuggestionIndex >= 0) {
-    event.preventDefault();
-    pickWakeSuggestion(wakeSuggestionItems()[wakeSuggestionIndex].textContent);
-  } else if (event.key === "Escape" && open) {
-    // Close only the list, not the Configure dialog.
-    event.preventDefault();
-    event.stopPropagation();
-    hideWakeSuggestions();
-  }
-});
-
-async function refreshWakeSamples() {
+let wakeConfigurePending = false;
+let wakeConfigureAway = false;
+async function configureWakeWord() {
+  const status = $("#wake-enroll-status");
+  status.textContent = "";
   try {
-    const wake = await wakeCapability();
-    const groups = (await Promise.all([
-      wake.list("agent-wake"), wake.list("agent-stop")
-    ])).flat();
-    // The Person field suggests everyone who already has samples.
-    wakePeople = [...new Set(groups.map((group) => group.person).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    const host = $("#wake-samples");
-    host.replaceChildren();
-    if (!groups.length) host.textContent = t("wake.noSamples");
-    for (const group of groups) {
-      const row = element("div", "wake-sample");
-      row.append(element("strong", "", `${group.phrase} · ${group.person} · ${group.kind}`));
-      const chips = element("div", "wake-chips");
-      row.append(chips);
-      group.samples.forEach((sample, index) => {
-        const provenance = sample.legacyCapture ? t("wake.legacy")
-          : sample.echoCancel === true ? t("wake.echoOn")
-          : sample.echoCancel === false ? t("wake.echoOff") : t("wake.echoUnknown");
-        // A chip shows the sample; only its "x" button deletes it.
-        const chip = element("span", "wake-chip");
-        chip.title = `${sample.createdAt || ""} · ${sample.sampleId}`;
-        chip.append(element("span", "", `${index + 1}. ${provenance}`));
-        const button = element("button", "wake-chip-remove");
-        button.type = "button";
-        button.title = t("delete");
-        button.setAttribute("aria-label", t("delete"));
-        button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 7 7 17M7 7l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>';
-        chip.append(button);
-        chips.append(chip);
-        button.addEventListener("click", () => void (async () => {
-          try {
-            await wake.delete({
-              phrase: group.phrase, sampleId: sample.sampleId
-            });
-            await refreshWakeSamples();
-          } catch (error) {
-            wakeError(error);
-          }
-        })());
-      });
-      host.append(row);
+    const wake = await persephone.getCapability("speech.wake", { version: 1 });
+    const provider = wakeAssistant.wakeProvider() || wake?.provider?.provider;
+    if (!provider) { status.textContent = t("wake.configureUnavailable"); return; }
+    const candidates = await persephone.capabilities.providers("persephone.wake-configure");
+    if (!candidates.some(candidate => candidate.version === 1 && candidate.provider === provider)) {
+      status.textContent = t("wake.configureUnavailable"); return;
     }
+    const configure = await persephone.getCapability("persephone.wake-configure", { version: 1, provider });
+    if (!configure) { status.textContent = t("wake.configureUnavailable"); return; }
+    wakeConfigurePending = true;
+    wakeConfigureAway = false;
+    await configure.open({ phrase: "agent-wake", kind: "wake" });
   } catch (error) {
-    wakeError(error);
-  }
-}
-
-function cancelWakeEnrollment() {
-  ++wakeEnrollmentGeneration;
-  if (wakeEnrollment) {
-    try {
-      wakeEnrollment.close();
-    } catch { /* already closed */ }
-    wakeEnrollment = null;
-  }
-  $("#wake-enroll").disabled = false;
-}
-
-async function enrollWakeWord() {
-  const person = $("#wake-person").value.trim();
-  if (!person) {
-    $("#wake-enroll-status").textContent = t("wake.personRequired");
-    return;
-  }
-  const token = ++wakeEnrollmentGeneration;
-  $("#wake-enroll").disabled = true;
-  $("#wake-enroll-status").textContent = t("wake.recording");
-  try {
-    const wake = await wakeCapability();
-    if (token !== wakeEnrollmentGeneration) return;
-    const kind = $("#wake-kind").value;
-    const select = $("#wake-device");
-    const deviceId = select.selectedOptions[0]?.dataset.missing ? "" : select.value;
-    const channel = await wake.enroll({
-      phrase: `agent-${kind}`, kind, person, ...(deviceId ? {
-        deviceId
-      } : {}), echoCancel: true
-    });
-    if (token !== wakeEnrollmentGeneration) {
-      channel.close();
-      return;
-    }
-    wakeEnrollment = channel;
-    let finished = false;
-    channel.onMessage((message) => {
-      if (token !== wakeEnrollmentGeneration) return;
-      if (message.type === "error") {
-        finished = true;
-        wakeError(new Error(message.message || message.code));
-      }
-      if (message.type === "enrolled") {
-        finished = true;
-        $("#wake-enroll-status").textContent = message.quality.accepted ? t("wake.accepted", {
-          match: message.match == null ? t("wake.firstSample") : `${Math.round(message.match * 100)}%`
-        }) : t("wake.rejected", {
-          reason: message.quality.reason || "unknown"
-        });
-        void refreshWakeSamples();
-      }
-    });
-    channel.onClose((reason) => {
-      if (token !== wakeEnrollmentGeneration) return;
-      wakeEnrollment = null;
-      $("#wake-enroll").disabled = false;
-      if (!finished) wakeError(new Error(reason?.message || t("wake.channelClosed")));
-    });
-  } catch (error) {
-    if (token === wakeEnrollmentGeneration) {
-      $("#wake-enroll").disabled = false;
-      wakeError(error);
-    }
+    wakeConfigurePending = false;
+    status.textContent = error?.message?.includes("wake-configure-busy") ? t("wake.configureBusy")
+      : ["no-handler", "untrusted", "permission-denied"].includes(error?.code) ? t("wake.configureUnavailable") : t("wake.configureFailed");
   }
 }
 $("#wake-devices-refresh").setAttribute("aria-label", t("wake.refreshDevices"));
 $("#wake-devices-refresh").addEventListener("click", () => void refreshWakeDevices());
-$("#wake-enroll").addEventListener("click", () => void enrollWakeWord());
-window.addEventListener("unload", cancelWakeEnrollment);
+$("#wake-configure").addEventListener("click", () => void configureWakeWord());
+function refreshWakeOnReturn() {
+  if (wakeConfigurePending) {
+    wakeConfigurePending = false;
+    if (prefs.read("wake-mode", false)) void wakeAssistant.setEnabled(true);
+  }
+}
+persephone.page.onVisibilityChange(visible => {
+  if (!visible && wakeConfigurePending) wakeConfigureAway = true;
+  if (visible && wakeConfigureAway) { wakeConfigureAway = false; refreshWakeOnReturn(); }
+});
 function instructionsDirty() { return $("#instructions-text").value !== instructionsEditor.saved; }
 function updateConfigSave() { $("#config-save").disabled = configTab === "instructions" ? $("#instructions-text").disabled : configTab === "profiles" && !profileEditor.records.some((record) => record.dirty); }
 function setConfigTab(tab) {
@@ -1983,7 +1842,7 @@ async function openConfig(tab) {
   profileEditor = { records: state.profiles.map((profile) => makeProfileRecord(profile)), expanded: new Set() };
   renderProfileEditor(); setConfigTab(tab); loadWakeSettings();
   $("#config-dialog").showModal();
-  void refreshWakeDevices(); void refreshWakeSamples();
+  void refreshWakeDevices();
   let message;
   try { ({ message } = await discovery({ type: "instructions", ...(provider ? { provider } : {}), action: "get" })); } catch { /* other settings remain available */ }
   if (generation !== configGeneration || !$("#config-dialog").open) return;
@@ -2008,7 +1867,6 @@ async function closeConfig() {
   const instructionsChoice = await unsavedChoice(instructionsDirty(), "instructionsUnsavedTitle"); if (instructionsChoice === "stay") return;
   if (instructionsChoice === "save" && !(await saveInstructions())) return;
   if (wakeSettingsDirty()) { const choice = await unsavedChoice(true); if (choice === "stay") return; if (choice === "save" && !saveWakeSettings()) return; }
-  cancelWakeEnrollment();
   ++configGeneration;
   $("#config-dialog").close();
 }
@@ -2193,10 +2051,12 @@ async function showAgentTranscript(view, agentId) {
   }
   let child = view.agentViews.get(agentId);
   if (!child) {
-    child = { id: agentId, messages: element("div", "messages hidden"), tools: new Map(), scrollTop: null, follow: null };
+    // appendEntries() records into transcriptEntries and groupMessages as well as the DOM; without them the
+    // first history batch threw inside the channel listener and the subagent view stayed empty.
+    child = { id: agentId, messages: element("div", "messages hidden"), tools: new Map(), transcriptEntries: [], groupMessages: [], scrollTop: null, follow: null };
     $("#views").append(child.messages); view.agentViews.set(agentId, child);
   }
-  child.messages.replaceChildren(); child.tools.clear();
+  child.messages.replaceChildren(); child.tools.clear(); child.transcriptEntries = []; child.groupMessages = [];
   view.selectedAgentId = agentId;
   child.messages.classList.remove("hidden");
   $("#readonly-hint").classList.remove("hidden");
@@ -2429,7 +2289,7 @@ async function connectView(view) {
     view.channel = null; view.busy = false; view.wakePending = false; view.pendingPrompt = ""; view.groupLoading = false;
     wakeAssistant.turnEnded(view);
     // Resuming continues in the mode the session last ran in.
-    if (MODES.includes(view.footer?.mode)) view.mode = view.footer.mode;
+    if (modeDescriptors(view).some((descriptor) => descriptor.id === view.footer?.mode)) view.mode = view.footer.mode;
     endStream(view); endLive(view); expireApprovals(view); settleFollowUps(view, "cancelled"); updateTyping();
     setViewStatus(view, `${t("closed")}: ${reason?.code || "channel-closed"}`);
     if (view === current) { updateControls(); void startFollow(view); }
@@ -2871,42 +2731,31 @@ function openVoiceProviderMenu() {
     if (items.length > 1) openChoiceMenu($("#voice-provider"), items);
   });
 }
-function voicePcm(samples) {
-  const data = new ArrayBuffer(samples.length * 2), view = new DataView(data);
-  for (let i = 0; i < samples.length; i++) {
-    const value = Math.max(-1, Math.min(1, samples[i]));
-    view.setInt16(i * 2, value < 0 ? value * 0x8000 : value * 0x7fff, true);
-  }
-  return data;
-}
-function queueVoiceSamples(request, samples) {
-  if (!samples.length || !request.channel || request.closed) return;
-  const data = voicePcm(samples);
+function queueVoiceSamples(request, data) {
+  if (!data?.byteLength || !request.channel || request.closed) return;
+  if (request.queuedCount >= 32) { failVoice(request, new Error(t("wake.message.backpressure"))); return; }
+  request.queuedCount++;
   request.queued = request.queued.then(async () => {
-    if (!request.channel || request.closed || request.cancelled) return;
+    if (!request.channel || request.closed || request.cancelled || request.finished) return;
     if (!request.channel.writable) await request.channel.whenWritable();
-    if (!request.channel || request.closed || request.cancelled) return;
+    if (!request.channel || request.closed || request.cancelled || request.finished) return;
     request.channel.send({ type: "audio", data });
-  });
+  }).finally(() => { request.queuedCount = Math.max(0, request.queuedCount - 1); });
   request.queued.catch((error) => failVoice(request, error));
 }
-function consumeVoiceSamples(request, samples) {
-  if (request.ended || voiceCapture.request !== request) return;
-  const rate = request.context.sampleRate / 16000, output = [];
-  const merged = new Float32Array(request.sourceSamples.length + samples.length);
-  merged.set(request.sourceSamples); merged.set(samples, request.sourceSamples.length); request.sourceSamples = merged;
-  const end = request.sourceBase + merged.length;
-  while (request.nextSource + 1 < end) {
-    const left = Math.floor(request.nextSource), fraction = request.nextSource - left, offset = left - request.sourceBase;
-    output.push(merged[offset] * (1 - fraction) + merged[offset + 1] * fraction); request.nextSource += rate;
+function consumeVoiceSamples(request, data) {
+  if (request.ended || voiceCapture.request !== request || !(data instanceof ArrayBuffer) || !data.byteLength || data.byteLength % 2) return;
+  const acceptedBytes = Math.max(0, Math.min(data.byteLength, (request.sampleLimit - request.sampleCount) * 2));
+  const accepted = acceptedBytes === data.byteLength ? data : data.slice(0, acceptedBytes);
+  if (request.live) {
+    const view = new DataView(accepted);
+    const samples = new Float32Array(accepted.byteLength / 2);
+    for (let i = 0; i < samples.length; i++) samples[i] = view.getInt16(i * 2, true) / 32768;
+    recordVoiceLevels(request, samples);
   }
-  const discard = Math.max(0, Math.floor(request.nextSource) - request.sourceBase);
-  if (discard) { request.sourceSamples = merged.slice(discard); request.sourceBase += discard; }
-  const accepted = output.slice(0, Math.max(0, request.sampleLimit - request.sampleCount));
-  if (request.live) recordVoiceLevels(request, accepted);
-  request.sampleCount += accepted.length; request.pending.push(...accepted);
-  while (request.pending.length >= 1600) queueVoiceSamples(request, request.pending.splice(0, 1600));
-  if (!request.live && (accepted.length < output.length || request.sampleCount >= request.sampleLimit)) {
+  request.sampleCount += accepted.byteLength / 2;
+  if (accepted.byteLength) queueVoiceSamples(request, accepted);
+  if (!request.live && (acceptedBytes < data.byteLength || request.sampleCount >= request.sampleLimit)) {
     setViewError(request.view, t("voice.limit")); void stopVoiceRecording();
   }
 }
@@ -2943,22 +2792,10 @@ function checkVoiceAutoStop(request) {
   if (!request.quietSince) request.quietSince = Date.now();
   else if (Date.now() - request.quietSince >= voiceAutoStopSilenceMs) void stopVoiceRecording();
 }
-async function createVoiceContext() {
-  let context;
-  try { context = new AudioContext({ sampleRate: 16000 }); await context.audioWorklet.addModule("./audio-capture-worklet.js"); return context; }
-  catch {
-    context?.close().catch(() => {}); context = new AudioContext();
-    try { await context.audioWorklet.addModule("./audio-capture-worklet.js"); return context; }
-    catch (error) { context.close().catch(() => {}); throw error; }
-  }
-}
 function releaseVoice(request) {
   clearInterval(request.timer);
-  try { request.node?.port.close(); } catch { /* already closed */ }
-  try { request.source?.disconnect(); } catch { /* already disconnected */ }
-  try { request.node?.disconnect(); } catch { /* already disconnected */ }
-  request.stream?.getTracks().forEach((track) => { try { track.stop(); } catch { /* already stopped */ } });
-  request.context?.close().catch(() => {});
+  try { request.capture?.close(); } catch { /* already closed */ }
+  request.audioQueue?.splice(0);
 }
 function finishVoice(request) {
   if (request.finished) return;
@@ -2969,6 +2806,8 @@ function finishVoice(request) {
 function failVoice(request, error) {
   if (request.finished) return;
   if (!request.cancelled) setViewError(request.view, t("voice.providerError", { message: error?.message || t("error") }));
+  if (!request.endSent && !request.closed) { try { request.channel?.send({ type: "cancel" }); } catch { /* channel may be closed */ } }
+  request.closed = true;
   finishVoice(request);
 }
 function watchVoiceChannel(request) {
@@ -3009,14 +2848,35 @@ function startVoiceRecording() {
   const view = current;
   if (!voiceProviders.length || !view || view.readOnlyParticipant) return;
   const provider = voiceProviders.find((item) => item.provider === voiceCapture.selected) || voiceProviders[0], value = promptText();
-  const request = { view, provider, phase: "starting", promptSnapshot: value, lastPromptValue: value, caret: promptOffset(), channel: null, stream: null, context: null, node: null, source: null, ended: false, finished: false, cancelled: false, closed: false, insertedSegments: false, queued: Promise.resolve(), pending: [], sourceSamples: new Float32Array(0), sourceBase: 0, nextSource: 0, sampleCount: 0, sampleLimit: Math.max(1, Math.floor(((voiceCapture.descriptions.get(provider.provider)?.maxAudioMs || 300000) - 1000) * 16)), rmsWindowStart: 0, rmsCount: 0, rmsSumSquares: 0, levels: [], speechLevels: [], currentRms: NaN, threshold: NaN, segmentCount: 0, draftUtterances: new Set(), quietSince: 0, startedAt: Date.now() };
+  const request = { view, provider, phase: "starting", promptSnapshot: value, lastPromptValue: value, caret: promptOffset(), channel: null, capture: null, ended: false, finished: false, cancelled: false, closed: false, insertedSegments: false, queued: Promise.resolve(), queuedCount: 0, audioQueue: [], sampleCount: 0, sampleLimit: Math.max(1, Math.floor(((voiceCapture.descriptions.get(provider.provider)?.maxAudioMs || 300000) - 1000) * 16)), rmsWindowStart: 0, rmsCount: 0, rmsSumSquares: 0, levels: [], speechLevels: [], currentRms: NaN, threshold: NaN, segmentCount: 0, draftUtterances: new Set(), quietSince: 0, startedAt: Date.now() };
   voiceCapture.request = request; renderVoice(); updateControls();
   let microphone, providerList, descriptionOutcome;
   try {
-    microphone = navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } }).then((stream) => {
-      request.stream = stream;
-      if (request.finished || request.cancelled) stream.getTracks().forEach((track) => track.stop());
-      return stream;
+    microphone = (async () => {
+      const audio = await persephone.getCapability("audio", { version: 1 });
+      if (!audio) throw new Error(t("wake.audioUnavailable"));
+      const devices = await audio.devices();
+      const saved = prefs.read("wake-device", "");
+      const deviceId = saved && devices.some((device) => device.deviceId === saved) ? saved : "";
+      if (saved && !deviceId) setViewError(view, t("wake.missingDevice", { id: saved }));
+      let capture;
+      try { capture = await audio.capture({ source: "microphone", echoCancel: true, ...(deviceId ? { deviceId } : {}) }); }
+      catch (error) {
+        if (!deviceId) throw error;
+        setViewError(view, t("wake.missingDevice", { id: saved }));
+        capture = await audio.capture({ source: "microphone", echoCancel: true });
+      }
+      request.capture = capture;
+      capture.onMessage((message) => {
+        if (request.finished || request.cancelled) return;
+        if (message?.type !== "chunk" || message.sampleRate !== 16000 || !(message.data instanceof ArrayBuffer) || message.data.byteLength % 2) return failVoice(request, new Error(t("wake.message.invalidAudio")));
+        if (!request.channel) {
+          if (request.audioQueue.length >= 16) return failVoice(request, new Error(t("wake.message.backpressure")));
+          request.audioQueue.push(message.data.slice(0));
+        } else consumeVoiceSamples(request, message.data);
+      });
+      capture.onClose((reason) => { if (!request.finished && !request.cancelled) failVoice(request, new Error(reason?.message || t("wake.message.listenerClosed"))); });
+      return capture;
     });
     providerList = persephone.services.list("speech.transcribe");
     descriptionOutcome = describeVoiceProvider(provider);
@@ -3025,9 +2885,9 @@ function startVoiceRecording() {
   }
   void (async () => {
     try {
-      const [stream, providers, description] = await Promise.all([microphone, providerList, descriptionOutcome]);
-      request.stream = stream;
-      if (request.finished || request.cancelled) { stream.getTracks().forEach((track) => track.stop()); try { request.channel?.send({ type: "cancel" }); } catch { /* closed */ } return; }
+      const [capture, providers, description] = await Promise.all([microphone, providerList, descriptionOutcome]);
+      request.capture = capture;
+      if (request.finished || request.cancelled) { capture.close(); try { request.channel?.send({ type: "cancel" }); } catch { /* closed */ } return; }
       if (!providers.some((item) => item.provider === provider.provider && item.version === 1)) throw new Error(t("voice.noProvider"));
       if (request.finished || request.cancelled) { try { request.channel?.send({ type: "cancel" }); } catch { /* closed */ } finishVoice(request); return; }
       request.live = Boolean(description?.live);
@@ -3037,13 +2897,8 @@ function startVoiceRecording() {
       });
       watchVoiceChannel(request);
       if (request.finished || request.cancelled) { try { request.channel.send({ type: "cancel" }); } catch { /* closed */ } finishVoice(request); return; }
-      request.context = await createVoiceContext();
-      if (request.finished || request.cancelled) { releaseVoice(request); return; }
-      request.source = request.context.createMediaStreamSource(stream);
-      request.node = new AudioWorkletNode(request.context, "agent-capture", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
-      const mute = request.context.createGain(); mute.gain.value = 0;
-      request.source.connect(request.node); request.node.connect(mute); mute.connect(request.context.destination);
-      request.node.port.onmessage = ({ data }) => { if (data.type === "samples") consumeVoiceSamples(request, data.data); };
+      for (const data of request.audioQueue.splice(0)) consumeVoiceSamples(request, data);
+      if (request.finished || request.cancelled) return;
       request.phase = "recording"; request.startedAt = Date.now(); renderVoice();
       request.timer = setInterval(() => {
         if (voiceCapture.request === request && request.phase === "recording") {
@@ -3053,7 +2908,7 @@ function startVoiceRecording() {
       }, VOICE_LEVEL_CHECK_MS);
       if (request.stopRequested) void stopVoiceRecording();
     } catch (error) {
-      request.stream?.getTracks().forEach((track) => track.stop());
+      request.capture?.close();
       try { request.channel?.send({ type: "cancel" }); } catch { /* closed */ }
       if (request.cancelled) { finishVoice(request); return; }
       if (error?.name === "NotAllowedError" || error?.name === "NotFoundError" || error?.name === "SecurityError") setViewError(view, `${t("voice.permission")} ${error.message || ""}`);
@@ -3068,8 +2923,6 @@ async function stopVoiceRecording() {
   if (request.phase === "starting") { request.stopRequested = true; return; }
   if (request.phase !== "recording") return;
   request.phase = "stopping"; request.ended = true; clearInterval(request.timer);
-  if (request.nextSource < request.sourceBase + request.sourceSamples.length && request.sampleCount < request.sampleLimit) { request.pending.push(request.sourceSamples[request.sourceSamples.length - 1] || 0); request.sampleCount++; }
-  if (request.pending.length) queueVoiceSamples(request, request.pending.splice(0));
   releaseVoice(request); renderVoice();
   try {
     await request.queued;

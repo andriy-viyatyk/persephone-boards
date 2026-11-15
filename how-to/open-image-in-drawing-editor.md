@@ -7,13 +7,16 @@ Let the user turn something your board rendered — a diagram, chart, or any ima
 ## API
 
 ```js
-persephone.openRawLink(imageDataUrl, { editor: "draw-view" });
+await persephone.openRawLink(imageDataUrl, { editor: "image.edit" });
 ```
 
 - `imageDataUrl` — a **`data:image/...;base64,...`** URL of the image.
-- `{ editor: "draw-view" }` — the real id of the Drawing editor. Persephone sees an image data
-  URL aimed at `draw-view` and opens the image as a **new untitled drawing** with the image
-  embedded.
+- `{ editor: "image.edit" }` — the image-editing capability, not an editor id. Persephone sees an
+  image data URL aimed at `image.edit` and opens the image as a **new untitled drawing**
+  (`drawing.excalidraw`) in whichever board handles the capability (the bundled Excalidraw board
+  by default). The page title cannot be chosen.
+- **Not `"draw-view"`.** That was the id of the built-in Drawing editor, removed together with
+  that editor (Persephone EPIC-110); an image sent there now opens as plain text in the text editor.
 
 That's the whole integration — one call. No new bridge method; it rides the existing
 `persephone.openRawLink`.
@@ -72,7 +75,7 @@ async function openInDrawing() {
     });
 
     // 3. Open it as a new editable drawing.
-    persephone.openRawLink(dataUrl, { editor: "draw-view" });
+    await persephone.openRawLink(dataUrl, { editor: "image.edit" });
 }
 ```
 

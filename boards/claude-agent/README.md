@@ -11,12 +11,7 @@ The setting is remembered and starts off by default. Listening runs only while t
 it is inactive or pinned. Only one open copy listens; another copy reports that Wake mode is active elsewhere
 and offers retry after the owner releases it. Turning Wake mode off or closing the page releases its channels.
 
-Open **Configure → Wake words** to enroll both a wake word and a stop word for each person. Enrollment reports
-acceptance and a match percentage, or first sample; the list shows sample dates, IDs and capture provenance and
-lets you delete individual samples. Choose a microphone, refresh the device list if needed, and save sensitivity
-and silence timeout settings. A missing device falls back to the system input. The threshold defaults to 0.85;
-higher values are stricter. Calibrate with your voice and room: too low can cause false detections and too high
-can miss you. The silence timeout defaults to two seconds.
+Open **Configure → Wake words → Configure Wake Word** to open the matching Wake Word provider. There you can record and review a wake phrase, play the recording, adjust its crop and add or delete samples; the stop phrase is optional and can be selected by kind. Existing samples show approximate lengths when available. Review audio stays in memory and is never stored or logged. Approve the configuration capability grant when prompted. Choose a microphone, refresh the device list if needed, and save sensitivity and silence timeout settings in Agent Chat. A missing device falls back to the system input. The threshold defaults to 0.85; higher values are stricter. Calibrate with your voice and room: too low can cause false detections and too high can miss you. The silence timeout defaults to two seconds.
 
 Install and trust Agent Chat and the Audio, Wake Word, Speech to Text and Text to Speech providers, and complete
 their setup, including the transcription model. Each provider must be enabled and its caller policy must allow
@@ -38,6 +33,8 @@ and echo cancellation is imperfect. Similar voices in a film and the room may su
 room, device and threshold yourself; TV suppression is not guaranteed.
 
 The audio is never stored: request audio is held in memory and discarded after completion or cancellation.
+
+Ordinary voice dictation uses the same microphone selected for Wake mode in **Configure → Wake words**. Both paths capture through Persephone's shared `audio@1` service with default processing, which follows the host's **Microphone Audio** cleaning setting. If the saved device is no longer available, dictation visibly falls back to the system default. The board cannot tell whether host cleaning is enabled or whether the host used a fallback.
 Wake Word stores enrollment embeddings rather than recordings. Text and session history follow the normal
 agent and CLI behavior. On the next prompt in the marked session, the board adds the shipped
 [wake instructions](wake-instructions.md) to the conversation. The board sends a removal notice on the next

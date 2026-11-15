@@ -6,6 +6,16 @@ Standalone provider board; it is not a custom editor and has no file association
 
 ## Runtime design
 
+- With a **live** transcription provider, a wake request ends on **transcription inactivity**, not on
+  microphone level (BT-099): `item.lastOutputAt` is stamped by every `draft` and `segment`, and the request
+  finishes once `silenceMs` passes with no new output **and** no draft pending. The level path survives only
+  for a non-live provider. The level test calls any sound speech, so a loud fan pins `quiet` at 0 and
+  `spoken` at true — the request then never ends on silence, runs to `limitMs`, and the no-speech cancel
+  cannot fire either. The provider commits an utterance on Silero VAD silence (`commitPauseMs` 1200) at a
+  `passIntervalMs` 1000 partial cadence, so a 2 s idle window is well clear of normal speech. The
+  `drafts.size` guard matters: a pending draft means the utterance is still open. Residual risk — if the
+  provider disables partials after slow passes, only commit-boundary segments arrive and a long unbroken
+  sentence could idle past the window.
 - Wake mode requires an enrolled **wake** word only; the stop word is optional. A stop word merely cuts a
   request early, and a request already ends on the silence timeout without one, so the old both-enrolled
   gate refused a working setup — and declining a stop word is reasonable, since a stop phrase that
@@ -14,13 +24,14 @@ Standalone provider board; it is not a custom editor and has no file association
   enrolled later starts working without a code change.
 - `wake-assistant.js` owns the page's wake controller, in-memory audio ring and request buffer, channels,
   transcription, stop cut, silence handling and turn lifecycle. `app.js` connects it to the marked session
-  and owns the Wake words configuration UI. `scripts/service.mjs` owns the private local-only `wake-owner`
+  and owns the listening settings and provider-bound Configure Wake Word route. The Wake Word board owns enrollment, transient review and playback; it shows approximate sample lengths and stores only embeddings and metadata. `scripts/service.mjs` owns the private local-only `wake-owner`
   lease channel; one page owns it until close, loss of trust or service exit.
 - Tune the commented constants at the top of `wake-assistant.js` together: pre-roll, request hold-back,
   maximum request, default silence, no-speech timeout and interrupt wait. The hold-back is not a guarantee;
   a late stop before the sent position requires re-transcription of the cut buffer. Never persist request PCM.
 - Page preferences in `claude-agent:*` localStorage use `wake-mode`, `wake-session` (`{provider,id}`),
   `wake-threshold`, `wake-silence` and `wake-device`. Storage events propagate preferences between pages;
+  ordinary dictation and Wake mode both use `wake-device`, validated against `audio.devices()` and captured through `audio@1` with default host processing. Do not add a separate dictation-device setting or use page `getUserMedia`.
   only the service lease arbitrates ownership. `app.js` caches the shipped `wake-instructions.md` and its
   SHA-256 version, and checks raw transcript user entries after the last compaction before each page prompt.
   It prepends a versioned apply or revoke block when needed. Show it in a separate collapsed disclosure before

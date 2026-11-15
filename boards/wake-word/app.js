@@ -8,6 +8,21 @@
   let pageClosed = false;
   let listGeneration = 0;
 
+  persephone.intent.onRequest(request => {
+    const payload = request?.payload;
+    if (request?.id !== "persephone.wake-configure" || request.version !== 1 || !payload
+      || typeof payload !== "object" || Array.isArray(payload)
+      || Object.keys(payload).length !== 2 || !Object.keys(payload).every(key => ["phrase", "kind"].includes(key))
+      || typeof payload.phrase !== "string" || !payload.phrase.trim() || payload.phrase.length > 128
+      || !["wake", "stop"].includes(payload.kind)) {
+      request.reject("Invalid wake configuration request."); return;
+    }
+    if (activity) { showError(new Error(t("review.busy"))); request.reject("wake-configure-busy"); return; }
+    element("kind").value = payload.kind;
+    element("phrase").value = payload.phrase.trim();
+    clearError(); void refreshList(); request.resolve(null);
+  });
+
   function setStatus(key) {
     element("status").textContent = t(key);
   }
@@ -141,7 +156,9 @@
         : sample.echoCancel === false ? t("samples.echoOff") : t("samples.echoUnknown");
     const compatibility = sample.frontendVersion !== 2 ? ` · ${t("samples.incompatible")}` : "";
     const text = document.createElement("span");
-    text.textContent = `${number}. ${provenance}${compatibility}`;
+    const duration = Number.isFinite(sample.duration)
+      ? t("samples.duration", { seconds: sample.duration.toFixed(2) }) : t("samples.durationUnknown");
+    text.textContent = `${number}. ${provenance} · ${duration}${compatibility}`;
     chip.append(text, removeButton(t("delete.sample"), { phrase, sampleId: sample.sampleId }));
     return chip;
   }
@@ -251,9 +268,23 @@
       current.channel = await openChannel(open, message => {
         if (message?.type === "error") {
           current.finished = true;
-          showError(new Error(`${message.code}: ${message.message}`));
+          wakeReview.dismiss();
+          showError(new Error(message.code === "review-timeout" ? t("review.timeout") : message.code === "invalid-selection" ? t("review.invalid") : `${message.code}: ${message.message}`));
+        } else if (message?.type === "review") {
+          try {
+            wakeReview.open(message, async decision => {
+              if (!current.channel || current.channel.closed) return;
+              try {
+                if (!current.channel.writable) await current.channel.whenWritable();
+                if (current.channel.closed) return;
+                if (decision.type === "cancel") { current.finished = true; setStatus("status.ready"); element("recording").textContent = t("enroll.prompt"); }
+                current.channel.send(decision);
+              } catch (error) { current.finished = true; wakeReview.dismiss(); closeChannel(current.channel); showError(error); }
+            });
+          } catch (error) { current.finished = true; closeChannel(current.channel); showError(error); }
         } else if (message?.type === "enrolled") {
           current.finished = true;
+          wakeReview.dismiss();
           const match = message.match === null ? t("common.first") : `${Math.round(message.match * 100)}%`;
           element("recording").textContent = message.quality.accepted
             ? t("enroll.accepted", { match }) : t(`quality.${message.quality.reason || "silence"}`);
@@ -261,6 +292,7 @@
           void refreshList();
         }
       }, reason => {
+        wakeReview.dismiss();
         if (!current.finished && !pageClosed) showError(new Error(reason?.message || t("error.channel")));
         finishActivity(current);
       });
@@ -353,6 +385,7 @@
   element("listen").addEventListener("click", () => activity?.kind === "listen" ? stopListen() : void beginListen());
   window.addEventListener("pagehide", () => {
     pageClosed = true;
+    wakeReview.dismiss();
     for (const channel of channels) closeChannel(channel);
     channels.clear();
   });

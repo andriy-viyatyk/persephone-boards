@@ -55,6 +55,23 @@
     "quality.short": "Refusé : énoncé trop court.",
     "quality.noise": "Refusé : son écrêté ou niveau très faible.",
     "manifest.settings.caller-approval-policy.label": "Règle d’approbation des appelants",
-    "manifest.settings.caller-approval-policy.description": "Accepter les appelants autorisés speech.wake v1 ou uniquement les pages de ce tableau."
+    "manifest.settings.caller-approval-policy.description": "Accepter les appelants autorisés speech.wake v1 ou uniquement les pages de ce tableau.",
+    "samples.duration": "environ {seconds} s",
+    "samples.durationUnknown": "Durée indisponible",
+    "review.title": "Vérifier l’enregistrement",
+    "review.waveform": "Forme d’onde",
+    "review.spectrogram": "Spectrogramme, 0–8 kHz",
+    "review.start": "Début de la sélection",
+    "review.end": "Fin de la sélection",
+    "review.length": "Sélection : {seconds} s",
+    "review.playSelection": "Lire la sélection",
+    "review.playAll": "Tout lire",
+    "review.add": "Ajouter",
+    "review.cancel": "Annuler",
+    "review.saving": "Ajout…",
+    "review.timeout": "Délai de vérification expiré ; enregistrez à nouveau.",
+    "review.invalid": "Choisissez une sélection valide dans l’enregistrement.",
+    "review.playError": "Échec de la lecture.",
+    "review.busy": "Wake Word est occupé. Terminez l’activité en cours et réessayez."
   }
 }

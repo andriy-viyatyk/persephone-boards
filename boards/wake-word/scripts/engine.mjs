@@ -163,7 +163,7 @@ export const TEMPLATE_VERSION = 2;
 export function phraseStartSample(sampleEnd) { return sampleEnd - (75 * HOP + FRAME) - TEMPLATE.leadSteps * TEMPLATE.stepSamples; }
 
 /** Embedding sequence for an enrolled name. `clip` is the whole recording; speech bounds are sample indices in it. */
-export async function encodeTemplate(clip, speechStart, speechEnd) {
+export async function encodeTemplate(clip, speechStart, speechEnd, signal) {
   const tail = TEMPLATE.tailSteps * TEMPLATE.stepSamples;
   const padded = new Float32Array(TEMPLATE.padSamples + clip.length + tail);
   padded.set(clip, TEMPLATE.padSamples);
@@ -172,6 +172,7 @@ export async function encodeTemplate(clip, speechStart, speechEnd) {
   const last = TEMPLATE.padSamples + speechEnd + tail;
   const sequence = [];
   for (let endSample = first; endSample <= last; endSample += TEMPLATE.stepSamples) {
+    if (signal?.aborted) return [];
     // An embedding uses the 76 frames whose last one ends at `endSample` (a frame ends 240 samples after its hop start).
     const end = Math.min(frames, Math.max(76, Math.round((endSample - (FRAME - HOP)) / HOP)));
     sequence.push(Array.from(await embed(features.slice((end - 76) * BANDS, end * BANDS))));

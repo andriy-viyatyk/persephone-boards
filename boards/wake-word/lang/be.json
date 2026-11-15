@@ -55,6 +55,23 @@
     "quality.short": "Адхілена: занадта мала маўлення.",
     "quality.noise": "Адхілена: абрэзаны гук або вельмі нізкі ўзровень.",
     "manifest.settings.caller-approval-policy.label": "Правіла ўхвалення выклікаў",
-    "manifest.settings.caller-approval-policy.description": "Прымаць дазволеныя выклікі speech.wake v1 або толькі старонкі гэтай дошкі."
+    "manifest.settings.caller-approval-policy.description": "Прымаць дазволеныя выклікі speech.wake v1 або толькі старонкі гэтай дошкі.",
+    "samples.duration": "каля {seconds} с",
+    "samples.durationUnknown": "Працягласць недаступная",
+    "review.title": "Праверка запісу",
+    "review.waveform": "Хвалевая форма",
+    "review.spectrogram": "Спектраграма, 0–8 кГц",
+    "review.start": "Пачатак вылучэння",
+    "review.end": "Канец вылучэння",
+    "review.length": "Вылучана: {seconds} с",
+    "review.playSelection": "Прайграць вылучэнне",
+    "review.playAll": "Прайграць усё",
+    "review.add": "Дадаць",
+    "review.cancel": "Скасаваць",
+    "review.saving": "Дадаванне…",
+    "review.timeout": "Час праверкі скончыўся; запішыце зноў.",
+    "review.invalid": "Выберыце дапушчальны фрагмент запісу.",
+    "review.playError": "Не ўдалося прайграць.",
+    "review.busy": "Wake Word заняты. Завяршыце бягучае дзеянне і паспрабуйце зноў."
   }
 }

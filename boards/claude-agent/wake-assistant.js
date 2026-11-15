@@ -79,6 +79,17 @@ window.createWakeAssistant = function createWakeAssistant(options) {
   let recoveryAttempts = 0;
   const message = (key) => options.message(key);
 
+  // Debug log: the last LOG_LIMIT Wake mode events, in memory only (never stored or sent anywhere
+  // except to an agent reading the ai-vision `wakeLog` property). Text is logged as length only.
+  const LOG_LIMIT = 300;
+  const events = [];
+  function log(event, data = {}) {
+    const now = new Date();
+    const time = now.toTimeString().slice(0, 8) + "." + String(now.getMilliseconds()).padStart(3, "0");
+    events.push({ time, event, ...(request ? { requestMs: Date.now() - request.startedAt } : {}), ...data });
+    if (events.length > LOG_LIMIT) events.shift();
+  }
+
   function render(next = state, message = detail, text = preview) {
     state = next;
     detail = message;
@@ -92,7 +103,8 @@ window.createWakeAssistant = function createWakeAssistant(options) {
     } catch { /* already closed */ }
   }
 
-  function cancelRequest() {
+  function cancelRequest(reason = "cancel") {
+    if (request) log("request-cancelled", { reason });
     const old = request;
     request = null;
     if (!old) return;
@@ -136,7 +148,7 @@ window.createWakeAssistant = function createWakeAssistant(options) {
   }
 
   function release() {
-    cancelRequest();
+    cancelRequest("release");
     const channels = [
       listener, capture, beep, owner
     ];
@@ -147,6 +159,7 @@ window.createWakeAssistant = function createWakeAssistant(options) {
   }
 
   function fail(error) {
+    log("fail", { error: error?.message || String(error) });
     ++generation;
     release();
     render("error", error?.message || message("connectionClosed"), preview);
@@ -270,7 +283,8 @@ window.createWakeAssistant = function createWakeAssistant(options) {
 
   // Re-establish channels once after a capture or clock failure.
   function restart(reason) {
-    cancelRequest();
+    log("restart", { reason, attempt: recoveryAttempts });
+    cancelRequest("restart");
     if (recoveryAttempts++ > 0) {
       fail(new Error(reason));
       return;
@@ -280,6 +294,7 @@ window.createWakeAssistant = function createWakeAssistant(options) {
 
   async function setEnabled(enabled, recoveryReason = "") {
     const token = ++generation;
+    log("set-enabled", { enabled, recoveryReason });
     release();
     if (!recoveryReason) recoveryAttempts = 0;
     if (!enabled) {
@@ -359,7 +374,7 @@ window.createWakeAssistant = function createWakeAssistant(options) {
       if (request !== item) return;
       queueAudio(item, Math.max(0, item.samples - REQUEST_HOLD_BACK_MS * 16));
     }
-    if (item.samples >= maxSamples) finishAfterHold(item);
+    if (item.samples >= maxSamples) finishAfterHold(item, "limit", { limitMs: item.limitMs });
   }
 
   // Silence
@@ -386,14 +401,32 @@ window.createWakeAssistant = function createWakeAssistant(options) {
         if (item.speechMs >= MIN_SPEECH_MS) item.spoken = true;
         item.quiet = 0;
       } else item.quiet += 100;
-      if (!item.spoken && item.elapsed >= NO_SPEECH_TIMEOUT_MS) {
-        cancelRequest();
+      // With a live provider the END of the request is decided by its TRANSCRIPTION, not by level
+      // (BT-099). The level test above calls any sound speech, so a loud fan holds `quiet` at zero and
+      // `spoken` at true: the request then never ends on silence, runs to limitMs, and the no-speech
+      // cancel cannot fire either. Transcription output appears only for real speech -- the provider
+      // commits an utterance on Silero VAD silence, at a ~1 s partial cadence -- so output going idle
+      // means the user stopped talking. `drafts.size` guards the obvious failure: a pending draft means
+      // an utterance is still open, so a slow pass mid-sentence must not look like the end.
+      const noSpeech = item.live ? !item.lastOutputAt : !item.spoken;
+      const ended = item.live
+        ? Boolean(item.lastOutputAt) && !item.drafts.size && Date.now() - item.lastOutputAt >= item.silenceMs
+        : item.spoken && item.quiet >= item.silenceMs;
+      const stats = {
+        elapsed: item.elapsed, rms: Number(rms.toFixed(4)), threshold: Number(threshold.toFixed(4)),
+        quietMs: item.quiet, spoken: item.spoken, drafts: item.drafts.size,
+        outputIdleMs: item.lastOutputAt ? Date.now() - item.lastOutputAt : null,
+      };
+      if (item.elapsed % 500 === 0) log("level", stats);
+      if (noSpeech && item.elapsed >= NO_SPEECH_TIMEOUT_MS) {
+        log("no-speech", stats);
+        cancelRequest("no-speech");
         chime("reject");
         render(runningView?.busy ? "running" : "waiting", message("noSpeech"), "");
         return;
       }
-      if (item.spoken && item.quiet >= item.silenceMs) {
-        finishAfterHold(item);
+      if (ended) {
+        finishAfterHold(item, item.live ? "transcription-idle" : "level-silence", { ...stats, silenceMs: item.silenceMs });
         return;
       }
     }
@@ -440,13 +473,23 @@ window.createWakeAssistant = function createWakeAssistant(options) {
       return;
     }
     item.channel = channel;
+    log("transcription-open", { live: item.live, provider: provider.provider });
     channel.onMessage((message) => {
       if (request !== item || item.channel !== channel) return;
+      if (message.type === "segment" || message.type === "draft" || message.type === "result" || message.type === "error") {
+        log(`transcribe-${message.type}`, {
+          utterance: message.utterance, chars: (message.text || "").length,
+          sinceOutputMs: item.lastOutputAt ? Date.now() - item.lastOutputAt : null,
+          sentMs: Math.round(item.sent / 16), ...(message.type === "error" ? { error: message.message || message.code } : {}),
+        });
+      }
       if (message.type === "segment" && item.live) {
+        item.lastOutputAt = Date.now();
         item.segments.push(message.text || "");
         item.drafts.delete(message.utterance);
         showPreview(item);
       } else if (message.type === "draft" && item.live) {
+        item.lastOutputAt = Date.now();
         item.drafts.set(message.utterance, message.text || "");
         showPreview(item);
       } else if (message.type === "result") {
@@ -456,6 +499,7 @@ window.createWakeAssistant = function createWakeAssistant(options) {
         fail(new Error(message.message || message.code));
     });
     channel.onClose((reason) => {
+      log("transcription-closed", { reason: reason?.message || "" });
       if (request === item && item.channel === channel && !item.cancelled) {
         fail(new Error(reason?.message || message("transcriptionClosed")));
       }
@@ -505,6 +549,11 @@ window.createWakeAssistant = function createWakeAssistant(options) {
       "agent-wake", "agent-stop"
     ].includes(message.phrase))
       return;
+    log("detection", {
+      phrase: message.phrase, state, score: message.score ?? message.confidence ?? null,
+      startMs: message.start?.timeMs ?? null, timeMs: message.time?.timeMs ?? null,
+      requestStartMs: request?.start ?? null,
+    });
     // The wake word does not restart a request in progress (as in US-1786): a name mentioned, or a
     // false match, while the user is still speaking would cut the request in half.
     if (message.phrase === "agent-wake" && (state === "listening" || state === "sending")) return;
@@ -519,7 +568,7 @@ window.createWakeAssistant = function createWakeAssistant(options) {
     if (message.phrase === "agent-stop") {
       if (request && state === "listening") void cutRequest(request, message);
       else if (request && state === "sending") {
-        cancelRequest();
+        cancelRequest("stop-word-while-sending");
         chime("reject");
         render(runningView?.busy ? "running" : "waiting", "", "");
       } else {
@@ -528,7 +577,7 @@ window.createWakeAssistant = function createWakeAssistant(options) {
       }
       return;
     }
-    cancelRequest();
+    cancelRequest("new-wake");
     const first = ring[0], last = ring[ring.length - 1], start = message.time?.timeMs;
     if (!first || !last || first.epoch !== message.time?.epoch || !Number.isFinite(start) ||
       start < first.timeMs || start > chunkEnd(last)) {
@@ -559,8 +608,11 @@ window.createWakeAssistant = function createWakeAssistant(options) {
       levels: [],
       segments: [],
       drafts: new Map(),
+      // 0 until the provider returns its first draft or segment; the end-of-request test below reads it.
+      lastOutputAt: 0,
       lease: null,
-      unmuted: false
+      unmuted: false,
+      startedAt: Date.now()
     };
     render("listening", "", "");
     // Silence Persephone before taking any audio: what played until now (a film's dialogue) is not
@@ -574,6 +626,7 @@ window.createWakeAssistant = function createWakeAssistant(options) {
       return;
     }
     request = item;
+    log("request-start", { live: item.live, limitMs: item.limitMs, silenceMs: item.silenceMs });
     for (const chunk of ring) {
       if (request !== item || item.ending) break;
       appendAudio(item, chunk);
@@ -588,8 +641,9 @@ window.createWakeAssistant = function createWakeAssistant(options) {
   }
 
   // Keep the tail unsent during the hold so a delayed stop detection can still cut it.
-  function finishAfterHold(item) {
+  function finishAfterHold(item, reason, data = {}) {
     if (request !== item || item.ending) return;
+    log("request-end", { reason, ...data });
     item.ending = true;
     unmuteApp(item);
     chime("end");
@@ -624,6 +678,7 @@ window.createWakeAssistant = function createWakeAssistant(options) {
       return;
     }
     clearTimeout(item.timer);
+    log("request-end", { reason: "stop-word", cutAtMs: Math.round(message.start.timeMs - item.start), duringHold: item.ending });
     if (!item.ending) chime("end"); // a stop during the silence hold already had its chime
     item.ending = true;
     unmuteApp(item);
@@ -675,6 +730,7 @@ window.createWakeAssistant = function createWakeAssistant(options) {
     if (request !== item) return;
     text = text.trim();
     item.chunks = [];
+    log("submit", { chars: text.length, hallucination: isHallucination(text) });
     if (isHallucination(text)) {
       request = null;
       chime("reject");
@@ -716,7 +772,7 @@ window.createWakeAssistant = function createWakeAssistant(options) {
 
   // Teardown
   function cancelListeningRequest() {
-    cancelRequest();
+    cancelRequest("listening-cancelled");
     if (options.preferences.read("wake-mode", false)) void setEnabled(true);
   }
 
@@ -726,6 +782,8 @@ window.createWakeAssistant = function createWakeAssistant(options) {
     render("off", "", "");
   }
   return {
-    setEnabled, dispose, refresh: () => render(), cancelListeningRequest, turnEnded
+    setEnabled, dispose, refresh: () => render(), cancelListeningRequest, turnEnded,
+    log: () => events.map((entry) => ({ ...entry })),
+    wakeProvider: () => listener ? wake?.provider?.provider || null : null
   };
 };

@@ -466,77 +466,20 @@
         }
     }
 
-    /**
-     * The Excalidraw document shape reproduced from `editors/draw/drawExport`
-     * (`buildExcalidrawJsonWithImage` + `capDimensions`) — a board cannot import it.
-     */
-    function buildExcalidrawJsonWithImage(dataUrl, mimeType, naturalWidth, naturalHeight) {
-        const MAX_DIMENSION = 1200;
-        const longer = Math.max(naturalWidth, naturalHeight);
-        const scale = longer > MAX_DIMENSION ? MAX_DIMENSION / longer : 1;
-        const width = Math.round(naturalWidth * scale);
-        const height = Math.round(naturalHeight * scale);
-        const fileId = crypto.randomUUID ? crypto.randomUUID() : "fg-" + Date.now();
-        const now = Date.now();
-
-        return JSON.stringify({
-            type: "excalidraw",
-            version: 2,
-            source: "persephone",
-            elements: [{
-                id: fileId + "-el",
-                type: "image",
-                x: 250, y: 120, width, height,
-                angle: 0,
-                strokeColor: "transparent",
-                backgroundColor: "transparent",
-                fillStyle: "solid",
-                strokeWidth: 1,
-                strokeStyle: "solid",
-                roughness: 1,
-                opacity: 100,
-                groupIds: [],
-                frameId: null,
-                roundness: null,
-                seed: Math.floor(Math.random() * 2147483647),
-                version: 1,
-                versionNonce: Math.floor(Math.random() * 2147483647),
-                isDeleted: false,
-                boundElements: null,
-                updated: now,
-                link: null,
-                locked: false,
-                status: "saved",
-                fileId,
-                scale: [1, 1],
-            }],
-            appState: { currentItemFontFamily: 2 },
-            files: { [fileId]: { id: fileId, mimeType, dataURL: dataUrl, created: now } },
-        });
-    }
-
+    // Hand the PNG to Persephone's "image.edit" capability (how-to/open-image-in-drawing-editor.md),
+    // which opens it as a new untitled drawing in whatever image editor is installed (Excalidraw).
     async function openInDrawingEditor() {
         const canvas = $("canvas");
         if (!canvas) {
             notify(t("toast.canvasMissing"), "error");
             return undefined;
         }
-        const dataUrl = canvas.toDataURL("image/png");
-        const title = (fileName || t("board.name")).replace(/\.fg\.json$/i, "") + ".excalidraw";
-        const json = buildExcalidrawJsonWithImage(dataUrl, "image/png", canvas.width, canvas.height);
         try {
-            return await P.openContent({ editor: "draw-view", language: "json", title, content: json });
+            await P.openRawLink(canvas.toDataURL("image/png"), { editor: "image.edit" });
         } catch (e) {
-            // Documented fallback (how-to/open-image-in-drawing-editor.md): hand the PNG data URL
-            // to openRawLink and let Persephone build the drawing. Loses only the page title.
-            try {
-                P.openRawLink(dataUrl, { editor: "draw-view" });
-                return undefined;
-            } catch (inner) {
-                notify(t("toast.openDrawing.error", {error:errText(inner)}), "error");
-                return undefined;
-            }
+            notify(t("toast.openDrawing.error", {error:errText(e)}), "error");
         }
+        return undefined;
     }
 
     // ====================================================================

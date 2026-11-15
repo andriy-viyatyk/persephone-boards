@@ -54,9 +54,9 @@ d3 → av-grid → core → renderer → theme → ui → actions → panels →
    contribute to Persephone's page toolbar.
 5. **`groupingEnabled` is page-scoped** (`persephone.state` `restorableKeys`) rather than
    host-scoped (`host.editorSettings["graph-view"]`).
-6. **Open in Drawing builds its own Excalidraw document** — `editors/draw/drawExport` is
-   unreachable from a board — and opens it with `openContent({ editor: "draw-view" })`,
-   falling back to the documented `openRawLink(pngDataUrl, { editor: "draw-view" })`.
+6. **Open in Drawing hands the canvas PNG to the `image.edit` capability** with
+   `openRawLink(pngDataUrl, { editor: "image.edit" })`; Persephone builds the drawing. The old
+   `"draw-view"` target stopped routing when the built-in Drawing editor was removed (EPIC-110).
 
 ## Data flow
 

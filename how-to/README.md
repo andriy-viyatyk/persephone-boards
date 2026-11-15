@@ -16,7 +16,7 @@ first — the plumbing has usually been solved once already.
 
 | Recipe | What it covers |
 |--------|----------------|
-| [Open an image in the Drawing (Excalidraw) editor](open-image-in-drawing-editor.md) | Turn a board-rendered diagram/image into a new, editable Excalidraw drawing via `persephone.openRawLink(dataUrl, { editor: "draw-view" })`. |
+| [Open an image in the Drawing (Excalidraw) editor](open-image-in-drawing-editor.md) | Turn a board-rendered diagram/image into a new, editable Excalidraw drawing via `persephone.openRawLink(dataUrl, { editor: "image.edit" })`. |
 
 ## Adding a recipe
 

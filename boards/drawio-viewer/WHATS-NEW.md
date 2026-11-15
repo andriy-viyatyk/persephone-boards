@@ -4,6 +4,10 @@ One line per change, newest first. Keep it short. Record pending changes under a
 the **next version** you'll release (the version `board-manifest.json` will be bumped to) — so
 the number is decided up front and nothing needs renaming at release time.
 
+## 1.2.1
+
+- Fixed: Open in Drawing Editor opened the image as text instead of a drawing.
+
 ## 1.2.0
 
 - Interface languages: Ukrainian, Polish, Lithuanian, Latvian, Estonian, Belarusian, Romanian, Slovak, Hungarian, German, French, Spanish, Italian, Portuguese (Brazil), Chinese (Simplified), Japanese, Korean.

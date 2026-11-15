@@ -3,6 +3,16 @@
   "id": "chess",
   "versions": [
     {
+      "version": "1.2.0",
+      "date": "2026-11-15",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/chess-v1.2.0/chess.zip",
+        "size": 81519,
+        "sha256": "2810984eedf1d3a91e0b42b58d0691cd289298377b60106e0d5198e3d8f7d0cb"
+      },
+      "minAppVersion": "5.0.10"
+    },
+    {
       "version": "1.1.0",
       "date": "2026-10-10",
       "archive": {

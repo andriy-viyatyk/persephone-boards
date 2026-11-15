@@ -8,21 +8,10 @@ Overview of active and planned board work in this repo.
 
 ## Active
 
-- [ ] [BT-101: Speech to Text and Agent Chat — always use cleaned Persephone audio; audio debug panel](tasks/BT-101-stt-audio-debug/README.md)
-
-- [ ] [BT-100: Wake Word — centralize enrollment and review the crop before adding it](tasks/BT-100-wake-enroll-review/README.md)
-
-- [ ] BT-091: Wake Word — adaptive noise-floor detection gate (`wake-word` 1.1.1; implemented, awaiting live verification on the loud-fan laptop)
-- [ ] [BT-093: Wake Word — one detection per phrase, best-matching person wins](tasks/BT-093-wake-best-match-wins/README.md) (`wake-word` 1.1.1; implemented, awaiting live verification)
-- [ ] [BT-094: Wake Word — gate detection on speech, not loudness (Silero VAD)](tasks/BT-094-wake-vad-gate/README.md) (`wake-word` 1.1.1; verified live)
-- [ ] [BT-095: Pre-approve Persephone's own MCP endpoint for every agent session](tasks/BT-095-persephone-mcp-preapproval/README.md) (`claude-agent` 1.4.1; implemented, awaiting live verification)
-- [ ] BT-099: Agent Chat — end a wake request on transcription inactivity, not microphone level (`claude-agent` 1.4.3; a loud fan pinned the level test at "speech", so a request without a stop word never ended on silence and ran to the 60 s limit. Implemented, awaiting live verification)
-- [ ] BT-098: Agent Chat — make the stop word optional for Wake mode (`claude-agent` 1.4.2; the gate required both `agent-wake` and `agent-stop` enrollments, so removing a stop word that false-matched mid-sentence disabled Wake mode entirely. Requests already end on the silence timeout. Implemented, awaiting live verification)
-- [ ] BT-097: Speech to Text — choose the graphics device (`speech-to-text` 1.4.3; whisper-server defaulted to device 0, the integrated GPU; measured 6.21 s vs 2.17 s for 35 s of audio on Intel Iris Xe vs GTX 1650. Picker lives on the board page backed by `persephone.storage`, not a manifest setting, so the cards show by name. Implemented, awaiting live verification)
-
 ## Planned
 
 - [ ] [BT-092: Make the Wake Word detection gate tunable from board settings](tasks/BT-092-wake-gate-settings/README.md)
+- [ ] [BT-096: Wake Word — identify the speaker with a speaker-verification model](tasks/BT-096-wake-speaker-verification/README.md)
 
 Board work for Persephone's **EPIC-134** (*Live transcription and meeting transcripts*) is finished:
 BT-060 – BT-068 added live segmentation, hour-long live sessions and the language picker to

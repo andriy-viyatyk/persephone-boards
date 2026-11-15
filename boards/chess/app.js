@@ -108,7 +108,7 @@
         saved.moves.push(m.san);
         selected = null;
         arrows = [];
-        animateMove = by === "agent" ? { from: m.from, to: m.to } : null;
+        animateMove = by === "agent" || by === "user-api" ? { from: m.from, to: m.to } : null;
         persist();
         render();
         return m;
@@ -124,6 +124,11 @@
             render();
             return;
         }
+        afterUserMove(m);
+    }
+
+    // Everything a user move triggers, whether it came from the mouse or from the user-side API.
+    function afterUserMove(m) {
         touchUser();
         wakeWaiters();
         if (isOver()) {
@@ -661,6 +666,57 @@
         });
     }
 
+    // ── User-side API ──────────────────────────────────────────────────────────────────────────
+    // Lets a second agent play the user's colour (agent-vs-agent matches). A move made here is a
+    // user move in every way: it wakes waitForTurn() and notifies the agent, as a mouse move does.
+    function userSnapshot() {
+        const s = snapshot();
+        s.isUserTurn = isUserTurn();
+        s.userColor = COLOR_NAME[userColor()];
+        return s;
+    }
+
+    function userSideMove(input) {
+        if (isOver()) throw new Error(`The game is over (${result()}, ${status()}).`);
+        if (!isUserTurn()) {
+            throw new Error(`It is not the user side's turn: ${COLOR_NAME[saved.agentColor]} (the agent) is to move. Call waitForUserTurn() and move when it returns isUserTurn: true.`);
+        }
+        const parsed = parseMove(input);
+        if (parsed === "") throw new Error('userMove needs a move in SAN ("Nf6", "exd5", "O-O", "e8=Q") or from-to form ("g8f6").');
+        let m;
+        try {
+            m = applyMove(parsed, "user-api");
+        } catch {
+            throw new Error(`Illegal move "${input}" for ${COLOR_NAME[userColor()]} in this position. Nothing changed. Legal moves: ${game.moves().join(", ")}. FEN ${game.fen()}`);
+        }
+        if (pendingPromotion) { $("promo").hidden = true; pendingPromotion = null; }
+        afterUserMove(m);
+        const out = userSnapshot();
+        out.played = m.san;
+        if (isOver()) out.gameOver = `${status()} ${result()}`;
+        return out;
+    }
+
+    function waitForUserTurn(seconds) {
+        const limit = Math.min(Math.max(Number(seconds) || 60, 1), 105) * 1000;
+        const ready = () => isUserTurn() || isOver();
+        if (ready()) return Promise.resolve(Object.assign(userSnapshot(), { waited: false }));
+        return new Promise((resolve) => {
+            let timer = null;
+            const wake = () => {
+                if (!ready()) return;
+                waiters.delete(wake);
+                clearTimeout(timer);
+                resolve(Object.assign(userSnapshot(), { waited: true }));
+            };
+            timer = setTimeout(() => {
+                waiters.delete(wake);
+                resolve({ timedOut: true, isUserTurn: false, hint: "The agent has not moved yet. Call waitForUserTurn() again." });
+            }, limit);
+            waiters.add(wake);
+        });
+    }
+
     function colorArg(value, fallback) {
         const v = String(value == null ? fallback : value).toLowerCase();
         if (v === "white" || v === "w") return "w";
@@ -713,6 +769,8 @@
                     "Talk to the user with say(\"…\") — a short comment on the position or your plan is welcome. showArrows([\"e2e4\"]) draws arrows to explain an idea; they clear on the next move.",
                     "The board also sends you a notification when the user moves, writes in the chat, takes back a move or starts a new game.",
                     "newGame(\"black\"|\"white\"|\"random\") restarts with YOU playing that colour; only do it when the user asks.",
+                    "",
+                    "USER SIDE (agent-vs-agent matches only): if you were told to play the USER's colour against another agent, do not use move(), waitForTurn() or say(). Loop instead: waitForUserTurn() until isUserTurn is true (or the game ends), read ascii and legalMoves, then userMove(\"<SAN>\"). Your opponent agent sees your moves as the user's.",
                 ].join("\n"),
                 members: [
                     { name: "status", kind: "property", summary: "\"playing\", \"checkmate\", \"stalemate\", \"resigned\", or a draw reason (\"threefold-repetition\", \"insufficient-material\", \"fifty-move-rule\", \"draw\")." },
@@ -736,6 +794,9 @@
                     { name: "clearArrows", kind: "method", signature: "clearArrows()", summary: "Remove your arrows." },
                     { name: "newGame", kind: "method", signature: "newGame(agentColor: \"white\" | \"black\" | \"random\")", summary: "Start a new game where YOU play agentColor. White moves first.", caution: "Abandons the current game. Only do this when the user asks." },
                     { name: "resign", kind: "method", signature: "resign()", summary: "Resign the current game.", caution: "Ends the game immediately; the user wins." },
+                    { name: "isUserTurn", kind: "property", summary: "USER SIDE: true when the game is on and the user's colour is to move." },
+                    { name: "userMove", kind: "method", signature: "userMove(move: string)", summary: "USER SIDE — only when you were asked to play the user's colour (an agent-vs-agent match): play the user's move in SAN or from-to, exactly as if the user moved with the mouse. Throws, changing nothing, when illegal or not the user's turn." },
+                    { name: "waitForUserTurn", kind: "method", signature: "waitForUserTurn(seconds?: number)", timeoutMs: 115000, summary: "USER SIDE: wait (60 s by default, 105 max) until the user's colour is to move or the game ends. Returns the position summary with isUserTurn, or {timedOut: true} — then call it again." },
                 ].concat(elementParts.members),
                 elements: elementDeclarations,
                 provide: elementParts.provide,
@@ -754,6 +815,7 @@
             get agentColor() { return COLOR_NAME[saved.agentColor]; },
             get userColor() { return COLOR_NAME[userColor()]; },
             get isAgentTurn() { return isAgentTurn(); },
+            get isUserTurn() { return isUserTurn(); },
             get inCheck() { return game.inCheck(); },
             get fen() { return game.fen(); },
             get ascii() { return game.ascii(); },
@@ -765,6 +827,8 @@
             move: agentMove,
             say: agentSay,
             waitForTurn,
+            userMove: userSideMove,
+            waitForUserTurn,
             showArrows: (moves) => {
                 const list = Array.isArray(moves) ? moves : [moves];
                 arrows = list.map(arrowArg);

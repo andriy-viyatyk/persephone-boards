@@ -1,5 +1,9 @@
 # What's New
 
+## 1.1.1
+
+- Documented accepted Claude Code and Codex JSONL record formats.
+
 ## 1.1.0
 
 - Interface languages: Ukrainian, Polish, Lithuanian, Latvian, Estonian, Belarusian, Romanian, Slovak, Hungarian, German, French, Spanish, Italian, Portuguese (Brazil), Chinese (Simplified), Japanese, Korean.

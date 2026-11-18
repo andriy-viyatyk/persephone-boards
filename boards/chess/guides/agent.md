@@ -43,6 +43,26 @@ may not reach you, so:
 The board also sends a notification to your event log for every user move, chat message, take
 back and new game, so `events.wait()` works too.
 
+## Example results
+
+The samples use short illustrative values; keys and return forms match the model.
+
+```text
+move("Nf6") -> position snapshot with lastMove: { from: "g8", to: "f6", san: "Nf6", color: "black", by: "agent" }, plus played: "Nf6"
+say("Good move") -> true
+waitForTurn() -> position snapshot with waited: true and optional userSaid: ["..."]
+waitForTurn() timeout -> { timedOut: true, isAgentTurn: false, userIdleSeconds: 60, hint: "..." }
+showArrows(["e2e4", "d2d4"]) -> 2
+clearArrows() -> true
+newGame("black") -> position snapshot (lastMove: null, moveNumber: 1)
+resign() -> ended position snapshot
+userMove("e5") -> user-side position snapshot with isUserTurn, userColor and played: "e5"
+waitForUserTurn() -> user-side position snapshot with waited: false or true
+waitForUserTurn() timeout -> { timedOut: true, isUserTurn: false, hint: "..." }
+```
+
+Move snapshots include `lastMove.color` as `"white"` or `"black"`; they also include current position, legal moves and game status. Ellipses stand for variable FEN, legal-move and hint content.
+
 ## Mistakes are safe
 
 `move()` throws, and changes nothing, when the move is illegal or it is not your turn. The error
@@ -71,7 +91,7 @@ usual notification. On `{timedOut: true}` just call `waitForUserTurn()` again.
 | `isAgentTurn`, `inCheck` | booleans |
 | `fen`, `ascii`, `pgn` | the position and the game |
 | `legalMoves`, `history` | SAN lists |
-| `lastMove` | `{from, to, san, color, by}` |
+| `lastMove` | `{from, to, san, color: "white" | "black", by}`, or `null` before a move |
 | `chat` | the last 20 messages |
 | `move(move)` | play your move |
 | `say(text)` | chat message to the user |

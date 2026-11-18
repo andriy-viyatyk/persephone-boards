@@ -106,3 +106,25 @@ reaches the board's own document, so a `highlight` here would silently point at 
 the viewer's UI, use the board editor's own `snapshot()` / `click()` / `type()` instead.
 
 It is also read-only with respect to the PDF: no annotation, no form filling, no page editing.
+
+## Example results
+
+All page numbers below are 1-based, including the `page` fields returned by methods.
+
+```text
+getStats() -> { kind: "PdfStats", pageCount: 14, totalChars: 82791, pagesWithText, hasTextLayer, scanMs, pages: [{ page: 1 (1-based), chars, lines, hasText }, ...], ... }
+getText(1, 2) -> "...\n\n--- Page 2 ---\n..."
+getPageText(1) -> "..."
+search("invoice") -> { query: "invoice", hitCount: 1, pages: [1 (1-based)], truncated: false, hits: [{ page: 1 (1-based), match: "invoice", index: 12, snippet: "...invoice..." }] }
+getOutline() -> [{ title: "Overview", level: 1, page: 1 (1-based) }]
+getMetadata() -> { info: {...}, xmp?: {...} }
+getPageLabels() -> page-label array in document order, or null when the PDF has no page labels
+saveText(1, 2) -> "..."
+savePageImage(1) -> { fileName: "page-01.png", mimeType: "image/png", base64: "..." } (argument page is 1-based)
+savePageImages(1, 2) -> [{ fileName: "page-01.png", mimeType: "image/png", base64: "..." }, ...] (range is 1-based)
+getPageImage(1) -> { page: 1 (1-based), width: 816, height: 1056, chars: 42, dataUrl: "data:image/png;base64,..." }
+goToPage(2) -> 2 (1-based page number)
+openTextPage(1, 2) -> return value from Persephone's openContent call for a Markdown page
+```
+
+Every returned `page` value and page argument in these examples is 1-based. `getPageImage()` includes the page number alongside dimensions, character count, and data URL.

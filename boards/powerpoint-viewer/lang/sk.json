@@ -1,5 +1,6 @@
 {
   "messages": {
+    "toast.partialError": "Časť obsahu sa nepodarilo načítať: {error}",
     "document.title": "PowerPoint Viewer",
     "slides.counter.empty": "–",
     "slides.previous.title": "Predchádzajúca snímka",

@@ -1,5 +1,6 @@
 {
   "messages": {
+    "toast.partialError": "无法读取部分内容：{error}",
     "document.title": "PowerPoint 查看器",
     "slides.counter.empty": "–",
     "slides.previous.title": "上一张幻灯片",

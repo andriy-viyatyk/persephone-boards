@@ -13,6 +13,13 @@ logs. Task history: BT-032 in `doc/tasks/completed.md`.
 | `app.js` | The frame. It holds the turn index and the rendered window only. It has a list view (scan, filter, group, sort, chart, content search) and a session view (outline, windowed transcript, filters, find, raw, subagent drill-down, live tail). |
 | `lib/` | marked 15.0.12 (MIT) and DOMPurify 3.4.16; see `lib/VERSION.txt`. |
 
+## Accepted records
+
+Both formats are JSONL, with one JSON object per line. Claude Code records have no `payload`
+envelope and include `sessionId`, `parentUuid`, `leafUuid`, or `type: "file-history-snapshot"`.
+Codex CLI records have a `payload` property and a string `type`. Unknown record types within a
+recognized format become metadata or are skipped; arbitrary JSONL is not accepted as either format.
+
 ## Rules that matter
 
 - **Never read a log whole.** A 400 MB file must stay in Node; the frame asks for `WINDOW` turns

@@ -1,5 +1,6 @@
 {
   "messages": {
+    "toast.partialError": "Не вдалося прочитати частину вмісту: {error}",
     "document.title": "Перегляд PowerPoint",
     "slides.counter.empty": "–",
     "slides.previous.title": "Попередній слайд",

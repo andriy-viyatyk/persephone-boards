@@ -4,9 +4,10 @@
   "description": "A 3D tower-defense game. Build and upgrade towers along the road, drop meteors on the raiders and keep the gems in your vault safe. Zoom with the mouse wheel and turn the camera with the mouse or a pen. Levels are plain JSON files, so you can make your own.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "5.0.16",
   "minBridgeVersion": "1.40.0",
+  "guides": "guides",
   "languages": {
     "folder": "lang",
     "default": "en"

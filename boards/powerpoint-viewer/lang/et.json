@@ -1,5 +1,6 @@
 {
   "messages": {
+    "toast.partialError": "Osa sisust ei õnnestunud lugeda: {error}",
     "document.title": "PowerPointi vaatur",
     "slides.counter.empty": "–",
     "slides.previous.title": "Eelmine slaid",

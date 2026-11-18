@@ -47,7 +47,7 @@ show a fresh in-frame caution dialog whenever descriptor metadata contains `caut
 
 ## Key files
 
-- `board-manifest.json` — public identity, version `1.0.5`, and `minAppVersion` `5.0.3`.
+- `board-manifest.json` — public identity, version `1.1.0`, and `minAppVersion` `5.0.10`.
 - `icon.svg` — the board's tab/tile/sidebar icon. Keep it valid XML: `--` is illegal inside an
   XML comment and silently renders nothing.
 - `index.html` — boot/trust state, tree, descriptor details, search, events, and dialog mounts.
@@ -58,8 +58,9 @@ show a fresh in-frame caution dialog whenever descriptor metadata contains `caut
 ## Run & test
 
 Open the board with `boards.openBoard` and inspect its page via `pages[pageId].editor.snapshot()`.
-After edits, call `pages[pageId].editor.reload()` and inspect a visual screenshot. Expand root and
-node rows, walk into `pages[i].editor.app`, select properties and methods, use Read/Assign/Invoke,
+After edits, call `pages[pageId].editor.reload()` and inspect a visual screenshot. Expand the root
+and node rows to inspect the live Persephone object model. This board does not publish its own
+`editor.app` model. Select properties and methods, then use Read/Assign/Invoke,
 run help search, and inspect the events feed. Use a harmless writable board property for assignment;
 exercise a cautioned member by cancelling first, then only confirm a call whose effect is safe for
 the current session. A never-activated editor page has no `app` member; its descriptor shows the

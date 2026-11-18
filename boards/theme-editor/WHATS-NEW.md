@@ -1,5 +1,10 @@
 # What's new
 
+## 1.2.2
+- Added model result examples for save, rename and delete operations.
+- Fixed preview status remaining pending after a scheduled draft refresh.
+- Documented Revert behavior when a saved custom theme was deleted.
+
 ## 1.2.1
 - Improved theme editing capability discovery.
 

@@ -147,6 +147,41 @@ so it is a search, not a highlight.
 `openResultPage(options?)` opens the result as a Markdown table in a new Persephone page when you
 want to show the user what you read rather than where it is.
 
+## Example results
+
+```text
+getStats() -> { fileName, filePath, tableCount, viewCount, tables: [...], onScreen: { sql, columns, rowCount, ... }, note }
+getTables() -> { tables: [{ name: "people", type: "table", rowCount: 3, columns: ["name"] }] }
+getTables() with an unavailable virtual-table count -> { tables: [{ name: "virtual_data", type: "table", unreadable: true, columns: ["value"] }] }
+getSchema("people") -> { name: "people", type: "table", rowCount: 3, sql: "CREATE TABLE people (name TEXT)", columns: [{ position: 1, name: "name", type: "TEXT" }] }
+query("SELECT name FROM people") -> { columns: ["name"], rows: [{ row: 1, cells: ["Ada"] }], rowCount: 1, totalRows: 1, sql: "SELECT name FROM people", ms: 1 }
+getRows() -> same rows object plus `sql` and `view: false`
+getColumnValues("name") -> { column: "name", position: 1, distinctCount: 1, values: [{ value: "Ada", count: 1 }], note: "..." }
+getView() -> { sql: "SELECT name FROM people", ms: 1, resultRowCount: 1, columns: [{ name: "name", position: 1 }], visibleRowCount: 1, hiddenRowCount: 0, sort: null, filters: [], ... }
+getSelectionText() -> "Ada"
+saveCsv() -> "Row,name\r\n1,Ada"
+saveMarkdown() -> "# people.db\n\n```sql\nSELECT name FROM people\n```\n\n| Row | name |\n| --- | --- |\n| 1 | Ada |\n"
+runQuery("SELECT name FROM people") -> { sql: "SELECT name FROM people", columns: ["name"], rowCount: 1, ms: 1 }
+openTable("people") -> { table: "people", type: "table", sql: "SELECT * FROM people LIMIT 1000", rowCount: 3, note: "..." }
+stopQuery() -> { stopped: false, note: "No query is running." } or { stopped: true, note: "..." }
+setSearch("Ada") -> { searchText: "Ada", visibleRowCount: 1, hiddenRowCount: 0 }
+highlightText("Ada") -> { highlightText: "Ada", matchingRows: 1, matchingCells: 1 }
+setSort("name", "asc") -> { column: "name", position: 1, direction: "asc", note: "..." }
+setFilter("name", ["Ada"]) -> { column: "name", position: 1, values: ["Ada"], filtered: true, visibleRowCount: 1 }
+clearFilters() -> { filtered: false, visibleRowCount: 1 }
+selectRange(1, 1) -> selection result from `selectionResult()`
+clearSelection() -> { selection: undefined, note: "Selection cleared." }
+scrollTo(1, "name") -> { row: 1, column: "name" }
+showRange(1, 1) -> selection result with `scrolledTo: { row: 1 }`
+setColumnOrder(["name"]) -> { columns: ["name"] }
+moveColumn("name") -> same result shape as setColumnOrder()
+copySelection() -> { copied: true, mode: "copy", note: "..." }
+reload() -> { fileName: "people.db", sql: "SELECT name FROM people", note: "..." }
+openResultPage() -> return value from Persephone's openContent call for a Markdown page
+```
+
+`query()` defaults to the rows object shown above. Table rows use `{ row, cells }`; a missing row count is omitted and represented by `unreadable: true` in `getTables()` when SQLite cannot read it.
+
 ## Not features
 
 - **No writing.** The connection is read-only at the SQLite level. `save*` writes **new** files, at

@@ -136,6 +136,40 @@ does highlight matched words, but it also filters the rows, so it is a search, n
 `openRangePage(range?)` opens a range as a Markdown table in a new Persephone page when you want to
 show the user what you read rather than where it is.
 
+## Example results
+
+These compact examples show the model's returned shapes; cell contents and view state vary by workbook.
+
+```text
+getStats() -> { fileName, filePath, sheetCount, sheets: [...], view: {...}, note }
+getSheets() -> { count: 2, active: "Sales", sheets: [{ name: "Sales", active: true, parsed: true, empty: false, range: "A1:B2", firstRow: 1, lastRow: 2, columns: "A–B", rowCount: 2, columnCount: 2 }, ...] }
+getView() -> { sheet: "Sales", hasGrid: true, rowCount: 2, totalRowCount: 2, hiddenByFilters: 0, sort: null, filters: [], search: null, columnOrder: ["A", "B"], columnsReordered: false, selection: null, visible: { firstRow: 1, lastRow: 2, note: "..." } }
+getCells("A1:B2") -> { sheet: "Sales", range: "A1:B2", source: "sheet", columns: ["A", "B"], rowCount: 2, rows: [{ row: 1, cells: ["Name", "Price"] }, { row: 2, cells: ["Ada", "$19.50"] }] }
+getMarkdown("A1:B2") -> "| A | B |\n| --- | --- |\n| Name | Price |\n| Ada | $19.50 |"
+getCsv("A1:B2") -> "Name,Price\nAda,$19.50"
+getColumnValues("B") -> { sheet: "Sales", column: "B", distinctCount: 1, values: [{ value: "$19.50", count: 1 }], note: "..." }
+search("Ada") -> { query: "Ada", sheetsSearched: ["Sales"], matchCount: 1, hits: [{ sheet: "Sales", address: "A2", row: 2, column: "A", value: "Ada" }], note: "..." }
+getSelectionText() -> "Ada\t$19.50"
+saveCsv("A1:B2") -> "Name,Price\nAda,$19.50"
+saveMarkdown("A1:B2") -> "# workbook.xlsx - Sales A1:B2\n\n| A | B |..."
+goToSheet("Sales") -> { sheet: "Sales", changed: false, note: "Already the active sheet." }
+setSearch("Ada") -> { search: "Ada", rowCount: 1, totalRowCount: 2, note: "..." }
+setSort("B", "desc") -> { sort: { column: "B", direction: "desc" }, rowCount: 2, note: "..." }
+setFilter("B", ["$19.50"]) -> { column: "B", filter: { column: "B", values: ["$19.50"] }, rowCount: 1, totalRowCount: 2, note: "..." }
+clearFilters() -> { filters: [], rowCount: 2, note: "All column filters removed." }
+selectRange("A1:B2") -> { selection: <selection description>, note: "..." }
+clearSelection() -> { selection: null, note: "Selection cleared." }
+scrollTo("B2") -> { scrolledTo: "B2", sheet: "Sales" }
+showCells("A2:B2") -> { selection: <selection description>, scrolledTo: "A2", note: "..." }
+setColumnOrder(["B", "A"]) -> { columnOrder: ["B", "A"], note: "..." }
+moveColumn("B", "A") -> the same result shape as setColumnOrder()
+copySelection() -> { copied: true, mode: "copy", note: "..." }
+reload() -> { sheet: "Sales", note: "..." }
+openRangePage("A1:B2") -> return value from Persephone's openContent call for a Markdown page
+```
+
+In `getCells()` each row is `{ row, cells }`; `row` is the 1-based Excel row number. Use displayed values such as `"$19.50"` in `setFilter()`.
+
 ## Not features
 
 - **No editing.** The grid is not editable and there is no write path to the open workbook. `save*`

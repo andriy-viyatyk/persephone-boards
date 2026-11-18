@@ -1,5 +1,8 @@
 # What's New
 
+## 1.2.1
+- Added verified table and query result examples to the agent guide.
+
 ## 1.2.0
 
 - Interface languages: Ukrainian, Polish, Lithuanian, Latvian, Estonian, Belarusian, Romanian, Slovak, Hungarian, German, French, Spanish, Italian, Portuguese (Brazil), Chinese (Simplified), Japanese, Korean.

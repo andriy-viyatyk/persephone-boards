@@ -1,5 +1,6 @@
 {
   "messages": {
+    "toast.partialError": "No se pudo leer parte del contenido: {error}",
     "document.title": "Visor de PowerPoint",
     "slides.counter.empty": "–",
     "slides.previous.title": "Diapositiva anterior",

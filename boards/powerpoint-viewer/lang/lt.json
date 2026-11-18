@@ -1,5 +1,6 @@
 {
   "messages": {
+    "toast.partialError": "Nepavyko perskaityti dalies turinio: {error}",
     "document.title":"PowerPoint peržiūros programa",
     "slides.counter.empty":"–",
     "slides.previous.title":"Ankstesnė skaidrė",

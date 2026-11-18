@@ -1,5 +1,6 @@
 {
   "messages": {
+    "toast.partialError": "O parte din conținut nu a putut fi citită: {error}",
     "document.title": "Vizualizator PowerPoint",
     "slides.counter.empty": "–",
     "slides.previous.title": "Diapozitivul anterior",

@@ -1,5 +1,10 @@
 # What's New
 
+## 1.2.1
+
+- Added agent result examples and explicit 1-based page references.
+- Corrected editor priority, resolution notes and minimum app version.
+
 ## 1.2.0
 
 - Interface languages: Ukrainian, Polish, Lithuanian, Latvian, Estonian, Belarusian, Romanian, Slovak, Hungarian, German, French, Spanish, Italian, Portuguese (Brazil), Chinese (Simplified), Japanese, Korean.

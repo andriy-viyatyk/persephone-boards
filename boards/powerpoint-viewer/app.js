@@ -28,6 +28,7 @@ const SLIDE_H = 540;
 const H_PADDING = 32; // #slides horizontal padding (16px each side), scaled by zoom too
 
 let currentPath = ""; // the file path (for the name label / reload)
+let currentError; // most recent load diagnostic, available even when no slides rendered
 // The rendered bytes, retained ONLY so the agent surface can re-unzip the package for what the
 // renderer does not put in the DOM: speaker notes, chart series data, slide titles, docProps.
 // Never re-read from disk; cleared when a new load starts.
@@ -44,6 +45,7 @@ const aiVisionModel = window.PPTXAI && window.PPTXAI.createAiVisionModel({
     getSlidesEl: () => slidesEl,
     getFilePath: () => currentPath || undefined,
     getFileName: () => (currentPath ? fileName(currentPath) : undefined),
+    getError: () => currentError,
     getBytes: () => currentBytes,
     getCurrentSlide: () => (slideEls.length ? currentIndex + 1 : undefined),
     scrollToSlide: (slideNumber) => goToSlide(slideNumber - 1),
@@ -133,6 +135,7 @@ function resetView() {
 
 async function load() {
     try {
+        currentError = undefined;
         showState(t("state.loading"));
         reloadBtn.disabled = true;
         resetView();
@@ -162,6 +165,16 @@ async function load() {
             mode: "list", // render every slide (stacked); we own scroll + nav
         });
         await previewer.preview(bytes.buffer);
+
+        const parseError = previewer.pptx && previewer.pptx.parseError;
+        if (parseError) {
+            const detail = parseError.error && parseError.error.message
+                ? parseError.error.message
+                : String(parseError.error || "Unknown parser error");
+            currentError = `${parseError.part || "[Content_Types].xml"}: ${detail}`;
+            console.warn("PowerPoint Viewer: partial parse failure", currentError, parseError.error);
+            P.notify(t("toast.partialError", { error: currentError }), "error");
+        }
 
         DOMPurify.sanitize(staging, {
             IN_PLACE: true,
@@ -207,7 +220,10 @@ async function load() {
         resizeObserver.observe(scrollEl);
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
+        currentError = message;
+        console.warn("PowerPoint Viewer: failed to load presentation", message, err);
         resetView();
+        if (aiVisionModel) aiVisionModel.documentChanged();
         showState(t("state.openError") + "\n" + message, true);
         P.notify(t("toast.openError", { error: message }), "error");
     }

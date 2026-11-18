@@ -1,5 +1,6 @@
 {
   "messages": {
+    "toast.partialError": "Neizdevās nolasīt daļu satura: {error}",
     "document.title": "PowerPoint skatītājs",
     "slides.counter.empty": "–",
     "slides.previous.title": "Iepriekšējais slaids",

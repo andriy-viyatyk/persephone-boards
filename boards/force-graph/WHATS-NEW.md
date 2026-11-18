@@ -1,5 +1,8 @@
 # What's new
 
+## 1.1.2
+- Added verified model result examples and indexed-node access guidance.
+
 ## 1.1.1
 
 - Fixed: the graph stayed empty when a file opened, because the panels started before the interface text was loaded.

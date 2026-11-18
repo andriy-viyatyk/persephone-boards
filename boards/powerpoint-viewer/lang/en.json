@@ -1,5 +1,6 @@
 {
   "messages": {
+    "toast.partialError": "Some content could not be read: {error}",
     "document.title": "PowerPoint Viewer",
     "slides.counter.empty": "–",
     "slides.previous.title": "Previous slide",
@@ -9,6 +10,9 @@
     "state.noFile": "No file open. Open a .pptx file to view it here.",
     "state.noSlides": "This deck has no slides.",
     "state.openError": "Could not open this file.",
-    "toast.openError": "Could not open this file: {error}"
+    "toast.openError": "Could not open this file: {error}",
+    "manifest.name": "PowerPoint Viewer",
+    "manifest.description": "Read-only viewer for PowerPoint decks (.pptx) — scrollable slide view rendered offline.",
+    "manifest.editorName": "PowerPoint"
   }
 }

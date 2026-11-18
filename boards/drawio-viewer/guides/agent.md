@@ -106,3 +106,30 @@ current page first, then the rest of the file, so a name from `describe()` is en
 - **A shape that is not drawn cannot be ringed.** `focusShape` reads the position from the live
   renderer, so a collapsed or hidden cell is refused with that reason rather than ringed at a
   guessed place.
+
+## Example results
+
+```text
+getStats() -> { kind: "DrawioStats", fileName: "architecture.drawio", pageCount: 2, compressed: true, totalShapes: 3, totalConnections: 1, currentPage: 1, pages: [{ page: 1, name: "Overview", shapes: 2, connections: 1, textChars: 18 }, ...] }
+describe() -> "# architecture.drawio\n\n## Overview ..."
+getShapes() -> [{ id: "gateway", text: "API gateway", kind: "shape", page: 1, x: 20, y: 30, width: 120, height: 60 }]
+getConnections() -> [{ id: "edge-1", label: "reads", page: 1, from: { id: "gateway", text: "API gateway" }, to: { id: "db", text: "Database" } }]
+getShape("gateway") -> { id: "gateway", text: "API gateway", kind: "shape", page: 1, x: 20, y: 30, width: 120, height: 60, style: "...", outgoing: [...], incoming: [] }
+getText() -> "API gateway\nDatabase\nreads"
+search("gateway") -> { query: "gateway", hitCount: 1, pages: [1], truncated: false, hits: [{ type: "shape", id: "gateway", text: "API gateway", page: 1 }], note: "..." }
+getXml(1) -> "<mxGraphModel>...</mxGraphModel>"
+getView() -> { kind: "DrawioView", page: 1, pageName: "Overview", pageCount: 2, zoom: 1, fitZoom: 0.8, diagramSize: { width: 800, height: 600 } }
+savePageImage(1) -> { fileName: "architecture-page-1.png", mimeType: "image/png", base64: "..." }
+savePageSvg(1) -> "<svg ...>...</svg>"
+savePageImages() -> [{ fileName: "architecture-page-1.png", mimeType: "image/png", base64: "..." }, ...]
+goToPage(2) -> { page: 2, pageName: "Icons", shapes: 1, connections: 0 }
+focusShape("gateway") -> { page: 1, shape: { id: "gateway", text: "API gateway", kind: "shape", page: 1, x: 20, y: 30, width: 120, height: 60 }, zoom: 1.5, note: "..." }
+clearHighlight() -> { ringed: false }
+zoomToFit() -> { zoom: 0.8 }
+setZoom(1.5) -> { zoom: 1.5 }
+reload() -> { reloaded: true, note: "..." }
+openTextPage(1) -> return value from Persephone's openContent call
+openInDrawing() -> { opened: true, page: 1, note: "..." }
+```
+
+Page arguments and returned `page` fields are 1-based. Text, XML, descriptions and image payloads vary with the diagram; export methods keep the return forms shown above.

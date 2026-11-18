@@ -11,9 +11,16 @@ permission or capability grant requires renewed trust approval.
 Choose a kind, phrase ID, person, microphone and echo cancellation setting. The default phrase
 IDs, `agent-wake` and `agent-stop`, are used by Agent Chat; other consumers can choose their own
 case-sensitive IDs. The ID identifies a group of samples, not the words the model transcribes.
-Record several 2.5-second examples per person. After capture, review the waveform and spectrogram, adjust the selection with the handles or arrow keys, and play the selection or the whole clip before adding it. Cancel discards the recording. The board rejects silent, clipped, short or very quiet clips, including rejected selections. Public enrollment uses an automatic speech-detected crop with a loudness fallback. Use the same echo cancellation setting for enrollment and listening. Refresh the
-microphone list when devices change; labels or IDs can be unavailable before an authorized capture,
-in which case the default microphone remains available.
+Record several 2.5-second examples per person. After capture, review the waveform and spectrogram,
+adjust the selection with the handles or arrow keys, and play the selection or the whole clip before
+adding it. Cancel discards the recording. The board rejects silent, clipped, short or very quiet
+clips, including rejected selections. Public enrollment starts with accepted loudness bounds, then
+Silero VAD suggests a crop. If VAD fails or detects no speech, enrollment keeps those accepted
+bounds. Live detection uses Silero VAD; the adaptive level gate is used only if VAD fails. Synthetic
+audio may be rejected by Silero VAD, so it cannot verify the positive path. Use the same echo
+cancellation setting for enrollment and listening. Refresh the microphone list when devices change;
+labels or IDs can be unavailable before an authorized capture, in which case the default microphone
+remains available.
 
 The samples panel shows the selected phrase, capture provenance, approximate duration where available, and individual delete controls. Old recordings cannot be played back.
 Person deletion is limited to that phrase. Samples captured before this version are marked as

@@ -110,6 +110,8 @@ The canonical bridge reference is `persephone://guides/boards`; agent-facing aut
 
 The trusted board publishes one model from the main frame at `pages[pageId].editor.app`. Start with
 `pages[pageId].editor.app.$help` or `$describe`. The model does not require `appScripting`.
+This model is exposed only on full player pages. Opening a plain audio file directly creates a
+light page, which does not publish `editor.app`; catalog, playlist, and no-source full pages do.
 
 - `tracks` is an indexable collection of plain Link Editor metadata. Each track id is its stable
   Link Editor `id`; `href` is the original path or URL, never a temporary `board://` stream URL.
@@ -120,7 +122,7 @@ The trusted board publishes one model from the main frame at `pages[pageId].edit
   external edit changes a field covered by the undo preimage.
 - Category paths use `/`; rename and move update every descendant track path in one merged write.
 - `addTracksFromFolder(path)` scans a folder without opening a picker.
-- `play`, `pause`, `next`, `setMode`, and `setQueue` operate on the current player and report the
+- `play`, `pause`, `next`, `previous`, `setMode`, and `setQueue` operate on the current player and report the
   resulting mode, cursor, and track.
 
 Sample calls:

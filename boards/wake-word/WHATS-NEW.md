@@ -1,3 +1,6 @@
+## 1.2.1
+- Clarified the enrollment crop fallback and VAD detection gate.
+
 ## 1.2.0
 - Review and play wake phrase recordings before adding them; automatic crops use speech detection and existing samples show an approximate length.
 

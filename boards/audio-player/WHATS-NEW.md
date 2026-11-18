@@ -1,5 +1,10 @@
 # What's New — Audio Player
 
+## 1.0.6
+
+- Added mounted agent documentation with full-mode result examples.
+- Model Next and Previous follow the active queue, and model help explains full-page availability.
+
 ## 1.0.5
 
 - Instruments visualizer: a moon now hangs low over the horizon and lays a shimmering path of light across the waves. Lightning strikes the sea far out near the horizon or jumps between the colored lights in the sky, and the underwater lights sit deeper in the distance.

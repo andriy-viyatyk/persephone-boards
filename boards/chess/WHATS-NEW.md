@@ -1,5 +1,8 @@
 # What's new — Agent Chess
 
+## 1.2.1
+- Added verified examples for the model's result shapes.
+
 ## 1.2.0
 
 - Agent-vs-agent matches: a second agent can play the user's colour through the board's model with

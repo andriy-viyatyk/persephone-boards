@@ -23,7 +23,7 @@
   "author": "Persephone",
   "name": "Notebook",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "5.0.18",
   "editorKind": "content-host",
   "fileMasks": [

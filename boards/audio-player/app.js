@@ -309,6 +309,7 @@
     if (!light) aiVisionModel = window.AudioPlayerAiVision.create({
       audio: player, player, queue, catalog,
       play: playModelItem,
+      playQueueItem: changeTrack,
       // The agent's setMode picks the playing queue and shows (catalog) or closes (source) the catalog list.
       setMode: (mode) => { showCatalogList(mode === "catalog"); if (mode !== "catalog" || catalog.document) { queue.setMode(mode); player?.refreshNext(); renderQueue(); } },
       refreshView: () => { catalogView?.render(); renderQueue(); },

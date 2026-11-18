@@ -48,6 +48,10 @@
     const HELP = `This is a PowerPoint deck (.pptx) open in the PowerPoint Viewer board. It is
 already parsed and rendered, so reading it here needs no conversion step and no external tool.
 
+If loading failed or only part of the deck could be read, check app.error. It is undefined after a
+successful load or while a new load is in progress, and a diagnostic string after a failure. It
+remains readable even when isLoaded is false; deck-reading methods still require rendered slides.
+
 Start with getStats(). It reports the slide count and the character, table, image and chart count
 of EVERY slide, plus which slides have speaker notes. A call result is bounded (20k characters by
 default), so ask for a slide range you can actually receive, raise maxLength, or use saveMarkdown
@@ -85,6 +89,7 @@ Slide numbers are 1-based everywhere, matching the counter the user sees on scre
         { name: "slideCount", kind: "property", summary: "Number of slides in the deck." },
         { name: "currentSlide", kind: "property", summary: "The slide number the user is currently looking at.", writable: true },
         { name: "isLoaded", kind: "property", summary: "Whether a deck is open and rendered." },
+        { name: "error", kind: "property", summary: "The most recent load diagnostic, or undefined when no load error has occurred. Readable even when isLoaded is false." },
 
         { name: "getStats", kind: "method", signature: "getStats()", summary: "How big is this deck: total and per-slide character, table, image and chart counts, and which slides have speaker notes, so you can plan how much to read at once. Read this first." },
         { name: "getMarkdown", kind: "method", signature: "getMarkdown(from = 1, to = slideCount, options?)", summary: "The deck as Markdown, one section per slide, with titles, outline-indented body text, tables and speaker notes. This is the main way to read it. Options: { notes } - pass { notes: false } to omit speaker notes." },
@@ -747,6 +752,7 @@ Slide numbers are 1-based everywhere, matching the counter the user sees on scre
                     filePath: ctx.getFilePath(),
                     slideCount: slideEls().length || undefined,
                     isLoaded: slideEls().length > 0,
+                    error: ctx.getError(),
                     // Cheap until something has been read: reported only once a scan has run, so
                     // `summarize` never silently walks a 300-slide deck.
                     totalChars: statsCache ? statsCache.totalChars : undefined,
@@ -758,6 +764,7 @@ Slide numbers are 1-based everywhere, matching the counter the user sees on scre
             get filePath() { return ctx.getFilePath(); },
             get slideCount() { return slideEls().length || undefined; },
             get isLoaded() { return slideEls().length > 0; },
+            get error() { return ctx.getError(); },
             get currentSlide() { return ctx.getCurrentSlide(); },
             set currentSlide(value) { ctx.scrollToSlide(requireSlide(requireLoaded(), value)); },
 

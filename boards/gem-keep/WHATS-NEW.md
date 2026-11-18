@@ -1,5 +1,8 @@
 # Gem Keep
 
+## 1.0.1
+- Added an agent guide for the level and difficulty starting-gold rule.
+
 ## 1.0.0
 
 - First version: a 3D tower-defense game with three levels, four tower types with upgrades, four enemy types and a meteor spell. Zoom with the mouse wheel; rotate and pan the camera with the mouse, a pen or touch.

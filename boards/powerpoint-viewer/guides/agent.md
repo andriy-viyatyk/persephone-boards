@@ -22,6 +22,11 @@ pages[pageId].editor.app.getStats()
 `getStats()` is the first call for any deck you have not read. It reports the slide count and each
 slide's title, character, table, image and chart counts, and **whether it has speaker notes**.
 
+Check `pages[pageId].editor.app.error` if loading did not complete cleanly. It is `undefined` after
+a successful load or while a new load is in progress, and a non-empty diagnostic string when a
+load fails or only part of the deck could be read. It remains readable when `isLoaded` is `false`;
+deck-reading methods such as `getStats()` still require rendered slides.
+
 ```json
 { "slideCount": 6, "totalChars": 365, "totalMarkdownChars": 832, "totalTables": 1,
   "totalImages": 1, "totalCharts": 1, "slidesWithNotes": 4, "slidesWithText": 6, "scanMs": 1,
@@ -131,3 +136,31 @@ Animations, transitions and builds do not exist here: you see each slide's final
 
 To drive the board's own UI (the prev/next buttons, the Reload button), use the board editor's
 `snapshot()` / `click()` rather than this model.
+
+## Example results
+
+Slide numbers are 1-based in method arguments, result objects and fields such as `slide` or `slides`.
+
+```text
+getStats() -> { slideCount: 6, totalChars, totalMarkdownChars, totalTables, totalImages, totalCharts, slidesWithNotes, slides: [{ slide: 1 (1-based), title, chars, markdownChars, tables, images, charts, hasNotes, hasText }, ...] }
+getMarkdown(1, 2) -> "# Slide 1: Overview\n...\n# Slide 2: Results\n..."
+getText(1, 2) -> "Overview\n..."
+getSlideMarkdown(1) -> "# Overview\n..."
+getNotes(1) -> { count: 1, notes: [{ slide: 1 (1-based), title: "Overview", notes: "Presenter notes" }], note: "..." }
+search("revenue") -> { query: "revenue", hitCount: 1, slides: [1 (1-based)], truncated: false, searchedNotes: true, hits: [{ slide: 1 (1-based), match: "Revenue", index: 0, snippet: "...Revenue..." }] }
+getOutline() -> [{ slide: 1 (1-based), title: "Overview" }]
+getTables(1) -> [{ index: 0, slide: 1 (1-based), rowCount: 2, columnCount: 2, rows: [["Quarter", "Revenue"], ["Q1", "$12"]] }]
+getCharts(1) -> { count: 1, charts: [{ slide: 1 (1-based), ... }], note: "..." }
+getImages() -> { count: 1, images: [{ index: 0, slide: 1 (1-based), width: 640, height: 480, format: "png" }], note: "..." }
+getMetadata() -> { title: "Quarterly review", author: "Ada", company: "Example", created: "...", modified: "..." }
+saveMarkdown(1, 2) -> "# Slide 1: Overview\n..."
+saveText(1, 2) -> "Overview\n..."
+saveImage(0) -> { fileName: "image-1.png", mimeType: "image/png", base64: "..." }
+saveImages() -> [{ fileName: "image-1.png", mimeType: "image/png", base64: "..." }, ...]
+goToSlide(2) -> 2 (1-based slide number)
+showText("Revenue") -> { found: true, slide: 1 (1-based), flashed: true, note: "..." }
+openTextPage(1, 2) -> return value from Persephone's openContent call for a Markdown page
+editor.app.error -> "slides.xml: <parse message>" after a failed load; otherwise undefined
+```
+
+The `slide` and `slides` fields above use 1-based deck positions. The `error` example is a diagnostic string only when loading fails; it is undefined after success or while a new load is in progress.

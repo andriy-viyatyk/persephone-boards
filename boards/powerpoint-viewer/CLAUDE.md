@@ -56,7 +56,11 @@ maintained) instead:
      and a scroll listener keeps the counter in sync with free scrolling.
 4. **Read-only, no content host.** No `onContentChange`; the only re-render triggers are the
    toolbar **Reload** button and the `board_refresh` MCP tool. `load()` clears the previous render
-   first and is wrapped so a parse failure degrades to an error overlay + `notify(..., "error")`.
+   first. A failed load shows the localized error overlay and notification, logs a console warning,
+   and stores a diagnostic in `pages[pageId].editor.app.error`. If parsing fails after some slides
+   loaded, those slides remain visible and the diagnostic is available through the same model
+   property alongside a warning notification. The property is undefined after a successful load or
+   while a fresh load is in progress; it remains readable when `isLoaded` is false.
 
 ## The agent surface
 
@@ -66,9 +70,10 @@ shelling out to a converter. `app.js` builds it from `window.PPTXAI.createAiVisi
 passing a small `ctx` (slide host, file path/name, retained bytes, current slide, scroll-to-slide);
 the model owns everything else. `guides/` documents it for users and agents.
 
-Published: `getStats` (read first), `getMarkdown` / `getText` / `getSlideMarkdown`, `getNotes`,
-`search`, `getOutline`, `getTables`, `getCharts`, `getImages`, `getMetadata`, the `save*` family,
-and `goToSlide` / `showText` / `openTextPage`.
+Published: `error` (most recent load diagnostic, if any), `getStats` (read first),
+`getMarkdown` / `getText` / `getSlideMarkdown`, `getNotes`, `search`, `getOutline`, `getTables`,
+`getCharts`, `getImages`, `getMetadata`, the `save*` family, and `goToSlide` / `showText` /
+`openTextPage`.
 
 **It is a hybrid: rendered DOM + a re-unzip of the package.** The DOM gives text, tables and
 pictures; the package gives what the renderer never draws — speaker notes, chart series data and

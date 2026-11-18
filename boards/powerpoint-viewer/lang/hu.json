@@ -1,5 +1,6 @@
 {
   "messages": {
+    "toast.partialError": "A tartalom egy része nem olvasható: {error}",
     "document.title": "PowerPoint-megjelenítő",
     "slides.counter.empty": "–",
     "slides.previous.title": "Előző dia",

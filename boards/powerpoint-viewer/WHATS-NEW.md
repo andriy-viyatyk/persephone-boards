@@ -3,6 +3,11 @@
 One line per change, newest first. Keep it short. Record pending changes under a heading for
 the **next version** you'll release (the version `board-manifest.json` will be bumped to).
 
+## 1.2.1
+
+- Added model result examples and explicit 1-based slide references.
+- Report PowerPoint parse failures in the viewer, console, and AiVision model.
+
 ## 1.2.0
 
 - Interface languages: Ukrainian, Polish, Lithuanian, Latvian, Estonian, Belarusian, Romanian, Slovak, Hungarian, German, French, Spanish, Italian, Portuguese (Brazil), Chinese (Simplified), Japanese, Korean.

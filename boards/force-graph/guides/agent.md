@@ -283,6 +283,42 @@ pages["<id>"].editor.app.groupSelected args: [["auth", "token", "session"], "Ide
 - **Writing the page text directly is not the way to edit.** The board owns the content; use the
   editing methods above, which keep unknown keys, strip simulation fields and save correctly.
 
+## Example results
+
+`nodes` is an indexed AiVision collection, not the source JSON array:
+
+```text
+nodes.count -> 2; nodes.ids -> ["zeus", "hera"]
+nodes[0] -> { id: "zeus", title: "Zeus", level: 5, shape: "star", isGroup: false, group: undefined, neighbors: ["hera"], properties: {} }
+nodes["zeus"] -> the same node value
+getNode("zeus") -> node value above; unknown id -> undefined
+select(["zeus"]) -> ["zeus"]
+addToSelection(["hera"]) -> ["zeus", "hera"]
+clearSelection() -> true
+selectChildren(["zeus"]), selectMembers(["olympus"]), selectMembersDeep(["olympus"]) -> number of newly selected nodes
+getNeighborIds("zeus") / getVisualNeighborIds("zeus") -> ["hera"]
+getGroupOf("zeus") -> group id or undefined; getGroupMembers("olympus") / getGroupMembersDeep("olympus") -> ["zeus", "hera"]
+getGroupChain("zeus") -> ["olympus"]; isGroup("olympus") -> true
+search("Zeus") -> [{ nodeId: "zeus", label: "Zeus", matchedProps: [], visible: true }]; bfs("zeus", 1) -> [{ id: "zeus", depth: 0 }, { id: "hera", depth: 1 }]
+getComponents() -> [{ nodeCount: 2, rootId: "zeus", nodeIds: ["zeus", "hera"] }]
+setRootNode("zeus") -> "zeus"; toggleGrouping() -> new groupingEnabled boolean
+setSearchQuery("hera") / revealHiddenMatches() -> searchInfo object; revealAndSelectNode("hera") -> true; selectSearchResults() -> selected node ids
+resetView() / resetVisibility() -> true; expandAll() / expandNode("zeus") / expandNodeDeep("zeus") / collapseNode("zeus") -> visible record count
+updateForceParams({ charge: -80 }) / resetForceParams() -> { charge: -80, linkDistance: ..., collide: ... }
+updateExpansionOptions({ maxVisible: 100 }) -> expansionOptions object
+setLegendDescription("levels", "5", "Olympian") -> legendDescriptions object
+addNode({ title: "Athena" }) / addChild("zeus", { title: "Ares" }) -> new node id
+setNodeProps("zeus", { title: "Zeus" }) -> cleaned node record; renameNode("old", "new") -> "new"
+deleteNodes(["hera"]) -> 1; addLink("zeus", "hera") / deleteLink("zeus", "hera") -> true
+groupSelected(["zeus", "hera"], "Olympus") -> new group id; setGroupTitle("olympus", "Olympus") -> "Olympus"
+ungroup("olympus") -> true; deleteGroup("olympus") -> number of deleted nodes; removeFromGroup("zeus") -> true
+extract() / openMarkdown() / openGrid() / openInDrawingEditor() -> result of the corresponding Persephone open operation
+copyMarkdown() / copyImageToClipboard() -> clipboard operation result
+save() -> result of the board's save operation
+```
+
+Array contents, generated ids, counts, and action results depend on the open graph. Result names above follow the method return values; the indexed `nodes` examples show node access rather than the source array.
+
 ## See also
 
 - [The `.fg.json` format](format.md) — the file you are reading and writing.

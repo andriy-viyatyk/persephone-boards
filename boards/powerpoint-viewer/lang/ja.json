@@ -1,5 +1,6 @@
 {
   "messages": {
+    "toast.partialError": "一部の内容を読み込めませんでした: {error}",
     "document.title": "PowerPoint Viewer",
     "slides.counter.empty": "–",
     "slides.previous.title": "前のスライド",

@@ -4,8 +4,8 @@ Viewer for PDF documents. Registered as a custom editor for `*.pdf`.
 
 This board exists to move pdf.js **out of the Persephone installer** (~21 MB of vendored pdf.js
 shipped to every user, PDF reader or not) and make PDF viewing an opt-in catalog install.
-Persephone's built-in PDF editor still exists while this board is verified against it; it is
-removed once parity is confirmed.
+Persephone has no built-in `.pdf` editor; this board wins its file association over Monaco's
+fallback.
 
 ## How it works
 
@@ -102,7 +102,8 @@ blank frame. Verified verdicts on Persephone 4.0.18:
 | WebAssembly | `script-src 'wasm-unsafe-eval'` | works |
 
 `frame-src` and `wasm-unsafe-eval` were **added to Persephone's board CSP** for this board; on an
-older build the iframe fails and the overlay says so. That is why `minAppVersion` is `4.0.18`.
+older build the iframe fails and the overlay says so. That is why the manifest currently requires
+Persephone `5.0.10` (`minAppVersion`).
 
 Keep the probes. They are cheap, they only surface on failure, and they turn "the board is blank"
 into a directive name.
@@ -116,12 +117,11 @@ into a directive name.
   host), so `persephone.*` inside the viewer frame is inert.
 - **The viewer keeps its own light/dark styling**, independent of Persephone's theme. It does not
   follow the `--p-*` palette; only the board's status overlay does.
-- **`app.editors.resolveId("x.pdf")` returns the BUILT-IN id**, not this board — that call consults
-  only the built-in registry. To confirm the board actually claimed a file, check the page's
+- **`app.editors.resolveId("x.pdf")` returns Monaco's built-in fallback id**, not this board —
+  that call consults only the built-in registry. To confirm the board actually claimed a file, check the page's
   `editor` field for `board-editor:<root>` (via `list_pages`).
-- **`editorPriority` is 200 while the built-in PDF editor still exists** (it claims `.pdf` at 100,
-  and ties go to the built-in). Once the built-in is removed only Monaco's `0` floor remains to
-  beat, so this should drop to a low value before publishing.
+- **`editorPriority` is 100.** Persephone has no built-in `.pdf` claim, so this beats Monaco's file
+  fallback at tier 0.
 - **Rendering a page MUST use `intent: "print"`.** pdf.js's default `"display"` intent drives its
   render loop with `requestAnimationFrame`, and Chromium does not fire rAF in a window that is not
   painting. An agent renders while the user is in another application, so the Persephone window is

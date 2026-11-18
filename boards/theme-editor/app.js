@@ -1075,6 +1075,7 @@
         if (!state.themes.some((theme) => theme.id === id)) throw new Error(`Unknown theme "${id}".`);
         markBusy(true);
         clearTimeout(state.previewTimer);
+        state.previewTimer = 0;
         if (state.previewResolve) {
             state.previewResolve();
             state.previewResolve = null;
@@ -1265,6 +1266,7 @@
     async function queueDraftRefresh({ preview = true, delay } = {}) {
         if (delay === undefined) delay = Math.max(0, PREVIEW_INTERVAL_MS - (Date.now() - (state.lastRefreshAt || 0)));
         clearTimeout(state.previewTimer);
+        state.previewTimer = 0;
         if (state.previewResolve) {
             state.previewResolve();
             state.previewResolve = null;
@@ -1280,7 +1282,9 @@
         const draft = clone(state.draft);
         return new Promise((resolve) => {
             state.previewResolve = resolve;
-            state.previewTimer = setTimeout(async () => {
+            let timerId;
+            timerId = setTimeout(async () => {
+                if (state.previewTimer === timerId) state.previewTimer = 0;
                 state.lastRefreshAt = Date.now();
                 state.previewChain = state.previewChain.then(async () => {
                     if (op !== state.previewGeneration) return;
@@ -1310,6 +1314,7 @@
                     resolve();
                 });
             }, delay);
+            state.previewTimer = timerId;
         });
     }
     async function flushPendingPreview() {
@@ -1588,13 +1593,13 @@
             aiVision: {
                 kind: "ThemeEditor",
                 summary: "The Theme Editor's live model for the user's open, unsaved theme draft.",
-                overview: "Read draft, themes, derived, contrast, and previewStatus for the current board draft.\nUse setBaseColor, setMode, and setOverride to edit it and preview valid changes.\nUse save/saveAs to persist and apply; revert discards draft edits.",
+                overview: "Read draft, themes, derived, contrast, and previewStatus for the current board draft.\nUse setBaseColor, setMode, and setOverride to edit it and preview valid changes.\nUse save/saveAs to persist and apply; revert discards draft edits and restores the saved theme. If its saved custom source was deleted, revert rejects with `This saved theme was removed. Choose another starting theme.`",
                 help: [
                     "This model edits the draft currently open in the user's Theme Editor board, not a separate app.themes object.",
                     "Settings Edit requests a specific theme through theme.edit@1; the request is accepted immediately before source loading. A custom theme loads its saved file, while a built-in loads as an exact, unsaved \"<name> copy\" and opens Generator. The Settings + action creates an id-less dirty draft with the active theme's base colors, Auto mode, and no pinned overrides, named \"New <active name>\", then opens and generates Generated Set.",
                     "Generated Set is created lazily the first time its tab is selected; Regenerate replaces the in-memory 100-variant set. The Both / Dark / Light switch makes a mixed, all-dark or all-light set (Both by default; a locked Background fixes the polarity). Candidates are contrast-ranked, sorted by background hue and lightness, and display illustrative palettes, not controls. Select a tile to apply its base colors and polarity to the shared draft and live preview. A busy generation reports progress and rejects AiVision mutations.",
                     "A dirty or restored draft is never replaced by a repeated Settings request. Save persists it and then opens the requested source; Discard drops it and opens that source; Cancel keeps the draft and reapplies its live preview.",
-                    "Changes preview live; there is no separate apply step. Revert restores the saved theme.",
+                    "Changes preview live; there is no separate apply step. Revert restores the saved theme. If the saved custom source was deleted, revert rejects with `This saved theme was removed. Choose another starting theme.`",
                     "An opened theme keeps its exact colors (stored as overrides) and the generator controls only show where its base colors sit. The first setBaseColor, setMode or randomize call hands every one of those exact colors back to the generator; overrides set with setOverride stay. Revert returns to the exact colors.",
                     "Rename, Save, Save as, and Revert are Persephone page-toolbar controls (board-toolbar-control-rename/save/save-as/revert); Delete theme, Export JSON, and Import JSON are at the top of the page toolbar's … menu (board-toolbar-more). The toolbar text slot shows 'Theme: <name>'. Prefer the model methods below.",
                     "Auto mode maps to isDark: null; dark and light map to true and false. Optional base colors link, error, warning, and success can be removed with null or an empty string; the required background, text, and accent cannot.",
@@ -1602,6 +1607,7 @@
                     "Invalid UI drafts remain visible and keep the last valid live preview. save and saveAs reject an invalid draft. derived and contrast are the latest completed authoritative bridge reports; previewStatus reports whether a refresh is pending or superseded.",
                     "Busy persistence/source operations reject another model operation promptly. Rename and delete model methods do not open dialogs. UI rename/delete still ask for confirmation.",
                     "save and saveAs(name?) write persistent theme data and apply the saved appearance. rename(name) renames a saved custom theme in place, or only the draft name of a built-in copy. deleteThemeCore immediately removes a saved custom theme without agent confirmation or undo; the board then loads Persephone's fallback theme.",
+                    "Example results: save() -> true; saveAs(\"Dusk\") -> true; rename(\"Dusk 2\") -> { id: \"theme-42\", name: \"Dusk 2\" } (a built-in draft returns { id: null, name: \"Dusk 2\" }); deleteThemeCore() -> { nextSourceId: \"default\" }.",
                     "randomize({blocks?, seed?, mode?}) uses the Generator's locked-block behavior and returns the best contrast result. Blocks are background, text, accent, link, error, warning, and success. mode \"dark\" or \"light\" forces that polarity (the draft's mode becomes Auto); without it the current mode is kept. A locked background of the other polarity rejects the call.",
                 ].join("\n"),
                 members: [
@@ -1621,7 +1627,7 @@
                     { name: "setOverride", kind: "method", signature: "setOverride(key: string, value: string | null)", summary: "Pin a CSS color override or remove it with null/empty; updates the live draft and preview." },
                     { name: "resetOverride", kind: "method", signature: "resetOverride(key: string)", summary: "Remove one pinned override, refresh its derived value, and update the valid live preview." },
                     { name: "clearOverrides", kind: "method", signature: "clearOverrides()", summary: "Remove all pinned overrides and refresh the valid live preview." },
-                    { name: "revert", kind: "method", signature: "revert()", summary: "Discard draft edits, restore the saved source, and end this board's live preview only if it still owns it." , caution: "Discards the current draft immediately." },
+                    { name: "revert", kind: "method", signature: "revert()", summary: "Discard draft edits, restore the saved source, and end this board's live preview only if it still owns it; rejects with `This saved theme was removed. Choose another starting theme.` if the saved custom source was deleted." , caution: "Discards the current draft immediately." },
                     { name: "save", kind: "method", signature: "save()", summary: "Persist this draft to its theme file and apply it; rejects if the draft is invalid." , caution: "Writes persistent theme data and changes Persephone's active appearance." },
                     { name: "saveAs", kind: "method", signature: "saveAs(name?: string)", summary: "Write this draft as a new custom theme (named name, or the draft name) and apply it; rejects if invalid." , caution: "Creates a persistent theme file and changes Persephone's active appearance." },
                     { name: "rename", kind: "method", signature: "rename(name: string)", summary: "Rename the saved custom theme in place (unsaved edits stay unsaved), or set the draft name of an unsaved built-in copy; requires a non-empty name." , caution: "For a custom theme it writes the saved file immediately. It does not open the UI dialog." },
@@ -1774,6 +1780,7 @@
     window.addEventListener("beforeunload", () => {
         clearTimeout(state.externalTimer);
         clearTimeout(state.previewTimer);
+        state.previewTimer = 0;
         clearTimeout(state.persistTimer);
         if (state.unlistenTheme) state.unlistenTheme();
     });

@@ -1,5 +1,6 @@
 {
   "messages": {
+    "toast.partialError": "Nie można odczytać części zawartości: {error}",
     "document.title": "Podgląd programu PowerPoint",
     "slides.counter.empty": "–",
     "slides.previous.title": "Poprzedni slajd",

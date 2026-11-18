@@ -51,4 +51,12 @@ LOCAL MODIFICATION (pptx-preview.umd.js is patched — not the pristine upstream
   logo) is omitted rather than crashing the slide. Properly-embedded images are
   unaffected. Re-apply this one-line change if you re-vendor pptx-preview.
 
+LOCAL MODIFICATION (pptx-preview.umd.js is patched — not pristine upstream):
+  The parser swallowed required-part failures in Nr._loadPresentation and
+  Nr._loadContentTypes. _loadPresentation now rethrows its parse error. In
+  _loadContentTypes, the error is saved as parseError with the current part name
+  and logged; it is rethrown only when no slides have loaded, preserving earlier
+  slides in a partially readable deck. Slides retained after a partial failure
+  are sorted by index before returning. Re-apply both catch changes if re-vendoring.
+
 See LICENSE for the full ISC / MIT / 0BSD / Apache-2.0 texts.

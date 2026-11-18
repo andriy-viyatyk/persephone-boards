@@ -107,6 +107,32 @@ rejected with an error saying so.
 - `goToPage(n)` scrolls to a page. `currentPage` is readable and writable and does the same thing.
 - `openTextPage(from, to)` opens the extracted Markdown as a new page and returns its page id.
 
+## Example results
+
+Page numbers in method arguments, `page` properties and result rows below are 1-based.
+
+```text
+getStats() -> { kind: "WordStats", pageCount: 3, totalChars, totalMarkdownChars, totalLines, totalTables, totalImages, pages: [{ page: 1 (1-based), chars, markdownChars, lines, tables, images, headings, hasText }, ...] }
+getMarkdown(1, 2) -> "# Heading\n..."
+getText(1, 2) -> "Heading\n..."
+getPageMarkdown(1) -> "# Heading\n..."
+search("budget") -> { query: "budget", hitCount: 1, pages: [1 (1-based)], truncated: false, hits: [{ page: 1 (1-based), match: "budget", index: 4, snippet: "...budget..." }] }
+getOutline() -> [{ title: "Heading", level: 1, page: 1 (1-based) }]
+getTables(1) -> [{ index: 0, page: 1 (1-based), rowCount: 2, columnCount: 2, rows: [["Quarter", "Revenue"], ["Q1", "$12"]] }]
+getImages() -> { count: 1, images: [{ index: 0, page: 1 (1-based), width: 640, height: 480, format: "png" }], note: "..." }
+getMetadata() -> metadata object returned by `readMetadata()`
+saveMarkdown(1, 2) -> "# Heading\n..."
+saveText(1, 2) -> "Heading\n..."
+saveImage(0) -> { fileName: "image1.png", mimeType: "image/png", base64: "..." }
+saveImages() -> [{ fileName: "image1.png", mimeType: "image/png", base64: "..." }, ...]
+goToPage(2) -> 2 (1-based page number)
+showText("budget") -> { found: true, page: 1 (1-based), flashed: true, note: "..." }
+showText("missing") -> { found: false, note: "..." }
+openTextPage(1, 2) -> return value from Persephone's openContent call for a Markdown page
+```
+
+The page-valued fields (`pages[].page`, `page`, and each page in a result) are 1-based. A no-match `showText()` result omits `page` and `flashed`.
+
 ## What this model does not do
 
 It is **read-only** with respect to the document: no editing, no comments, no tracked changes.

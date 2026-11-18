@@ -1,5 +1,6 @@
 {
   "messages": {
+    "toast.partialError": "일부 콘텐츠를 읽을 수 없습니다: {error}",
     "document.title": "PowerPoint 뷰어",
     "slides.counter.empty": "–",
     "slides.previous.title": "이전 슬라이드",

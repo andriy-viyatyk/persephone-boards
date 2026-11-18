@@ -139,5 +139,23 @@ pages["<id>"].editor.app.setItemTag("<item-id>", "Finance")
 pages["<id>"].editor.app.toggleItem("<item-id>")         → true or false
 ```
 
+## Example results
+
+```text
+addItem("Send invoice", "Work") -> "item-42" (new item id)
+toggleItem("item-42") -> true
+setItemTitle("item-42", "Send invoice") -> updated item object
+setItemComment("item-42", "Call first") -> comment string
+setItemTag("item-42", "Finance") -> "Finance"
+deleteItem("item-42") -> true
+addList("Work") -> "Work"; renameList("Work", "Projects") -> "Projects"
+deleteList("Work") -> true
+addTag("Finance") -> "Finance"; renameTag("Finance", "Budget") -> "Budget"
+setTagColor("Finance", "") -> ""
+deleteTag("Finance") -> true
+```
+
+The add and rename methods return the created or resulting id/name. The item setters return the updated field or object shown above; delete methods return `true`.
+
 See [Todo](index.md) for the canonical file format, or [Using the Todo board](editor.md) for
 what the user sees.

@@ -3,6 +3,7 @@ import { access, mkdir, readFile, realpath, rename, rm, writeFile } from "node:f
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { gunzipSync } from "node:zlib";
+import { dataRoot } from "./data-root.mjs";
 
 export const SDK_VERSION = "0.3.302";
 export const TARBALL_URL = "https://registry.npmjs.org/@anthropic-ai/claude-agent-sdk/-/claude-agent-sdk-0.3.302.tgz";
@@ -11,10 +12,9 @@ export const SDK_SHA256 = "BAF41BB694A59DF1A1AC2577B06D759C5CD81F4F13953161C1A91
 const ALLOWED = new Set(["package/sdk.mjs", "package/LICENSE.md", "package/package.json"]);
 
 function userDataRoot(env = process.env) {
-  if (!env.LOCALAPPDATA || !path.isAbsolute(env.LOCALAPPDATA)) throw new Error("LOCALAPPDATA is not available; cannot safely install the SDK.");
-  const root = path.resolve(env.LOCALAPPDATA, "Persephone", "board-data", "claude-agent", "sdk");
-  const base = path.resolve(env.LOCALAPPDATA);
-  if (!root.toLowerCase().startsWith(`${base.toLowerCase()}${path.sep}`)) throw new Error("SDK path escaped LOCALAPPDATA.");
+  const base = dataRoot(env);
+  const root = path.resolve(base, "sdk");
+  if (!root.toLowerCase().startsWith(`${base.toLowerCase()}${path.sep}`)) throw new Error("SDK path escaped the Agent Chat data root.");
   return { base, root, versionDir: path.join(root, SDK_VERSION) };
 }
 
@@ -62,7 +62,7 @@ async function safeVersionDir(env = process.env, create = false) {
   else await access(versionDir);
   const baseReal = await realpath(base);
   const dirReal = await realpath(versionDir);
-  if (!dirReal.toLowerCase().startsWith(`${baseReal.toLowerCase()}${path.sep}`)) throw new Error("SDK directory resolves outside LOCALAPPDATA.");
+  if (!dirReal.toLowerCase().startsWith(`${baseReal.toLowerCase()}${path.sep}`)) throw new Error("SDK directory resolves outside the Agent Chat data root.");
   return { root, versionDir: dirReal };
 }
 
@@ -78,7 +78,7 @@ export async function installSdk(env = process.env) {
   await mkdir(root, { recursive: true });
   const rootReal = await realpath(root);
   const baseReal = await realpath(base);
-  if (!rootReal.toLowerCase().startsWith(`${baseReal.toLowerCase()}${path.sep}`)) throw new Error("SDK root resolves outside LOCALAPPDATA.");
+  if (!rootReal.toLowerCase().startsWith(`${baseReal.toLowerCase()}${path.sep}`)) throw new Error("SDK root resolves outside the Agent Chat data root.");
   const response = await fetch(TARBALL_URL, { redirect: "error" });
   if (!response.ok) throw new Error(`SDK download failed (${response.status}).`);
   const archive = Buffer.from(await response.arrayBuffer());

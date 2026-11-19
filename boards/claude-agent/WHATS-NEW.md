@@ -1,3 +1,7 @@
+## 1.5.1
+- Use profile-scoped board data and add the Agent Chat AI Vision guide.
+- Check for an installed Claude or Codex CLI before showing the Claude SDK consent prompt.
+
 ## 1.5.0
 - Configure and review wake phrase enrollment in the Wake Word board.
 - Use the shared Persephone microphone and device selection for dictation and Wake mode.

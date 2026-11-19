@@ -1,12 +1,13 @@
 # Torrent Viewer board
 
-This EPIC-114 board resolves a magnet link, a local `.torrent` path, or a claimed HTTP(S)
-`.torrent` download URL (the add field also takes a bare v1 info hash, 40 hex or 32 base32
-characters, and turns it into a tracker-less magnet link) to metadata, deselects every file, and displays the service-owned torrent
-inventory in a
-themed two-pane page. URL sources are read through the board content pipe into memory; they are
-never saved to disk. Files open through self-contained `torrent://` links; the only whole-file
-action is the explicit, size-guarded Download this file menu item.
+This EPIC-114 board displays a service-owned torrent inventory in a themed two-pane page. Local
+`.torrent` metadata is parsed offline, without joining or contacting the swarm. Opening or
+downloading a file joins the swarm. Magnets use the network to fetch metadata; an HTTP(S) `.torrent`
+URL uses the network to fetch the torrent file before local parsing. The add field also takes a bare
+v1 info hash (40 hex or 32 base32 characters) and turns it into a tracker-less magnet link. HTTP(S)
+sources are read through the board content pipe into memory and are never saved to disk. Files open
+through self-contained `torrent://` links; the only whole-file action is the explicit, size-guarded
+Download this file menu item.
 
 The manifest claims the `torrent` and `magnet` schemes, declares the stable `torrent/viewer`
 provider contract, and is a single-instance board: one Torrent Viewer page receives all claimed
@@ -31,8 +32,9 @@ npm install
 npm run build
 ```
 
-The build vendors WebTorrent **3.0.21**, `memory-chunk-store` **1.3.5**, `socks` **2.8.10**,
-`undici` **7.30.0**, and `fetch-socks` **1.3.3** into `lib/webtorrent.bundle.mjs` using esbuild
+The build vendors WebTorrent **3.0.21**, `parse-torrent` **11.0.24**, `memory-chunk-store`
+**1.3.5**, `socks` **2.8.10**, `undici` **7.30.0**, and `fetch-socks` **1.3.3** into
+`lib/webtorrent.bundle.mjs` using esbuild
 **0.28.1**. The bundle passes the memory store as a
 class to WebTorrent, leaves `bufferutil`, `utf-8-validate`, `node-datachannel`, and `utp-native`
 external, and carries the `createRequire` banner required by WebTorrent's dynamic filesystem
@@ -60,8 +62,9 @@ deadline, a four-job cap, a 45-second no-poll grace period, and 60-second abando
 `cancel`, `remove`, and shutdown destroy incomplete torrents with their memory stores. The abandoned
 job watchdog is derived as the 30-second metadata deadline plus 15 seconds, so it cannot pre-empt D8;
 the board offers a manual retry after a failed resolution and never retries automatically. A ready torrent's
-right-click menu has Copy magnet link, Copy info hash, Save .torrent (the `torrentFile` op returns
-WebTorrent's re-encoded `.torrent` as base64), and Remove. A failed
+right-click menu has Copy magnet link, Copy info hash, Save .torrent, and Remove. Save .torrent
+returns the original input bytes unchanged for offline inspections; for network-resolved torrents,
+WebTorrent's re-encoded `.torrent` is returned as base64. A failed
 row's right-click menu has Retry and Remove; Remove (the `dismiss` op) drops the retained outcome
 at once, and forgets the saved source. **Remove all** in the Torrents header applies the row's own
 action to every row in turn (Remove, Cancel for a resolving row, or dismiss). The snapshot's failed outcomes carry their `source` string

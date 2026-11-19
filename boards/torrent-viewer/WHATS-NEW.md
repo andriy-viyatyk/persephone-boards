@@ -1,5 +1,9 @@
 # What's New — Torrent Viewer
 
+## 1.11.0
+
+- Local `.torrent` metadata opens offline; Open and Download join the swarm.
+
 ## 1.10.0
 
 - Interface languages: Ukrainian, Polish, Lithuanian, Latvian, Estonian, Belarusian, Romanian, Slovak, Hungarian, German, French, Spanish, Italian, Portuguese (Brazil), Chinese (Simplified), Japanese, Korean.

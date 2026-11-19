@@ -1,4 +1,5 @@
 ## 1.2.1
+- Store enrollments in the profile-scoped board data folder.
 - Clarified the enrollment crop fallback and VAD detection gate.
 
 ## 1.2.0

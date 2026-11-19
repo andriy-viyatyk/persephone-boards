@@ -67226,8 +67226,10 @@ export {
   export_MemoryChunkStore as MemoryChunkStore,
   WebTorrent,
   webtorrent_entry_default as default,
+  parse_torrent_default as parseTorrent,
   setFetchProxy,
-  setPeerProxy
+  setPeerProxy,
+  toMagnetURI
 };
 /*! Bundled license information:
 

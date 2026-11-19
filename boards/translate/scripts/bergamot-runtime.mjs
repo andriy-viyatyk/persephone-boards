@@ -54,7 +54,7 @@ export class BergamotRuntime {
   async discoverModels(options) { return this.assets.discover(options); }
 
   async resolveInstalledRoute(from, to, { selection } = {}) {
-    const chosen = selection || await this.assets.discover();
+    const chosen = selection || await this.assets.localSelection();
     if (from === to) return { kind: "identity", from, to, selection: chosen, direct: null, first: null, second: null };
     let route;
     if (chosen.has(`${from}-${to}`)) route = { kind: "direct", from, to, direct: await this.assets.getInstalledPair(from, to, { selection: chosen }) };

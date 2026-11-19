@@ -1042,8 +1042,11 @@ function createClaudeProvider(serviceHost) {
     async describe({ cwd }) {
       await refreshSettings();
       const ready = await sdkIsInstalled();
+      const cliAvailable = await resolveClaudeExecutable(settings["claude-executable"] || "", process.env)
+        .then(() => true, () => false);
       return {
         provider: "claude", providerLabelKey: "provider.claude", icon: "claude", iconColor: "#d97757", models: [...MODEL_ALIASES.filter((alias) => alias.id), ...(cachedModels || []).filter((model) => !["opus", "sonnet", "haiku"].includes(model.id))], defaults: { ...(await sessionDefaults(cwd)), mode: "auto" },
+        cliAvailable,
         capabilities: CAPABILITIES,
         setup: { required: true, ready },
         chatOptions: { permissionModes: [

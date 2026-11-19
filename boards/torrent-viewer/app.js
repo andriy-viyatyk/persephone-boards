@@ -71,6 +71,7 @@ let statusTimer;
 let snapshotInFlight = false;
 let tearingDown = false;
 let serviceState = "stopped";
+let latestServiceSnapshot;
 /** requestId → source, for this page's failed resolves: what the row's Retry re-resolves. */
 const failedSources = new Map();
 /** File name → Persephone's icon for it (a `data:` URL); names in flight are in fileIconRequests. */
@@ -505,6 +506,9 @@ function torrentLabel(torrent) {
 function torrentBadge(torrent) {
     if (torrent.state === "resolving") return { html: "resolving…", tone: "" };
     if (torrent.state === "failed") return { html: "failed", tone: "failed" };
+    if (torrent.mode === "offline-inspecting") {
+        return { html: escapeHtml(t("state.offlineInspection")), tone: "" };
+    }
     const stats = torrent.stats ?? {};
     const state = stateLabel(torrent);
     return {
@@ -518,6 +522,7 @@ function renderTorrentRow(row, torrent) {
     row.classList.toggle("selected", selected);
     row.classList.toggle("failed", torrent.state === "failed");
     row.setAttribute("aria-selected", String(selected));
+    row.title = torrent.mode === "offline-inspecting" ? t("state.offlineTitle") : "";
     const [icon, label, badge] = row.children;
     if (!icon.firstChild) icon.innerHTML = '<img src="./icon.svg" alt="" />';
     setIfChanged(label, "textContent", torrentLabel(torrent));
@@ -1040,7 +1045,13 @@ async function resolveSourceInternal(source) {
             else persistAcceptedSources();
         }
         renderAll();
-        setStatus(t("status.torrentSummary", { name: torrent.name ?? infoHash, countLabel: t("status.fileCount", { count: torrent.files.length }) }));
+        setStatus(t("status.torrentSummary", {
+            name: torrent.name ?? infoHash,
+            countLabel: t("status.fileCount", { count: torrent.files.length }),
+            modeLabel: t(resolvedRow?.mode === "offline-inspecting"
+                ? "state.offlineInspection"
+                : "state.metadataReady"),
+        }));
     } catch (error) {
         if (!tearingDown && !job.cancelled) {
             const message = messageFrom(error);
@@ -1253,6 +1264,7 @@ function readyRow(metadata, stats) {
         name: typeof metadata.name === "string" ? metadata.name : null,
         magnet: typeof metadata.magnet === "string" ? metadata.magnet : null,
         files: normalizedFiles(metadata.files),
+        mode: typeof metadata.mode === "string" ? metadata.mode : undefined,
         ready: true,
         state: "ready",
         stats,
@@ -1261,12 +1273,14 @@ function readyRow(metadata, stats) {
 
 function clearServiceModel() {
     serviceTorrents.clear();
+    latestServiceSnapshot = undefined;
     pageStateByInfoHash.clear();
     selectedInfoHash = undefined;
     renderAll();
 }
 
 function reconcileSnapshot(snapshot) {
+    latestServiceSnapshot = snapshot;
     const next = new Map();
     const snapshotTorrents = Array.isArray(snapshot?.torrents) ? snapshot.torrents : [];
     for (const torrent of snapshotTorrents) {
@@ -1921,6 +1935,33 @@ unsubscribeSource = P.source.onOpen(({ url, sourceUrl, privateSession }) => {
     if (privateSession) notifyPrivateSession();
     void resolveSource(source);
 });
+
+const appModel = {
+    aiVision: {
+        kind: "TorrentViewer",
+        summary: "Read-only status for the selected torrent. Local .torrent metadata is inspected offline; opening or downloading a file joins the swarm.",
+        members: [
+            { name: "mode", kind: "property", summary: "Selected torrent state: offline-inspecting before a file action, joining-swarm after discovery starts, or connected when peers are present; null while resolving or with no selection." },
+            { name: "online", kind: "property", summary: "Whether this service snapshot has a live WebTorrent client. This reports actual client state, not the Direct or SOCKS5 preference." },
+            { name: "peerCount", kind: "property", summary: "Peer count for the selected torrent, or zero when no torrent is selected." },
+        ],
+    },
+    get mode() {
+        return selectedTorrentRow()?.mode ?? null;
+    },
+    get online() {
+        const currentClient = latestServiceSnapshot?.client;
+        return !!currentClient && currentClient.destroyed !== true;
+    },
+    get peerCount() {
+        return Number(selectedTorrentRow()?.stats?.peers) || 0;
+    },
+};
+try {
+    if (typeof P.aiVision?.expose === "function") P.aiVision.expose(appModel);
+} catch {
+    // Agent visibility is optional; normal board rendering remains available on older bridges.
+}
 
 renderAll();
 void loadNetworkSetting();

@@ -5,7 +5,7 @@
   "description": "Local text and HTML translation with explicit model downloads.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "minAppVersion": "5.0.18",
   "minBridgeVersion": "1.50.0",
   "permissions": {

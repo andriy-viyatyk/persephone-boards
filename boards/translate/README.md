@@ -6,7 +6,7 @@ Translate provides the local `text.translate` v1 service using Firefox desktop t
 
 Open the board and use **Download** for each required directed model. The manager displays advertised sizes, installed state and download progress. A non-English pair needs both legs through English unless a direct model is available. The paste-text panel detects a source language, allows correction, shows the route and translates only when all required models are installed. Translation itself never downloads models.
 
-Downloads are explicit and can be cancelled. Verified model files are stored in `%LOCALAPPDATA%\Persephone\board-data\translate`, outside the installed board. Model discovery and downloading may require a network connection; translation and detection run locally after models are installed.
+Downloads are explicit and can be cancelled. Verified model files are stored in the Persephone profile's board data folder (default-profile example: `%LOCALAPPDATA%\Persephone\board-data\translate`), outside the installed board. Model discovery and downloading may require a network connection; translation and detection run locally after models are installed.
 
 ## Privacy and licenses
 

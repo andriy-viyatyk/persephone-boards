@@ -1,3 +1,6 @@
+## 1.0.2
+- Use the profile-scoped board data folder and open model discovery only on request.
+
 ## 1.0.1
 - Added agent-friendly text translation and capability discovery.
 - Added a board icon; the text now fills the board, and the Language models dialog was tidied.

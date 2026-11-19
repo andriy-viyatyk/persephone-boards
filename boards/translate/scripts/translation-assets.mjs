@@ -27,6 +27,8 @@ const safePart = (value) => {
 };
 
 export function dataRoot(env = process.env) {
+  const configured = env.PERSEPHONE_BOARD_DATA;
+  if (typeof configured === "string" && path.isAbsolute(configured) && !configured.startsWith("\\\\")) return path.resolve(configured);
   const local = env.LOCALAPPDATA;
   if (typeof local !== "string" || !path.isAbsolute(local) || local.startsWith("\\\\")) throw new Error("LOCALAPPDATA is unavailable or invalid.");
   return path.resolve(local, "Persephone", "board-data", "translate");
@@ -141,6 +143,7 @@ export class TranslationAssets {
     this.selection = null;
     this.downloads = new Map();
     this.loggedFilters = new Set();
+    this.verifiedManifests = new Map();
     this.registryFile = path.join(this.root, "registry", "translations-models-v2.json");
   }
 
@@ -181,42 +184,90 @@ export class TranslationAssets {
     return this.selection;
   }
 
-  async #verifiedManifest(pair) {
-    const manifestPath = path.join(this.root, "models", safePart(pair.from), safePart(pair.to), pair.version, "manifest.json");
+  async #verifiedManifest(manifestPath, expected) {
+    const cached = this.verifiedManifests.get(manifestPath);
+    if (cached) return cached;
     let manifest;
     try { manifest = JSON.parse(await readFile(manifestPath, "utf8")); } catch { return null; }
-    if (manifest.from !== pair.from || manifest.to !== pair.to || manifest.version !== pair.version || !manifest.files) return null;
-    if (Object.keys(manifest.files).sort().join("/") !== Object.keys(pair.files).sort().join("/")) return null;
-    for (const [type, meta] of Object.entries(pair.files)) {
-      const installed = manifest.files[type];
-      if (!installed || !/^[A-Za-z0-9._-]+$/.test(installed.filename || "") || installed.filename.includes("..") || installed.sha256 !== meta.decompressedHash || installed.size !== meta.decompressedSize) return null;
-      const file = path.join(path.dirname(manifestPath), installed.filename);
-      const bytes = await readFile(file).catch(() => null);
-      if (!bytes || bytes.byteLength !== meta.decompressedSize || sha256(bytes) !== meta.decompressedHash) return null;
-      installed.path = file;
-    }
-    return manifest;
+    try {
+      safePart(manifest.from); safePart(manifest.to);
+      if (!isVersion(manifest.version) || (expected && (manifest.from !== expected.from || manifest.to !== expected.to || manifest.version !== expected.version))) return null;
+      if (!manifest.files || typeof manifest.files !== "object" || Array.isArray(manifest.files)) return null;
+      const fileTypes = Object.keys(manifest.files).sort().join("/");
+      if (!FILE_SETS.some((set) => [...set].sort().join("/") === fileTypes)) return null;
+      const verifiedFiles = {};
+      let totalSize = 0;
+      for (const [type, installed] of Object.entries(manifest.files)) {
+        if (!installed || typeof installed !== "object" || !/^[A-Za-z0-9._-]+$/.test(installed.filename || "") || installed.filename.includes("..") || !Number.isSafeInteger(installed.size) || installed.size <= 0 || !/^[0-9a-f]{64}$/i.test(installed.sha256 || "")) return null;
+        const file = path.join(path.dirname(manifestPath), installed.filename);
+        let bytes;
+        try { bytes = await readFile(file); } catch { return null; }
+        if (bytes.byteLength !== installed.size || sha256(bytes) !== installed.sha256.toLowerCase()) return null;
+        totalSize += installed.size;
+        verifiedFiles[type] = { ...installed, sha256: installed.sha256.toLowerCase(), path: file };
+      }
+      const pair = { id: pairId(manifest.from, manifest.to), from: manifest.from, to: manifest.to, version: manifest.version,
+        architecture: typeof manifest.architecture === "string" ? manifest.architecture : "", files: verifiedFiles, sizeBytes: totalSize };
+      this.verifiedManifests.set(manifestPath, pair);
+      return pair;
+    } catch { return null; }
   }
 
-  async inspectInstalled() {
-    let selected;
-    try { selected = await this.discover(); } catch { selected = new Map(); }
-    const installed = [];
-    for (const pair of selected.values()) {
-      const manifest = await this.#verifiedManifest(pair).catch(() => null);
-      if (manifest) installed.push({ ...pair, files: Object.fromEntries(Object.entries(manifest.files).map(([type, file]) => [type, { ...file }])) });
+  async #installedPairs() {
+    const installed = new Map();
+    const modelsRoot = path.join(this.root, "models");
+    const fromDirs = await readdir(modelsRoot, { withFileTypes: true }).catch(() => []);
+    for (const fromDir of fromDirs) {
+      if (!fromDir.isDirectory() || !/^[\p{L}\p{N}_-]+$/u.test(fromDir.name)) continue;
+      const toDirs = await readdir(path.join(modelsRoot, fromDir.name), { withFileTypes: true }).catch(() => []);
+      for (const toDir of toDirs) {
+        if (!toDir.isDirectory() || !/^[\p{L}\p{N}_-]+$/u.test(toDir.name)) continue;
+        const versions = await readdir(path.join(modelsRoot, fromDir.name, toDir.name), { withFileTypes: true }).catch(() => []);
+        for (const versionDir of versions) {
+          if (!versionDir.isDirectory() || !isVersion(versionDir.name)) continue;
+          const manifestPath = path.join(modelsRoot, fromDir.name, toDir.name, versionDir.name, "manifest.json");
+          const pair = await this.#verifiedManifest(manifestPath, { from: fromDir.name, to: toDir.name, version: versionDir.name });
+          if (pair) {
+            const previous = installed.get(pair.id);
+            if (!previous || compareVersions(pair.version, previous.version) > 0) installed.set(pair.id, pair);
+          }
+        }
+      }
     }
     return installed;
   }
 
-  async getInstalledPair(from, to, { selection } = {}) {
-    safePart(from); safePart(to);
-    const chosen = selection || await this.discover();
-    const pair = chosen.get(pairId(from, to));
-    if (!pair) return null;
-    const installed = await this.#verifiedManifest(pair);
+  async inspectInstalled() { return [...(await this.#installedPairs()).values()]; }
+
+  async localSelection({ includeSnapshot = true } = {}) {
+    let selected = new Map();
+    if (includeSnapshot) {
+      let records = await this.readSnapshot();
+      if (records) selected = selectModelPairs(records, { logger: (message) => this.logger(message) });
+    }
+    for (const [id, pair] of await this.#installedPairs()) {
+      const files = Object.fromEntries(Object.entries(pair.files).map(([type, file]) => [type, {
+        type, filename: file.filename, location: "", compressedSize: file.size, compressedHash: null,
+        decompressedSize: file.size, decompressedHash: file.sha256, mimetype: "",
+      }]));
+      selected.set(id, { ...pair, files, installedFiles: pair.files });
+    }
+    return selected;
+  }
+
+  async #getVerifiedPair(pair) {
+    const manifestPath = path.join(this.root, "models", safePart(pair.from), safePart(pair.to), pair.version, "manifest.json");
+    const installed = await this.#verifiedManifest(manifestPath, pair);
     if (!installed) return null;
     return { ...pair, files: Object.fromEntries(Object.entries(installed.files).map(([type, file]) => [type, { ...file }])) };
+  }
+
+  async getInstalledPair(from, to, { selection } = {}) {
+    safePart(from); safePart(to);
+    const chosen = selection || await this.localSelection({ includeSnapshot: false });
+    const pair = chosen.get(pairId(from, to));
+    if (!pair) return null;
+    return this.#getVerifiedPair(pair);
   }
 
   async getPair(from, to, { signal, onProgress = () => {}, selection } = {}) {
@@ -228,8 +279,8 @@ export class TranslationAssets {
       if (rejected) throw new Error(`Translation model pair ${from} → ${to} was rejected: ${rejected.message}`);
       throw new Error(`Translation model pair ${from} → ${to} is unavailable in the current registry.`);
     }
-    const installed = await this.#verifiedManifest(pair);
-    if (installed) return { ...pair, files: Object.fromEntries(Object.entries(installed.files).map(([type, file]) => [type, { ...file }])) };
+    const installed = await this.#getVerifiedPair(pair);
+    if (installed) return installed;
     if (!this.capabilities) {
       try { await this.getCapabilities({ signal }); }
       catch (error) { throw new Error(`Translation model ${from} → ${to} is not cached and Remote Settings is unreachable. Connect to the internet and retry. (${error?.message || error})`); }
@@ -246,6 +297,7 @@ export class TranslationAssets {
     let completed = 0;
     try {
       await mkdir(directory, { recursive: true });
+      this.verifiedManifests.delete(path.join(directory, "manifest.json"));
       await rm(path.join(directory, "manifest.json"), { force: true });
       for (const [type, meta] of Object.entries(pair.files)) {
         const target = path.join(directory, meta.filename);
@@ -268,6 +320,7 @@ export class TranslationAssets {
       }
       const manifest = { from, to, version: pair.version, architecture: pair.architecture, files: manifestFiles };
       await atomicWrite(path.join(directory, "manifest.json"), Buffer.from(JSON.stringify(manifest, null, 2)));
+      this.verifiedManifests.delete(path.join(directory, "manifest.json"));
       onProgress({ pair: pair.id, version: pair.version, phase: "ready", loaded: total, total });
       return { ...pair, files: Object.fromEntries(Object.entries(manifestFiles).map(([type, file]) => [type, { ...file, path: path.join(directory, file.filename) }])) };
     } catch (error) {
@@ -333,6 +386,7 @@ export class TranslationAssets {
     if (!target.startsWith(base) || !isVersion(version)) throw new Error("Invalid model cache path.");
     await this.cancel(pairId(from, to), version);
     await rm(target, { recursive: true, force: true });
+    this.verifiedManifests.delete(path.join(target, "manifest.json"));
     const parent = path.dirname(target);
     const remaining = await readdir(parent).catch(() => []);
     if (!remaining.length) await rm(parent, { recursive: true, force: true });

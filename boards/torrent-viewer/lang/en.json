@@ -45,7 +45,7 @@
     "status.resolutionCancelled": "Resolution cancelled.",
     "status.removed": "Removed.",
     "status.resolving": "Resolving metadata…",
-    "status.torrentSummary": "{name} / {countLabel} / metadata only",
+    "status.torrentSummary": "{name} / {countLabel} / {modeLabel}",
     "status.fileCount": {
       "one": "{count} file",
       "other": "{count} files"
@@ -62,7 +62,10 @@
     "status.torrentRemoved": "Torrent removed.",
     "status.allRemoved": "All torrents removed.",
     "status.removeSomeFailed": "Some torrents could not be removed.",
-    "empty.metadataOnly": "Metadata only. No file content is selected.",
+    "empty.metadataOnly": "Local .torrent metadata is inspected offline. Open or Download joins the swarm.",
+    "state.offlineInspection": "offline inspection",
+    "state.offlineTitle": "Offline inspection. Opening or downloading a file joins the swarm.",
+    "state.metadataReady": "metadata ready",
     "toolbar.networkSettings": "Network settings",
     "status.serviceUnavailable": "Torrent service unavailable.",
     "status.serviceUnavailableReason": "Torrent service unavailable: {reason}",

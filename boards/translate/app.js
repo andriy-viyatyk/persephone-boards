@@ -128,7 +128,7 @@
       $("#result").value = item.text;
     } catch (reason) { error(reason.message || t("error.generic")); }
   }
-  $("#open-models").addEventListener("click", () => { $("#models-dialog").showModal(); $("#filter").focus(); });
+  $("#open-models").addEventListener("click", () => { $("#models-dialog").showModal(); $("#filter").focus(); sendManagement({ type: "snapshot" }); });
   $("#models-close").addEventListener("click", () => $("#models-dialog").close());
   $("#refresh").addEventListener("click", () => sendManagement({ type: "refresh" }));
   $("#filter").addEventListener("input", renderPairs);

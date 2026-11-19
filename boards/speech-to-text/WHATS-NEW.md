@@ -1,3 +1,6 @@
+## 1.5.1
+- Store downloaded runtime and models in the profile-scoped board data folder.
+
 ## 1.5.0
 - Use Persephone's shared microphone processing and add a temporary accepted-audio debug panel.
 

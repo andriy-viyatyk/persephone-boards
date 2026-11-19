@@ -5,6 +5,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { dataRoot } from "./data-root.mjs";
 import { createClaudeProvider } from "./providers/claude.mjs";
 import { createCodexProvider } from "./providers/codex.mjs";
 import { composeInstructions } from "./agent-session-protocol.mjs";
@@ -27,11 +28,7 @@ const groupTokens = new Map();
 const participantIds = new Set();
 let groupHttpServer = null;
 let groupHttpAddress = null;
-const GROUP_ROOT = () => {
-  const base = process.env.LOCALAPPDATA;
-  if (!base || !path.isAbsolute(base)) throw new Error("LOCALAPPDATA is not available; cannot store group chats.");
-  return path.resolve(base, "Persephone", "board-data", "claude-agent", "group-chat");
-};
+const GROUP_ROOT = () => path.join(dataRoot(), "group-chat");
 const DEFAULT_PROFILES = Object.freeze([
   { id: "nova-reviewer", name: "Nova", roleTitle: "Reviewer", instructions: "Review the requested work, inspect relevant code or evidence, and report concrete defects, risks, and fixes. Do not make changes.", summary: "Reviews work and identifies defects, risks, and fixes.", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only", color: "" },
   { id: "rex-critic", name: "Rex", roleTitle: "Critic", instructions: "Challenge the proposal's assumptions, look for counterexamples and failure cases, and explain where reasoning or evidence is weak. Do not make changes.", summary: "Challenges assumptions and finds counterexamples.", provider: "claude", model: "opus", effort: "medium", permissionMode: "read-only", color: "" },
@@ -156,9 +153,7 @@ const CLAUDE_DEFAULT_INSTRUCTIONS = [
 const CODEX_DEFAULT_INSTRUCTIONS = "You are the user's assistant inside Persephone, a desktop workspace where they keep their work open in pages. Treat open Persephone pages as context when relevant. Inspect the active or grouped page before asking the user to paste visible content. Do not act in Persephone unless asked. Questions about files in the working directory use your normal tools. Write concise replies in GitHub-flavored Markdown.";
 const instructionDefaults = new Map([["claude", CLAUDE_DEFAULT_INSTRUCTIONS], ["codex", CODEX_DEFAULT_INSTRUCTIONS]]);
 function instructionsFile(providerId) {
-  const base = process.env.LOCALAPPDATA;
-  if (!base || !path.isAbsolute(base)) throw new Error("LOCALAPPDATA is not available; cannot store instructions.");
-  return path.resolve(base, "Persephone", "board-data", "claude-agent", providerId === "codex" ? "instructions-codex.md" : "instructions.md");
+  return path.join(dataRoot(), providerId === "codex" ? "instructions-codex.md" : "instructions.md");
 }
 async function readInstructions(providerId) {
   const defaultText = instructionDefaults.get(providerId) || CLAUDE_DEFAULT_INSTRUCTIONS;

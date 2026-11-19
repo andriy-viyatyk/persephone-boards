@@ -1,11 +1,15 @@
+import { readFile } from "node:fs/promises";
+
 process.env.WS_NO_BUFFER_UTIL = "1";
 process.env.WS_NO_UTF_8_VALIDATE = "1";
 
 const {
     default: WebTorrent,
     MemoryChunkStore,
+    parseTorrent,
     setPeerProxy,
     setFetchProxy,
+    toMagnetURI,
 } = await import("../lib/webtorrent.bundle.mjs");
 const {
     NETWORK_STORAGE_KEY,
@@ -32,6 +36,7 @@ const network = await loadNetwork();
 let nextRequestNumber = 1;
 
 const torrentsByInfoHash = new Map();
+const offlineTorrentsByInfoHash = new Map();
 const torrentSources = new WeakMap();
 const selectionState = new WeakMap();
 const activeReaderCounts = new WeakMap();
@@ -48,6 +53,54 @@ function errorMessage(error, fallback = "Torrent service failed.") {
 
 function isTorrentBytes(value) {
     return value instanceof Uint8Array && value.byteLength > 0;
+}
+
+function isLocalTorrentPath(value) {
+    if (typeof value !== "string") return false;
+    const source = value.trim();
+    return /\.torrent$/i.test(source)
+        && !/^(?:magnet|torrent|https?):/i.test(source);
+}
+
+function normalizeTorrentPath(filePath) {
+    return String(filePath).split("\\").join("/");
+}
+
+function normalizedParsedMetadata(parsed) {
+    const infoHash = normalizeInfoHash(parsed?.infoHash);
+    if (!/^[0-9a-f]{40}$/.test(infoHash) || !Array.isArray(parsed.files)
+        || parsed.files.some((file) => typeof file?.path !== "string"
+            || !Number.isSafeInteger(file.length) || file.length < 0)) {
+        throw new Error("torrent-source-invalid");
+    }
+    return {
+        infoHash,
+        magnet: toMagnetURI(parsed),
+        name: typeof parsed.name === "string" ? parsed.name : null,
+        files: parsed.files.map((file, index) => ({
+            path: normalizeTorrentPath(file.path),
+            length: Number.isSafeInteger(file.length) && file.length >= 0 ? file.length : 0,
+            index,
+        })),
+    };
+}
+
+async function inspectTorrentOffline(source) {
+    const originalBytes = isTorrentBytes(source)
+        ? Buffer.from(source)
+        : await readFile(source);
+    if (originalBytes.byteLength === 0) throw new Error("torrent-source-invalid");
+
+    let parsed;
+    try {
+        parsed = await parseTorrent(new Uint8Array(originalBytes));
+    } catch {
+        throw new Error("torrent-source-invalid");
+    }
+    const metadata = normalizedParsedMetadata(parsed);
+    const existing = findTorrentByInfoHash(metadata.infoHash);
+    if (existing) return { metadata: metadataProjection(existing), record: undefined };
+    return { metadata, record: { ...metadata, originalBytes } };
 }
 
 function serializedError(error, code = "torrent-resolution-failed") {
@@ -163,7 +216,7 @@ function metadataProjection(torrent) {
         magnet: torrent.magnetURI,
         name: torrent.name,
         files: (Array.isArray(torrent.files) ? torrent.files : []).map((file, index) => ({
-            path: file.path.split("\\").join("/"),
+            path: normalizeTorrentPath(file.path),
             length: file.length,
             index,
         })),
@@ -538,6 +591,19 @@ async function startResolver(operation) {
     try {
         if (operation.cancelled) throw new Error("torrent-resolution-cancelled");
 
+        if (isTorrentBytes(operation.source) || isLocalTorrentPath(operation.source)) {
+            const inspected = await inspectTorrentOffline(operation.source);
+            if (operation.cancelled) throw new Error("torrent-resolution-cancelled");
+            const { metadata, record } = inspected;
+            if (record) {
+                removedInfoHashes.delete(metadata.infoHash);
+                offlineTorrentsByInfoHash.set(metadata.infoHash, record);
+            }
+            operation.completed = true;
+            operation.resolve(metadata);
+            return;
+        }
+
         const infoHash = extractInfoHash(operation.source);
         const existing = infoHash ? findTorrentByInfoHash(infoHash) ?? pendingTorrentFor(infoHash, operation) : undefined;
         // `deselect: true` is what actually makes this board a VIEWER (EPIC-114 D1), and it is NOT
@@ -546,12 +612,12 @@ async function startResolver(operation) {
         // (webtorrent/lib/torrent.js:155, `_startAsDeselected`); `file.deselect()` only removes that
         // file's own selection and leaves the whole-range one in place. Measured without it: every
         // file reported deselected while the swarm pushed 82 MB in seconds.
-        const torrentInput = isTorrentBytes(operation.source)
-            ? Buffer.from(operation.source)
-            : operation.source;
-        // A local path or .torrent bytes carry no visible info hash, so a torrent already loaded
-        // (from its magnet, say) is only found by WebTorrent itself: it destroys the new copy with
-        // "Cannot add duplicate torrent" and hands the loaded one to this callback.
+        // A torrent first inspected offline joins from its original .torrent bytes, so the swarm
+        // need not supply metadata (ut_metadata) that the user's file already holds.
+        const offlineRecord = infoHash ? offlineTorrentsByInfoHash.get(infoHash) : undefined;
+        const torrentInput = offlineRecord ? Buffer.from(offlineRecord.originalBytes) : operation.source;
+        // If WebTorrent identifies a duplicate while adding this source, join the loaded torrent
+        // instead of retaining the new copy.
         let loadedDuplicate;
         const added = existing ? undefined : getClient().add(torrentInput, {
             store: MemoryChunkStore,
@@ -582,6 +648,7 @@ async function startResolver(operation) {
         // A joined torrent keeps the source it was first added from.
         if (operation.torrent === torrent) rememberTorrent(torrent, operation.source);
         else rememberTorrent(operation.torrent);
+        offlineTorrentsByInfoHash.delete(normalizeInfoHash(operation.torrent.infoHash));
         operation.completed = true;
         operation.resolve(metadata);
     } catch (error) {
@@ -951,6 +1018,9 @@ function torrentStatus(torrent) {
             magnet: null,
         }),
         ready: torrent.ready === true,
+        mode: torrent.ready !== true
+            ? null
+            : torrent.numPeers > 0 ? "connected" : "joining-swarm",
         fileCount: Array.isArray(torrent.files) ? torrent.files.length : 0,
         peers: Number.isFinite(torrent.numPeers) ? torrent.numPeers : 0,
         downloadSpeed: finiteOrZero(torrent.downloadSpeed),
@@ -965,6 +1035,28 @@ function torrentStatus(torrent) {
     };
 }
 
+function offlineTorrentStatus(record) {
+    return {
+        infoHash: record.infoHash,
+        magnet: record.magnet,
+        name: record.name,
+        files: record.files,
+        ready: true,
+        mode: "offline-inspecting",
+        fileCount: record.files.length,
+        peers: 0,
+        downloadSpeed: 0,
+        uploadSpeed: 0,
+        downloaded: 0,
+        uploaded: 0,
+        length: record.files.reduce((total, file) => total + file.length, 0),
+        progress: 0,
+        fileProgress: null,
+        activeReaders: 0,
+        allFilesDeselected: true,
+    };
+}
+
 export function getServiceSnapshot() {
     const jobs = [...resolutionJobs.values()];
     const snapshot = {
@@ -972,7 +1064,12 @@ export function getServiceSnapshot() {
         client: client
             ? { destroyed: client.destroyed === true, torrentCount: torrentsByInfoHash.size }
             : null,
-        torrents: [...new Set(torrentsByInfoHash.values())].map(torrentStatus),
+        torrents: [
+            ...[...new Set(torrentsByInfoHash.values())].map(torrentStatus),
+            ...[...offlineTorrentsByInfoHash.values()]
+                .filter((record) => !torrentsByInfoHash.has(record.infoHash))
+                .map(offlineTorrentStatus),
+        ],
         activeResolutionJobs: jobs
             .filter((job) => job.state === "resolving")
             .map((job) => ({
@@ -1000,6 +1097,17 @@ export function getServiceSnapshot() {
 export async function removeTorrent(magnetOrTorrentId) {
     const source = typeof magnetOrTorrentId === "string" ? magnetOrTorrentId.trim() : "";
     const infoHash = extractInfoHash(source);
+    const offline = infoHash ? offlineTorrentsByInfoHash.get(infoHash) : undefined;
+    if (offline && !findTorrentByInfoHash(infoHash)) {
+        offlineTorrentsByInfoHash.delete(infoHash);
+        removedInfoHashes.add(infoHash);
+        for (const job of resolutionJobs.values()) {
+            if (job.state === "completed" && normalizeInfoHash(job.result?.infoHash) === infoHash) {
+                expireJob(job);
+            }
+        }
+        return { removed: true, infoHash };
+    }
     let torrent = infoHash ? findTorrentByInfoHash(infoHash) : undefined;
     if (!torrent && source) {
         torrent = [...new Set(torrentsByInfoHash.values())].find(
@@ -1009,7 +1117,10 @@ export async function removeTorrent(magnetOrTorrentId) {
     if (!torrent) return { removed: false };
     // No in-use check: a page still reading this torrent fails its next read (see removedInfoHashes).
     const removedInfoHash = normalizeInfoHash(torrent.infoHash);
-    if (removedInfoHash) removedInfoHashes.add(removedInfoHash);
+    if (removedInfoHash) {
+        removedInfoHashes.add(removedInfoHash);
+        offlineTorrentsByInfoHash.delete(removedInfoHash);
+    }
     for (const job of resolutionJobs.values()) {
         if (job.state === "resolving" && (job.source === source || (infoHash && job.infoHash === infoHash))) {
             cancelJob(job, "torrent-resolution-removed");
@@ -1059,6 +1170,7 @@ export async function shutdownService() {
         await destroyTorrent(torrent);
     }
     resolutionJobs.clear();
+    offlineTorrentsByInfoHash.clear();
     await destroyClient();
 }
 
@@ -1104,9 +1216,17 @@ async function handleRequest(request) {
         case "testNetwork":
             return testNetwork(message.network);
         case "torrentFile": {
+            const infoHash = normalizeInfoHash(message.infoHash);
+            const offline = offlineTorrentsByInfoHash.get(infoHash);
+            if (offline) {
+                return {
+                    name: offline.name,
+                    base64: Buffer.from(offline.originalBytes).toString("base64"),
+                };
+            }
             // WebTorrent re-encodes the .torrent from the metadata whatever the source was, so a
             // magnet-resolved torrent can be saved too. Base64: the reply crosses the main process.
-            const torrent = findTorrentByInfoHash(message.infoHash);
+            const torrent = findTorrentByInfoHash(infoHash);
             if (!torrent?.ready || !torrent.torrentFile) throw new Error("torrent-file-unavailable");
             return { name: torrent.name ?? null, base64: Buffer.from(torrent.torrentFile).toString("base64") };
         }

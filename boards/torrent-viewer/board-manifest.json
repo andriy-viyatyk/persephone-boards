@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "name": "Torrent Viewer",
-  "description": "Browse a torrent's files and open them in Persephone, streamed from the swarm. Metadata only until you open something.",
+  "description": "Local .torrent metadata is parsed offline. Opening or downloading a file joins the swarm. Magnets use the network to fetch metadata; HTTP(S) .torrent URLs use the network to fetch the torrent file before local parsing.",
   "author": "Persephone",
   "repository": "https://github.com/andriy-viyatyk/persephone-boards",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "screenshot": "screenshot.png",
   "minAppVersion": "5.0.10",
   "minBridgeVersion": "1.36.0",

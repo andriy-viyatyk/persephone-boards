@@ -2259,6 +2259,11 @@ async function connectView(view) {
   const resume = view.id || undefined;
   const cwd = resume ? view.cwd : $("#cwd").value.trim();
   if (!cwd) { setViewError(view, t("cwdRequired")); return false; }
+  const descriptions = state.catalog.length ? state.catalog : [providerDescription(view)];
+  const cliAvailable = descriptions.some((description) => description.provider === "claude"
+    ? description.cliAvailable === true
+    : description.provider === "codex" && description.available === true);
+  if (!cliAvailable) { $("#consent").classList.add("hidden"); setViewError(view, t("cli.required")); return false; }
   if (capabilities(view).providerSetup && !providerDescription(view).setup?.ready) { $("#consent").classList.remove("hidden"); setViewError(view, t("consentRequired")); return false; }
   if (resume && !capabilities(view).sessionStore) return false;
   stopFollow(view);

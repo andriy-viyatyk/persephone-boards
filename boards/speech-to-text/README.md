@@ -14,7 +14,7 @@ The optional whisper-server `translate=true` form field is separate from English
 2. Select a microphone and use **Record**, then **Stop and transcribe**.
 3. Choose **Use** beside a model to make it the provider's active model.
 
-The runtime and model weights are stored in `%LOCALAPPDATA%\Persephone\board-data\speech-to-text`. Each download is checked against its pinned size and SHA-256. Downloads continue if the board page closes; partial files can resume.
+The runtime and model weights are stored in the Persephone profile's board data folder (default-profile example: `%LOCALAPPDATA%\Persephone\board-data\speech-to-text`). Each download is checked against its pinned size and SHA-256. Downloads continue if the board page closes; partial files can resume.
 
 ## Privacy and licenses
 

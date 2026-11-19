@@ -34,7 +34,7 @@ epoch and time. The threshold starts at 0.85 and needs calibration in your envir
 is not a probability. A reset clears displayed events because epochs cannot be compared.
 
 Audio is processed locally; enrollment clips and review playback exist only in memory and are never stored or logged. The clip is the audio delivered by the shared audio service, whose optional cleaning depends on host settings and availability. Only embeddings and phrase/person
-metadata are retained in `%LOCALAPPDATA%/Persephone/board-data/wake-word/`. Embeddings retain voice
+metadata are retained in the Persephone profile's board data folder (default-profile example: `%LOCALAPPDATA%/Persephone/board-data/wake-word/`). Embeddings retain voice
 information: treat them as sensitive and delete them when no longer needed. The default caller
 policy accepts authorized `speech.wake@1` callers; `same-board-only` permits only this board page.
 Agent-visible metadata calls can reveal enrolled person names to the user's agent.

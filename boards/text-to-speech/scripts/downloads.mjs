@@ -25,8 +25,10 @@ const packages = [
   { name: "sherpa-onnx-node", unpacked: 64153, integrity: "1PSACfQgPXAD7ExwCv1QW09EXTjcNlpZKBqDY+jxSdIzlyOSq0M13SILBoUQUfeJqiTTXnqp6Ha9jjMUQ6efXg==" },
   { name: "sherpa-onnx-win-x64", unpacked: 23161917, integrity: "7vwdAw9PGEb0JLSpK7UFxAdp1vabBHK9Nhw2jFRBWSFgtslUPHIB0T6syJfRgiUGyCeNW9fJvcFAk2F2u7hBEw==" },
 ];
-export function dataRoot() {
-  const local = process.env.LOCALAPPDATA;
+export function dataRoot(env = process.env) {
+  const configured = env.PERSEPHONE_BOARD_DATA;
+  if (typeof configured === "string" && path.isAbsolute(configured) && !configured.startsWith("\\\\")) return path.resolve(configured);
+  const local = env.LOCALAPPDATA;
   if (typeof local !== "string" || !path.isAbsolute(local) || local.startsWith("\\\\")) throw new Error("LOCALAPPDATA is unavailable or invalid.");
   return path.join(local, "Persephone", "board-data", "text-to-speech");
 }

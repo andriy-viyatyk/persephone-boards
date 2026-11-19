@@ -4,6 +4,8 @@ import path from "node:path";
 import { TEMPLATE_VERSION } from "./engine.mjs";
 
 export function dataRoot(env = process.env) {
+  const configured = env.PERSEPHONE_BOARD_DATA;
+  if (typeof configured === "string" && path.isAbsolute(configured) && !configured.startsWith("\\\\")) return path.resolve(configured);
   const local = env.LOCALAPPDATA;
   if (typeof local !== "string" || !path.isAbsolute(local) || local.startsWith("\\\\")) {
     throw new Error("LOCALAPPDATA is unavailable or invalid.");

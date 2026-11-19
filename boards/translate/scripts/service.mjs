@@ -37,11 +37,11 @@ function routeLegs(from, to, selection) {
   return null;
 }
 async function description(channel) {
-  const selection = await selectedModels();
+  const selection = await runtime.assets.localSelection();
   const pairs = [];
   for (const pair of selection.values()) {
     const installed = Boolean(await runtime.assets.getInstalledPair(pair.from, pair.to, { selection }));
-    pairs.push({ from: pair.from, to: pair.to, installed, sizeBytes: Object.values(pair.files).reduce((sum, file) => sum + file.compressedSize, 0) });
+    pairs.push({ from: pair.from, to: pair.to, installed, sizeBytes: pair.sizeBytes || Object.values(pair.files).reduce((sum, file) => sum + file.compressedSize, 0) });
   }
   await send(channel, { type: "description", engine: "Bergamot", model: "Firefox desktop models v3", pairs, features: ["detect", "html", "download-progress"] });
   close(channel);
@@ -136,7 +136,7 @@ async function pump() {
 }
 async function prepareTranslation(open, signal, call = false) {
   if (signal?.aborted) throw signal.reason || err("cancelled", "Translation channel closed.");
-  const selection = await selectedModels();
+  const selection = await runtime.assets.localSelection();
   let from = open.from;
   if (from === undefined) {
     const sample = open.items.map((item) => item.text).join("\n").slice(0, 4096);
@@ -203,11 +203,23 @@ async function translateOneText(text, to, from, signal) {
   });
 }
 
-async function managementSnapshot(channel, { refresh = false } = {}) {
-  const selection = await selectedModels({ refresh });
-  const installed = new Set((await runtime.listModels()).map((pair) => pairKey(pair.from, pair.to)));
+async function managementSnapshot(channel, { refresh = false, discover = false } = {}) {
+  let selection;
+  try {
+    if (refresh || discover) {
+      const registry = await selectedModels({ refresh });
+      selection = new Map(registry);
+      const installedSelection = await runtime.assets.localSelection({ includeSnapshot: false });
+      for (const [id, pair] of installedSelection) selection.set(id, pair);
+    } else selection = await runtime.assets.localSelection();
+  } catch (error) {
+    selection = await runtime.assets.localSelection();
+    await send(channel, { type: "error", code: "registry-offline", message: error?.message || "Translation model registry is unavailable." });
+  }
   const active = [...downloads.values()].map((entry) => ({ from: entry.from, to: entry.to, version: entry.version, phase: entry.phase, loadedBytes: entry.loaded, totalBytes: entry.total }));
-  await send(channel, { type: "snapshot", pairs: [...selection.values()].map((pair) => ({ from: pair.from, to: pair.to, version: pair.version, sizeBytes: Object.values(pair.files).reduce((sum, file) => sum + file.compressedSize, 0), installed: installed.has(pair.id) })), downloads: active });
+  const installed = await runtime.listModels();
+  const installedVersions = new Map(installed.map((pair) => [pair.id, pair.version]));
+  await send(channel, { type: "snapshot", pairs: [...selection.values()].map((pair) => ({ from: pair.from, to: pair.to, version: pair.version, sizeBytes: pair.sizeBytes || Object.values(pair.files).reduce((sum, file) => sum + file.compressedSize, 0), installed: installedVersions.get(pair.id) === pair.version })), downloads: active });
 }
 async function explicitDownload(channel, from, to, signal, { onProgress = () => {}, controller } = {}) {
   const selection = await selectedModels();
@@ -247,7 +259,7 @@ async function providerDownload(channel, open, controller, early = []) {
 }
 async function managementCommand(channel, message) {
   try {
-    if (message?.type === "snapshot" || message?.type === "refresh") return await managementSnapshot(channel, { refresh: message.type === "refresh" });
+    if (message?.type === "snapshot" || message?.type === "refresh") return await managementSnapshot(channel, { refresh: message.type === "refresh", discover: true });
     if (message?.type === "download") {
       const controller = new AbortController();
       try { await explicitDownload(channel, message.from, message.to, controller.signal, { controller, onProgress: (progress) => void send(channel, { type: "download-progress", ...progress }) }); }
@@ -308,9 +320,8 @@ persephone.service.onChannel(async (channel, open, info) => {
   const controller = new AbortController();
   channel.onClose(() => controller.abort(err("cancelled", "Channel closed.")));
   try {
-    const selection = await selectedModels();
     if (open?.type === "describe") return await description(channel);
-    if (open?.type === "detect") return await detect(channel, open, controller.signal, selection);
+    if (open?.type === "detect") return await detect(channel, open, controller.signal, await runtime.assets.localSelection());
     if (open?.type === "translate") return await acceptTranslate(channel, open, controller.signal, early);
     if (open?.type === "download") {
       return await providerDownload(channel, open, controller, early);

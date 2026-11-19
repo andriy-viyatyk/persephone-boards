@@ -3,6 +3,16 @@
   "id": "torrent-viewer",
   "versions": [
     {
+      "version": "1.11.0",
+      "date": "2026-11-19",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/torrent-viewer-v1.11.0/torrent-viewer.zip",
+        "size": 626258,
+        "sha256": "a1b716e73eec0574763899ce0382c7ae200d7d3d572c250a68c0140fc26bec00"
+      },
+      "minAppVersion": "5.0.10"
+    },
+    {
       "version": "1.10.0",
       "date": "2026-10-10",
       "archive": {

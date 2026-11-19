@@ -3,7 +3,7 @@
   "boards": [
     {
       "id": "agent-log-viewer",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "name": "Agent Log Viewer",
       "description": "Readable Claude Code and Codex CLI session logs (.jsonl): a session as a conversation with paired tool calls, diffs and token usage, or a whole folder as a sortable session list with daily usage. Streams large logs (400 MB+) from disk.",
       "fileMasks": [
@@ -15,9 +15,9 @@
       "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/agent-log-viewer-v1.1.0/agent-log-viewer.zip",
-        "size": 110042,
-        "sha256": "7c952a5976c9df4ada1dad06c55d79540bca276b684b73d249011f4b4cfb5919"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/agent-log-viewer-v1.1.1/agent-log-viewer.zip",
+        "size": 110247,
+        "sha256": "7793b8ca75f436891999d81e32e7c53672cf9c4efdc89f5822b028ef370f25f2"
       },
       "localized": {
         "be": {
@@ -92,16 +92,16 @@
     },
     {
       "id": "aivision-explorer",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "name": "AiVision Explorer",
       "description": "Explore Persephone's live AiVision model with descriptor-safe tree browsing, help, events, and explicit member operations.",
       "standalone": true,
       "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/aivision-explorer-v1.1.0/aivision-explorer.zip",
-        "size": 66215,
-        "sha256": "f19ae4727fc9d6df758121b07c527e244001d3c2ba24bcef8f2f18aae21005b8"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/aivision-explorer-v1.1.1/aivision-explorer.zip",
+        "size": 66271,
+        "sha256": "b12cb36fb0496f5ee5d6db48a74ea2d3fed6dcf0a07186e61ba1610c17bdc9b7"
       },
       "localized": {
         "be": {
@@ -176,7 +176,7 @@
     },
     {
       "id": "audio-player",
-      "version": "1.0.5",
+      "version": "1.0.6",
       "name": "Audio Player",
       "description": "Play audio sources and browse a user-owned music catalog.",
       "fileMasks": [
@@ -198,9 +198,9 @@
       "minAppVersion": "5.0.11",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/audio-player-v1.0.5/audio-player.zip",
-        "size": 228271,
-        "sha256": "224eae2f61d02411d757d92db6221d0bfd7e836c7e396b8cce61ce6838086920"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/audio-player-v1.0.6/audio-player.zip",
+        "size": 231901,
+        "sha256": "9de64df4b1dda59993df4e1d8aadda23433125f6dc632b691d95a50f17ae5541"
       }
     },
     {
@@ -301,16 +301,16 @@
     },
     {
       "id": "chess",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "name": "Agent Chess",
       "description": "Play chess against your own AI agent. You move with the mouse; the agent connected to Persephone (Claude Code, Codex, …) reads the position and moves through the board's model, talks to you in the side chat and draws arrows to explain its ideas. Illegal moves are rejected.",
       "standalone": true,
       "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/chess-v1.2.0/chess.zip",
-        "size": 81519,
-        "sha256": "2810984eedf1d3a91e0b42b58d0691cd289298377b60106e0d5198e3d8f7d0cb"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/chess-v1.2.1/chess.zip",
+        "size": 81962,
+        "sha256": "45c213d90b26eb7b0a7dc419501438a46adff0368c6368d19c869e1107886164"
       },
       "localized": {
         "be": {
@@ -385,16 +385,16 @@
     },
     {
       "id": "claude-agent",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "name": "Agent Chat",
       "description": "A resumable agent session provider and chat board for the installed Claude and Codex CLIs.",
       "standalone": true,
       "minAppVersion": "5.0.18",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/claude-agent-v1.5.0/claude-agent.zip",
-        "size": 324193,
-        "sha256": "b4a206d8ef92d91a535a61c800f093ae8925e6a817ccb5994e85e52be81fa39c"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/claude-agent-v1.5.1/claude-agent.zip",
+        "size": 326607,
+        "sha256": "7b67d8ea5b56674cda25711d7af49d5d5f6ef418ca80669cd24c841b0e86be9d"
       },
       "localized": {
         "be": {
@@ -469,7 +469,7 @@
     },
     {
       "id": "drawio-viewer",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "name": "DrawIO Viewer",
       "description": "Read-only viewer for diagrams.net / draw.io (.drawio) diagrams.",
       "fileMasks": [
@@ -481,9 +481,9 @@
       "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/drawio-viewer-v1.2.1/drawio-viewer.zip",
-        "size": 901653,
-        "sha256": "ab61a90eeedf2e8ec533ecb46ee851097828f0749f96f1f6adc3ea07c2a6933a"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/drawio-viewer-v1.2.2/drawio-viewer.zip",
+        "size": 902370,
+        "sha256": "c77b2671a66b004a7cb0e8e159d3722e247a07c0f1b9a19fba4ce21edcac58d2"
       },
       "localized": {
         "be": {
@@ -558,7 +558,7 @@
     },
     {
       "id": "excel-viewer",
-      "version": "1.3.0",
+      "version": "1.3.1",
       "name": "Excel Viewer",
       "description": "Read-only viewer for Excel spreadsheets (.xlsx / .xls) — one tab per worksheet, sortable/filterable grid.",
       "fileMasks": [
@@ -571,9 +571,9 @@
       "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/excel-viewer-v1.3.0/excel-viewer.zip",
-        "size": 472808,
-        "sha256": "ba1470f279008640433337752d9fdc9bcac3fec0c44272f74b26ad1ff7ca399f"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/excel-viewer-v1.3.1/excel-viewer.zip",
+        "size": 473709,
+        "sha256": "1667e66a638483206a8469c34dd3ad825c11713cc8a72ecfe6bf1878962e948e"
       },
       "localized": {
         "be": {
@@ -670,7 +670,7 @@
     },
     {
       "id": "force-graph",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "name": "Force Graph",
       "description": "Force-directed graph viewer and editor for .fg.json files - a content-host board with a canvas renderer, a live d3-force simulation, six node shapes, five levels, group containers and BFS visibility for large graphs.",
       "fileMasks": [
@@ -682,9 +682,9 @@
       "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/force-graph-v1.1.1/force-graph.zip",
-        "size": 253400,
-        "sha256": "6c9d891cc9d3aae2a1b49a054790033eff585c2e38ac661e65ccd660c14fb56d"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/force-graph-v1.1.2/force-graph.zip",
+        "size": 254258,
+        "sha256": "f7802809c3f0bdb89f43e68fd91948ee7a0f2ebbdce9343290124788b5d07bbd"
       },
       "localized": {
         "be": {
@@ -759,21 +759,21 @@
     },
     {
       "id": "gem-keep",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Gem Keep",
       "description": "A 3D tower-defense game. Build and upgrade towers along the road, drop meteors on the raiders and keep the gems in your vault safe. Zoom with the mouse wheel and turn the camera with the mouse or a pen. Levels are plain JSON files, so you can make your own.",
       "standalone": true,
       "minAppVersion": "5.0.16",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/gem-keep-v1.0.0/gem-keep.zip",
-        "size": 2594516,
-        "sha256": "ea36ddacad183f4b7302d91ff9461f3d6ddbbe09c37423f899507df4069e57dc"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/gem-keep-v1.0.1/gem-keep.zip",
+        "size": 2595598,
+        "sha256": "548689d3f2813a00f43b7146e7edb7bc25b32f60148f26a8e1cc728567df523e"
       }
     },
     {
       "id": "notebook",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Notebook",
       "description": "Organize notes, code snippets, Markdown and JSON grids in one searchable notebook.",
       "fileMasks": [
@@ -785,14 +785,14 @@
       "minAppVersion": "5.0.18",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/notebook-v1.0.0/notebook.zip",
-        "size": 450284,
-        "sha256": "25bf61a13e21b1c34beb83358bbb6b28ec13962aaee841e4f4da151a91a00935"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/notebook-v1.0.1/notebook.zip",
+        "size": 450774,
+        "sha256": "7f597254dde060e4c765a998aeb81c4c59460a19ed1732e100d31c591e8c93d0"
       }
     },
     {
       "id": "pdf-viewer",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "name": "PDF Viewer",
       "description": "Viewer for PDF documents — the stock pdf.js viewer with search, thumbnails, outline, zoom/fit, rotate and print.",
       "fileMasks": [
@@ -804,9 +804,9 @@
       "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pdf-viewer-v1.2.0/pdf-viewer.zip",
-        "size": 3546357,
-        "sha256": "6051f88302c060491afd0936b3d207a682f902f6cbf97f1fc8531b9fb30527cb"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/pdf-viewer-v1.2.1/pdf-viewer.zip",
+        "size": 3546899,
+        "sha256": "7904d445557285409e0629385a15264171dfd17308141bf95e6432dcf31c58c4"
       },
       "localized": {
         "be": {
@@ -974,7 +974,7 @@
     },
     {
       "id": "powerpoint-viewer",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "name": "PowerPoint Viewer",
       "description": "Read-only viewer for PowerPoint decks (.pptx) — scrollable slide view rendered offline.",
       "fileMasks": [
@@ -986,9 +986,9 @@
       "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/powerpoint-viewer-v1.2.0/powerpoint-viewer.zip",
-        "size": 518714,
-        "sha256": "89dfd2dc49c9e95b87490d47b2d94768b64a660cb5035401a3f02650f78b8873"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/powerpoint-viewer-v1.2.1/powerpoint-viewer.zip",
+        "size": 521214,
+        "sha256": "614635aa1227a71e627d1e14cd57d9409610afc2f2b7b8079ce248363eb77f6a"
       },
       "localized": {
         "be": {
@@ -998,6 +998,10 @@
         "de": {
           "name": "PowerPoint-Viewer",
           "description": "Schreibgeschützter Viewer für PowerPoint-Präsentationen (.pptx) mit offline gerenderten, durchlaufbaren Folien."
+        },
+        "en": {
+          "name": "PowerPoint Viewer",
+          "description": "Read-only viewer for PowerPoint decks (.pptx) — scrollable slide view rendered offline."
         },
         "es": {
           "name": "Visor de PowerPoint",
@@ -1063,16 +1067,16 @@
     },
     {
       "id": "speech-to-text",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "name": "Speech to Text",
       "description": "Local speech transcription powered by whisper.cpp.",
       "standalone": true,
       "minAppVersion": "5.0.18",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/speech-to-text-v1.5.0/speech-to-text.zip",
-        "size": 95965,
-        "sha256": "a3c78490b1fc21c9c464e11836971807ede4c6c055fe79dac442bad513ad92be"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/speech-to-text-v1.5.1/speech-to-text.zip",
+        "size": 96088,
+        "sha256": "6e7371c63c79ef626c014027a1b162b724ff4b93895ebea1f7374c58705ccd86"
       },
       "localized": {
         "be": {
@@ -1147,7 +1151,7 @@
     },
     {
       "id": "sqlite-viewer",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "name": "SQLite Viewer",
       "description": "Read-only SQL browser for SQLite databases (.db / .sqlite / .sqlite3 / .db3) — tables in the sidebar, free-form SELECT queries (FTS5 included), results in a sortable/filterable grid.",
       "fileMasks": [
@@ -1162,9 +1166,9 @@
       "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/sqlite-viewer-v1.2.0/sqlite-viewer.zip",
-        "size": 285478,
-        "sha256": "c6b519e60ed24ae116f0b194de367540cf0cc552c7f4d6f7f61b24490fa482be"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/sqlite-viewer-v1.2.1/sqlite-viewer.zip",
+        "size": 286399,
+        "sha256": "8e411c6a95d29322c0fa5c7835df5562b2d92f19c612bd54b200ce3b7d1a9f26"
       },
       "localized": {
         "be": {
@@ -1239,16 +1243,16 @@
     },
     {
       "id": "text-to-speech",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "name": "Text to Speech",
       "description": "Local speech synthesis using Supertonic 3.",
       "standalone": true,
       "minAppVersion": "5.0.18",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/text-to-speech-v1.1.0/text-to-speech.zip",
-        "size": 52394,
-        "sha256": "7596d4df30604b20ef83337b58fba9cc1ab152f1fd5b4af700dd15eea345c365"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/text-to-speech-v1.1.1/text-to-speech.zip",
+        "size": 52532,
+        "sha256": "6c15c24b9c1c624e4d606b7fa47c2d98f52cddeb301a776d4e6ba0f53b8c2b22"
       },
       "localized": {
         "be": {
@@ -1327,16 +1331,16 @@
     },
     {
       "id": "theme-editor",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "name": "Theme Editor",
       "description": "Create your own Persephone color themes. Pick a background, text and accent color and every other color is derived for you; adjust any derived color, check text contrast, preview live, then save, rename, import or export named themes you can select in Settings.",
       "standalone": true,
       "minAppVersion": "5.0.18",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/theme-editor-v1.2.1/theme-editor.zip",
-        "size": 105101,
-        "sha256": "01c8280174c51a8f0afa305e5dc5183d36e409b218488e88ee7db0d6b00b6687"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/theme-editor-v1.2.2/theme-editor.zip",
+        "size": 105462,
+        "sha256": "39c178462e0b5d5ef00eda2f62b471ca632dcefae322d04a015d9229e106a644"
       },
       "localized": {
         "be": {
@@ -1411,7 +1415,7 @@
     },
     {
       "id": "todo",
-      "version": "1.3.0",
+      "version": "1.3.1",
       "name": "Todo",
       "description": "Todo list editor for .todo.json files — a content-host board with a Lists & Tags sidebar, search with match highlighting, tags, and per-item comments.",
       "fileMasks": [
@@ -1423,9 +1427,9 @@
       "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/todo-v1.3.0/todo.zip",
-        "size": 55707,
-        "sha256": "a7dd989fc19dcf72673aba181f6e1dff3c8989cf3e56c83674ae0e3dff7f9949"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/todo-v1.3.1/todo.zip",
+        "size": 55945,
+        "sha256": "5eef433837fc2d8102612878c22254871941e7379b94ec93f0f818f81c35b07f"
       },
       "localized": {
         "be": {
@@ -1500,9 +1504,9 @@
     },
     {
       "id": "torrent-viewer",
-      "version": "1.10.0",
+      "version": "1.11.0",
       "name": "Torrent Viewer",
-      "description": "Browse a torrent's files and open them in Persephone, streamed from the swarm. Metadata only until you open something.",
+      "description": "Local .torrent metadata is parsed offline. Opening or downloading a file joins the swarm. Magnets use the network to fetch metadata; HTTP(S) .torrent URLs use the network to fetch the torrent file before local parsing.",
       "fileMasks": [
         "*.torrent"
       ],
@@ -1512,9 +1516,9 @@
       "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/torrent-viewer-v1.10.0/torrent-viewer.zip",
-        "size": 624496,
-        "sha256": "839dc3035507cd8c8118220bbe55f90c1e0d71ff44251c8bd6306ea26c08bb3e"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/torrent-viewer-v1.11.0/torrent-viewer.zip",
+        "size": 626258,
+        "sha256": "a1b716e73eec0574763899ce0382c7ae200d7d3d572c250a68c0140fc26bec00"
       },
       "localized": {
         "be": {
@@ -1589,16 +1593,16 @@
     },
     {
       "id": "translate",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "name": "Translate",
       "description": "Local text and HTML translation with explicit model downloads.",
       "standalone": true,
       "minAppVersion": "5.0.18",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/translate-v1.0.1/translate.zip",
-        "size": 2790225,
-        "sha256": "0fd0c60486b640a24bce3dd5e9167c981407d59dfcf13513e191fe5cedec1867"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/translate-v1.0.2/translate.zip",
+        "size": 2791124,
+        "sha256": "0b38a4815bef3c0c100653907d254174396949aa0354f1edbefcad652d5b540a"
       },
       "localized": {
         "be": {
@@ -1673,21 +1677,21 @@
     },
     {
       "id": "wake-word",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "name": "Wake Word",
       "description": "Local enrollment-based wake and stop phrase detection.",
       "standalone": true,
       "minAppVersion": "5.0.18",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/wake-word-v1.2.0/wake-word.zip",
-        "size": 6169945,
-        "sha256": "92fec4c62baca3be1f80a061591db239066880cb0da9455fb1a49e0ac5855bd7"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/wake-word-v1.2.1/wake-word.zip",
+        "size": 6170190,
+        "sha256": "e82c614d08a13f2dce7193fe0b7822d1f0927ba48b4c0d52c7335316bf10bf42"
       }
     },
     {
       "id": "word-viewer",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "name": "Word Viewer",
       "description": "Read-only viewer for Word documents (.docx) — page-accurate rendering with headings, lists, tables, and images.",
       "fileMasks": [
@@ -1699,9 +1703,9 @@
       "minAppVersion": "5.0.10",
       "screenshot": "screenshot.png",
       "archive": {
-        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/word-viewer-v1.2.0/word-viewer.zip",
-        "size": 113484,
-        "sha256": "7251081b351c8bb59b4ac53efae5662babf60e39a769dde15f31368044d017ac"
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/word-viewer-v1.2.1/word-viewer.zip",
+        "size": 114096,
+        "sha256": "c6b58e6d72369f737bb7df5df0cb2ad24fbba91f82fd38fb877db30b8c422221"
       },
       "localized": {
         "be": {

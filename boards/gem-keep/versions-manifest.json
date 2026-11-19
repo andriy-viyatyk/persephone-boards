@@ -3,6 +3,16 @@
   "id": "gem-keep",
   "versions": [
     {
+      "version": "1.0.1",
+      "date": "2026-11-19",
+      "archive": {
+        "url": "https://github.com/andriy-viyatyk/persephone-boards/releases/download/gem-keep-v1.0.1/gem-keep.zip",
+        "size": 2595598,
+        "sha256": "548689d3f2813a00f43b7146e7edb7bc25b32f60148f26a8e1cc728567df523e"
+      },
+      "minAppVersion": "5.0.16"
+    },
+    {
       "version": "1.0.0",
       "date": "2026-11-04",
       "archive": {
